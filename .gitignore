@@ -1,0 +1,12 @@
+node_modules/
+.output/
+.wxt/
+dist/
+
+# env / secrets — 永不提交
+.env
+.env.*
+!.env.example
+*.local
+secrets.*
+*.key
