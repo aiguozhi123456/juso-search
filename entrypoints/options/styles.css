@@ -1,0 +1,24 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #fafafa;
+  color: #1a1a1a;
+}
+
+.options { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+.options h1 { font-size: 22px; }
+.options h2 { font-size: 15px; margin: 24px 0 8px; color: #444; }
+
+.options select { padding: 8px 10px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; }
+
+.hint { font-size: 12px; color: #777; margin: 0 0 12px; }
+
+.key-row { display: grid; grid-template-columns: 160px 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid #eee; }
+.key-row label { font-size: 14px; font-weight: 500; }
+.key-row .configured { color: #1a73e8; font-weight: 400; }
+.key-row input { padding: 8px 10px; font-size: 14px; border: 1px solid #ddd; border-radius: 8px; }
+.key-row button { padding: 8px 12px; font-size: 13px; border: 1px solid #ddd; background: #fff; border-radius: 8px; cursor: pointer; }
+.key-row button:disabled { opacity: 0.5; cursor: default; }
+.key-row .status { font-size: 12px; grid-column: 2 / -1; }
+.key-row .status.ok { color: #1e8e3e; }
+.key-row .status.fail { color: #b00020; }

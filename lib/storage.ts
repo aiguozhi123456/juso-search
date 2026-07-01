@@ -27,6 +27,12 @@ export async function getAllKeys(): Promise<Partial<Record<ProviderId, string>>>
   return readKeys() as Partial<Record<ProviderId, string>>;
 }
 
+/** 是否已配置某 provider 的 key（不回显明文，供设置页指示用）。 */
+export async function hasKey(id: ProviderId): Promise<boolean> {
+  const keys = await readKeys();
+  return Boolean(keys[id]);
+}
+
 export async function setKey(id: ProviderId, key: string): Promise<void> {
   const keys = await readKeys();
   keys[id] = key;
