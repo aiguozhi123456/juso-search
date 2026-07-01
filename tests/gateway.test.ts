@@ -86,7 +86,10 @@ describe('handleSearch', () => {
     mockedGetAdapter.mockReturnValue(fakeAdapter({ search: vi.fn().mockRejectedValue(new Error('boom')) }));
     const reply = await handleSearch('q');
     expect(reply.ok).toBe(false);
-    if (!reply.ok) expect(reply.error.kind).toBe('unknown');
+    if (!reply.ok) {
+      expect(reply.error.kind).toBe('unknown');
+      expect(reply.error.message).toBe('服务暂时不可用，请稍后重试');
+    }
   });
 });
 
@@ -110,6 +113,16 @@ describe('handleTestKey', () => {
     mockedGetKey.mockResolvedValue('k');
     mockedGetAdapter.mockReturnValue(
       fakeAdapter({ search: vi.fn().mockRejectedValue(new ProviderError('rateLimit', 'slow down', 429)) }),
+    );
+    const reply = await handleTestKey('tavily');
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('providerError');
+  });
+
+  it('coerces a generic error to providerError in testKey', async () => {
+    mockedGetKey.mockResolvedValue('k');
+    mockedGetAdapter.mockReturnValue(
+      fakeAdapter({ search: vi.fn().mockRejectedValue(new Error('unexpected')) }),
     );
     const reply = await handleTestKey('tavily');
     expect(reply.ok).toBe(false);

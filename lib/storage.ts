@@ -2,7 +2,7 @@ import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 
 // BYOK key 仅存 chrome.storage.local（R7 信任底线）。
-// ⚠️ getKey/getAllKeys 只应由 background service worker 调用；
+// ⚠️ getKey 只应由 background service worker 调用；
 //   搜索页/设置页不应直接读 key，仅由 worker 代理调 provider API。
 
 const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
@@ -17,14 +17,14 @@ async function readKeys(): Promise<Record<string, string>> {
   return (all[KEYS_KEY] ?? {}) as Record<string, string>;
 }
 
+function isKnownProvider(id: unknown): id is ProviderId {
+  return typeof id === 'string' && allProviders().some((p) => p.id === id);
+}
+
 /** 返回某 provider 的 key，未配置则 null。仅 worker 调用。 */
 export async function getKey(id: ProviderId): Promise<string | null> {
   const keys = await readKeys();
   return keys[id] ?? null;
-}
-
-export async function getAllKeys(): Promise<Partial<Record<ProviderId, string>>> {
-  return readKeys() as Partial<Record<ProviderId, string>>;
 }
 
 /** 是否已配置某 provider 的 key（不回显明文，供设置页指示用）。 */
@@ -46,13 +46,13 @@ export async function clearKey(id: ProviderId): Promise<void> {
 }
 
 /**
- * 有效激活 provider：显式选择优先；否则回退到首个已配 key 的 provider；都没有则 null。
- * 切换只影响后续查询（R3）。
+ * 有效激活 provider：显式选择优先（须为已知 provider）；否则回退到首个已配 key 的 provider；
+ * 都没有则 null。切换只影响后续查询（R3）。
  */
 export async function getActiveProviderId(): Promise<ProviderId | null> {
   const all = await readAll();
-  const stored = all[ACTIVE_KEY] as ProviderId | null | undefined;
-  if (stored) return stored;
+  const stored = all[ACTIVE_KEY];
+  if (isKnownProvider(stored)) return stored;
   const keys = await readKeys();
   return allProviders().find((p) => keys[p.id])?.id ?? null;
 }

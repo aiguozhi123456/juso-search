@@ -64,6 +64,19 @@ describe('search page', () => {
     await waitFor(() => expect(mockedSetActive).toHaveBeenCalledWith('exa'));
   });
 
+  it('shows a no-results message when results array is empty', async () => {
+    await doSearch({
+      ok: true,
+      response: {
+        query: 'q',
+        provider: 'tavily',
+        answer: { text: 'Ans', citations: [] },
+        results: [],
+      },
+    });
+    expect(await screen.findByText('无结果')).toBeInTheDocument();
+  });
+
   it('shows an open-settings affordance on keyMissing', async () => {
     await doSearch({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
     expect(await screen.findByText(/打开设置配置 API key/)).toBeInTheDocument();

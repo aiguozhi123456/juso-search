@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NormalizedSearchResponse, ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
@@ -16,21 +16,30 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<NormalizedSearchResponse | null>(null);
   const [error, setError] = useState<{ message: string; needKey: boolean } | null>(null);
+  const reqIdRef = useRef(0);
 
   useEffect(() => {
     void getActiveProviderId().then(setActive);
   }, []);
 
   async function handleSearch(query: string) {
+    const reqId = ++reqIdRef.current;
     setLoading(true);
     setError(null);
     setResponse(null);
-    const reply: SearchReply = await sendMessage('search', query);
-    setLoading(false);
-    if (reply.ok) {
-      setResponse(reply.response);
-    } else {
-      setError({ message: reply.error.message, needKey: reply.error.kind === 'keyMissing' });
+    try {
+      const reply: SearchReply = await sendMessage('search', query);
+      if (reqId !== reqIdRef.current) return; // 过期响应丢弃
+      if (reply.ok) {
+        setResponse(reply.response);
+      } else {
+        setError({ message: reply.error.message, needKey: reply.error.kind === 'keyMissing' });
+      }
+    } catch {
+      if (reqId !== reqIdRef.current) return;
+      setError({ message: '搜索失败，请稍后重试', needKey: false });
+    } finally {
+      if (reqId === reqIdRef.current) setLoading(false);
     }
   }
 

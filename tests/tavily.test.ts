@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { tavilyAdapter } from '@/lib/providers/tavily';
 import { ProviderError } from '@/lib/providers/types';
-
-function res(status: number, body: unknown): Response {
-  return { ok: status < 400, status, json: async () => body } as unknown as Response;
-}
+import { res } from './helpers';
 
 beforeEach(() => {
   vi.unstubAllGlobals();

@@ -6,7 +6,17 @@ export function ResultCard({ result }: { result: NormalizedResult }) {
   return (
     <article className="result-card">
       <div className="result-head">
-        {result.favicon && <img src={result.favicon} alt="" width={16} height={16} />}
+        {result.favicon && (
+          <img
+            src={result.favicon}
+            alt=""
+            width={16}
+            height={16}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
         <a href={result.url} target="_blank" rel="noreferrer" className="result-title">
           {result.title}
         </a>

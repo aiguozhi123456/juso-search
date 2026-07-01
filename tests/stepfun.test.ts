@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { stepfunAdapter } from '@/lib/providers/stepfun';
 import { ProviderError } from '@/lib/providers/types';
-
-function res(status: number, body: unknown): Response {
-  return { ok: status < 400, status, json: async () => body } as unknown as Response;
-}
+import { res } from './helpers';
 
 beforeEach(() => {
   vi.unstubAllGlobals();
@@ -54,5 +51,10 @@ describe('stepfunAdapter', () => {
     vi.stubGlobal('fetch', vi.fn(async () => res(401, {})));
     await expect(stepfunAdapter.search('q', {}, 'bad')).rejects.toBeInstanceOf(ProviderError);
     await expect(stepfunAdapter.search('q', {}, 'bad')).rejects.toMatchObject({ kind: 'unauthorized' });
+  });
+
+  it('maps network failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network'); }));
+    await expect(stepfunAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
   });
 });

@@ -1,7 +1,8 @@
 import { ProviderError } from './providers/types';
 
 // 最小 MCP streamableHttp 客户端（KTD7）。
-// Stepfun Step Plan 的 web_search 仅经 MCP 暴露；服务端无状态（无 Mcp-Session-Id）。
+// Stepfun Step Plan 的 web_search 仅经 MCP 暴露。探查显示该端点无状态（无 Mcp-Session-Id），
+// 但仍防御性地捕获并回传 session id，以兼容会话强制的服务端。
 // 协议：initialize（握手）→ tools/call。响应可能是 JSON 或 SSE，均解析。
 
 interface JsonRpcResponse<T> {
@@ -15,32 +16,47 @@ interface McpToolResult {
   content?: Array<{ type?: string; text?: string }>;
 }
 
-const HEADERS = (apiKey: string): Record<string, string> => ({
-  Authorization: `Bearer ${apiKey}`,
-  'Content-Type': 'application/json',
-  Accept: 'application/json, text/event-stream',
-  'MCP-Protocol-Version': '2025-06-18',
-});
+function headersFor(apiKey: string, sessionId?: string | null): Record<string, string> {
+  const h: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream',
+    'MCP-Protocol-Version': '2025-06-18',
+  };
+  if (sessionId) h['Mcp-Session-Id'] = sessionId;
+  return h;
+}
 
-/** 取最后一条 `data:` 行作为最终 JSON-RPC 结果（MCP 终止事件）。 */
+/**
+ * 解析 SSE：按空行切分事件；跳过 `event: ping`；取最后一个非 ping 事件的 data
+ * （同一事件多行 data 按 SSE 规范以 `\n` 拼接）。
+ */
 function parseSseEvent<T>(raw: string): JsonRpcResponse<T> {
-  const lines = raw.split('\n');
-  let lastData = '';
-  for (const line of lines) {
-    if (line.startsWith('data:')) lastData = line.slice(5).trim();
+  const events = raw.split(/\n\s*\n/);
+  let chosen: string | null = null;
+  for (const ev of events) {
+    const lines = ev.split('\n');
+    let eventType = 'message';
+    const dataParts: string[] = [];
+    for (const ln of lines) {
+      if (ln.startsWith('event:')) eventType = ln.slice(6).trim();
+      else if (ln.startsWith('data:')) dataParts.push(ln.slice(5).replace(/^ /, ''));
+    }
+    if (dataParts.length && eventType !== 'ping') chosen = dataParts.join('\n');
   }
-  if (!lastData) throw new Error('empty SSE');
-  return JSON.parse(lastData) as JsonRpcResponse<T>;
+  if (!chosen) throw new Error('empty SSE');
+  return JSON.parse(chosen) as JsonRpcResponse<T>;
 }
 
 async function rpc<T>(
   url: string,
   apiKey: string,
   payload: object,
-): Promise<T> {
+  sessionId?: string | null,
+): Promise<{ result: T; sessionId: string | null }> {
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers: HEADERS(apiKey), body: JSON.stringify(payload) });
+    res = await fetch(url, { method: 'POST', headers: headersFor(apiKey, sessionId), body: JSON.stringify(payload) });
   } catch {
     throw new ProviderError('network', 'MCP：网络错误，无法连接服务');
   }
@@ -49,6 +65,7 @@ async function rpc<T>(
   if (res.status === 429) throw new ProviderError('rateLimit', 'MCP：请求过频', res.status);
   if (res.status >= 400) throw new ProviderError('provider', `MCP：HTTP ${res.status}`, res.status);
 
+  const nextSessionId = res.headers.get('Mcp-Session-Id');
   const contentType = res.headers.get('content-type') ?? '';
   let envelope: JsonRpcResponse<T>;
   try {
@@ -61,7 +78,7 @@ async function rpc<T>(
   }
   if (envelope.error) throw new ProviderError('provider', `MCP：${envelope.error.message}`);
   if (!envelope.result) throw new ProviderError('provider', 'MCP：响应缺少 result');
-  return envelope.result;
+  return { result: envelope.result, sessionId: nextSessionId };
 }
 
 /**
@@ -69,16 +86,20 @@ async function rpc<T>(
  * （一个 JSON 字符串：{ query, category, results:[{url,position,title,time,snippet,content}] }）。
  */
 export async function mcpWebSearch(url: string, apiKey: string, query: string): Promise<string> {
-  await rpc(url, apiKey, {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {
-      protocolVersion: '2025-06-18',
-      capabilities: {},
-      clientInfo: { name: 'ai-search-for-humans', version: '0.1.0' },
+  const init = await rpc(
+    url,
+    apiKey,
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'ai-search-for-humans', version: '0.1.0' },
+      },
     },
-  });
+  );
 
   const tool = await rpc<McpToolResult>(
     url,
@@ -89,9 +110,10 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string): 
       method: 'tools/call',
       params: { name: 'web_search', arguments: { query } },
     },
+    init.sessionId,
   );
 
-  const text = tool.content?.[0]?.text;
+  const text = tool.result.content?.[0]?.text;
   if (!text) throw new ProviderError('parse', 'MCP：web_search 未返回文本');
   return text;
 }

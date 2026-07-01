@@ -17,13 +17,15 @@ export async function postJson<T>(
   } catch {
     throw new ProviderError('network', '网络错误：无法连接服务');
   }
-  let data: T;
+  // 非 2xx：保留状态码供 mapStatus 映射，不强制解析 body（错误体常为 HTML/纯文本）。
+  if (!res.ok) {
+    return { status: res.status, data: null as T };
+  }
   try {
-    data = (await res.json()) as T;
+    return { status: res.status, data: (await res.json()) as T };
   } catch {
     throw new ProviderError('parse', '响应解析失败');
   }
-  return { status: res.status, data };
 }
 
 /** 把 HTTP 状态码映射为 ProviderError；2xx 返回 null。 */

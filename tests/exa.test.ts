@@ -1,10 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { exaAdapter } from '@/lib/providers/exa';
 import { ProviderError } from '@/lib/providers/types';
-
-function res(status: number, body: unknown): Response {
-  return { ok: status < 400, status, json: async () => body } as unknown as Response;
-}
+import { res } from './helpers';
 
 beforeEach(() => {
   vi.unstubAllGlobals();
@@ -69,6 +66,20 @@ describe('exaAdapter', () => {
     expect(body.numResults).toBe(4);
     expect(body.outputSchema).toEqual({ type: 'text', description: expect.any(String) });
     expect(body.contents).toEqual({ text: true, highlights: true });
+  });
+
+  it('falls back to results as citations when grounding is absent', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => res(200, {
+      results: [{ title: 'A', url: 'https://a.com', highlights: ['x'] }],
+      output: { content: 'Ans' },
+    })));
+    const out = await exaAdapter.search('q', {}, 'k');
+    expect(out.answer?.citations).toEqual([{ url: 'https://a.com', title: 'A' }]);
+  });
+
+  it('maps network failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network'); }));
+    await expect(exaAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
   });
 
   it('maps 401 to unauthorized', async () => {

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getKey,
   setKey,
-  getAllKeys,
   clearKey,
+  hasKey,
   getActiveProviderId,
   setActiveProviderId,
 } from '@/lib/storage';
@@ -40,10 +40,11 @@ describe('storage: BYOK keys', () => {
     expect(await getKey('exa')).toBeNull();
   });
 
-  it('getAllKeys returns configured map', async () => {
+  it('hasKey reports whether a provider has a key', async () => {
     await setKey('tavily', 'tvly-1');
     await setKey('stepfun', 'sf-2');
-    expect(await getAllKeys()).toEqual({ tavily: 'tvly-1', stepfun: 'sf-2' });
+    expect(await hasKey('tavily')).toBe(true);
+    expect(await hasKey('exa')).toBe(false);
   });
 
   it('clearKey removes only that provider', async () => {
@@ -78,5 +79,20 @@ describe('storage: active provider', () => {
     await setKey('tavily', 'tvly-x');
     await setActiveProviderId('stepfun');
     expect(await getActiveProviderId()).toBe('stepfun');
+  });
+
+  it('falls back to first configured when stored active id is invalid', async () => {
+    // 直接向 mock 存储写一个不存在的 provider id
+    await browser.storage.local.set({ activeProvider: 'nonexistent' });
+    await setKey('exa', 'exa-x');
+    expect(await getActiveProviderId()).toBe('exa');
+  });
+
+  it('setActiveProviderId(null) falls back to first configured', async () => {
+    await setKey('exa', 'exa-x');
+    await setActiveProviderId('exa');
+    expect(await getActiveProviderId()).toBe('exa');
+    await setActiveProviderId(null);
+    expect(await getActiveProviderId()).toBe('exa');
   });
 });

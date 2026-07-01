@@ -60,4 +60,13 @@ describe('stepfunPlanAdapter', () => {
     await expect(stepfunPlanAdapter.search('q', {}, 'bad')).rejects.toBeInstanceOf(ProviderError);
     await expect(stepfunPlanAdapter.search('q', {}, 'bad')).rejects.toMatchObject({ kind: 'unauthorized' });
   });
+
+  it('maps non-JSON web_search response to parse error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (_url, init) => {
+      const b = JSON.parse(init.body as string);
+      if (b.method === 'initialize') return res(200, { jsonrpc: '2.0', id: 1, result: { capabilities: {} } });
+      return res(200, { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: '{bad json' }] } });
+    }));
+    await expect(stepfunPlanAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'parse' });
+  });
 });

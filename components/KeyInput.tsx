@@ -16,18 +16,33 @@ export function KeyInput({ provider }: { provider: ProviderAdapter }) {
 
   async function save() {
     setStatus({ kind: 'saving', message: '' });
-    await setKey(provider.id, val);
-    setConfigured(true);
-    setStatus({ kind: 'ok', message: '已保存' });
+    try {
+      await setKey(provider.id, val);
+      setConfigured(true);
+      setVal(''); // 明文用完即清，缩短在页面中的留存
+      setStatus({ kind: 'ok', message: '已保存' });
+    } catch {
+      setStatus({ kind: 'fail', message: '保存失败' });
+    }
   }
 
   async function test() {
     setStatus({ kind: 'testing', message: '' });
-    const reply = await sendMessage('testKey', provider.id);
-    setStatus(reply.ok ? { kind: 'ok', message: '验证通过' } : { kind: 'fail', message: reply.error.message });
+    try {
+      const reply = await sendMessage('testKey', provider.id);
+      setStatus(
+        reply.ok
+          ? { kind: 'ok', message: '验证通过' }
+          : { kind: 'fail', message: reply.error.message },
+      );
+    } catch {
+      setStatus({ kind: 'fail', message: '测试失败，请稍后重试' });
+    }
   }
 
   const busy = status.kind === 'saving' || status.kind === 'testing';
+  // 有未保存的输入时不允许"测试"（测试只校验已存储的 key）
+  const testDisabled = !configured || !!val || busy;
 
   return (
     <div className="key-row">
@@ -40,12 +55,13 @@ export function KeyInput({ provider }: { provider: ProviderAdapter }) {
         value={val}
         onChange={(e) => setVal(e.target.value)}
         placeholder={configured ? '输入新 key 覆盖' : '粘贴 API key'}
-        autoComplete="off"
+        autoComplete="new-password"
+        spellCheck={false}
       />
       <button onClick={save} disabled={!val || busy}>
         保存
       </button>
-      <button onClick={test} disabled={(!configured && !val) || busy}>
+      <button onClick={test} disabled={testDisabled}>
         测试
       </button>
       {busy && <span className="status">{status.kind === 'saving' ? '保存中…' : '测试中…'}</span>}

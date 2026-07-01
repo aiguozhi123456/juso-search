@@ -8,16 +8,16 @@ type SearchErrorReply = Extract<SearchReply, { ok: false }>;
 
 /** 搜索：worker 读 key（仅此处）→ 调激活 provider 的适配器 → 返回归一化结果或类型化错误。 */
 export async function handleSearch(query: string): Promise<SearchReply> {
-  const providerId = await getActiveProviderId();
-  if (!providerId) {
-    return { ok: false, error: { kind: 'keyMissing', message: '尚未配置任何 provider 的 API key' } };
-  }
-  const adapter = getAdapter(providerId);
-  const key = await getKey(providerId);
-  if (!key) {
-    return { ok: false, error: { kind: 'keyMissing', message: `${adapter.label}：尚未配置 API key` } };
-  }
   try {
+    const providerId = await getActiveProviderId();
+    if (!providerId) {
+      return { ok: false, error: { kind: 'keyMissing', message: '尚未配置任何 provider 的 API key' } };
+    }
+    const adapter = getAdapter(providerId);
+    const key = await getKey(providerId);
+    if (!key) {
+      return { ok: false, error: { kind: 'keyMissing', message: `${adapter.label}：尚未配置 API key` } };
+    }
     const response = await adapter.search(query, {}, key);
     return { ok: true, response };
   } catch (e) {
@@ -27,12 +27,12 @@ export async function handleSearch(query: string): Promise<SearchReply> {
 
 /** 设置页"测试 key"：最小查询验证连通性与鉴权。 */
 export async function handleTestKey(providerId: ProviderId): Promise<TestKeyReply> {
-  const adapter = getAdapter(providerId);
-  const key = await getKey(providerId);
-  if (!key) {
-    return { ok: false, error: { kind: 'keyMissing', message: `${adapter.label}：尚未配置 API key` } };
-  }
   try {
+    const adapter = getAdapter(providerId);
+    const key = await getKey(providerId);
+    if (!key) {
+      return { ok: false, error: { kind: 'keyMissing', message: `${adapter.label}：尚未配置 API key` } };
+    }
     await adapter.search('test', { maxResults: 1 }, key);
     return { ok: true };
   } catch (e) {
@@ -40,7 +40,7 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
     return {
       ok: false,
       error: {
-        kind: reply.error.kind === 'keyMissing' ? 'keyMissing' : 'providerError',
+        kind: 'providerError',
         message: reply.error.message,
       },
     };
@@ -54,5 +54,6 @@ function toSearchError(e: unknown): SearchErrorReply {
       error: { kind: 'providerError', message: e.message, providerErrorKind: e.kind },
     };
   }
-  return { ok: false, error: { kind: 'unknown', message: (e as Error)?.message ?? '未知错误' } };
+  // 不把原始异常信息透传到页面（避免未来 provider 错误体回显敏感数据）。
+  return { ok: false, error: { kind: 'unknown', message: '服务暂时不可用，请稍后重试' } };
 }
