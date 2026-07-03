@@ -18,6 +18,14 @@ body {
 }
 
 .app { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+.app--start {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
 
 .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .topbar h1 { font-size: 20px; margin: 0; }

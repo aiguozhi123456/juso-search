@@ -8,7 +8,7 @@ import { SearchBox } from '@/components/SearchBox';
 import { ProviderSwitcher } from '@/components/ProviderSwitcher';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
-import { Loading, Empty, ErrorState } from '@/components/States';
+import { Loading, ErrorState } from '@/components/States';
 
 export default function App() {
   const providers = allProviders();
@@ -52,8 +52,10 @@ export default function App() {
     browser.runtime.openOptionsPage();
   }
 
+  const isStart = !loading && !error && !response;
+
   return (
-    <div className="app">
+    <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1>AI Search</h1>
         <ProviderSwitcher providers={providers} active={active} onSwitch={handleSwitch} />
@@ -73,7 +75,6 @@ export default function App() {
             <ResultList results={response.results} />
           </>
         )}
-        {!loading && !error && !response && <Empty />}
       </main>
     </div>
   );
