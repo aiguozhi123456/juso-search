@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ProviderAdapter } from '@/lib/providers/types';
 import { hasKey, setKey } from '@/lib/storage';
 import { sendMessage } from '@/lib/messaging';
+import { t, MSG } from '@/lib/i18n';
 
 type Status = { kind: 'idle' | 'saving' | 'testing' | 'ok' | 'fail'; message: string };
 
@@ -20,9 +21,9 @@ export function KeyInput({ provider }: { provider: ProviderAdapter }) {
       await setKey(provider.id, val);
       setConfigured(true);
       setVal(''); // 明文用完即清，缩短在页面中的留存
-      setStatus({ kind: 'ok', message: '已保存' });
+      setStatus({ kind: 'ok', message: t(MSG.status_saved) });
     } catch {
-      setStatus({ kind: 'fail', message: '保存失败' });
+      setStatus({ kind: 'fail', message: t(MSG.status_save_failed) });
     }
   }
 
@@ -32,11 +33,11 @@ export function KeyInput({ provider }: { provider: ProviderAdapter }) {
       const reply = await sendMessage('testKey', provider.id);
       setStatus(
         reply.ok
-          ? { kind: 'ok', message: '验证通过' }
+          ? { kind: 'ok', message: t(MSG.status_validated) }
           : { kind: 'fail', message: reply.error.message },
       );
     } catch {
-      setStatus({ kind: 'fail', message: '测试失败，请稍后重试' });
+      setStatus({ kind: 'fail', message: t(MSG.status_test_failed) });
     }
   }
 
@@ -47,24 +48,24 @@ export function KeyInput({ provider }: { provider: ProviderAdapter }) {
   return (
     <div className="key-row">
       <label>
-        {provider.label}
-        {configured && <span className="configured"> · 已配置</span>}
+        {t(provider.label)}
+        {configured && <span className="configured">{t(MSG.configured_badge)}</span>}
       </label>
       <input
         type="password"
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder={configured ? '输入新 key 覆盖' : '粘贴 API key'}
+        placeholder={configured ? t(MSG.placeholder_new_key) : t(MSG.placeholder_paste_key)}
         autoComplete="new-password"
         spellCheck={false}
       />
       <button onClick={save} disabled={!val || busy}>
-        保存
+        {t(MSG.btn_save)}
       </button>
       <button onClick={test} disabled={testDisabled}>
-        测试
+        {t(MSG.btn_test)}
       </button>
-      {busy && <span className="status">{status.kind === 'saving' ? '保存中…' : '测试中…'}</span>}
+      {busy && <span className="status">{status.kind === 'saving' ? t(MSG.status_saving) : t(MSG.status_testing)}</span>}
       {!busy && status.message && <span className={`status ${status.kind}`}>{status.message}</span>}
     </div>
   );

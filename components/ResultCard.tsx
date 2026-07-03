@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { NormalizedResult } from '@/lib/providers/types';
+import { t, MSG } from '@/lib/i18n';
 
 export function ResultCard({ result }: { result: NormalizedResult }) {
   const [open, setOpen] = useState(false);
@@ -26,7 +27,7 @@ export function ResultCard({ result }: { result: NormalizedResult }) {
       {result.content && (
         <>
           <button className="toggle" onClick={() => setOpen((o) => !o)}>
-            {open ? '收起正文' : '展开正文'}
+            {open ? t(MSG.collapse) : t(MSG.expand)}
           </button>
           {open && <div className="result-content">{result.content}</div>}
         </>

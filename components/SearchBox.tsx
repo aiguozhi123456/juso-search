@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { t, MSG } from '@/lib/i18n';
 
 interface Props {
   onSearch: (query: string) => void;
@@ -18,12 +19,12 @@ export function SearchBox({ onSearch, loading }: Props) {
         type="text"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="输入搜索词…"
+        placeholder={t(MSG.search_placeholder)}
         autoFocus
-        aria-label="搜索词"
+        aria-label={t(MSG.search_aria)}
       />
       <button type="submit" disabled={loading}>
-        {loading ? '搜索中…' : '搜索'}
+        {loading ? t(MSG.btn_searching) : t(MSG.btn_search)}
       </button>
     </form>
   );

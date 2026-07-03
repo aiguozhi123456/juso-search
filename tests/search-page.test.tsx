@@ -13,6 +13,29 @@ vi.mock('@/lib/storage', () => ({
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
+// i18n：返回中文文案，保持现有断言不变（key→value 与 _locales/zh_CN 一致）
+vi.mock('@/lib/i18n', () => {
+  const zh: Record<string, string> = {
+    search_page_title: 'AI Search',
+    search_placeholder: '输入搜索词…',
+    search_aria: '搜索词',
+    btn_search: '搜索',
+    btn_searching: '搜索中…',
+    state_loading: '搜索中…',
+    no_results: '无结果',
+    open_settings_cta: '打开设置配置 API key',
+    search_failed_retry: '搜索失败，请稍后重试',
+    provider_tavily: 'Tavily',
+    provider_exa: 'Exa',
+    provider_stepfun: 'Stepfun 按量',
+    provider_stepfun_plan: 'Stepfun Step Plan',
+  };
+  return {
+    t: (name: string) => zh[name] ?? name,
+    getUILanguage: () => 'zh_CN',
+    MSG: new Proxy({}, { get: (_t, prop) => prop }),
+  };
+});
 vi.stubGlobal('browser', { runtime: { openOptionsPage: vi.fn() } });
 
 const mockedSend = vi.mocked(sendMessage);

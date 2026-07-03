@@ -5,11 +5,12 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'AI Search for Humans',
-    description: '把已付费的 AI 搜索 API（Tavily / Exa / Stepfun）变成人类用的干净搜索引擎',
+    default_locale: 'zh_CN',
+    name: '__MSG_ext_name__',
+    description: '__MSG_ext_description__',
     version: '0.1.0',
     action: {
-      default_title: 'AI Search for Humans',
+      default_title: '__MSG_ext_name__',
     },
     permissions: ['storage'],
     host_permissions: [

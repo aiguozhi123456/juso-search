@@ -7,6 +7,7 @@ import type {
 } from './types';
 import { ProviderError } from './types';
 import { mapStatus, postJson } from './http';
+import { t } from '@/lib/i18n';
 
 // POST https://api.tavily.com/search (Bearer)
 // include_answer=true -> answer 字符串；results[].content 是短摘要（snippet）。
@@ -25,7 +26,7 @@ interface TavilyResponse {
 }
 
 const ENDPOINT = 'https://api.tavily.com/search';
-const LABEL = 'Tavily';
+const LABEL = 'provider_tavily';
 
 export const tavilyAdapter: ProviderAdapter = {
   id: 'tavily',
@@ -48,7 +49,7 @@ export const tavilyAdapter: ProviderAdapter = {
       }),
     });
 
-    const err = mapStatus(status, LABEL);
+    const err = mapStatus(status, t(LABEL));
     if (err) throw err;
 
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({

@@ -88,7 +88,7 @@ describe('handleSearch', () => {
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.kind).toBe('unknown');
-      expect(reply.error.message).toBe('服务暂时不可用，请稍后重试');
+      expect(reply.error.message).toBe('error_service_unavailable'); // i18n key（无 browser.i18n 时回退）
     }
   });
 });

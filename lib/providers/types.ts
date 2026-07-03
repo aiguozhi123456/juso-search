@@ -37,6 +37,7 @@ export interface SearchOptions {
 
 export interface ProviderAdapter {
   id: ProviderId;
+  /** provider 显示标签的 i18n 消息名（渲染处用 t() 解析）。 */
   label: string;
   /** Tavily/Exa 支持；Stepfun 两面均不支持 */
   supportsAnswer: boolean;

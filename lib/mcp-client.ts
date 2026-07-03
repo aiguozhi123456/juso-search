@@ -1,4 +1,5 @@
 import { ProviderError } from './providers/types';
+import { t, MSG } from './i18n';
 
 // 最小 MCP streamableHttp 客户端（KTD7）。
 // Stepfun Step Plan 的 web_search 仅经 MCP 暴露。探查显示该端点无状态（无 Mcp-Session-Id），
@@ -58,12 +59,12 @@ async function rpc<T>(
   try {
     res = await fetch(url, { method: 'POST', headers: headersFor(apiKey, sessionId), body: JSON.stringify(payload) });
   } catch {
-    throw new ProviderError('network', 'MCP：网络错误，无法连接服务');
+    throw new ProviderError('network', t(MSG.error_mcp_network));
   }
   if (res.status === 401 || res.status === 403)
-    throw new ProviderError('unauthorized', 'MCP：无效或缺失 API key', res.status);
-  if (res.status === 429) throw new ProviderError('rateLimit', 'MCP：请求过频', res.status);
-  if (res.status >= 400) throw new ProviderError('provider', `MCP：HTTP ${res.status}`, res.status);
+    throw new ProviderError('unauthorized', t(MSG.error_mcp_unauthorized), res.status);
+  if (res.status === 429) throw new ProviderError('rateLimit', t(MSG.error_mcp_rate_limit), res.status);
+  if (res.status >= 400) throw new ProviderError('provider', t(MSG.error_mcp_http, String(res.status)), res.status);
 
   const nextSessionId = res.headers.get('Mcp-Session-Id');
   const contentType = res.headers.get('content-type') ?? '';
@@ -74,10 +75,10 @@ async function rpc<T>(
       ? parseSseEvent<T>(raw)
       : (JSON.parse(raw) as JsonRpcResponse<T>);
   } catch {
-    throw new ProviderError('parse', 'MCP：响应解析失败');
+    throw new ProviderError('parse', t(MSG.error_mcp_parse));
   }
-  if (envelope.error) throw new ProviderError('provider', `MCP：${envelope.error.message}`);
-  if (!envelope.result) throw new ProviderError('provider', 'MCP：响应缺少 result');
+  if (envelope.error) throw new ProviderError('provider', t(MSG.error_mcp_upstream, envelope.error.message));
+  if (!envelope.result) throw new ProviderError('provider', t(MSG.error_mcp_no_result));
   return { result: envelope.result, sessionId: nextSessionId };
 }
 
@@ -114,6 +115,6 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string): 
   );
 
   const text = tool.result.content?.[0]?.text;
-  if (!text) throw new ProviderError('parse', 'MCP：web_search 未返回文本');
+  if (!text) throw new ProviderError('parse', t(MSG.error_mcp_no_text));
   return text;
 }

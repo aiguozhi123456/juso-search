@@ -6,6 +6,7 @@ import type {
 } from './types';
 import { ProviderError } from './types';
 import { mcpWebSearch } from '../mcp-client';
+import { t, MSG } from '@/lib/i18n';
 
 // Stepfun Step Plan（订阅）：经 MCP web_search tool-call，复用月度 Credit。
 // web_search 返回的 text 与按量 REST /v1/search 同构（探查确认），无综合答案。
@@ -23,7 +24,7 @@ interface StepfunPayload {
 }
 
 const ENDPOINT = 'https://api.stepfun.com/step_plan/v1/mcp/web_search/mcp';
-const LABEL = 'Stepfun Step Plan';
+const LABEL = 'provider_stepfun_plan';
 
 export const stepfunPlanAdapter: ProviderAdapter = {
   id: 'stepfun-plan',
@@ -39,7 +40,7 @@ export const stepfunPlanAdapter: ProviderAdapter = {
     try {
       payload = JSON.parse(text) as StepfunPayload;
     } catch {
-      throw new ProviderError('parse', 'MCP：web_search 结果解析失败');
+      throw new ProviderError('parse', t(MSG.error_mcp_parse));
     }
     const results: NormalizedResult[] = (payload.results ?? []).map((r) => ({
       title: r.title,

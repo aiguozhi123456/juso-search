@@ -4,6 +4,7 @@ import { allProviders } from '@/lib/providers/registry';
 import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
   const providers = allProviders();
@@ -21,28 +22,28 @@ export default function App() {
   return (
     <div className="options">
       <div className="options-header">
-        <h1>AI Search · 设置</h1>
+        <h1>{t(MSG.opts_title)}</h1>
         <ThemeToggle />
       </div>
 
       <section>
-        <h2>激活的搜索引擎</h2>
+        <h2>{t(MSG.opts_active_engine)}</h2>
         <select value={active ?? ''} onChange={(e) => choose(e.target.value as ProviderId)}>
           <option value="" disabled>
-            选择…
+            {t(MSG.opts_choose_placeholder)}
           </option>
           {providers.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.label}
-              {p.supportsAnswer ? '' : '（无 AI 答案）'}
+              {t(p.label)}
+              {p.supportsAnswer ? '' : t(MSG.opts_no_ai_answer)}
             </option>
           ))}
         </select>
       </section>
 
       <section>
-        <h2>API Key（BYOK，仅存本地）</h2>
-        <p className="hint">key 只保存在本机 chrome.storage.local，仅由后台脚本发往所选 provider，不会上传第三方。</p>
+        <h2>{t(MSG.opts_apikey_heading)}</h2>
+        <p className="hint">{t(MSG.opts_apikey_hint)}</p>
         {providers.map((p) => (
           <KeyInput key={p.id} provider={p} />
         ))}

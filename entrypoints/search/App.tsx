@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
+import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
   const providers = allProviders();
@@ -39,7 +40,7 @@ export default function App() {
       }
     } catch {
       if (reqId !== reqIdRef.current) return;
-      setError({ message: '搜索失败，请稍后重试', needKey: false });
+      setError({ message: t(MSG.search_failed_retry), needKey: false });
     } finally {
       if (reqId === reqIdRef.current) setLoading(false);
     }
@@ -59,7 +60,7 @@ export default function App() {
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
-        <h1>AI Search</h1>
+        <h1>{t(MSG.search_page_title)}</h1>
         <ProviderSwitcher providers={providers} active={active} onSwitch={handleSwitch} />
         <div className="topbar-actions">
           <ThemeToggle />

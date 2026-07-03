@@ -6,6 +6,7 @@ import type {
   SearchOptions,
 } from './types';
 import { mapStatus, postJson } from './http';
+import { t } from '@/lib/i18n';
 
 // POST https://api.exa.ai/search (x-api-key)
 // outputSchema:{type:'text'} -> output.content（综合答案）+ output.grounding（字段级引用）
@@ -35,7 +36,7 @@ interface ExaResponse {
 }
 
 const ENDPOINT = 'https://api.exa.ai/search';
-const LABEL = 'Exa';
+const LABEL = 'provider_exa';
 
 export const exaAdapter: ProviderAdapter = {
   id: 'exa',
@@ -60,7 +61,7 @@ export const exaAdapter: ProviderAdapter = {
       }),
     });
 
-    const err = mapStatus(status, LABEL);
+    const err = mapStatus(status, t(LABEL));
     if (err) throw err;
 
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({

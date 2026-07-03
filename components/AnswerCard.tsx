@@ -1,9 +1,10 @@
 import type { NormalizedAnswer } from '@/lib/providers/types';
+import { t, MSG } from '@/lib/i18n';
 
 export function AnswerCard({ answer }: { answer: NormalizedAnswer }) {
   return (
     <section className="answer-card">
-      <h3>AI 回答</h3>
+      <h3>{t(MSG.answer_heading)}</h3>
       <p className="answer-text">{answer.text}</p>
       {answer.citations.length > 0 && (
         <ul className="citations">

@@ -1,4 +1,5 @@
 import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
+import { t, MSG } from '@/lib/i18n';
 
 interface Props {
   providers: ProviderAdapter[];
@@ -14,10 +15,10 @@ export function ProviderSwitcher({ providers, active, onSwitch }: Props) {
           key={p.id}
           className={p.id === active ? 'active' : ''}
           onClick={() => onSwitch(p.id)}
-          title={p.supportsAnswer ? '支持 AI 综合答案' : '仅结果（无 AI 综合答案）'}
+          title={p.supportsAnswer ? t(MSG.tooltip_supports_answer) : t(MSG.tooltip_no_answer)}
         >
-          {p.label}
-          {!p.supportsAnswer && <span className="no-answer"> · 无答案</span>}
+          {t(p.label)}
+          {!p.supportsAnswer && <span className="no-answer">{t(MSG.provider_no_answer_badge)}</span>}
         </button>
       ))}
     </div>
