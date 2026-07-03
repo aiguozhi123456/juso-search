@@ -38,6 +38,14 @@ body {
 .provider-switcher button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .provider-switcher .no-answer { font-size: 11px; opacity: 0.7; }
 
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.settings-button {
+  width: 34px; height: 34px; padding: 0; font-size: 16px; line-height: 1;
+  border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  cursor: pointer; color: var(--muted);
+}
+.settings-button:hover { color: var(--accent); border-color: var(--accent); }
+
 .search-box { display: flex; gap: 8px; margin-bottom: 20px; }
 .search-box input {
   flex: 1; padding: 10px 14px; font-size: 15px; border: 1px solid var(--border);
