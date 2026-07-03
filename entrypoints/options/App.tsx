@@ -3,6 +3,7 @@ import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
 import { KeyInput } from '@/components/KeyInput';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function App() {
   const providers = allProviders();
@@ -19,7 +20,10 @@ export default function App() {
 
   return (
     <div className="options">
-      <h1>AI Search · 设置</h1>
+      <div className="options-header">
+        <h1>AI Search · 设置</h1>
+        <ThemeToggle />
+      </div>
 
       <section>
         <h2>激活的搜索引擎</h2>

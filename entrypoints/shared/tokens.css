@@ -1,0 +1,60 @@
+/* 共享设计令牌：light 默认、[data-theme="dark"] 显式深色、
+   prefers-color-scheme:dark 时跟随系统（除非显式选 light）。
+   两个入口页 main.tsx 在各自 styles.css 之前 import 本文件。 */
+
+:root {
+  --bg: #ffffff;
+  --bg-soft: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --border: #e3e3e3;
+  --border-soft: #eee;
+  --accent: #1a73e8;
+  --on-accent: #ffffff;
+  --answer-bg: #f0f6ff;
+  --answer-border: #c2d9ff;
+  --success: #1e8e3e;
+  --error: #b00020;
+}
+
+:root[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --bg-soft: #141414;
+  --fg: #e8e8e8;
+  --muted: #9aa0a6;
+  --border: #3c4043;
+  --border-soft: #2a2a2a;
+  --accent: #8ab4f8;
+  --on-accent: #06223f;
+  --answer-bg: #1b2a3a;
+  --answer-border: #2d4a6b;
+  --success: #81c995;
+  --error: #f28b82;
+}
+
+/* 跟随系统：仅当未显式选择 light 时，按系统偏好切到深色。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1a1a;
+    --bg-soft: #141414;
+    --fg: #e8e8e8;
+    --muted: #9aa0a6;
+    --border: #3c4043;
+    --border-soft: #2a2a2a;
+    --accent: #8ab4f8;
+    --on-accent: #06223f;
+    --answer-bg: #1b2a3a;
+    --answer-border: #2d4a6b;
+    --success: #81c995;
+    --error: #f28b82;
+  }
+}
+
+/* 共享组件样式：主题切换器（搜索页顶栏 + 设置页头部复用） */
+.theme-toggle { display: inline-flex; gap: 4px; }
+.theme-toggle button {
+  width: 30px; height: 30px; padding: 0; font-size: 14px; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg); border-radius: 8px;
+  cursor: pointer; color: var(--muted);
+}
+.theme-toggle button.active { border-color: var(--accent); color: var(--accent); }

@@ -1,12 +1,4 @@
-:root {
-  --bg: #ffffff;
-  --fg: #1a1a1a;
-  --muted: #666;
-  --border: #e3e3e3;
-  --accent: #1a73e8;
-  --answer-bg: #f0f6ff;
-  --answer-border: #c2d9ff;
-}
+/* 设计令牌（含暗色）见 entrypoints/shared/tokens.css */
 
 * { box-sizing: border-box; }
 
@@ -32,7 +24,7 @@ body {
 
 .provider-switcher { display: flex; gap: 6px; flex-wrap: wrap; }
 .provider-switcher button {
-  border: 1px solid var(--border); background: #fff; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg); border-radius: 999px;
   padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
 }
 .provider-switcher button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
@@ -41,7 +33,7 @@ body {
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .settings-button {
   width: 34px; height: 34px; padding: 0; font-size: 16px; line-height: 1;
-  border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); border-radius: 8px;
   cursor: pointer; color: var(--muted);
 }
 .settings-button:hover { color: var(--accent); border-color: var(--accent); }
@@ -54,7 +46,7 @@ body {
 .search-box input:focus { border-color: var(--accent); }
 .search-box button {
   padding: 10px 18px; font-size: 14px; border: none; border-radius: 8px;
-  background: var(--accent); color: #fff; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); cursor: pointer;
 }
 .search-box button:disabled { opacity: 0.6; cursor: default; }
 
@@ -75,10 +67,10 @@ body {
 .result-title { font-size: 17px; color: var(--accent); text-decoration: none; font-weight: 500; }
 .result-title:hover { text-decoration: underline; }
 .result-url { font-size: 12px; color: var(--muted); margin: 1px 0 4px 22px; }
-.result-snippet { font-size: 14px; line-height: 1.55; color: #333; margin: 0; }
-.result-content { font-size: 13px; line-height: 1.6; color: #444; margin-top: 8px; white-space: pre-wrap; }
+.result-snippet { font-size: 14px; line-height: 1.55; color: var(--fg); margin: 0; }
+.result-content { font-size: 13px; line-height: 1.6; color: var(--muted); margin-top: 8px; white-space: pre-wrap; }
 .toggle { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 4px 0; }
 
 .state { color: var(--muted); padding: 24px 0; text-align: center; }
-.state.error { color: #b00020; }
-.state.error button { display: block; margin: 12px auto 0; padding: 8px 14px; border: none; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+.state.error { color: var(--error); }
+.state.error button { display: block; margin: 12px auto 0; padding: 8px 14px; border: none; border-radius: 8px; background: var(--accent); color: var(--on-accent); cursor: pointer; }

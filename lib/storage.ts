@@ -7,6 +7,9 @@ import { allProviders } from './providers/registry';
 
 const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
 const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
+const THEME_KEY = 'themePref'; // ThemePref
+
+export type ThemePref = 'auto' | 'light' | 'dark';
 
 async function readAll(): Promise<Record<string, unknown>> {
   return browser.storage.local.get(null) as Promise<Record<string, unknown>>;
@@ -59,4 +62,15 @@ export async function getActiveProviderId(): Promise<ProviderId | null> {
 
 export async function setActiveProviderId(id: ProviderId | null): Promise<void> {
   await browser.storage.local.set({ [ACTIVE_KEY]: id });
+}
+
+/** 主题偏好：auto（跟随系统，默认）/ light / dark。 */
+export async function getThemePref(): Promise<ThemePref> {
+  const all = await readAll();
+  const stored = all[THEME_KEY];
+  return stored === 'light' || stored === 'dark' ? stored : 'auto';
+}
+
+export async function setThemePref(pref: ThemePref): Promise<void> {
+  await browser.storage.local.set({ [THEME_KEY]: pref });
 }

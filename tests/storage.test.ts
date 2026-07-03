@@ -6,6 +6,8 @@ import {
   hasKey,
   getActiveProviderId,
   setActiveProviderId,
+  getThemePref,
+  setThemePref,
 } from '@/lib/storage';
 
 // 内存版 chrome.storage.local，仅实现 storage.ts 用到的 get(null)/set。
@@ -94,5 +96,25 @@ describe('storage: active provider', () => {
     expect(await getActiveProviderId()).toBe('exa');
     await setActiveProviderId(null);
     expect(await getActiveProviderId()).toBe('exa');
+  });
+});
+
+describe('storage: theme pref', () => {
+  it('defaults to auto', async () => {
+    expect(await getThemePref()).toBe('auto');
+  });
+
+  it('round-trips explicit prefs', async () => {
+    await setThemePref('dark');
+    expect(await getThemePref()).toBe('dark');
+    await setThemePref('light');
+    expect(await getThemePref()).toBe('light');
+    await setThemePref('auto');
+    expect(await getThemePref()).toBe('auto');
+  });
+
+  it('rejects unknown stored values, falling back to auto', async () => {
+    await browser.storage.local.set({ themePref: 'neon' });
+    expect(await getThemePref()).toBe('auto');
   });
 });

@@ -11,6 +11,10 @@ vi.mock('@/lib/storage', () => ({
   setKey: vi.fn(),
   hasKey: vi.fn(),
 }));
+// 主题逻辑由 useTheme 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
+vi.mock('@/lib/useTheme', () => ({
+  useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
+}));
 
 const mockedSend = vi.mocked(sendMessage);
 const mockedGetActive = vi.mocked(getActiveProviderId);

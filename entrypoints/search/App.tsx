@@ -7,6 +7,7 @@ import type { SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
 import { ProviderSwitcher } from '@/components/ProviderSwitcher';
 import { SettingsButton } from '@/components/SettingsButton';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
@@ -61,6 +62,7 @@ export default function App() {
         <h1>AI Search</h1>
         <ProviderSwitcher providers={providers} active={active} onSwitch={handleSwitch} />
         <div className="topbar-actions">
+          <ThemeToggle />
           <SettingsButton onClick={openSettings} />
         </div>
       </header>
