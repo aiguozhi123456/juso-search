@@ -64,10 +64,11 @@ export async function setActiveProviderId(id: ProviderId | null): Promise<void> 
   await browser.storage.local.set({ [ACTIVE_KEY]: id });
 }
 
-/** 主题偏好：auto（跟随系统，默认）/ light / dark。 */
+/** 主题偏好：auto（跟随系统，默认）/ light / dark。
+ *  仅读 THEME_KEY，不 get(null)，避免把 BYOK providerKeys 读入页面内存（R7 信任底线）。 */
 export async function getThemePref(): Promise<ThemePref> {
-  const all = await readAll();
-  const stored = all[THEME_KEY];
+  const got = await browser.storage.local.get(THEME_KEY);
+  const stored = got[THEME_KEY];
   return stored === 'light' || stored === 'dark' ? stored : 'auto';
 }
 

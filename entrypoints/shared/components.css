@@ -1,0 +1,11 @@
+/* 共享组件样式：跨入口页复用的组件类（与设计令牌分离，见 tokens.css）。
+   两个入口页 main.tsx 在 tokens.css 之后、各自 styles.css 之前 import 本文件。 */
+
+/* 主题切换器（搜索页顶栏 + 设置页头部复用） */
+.theme-toggle { display: inline-flex; gap: 4px; }
+.theme-toggle button {
+  width: 30px; height: 30px; padding: 0; font-size: 14px; line-height: 1;
+  border: 1px solid var(--border); background: var(--bg); border-radius: 8px;
+  cursor: pointer; color: var(--muted);
+}
+.theme-toggle button.active { border-color: var(--accent); color: var(--accent); }

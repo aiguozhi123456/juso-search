@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import '../shared/tokens.css';
+import '../shared/components.css';
 import './styles.css';
 import { getUILanguage, t, MSG } from '@/lib/i18n';
 
