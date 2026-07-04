@@ -17,6 +17,8 @@ WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`b
 
 详见 `docs/plans/2026-07-01-001-product-ai-search-for-humans-plan.md`。
 
+- `CONCEPTS.md` — 项目领域词汇（实体、命名流程、状态概念），阅读代码前可先查阅
+- `docs/solutions/` — 已记录的问题解决方案，按类别组织，YAML frontmatter 含 module/tags/problem_type
 - `lib/providers/` — 四个适配器（tavily/exa/stepfun/stepfun-plan）归一化为统一模型；共享 `http.ts`（REST）+ `mcp-client.ts`（Step Plan MCP）
 - `lib/gateway.ts` — worker 处理器（key 仅 worker 读）；`lib/messaging.ts`（@webext-core/messaging，ok/error 判别联合）
 - `lib/storage.ts` — `chrome.storage.local` BYOK（key 读函数按约定仅 worker 调用）
