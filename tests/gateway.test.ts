@@ -22,7 +22,7 @@ const mockedGetAdapter = vi.mocked(getAdapter);
 function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter {
   return {
     id: 'tavily',
-    label: 'Tavily',
+    label: 'provider_tavily', // i18n 消息名（不再是显示串）
     supportsAnswer: true,
     search: vi.fn().mockResolvedValue({ query: 'q', provider: 'tavily', results: [] }),
     ...overrides,
@@ -58,7 +58,7 @@ describe('handleSearch', () => {
   it('returns keyMissing when active provider has no key', async () => {
     mockedGetActive.mockResolvedValue('stepfun');
     mockedGetKey.mockResolvedValue(null);
-    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'stepfun', label: 'Stepfun 按量' }));
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'stepfun', label: 'provider_stepfun' }));
     const reply = await handleSearch('q');
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');

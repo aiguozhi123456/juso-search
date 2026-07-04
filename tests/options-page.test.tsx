@@ -15,33 +15,15 @@ vi.mock('@/lib/storage', () => ({
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
-// i18n：返回中文文案，保持现有断言不变（key→value 与 _locales/zh_CN 一致）
-vi.mock('@/lib/i18n', () => {
-  const zh: Record<string, string> = {
-    opts_title: 'AI Search · 设置',
-    opts_active_engine: '激活的搜索引擎',
-    opts_choose_placeholder: '选择…',
-    opts_no_ai_answer: '（无 AI 答案）',
-    opts_apikey_heading: 'API Key（BYOK，仅存本地）',
-    opts_apikey_hint: 'key 只保存在本机 chrome.storage.local，仅由后台脚本发往所选 provider，不会上传第三方。',
-    status_saved: '已保存',
-    status_save_failed: '保存失败',
-    status_validated: '验证通过',
-    status_test_failed: '测试失败，请稍后重试',
-    status_saving: '保存中…',
-    status_testing: '测试中…',
-    configured_badge: ' · 已配置',
-    placeholder_new_key: '输入新 key 覆盖',
-    placeholder_paste_key: '粘贴 API key',
-    btn_save: '保存',
-    btn_test: '测试',
-    provider_tavily: 'Tavily',
-    provider_exa: 'Exa',
-    provider_stepfun: 'Stepfun 按量',
-    provider_stepfun_plan: 'Stepfun Step Plan',
-  };
+// i18n：从真实 zh_CN/messages.json 构造映射（单一事实源，避免手抄漂移）。
+// 真实文案见 tests/i18n-parity.test.ts 的 MSG↔locale 一致性守卫。
+vi.mock('@/lib/i18n', async () => {
+  const mod = (await import('../public/_locales/zh_CN/messages.json')) as unknown as {
+    default?: Record<string, { message: string }>;
+  } & Record<string, { message: string }>;
+  const zh: Record<string, { message: string }> = mod.default ?? mod;
   return {
-    t: (name: string) => zh[name] ?? name,
+    t: (name: string) => zh[name]?.message ?? name,
     getUILanguage: () => 'zh_CN',
     MSG: new Proxy({}, { get: (_t, prop) => prop }),
   };

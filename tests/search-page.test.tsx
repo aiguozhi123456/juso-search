@@ -13,30 +13,21 @@ vi.mock('@/lib/storage', () => ({
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
-// i18n：返回中文文案，保持现有断言不变（key→value 与 _locales/zh_CN 一致）
-vi.mock('@/lib/i18n', () => {
-  const zh: Record<string, string> = {
-    search_page_title: 'AI Search',
-    search_placeholder: '输入搜索词…',
-    search_aria: '搜索词',
-    btn_search: '搜索',
-    btn_searching: '搜索中…',
-    state_loading: '搜索中…',
-    no_results: '无结果',
-    open_settings_cta: '打开设置配置 API key',
-    search_failed_retry: '搜索失败，请稍后重试',
-    provider_tavily: 'Tavily',
-    provider_exa: 'Exa',
-    provider_stepfun: 'Stepfun 按量',
-    provider_stepfun_plan: 'Stepfun Step Plan',
-  };
+// i18n：从真实 zh_CN/messages.json 构造映射（单一事实源，避免手抄漂移）。
+// 真实文案见 tests/i18n-parity.test.ts 的 MSG↔locale 一致性守卫。
+vi.mock('@/lib/i18n', async () => {
+  const mod = (await import('../public/_locales/zh_CN/messages.json')) as unknown as {
+    default?: Record<string, { message: string }>;
+  } & Record<string, { message: string }>;
+  const zh: Record<string, { message: string }> = mod.default ?? mod;
   return {
-    t: (name: string) => zh[name] ?? name,
+    t: (name: string) => zh[name]?.message ?? name,
     getUILanguage: () => 'zh_CN',
     MSG: new Proxy({}, { get: (_t, prop) => prop }),
   };
 });
-vi.stubGlobal('browser', { runtime: { openOptionsPage: vi.fn() } });
+const openOptionsPage = vi.fn();
+vi.stubGlobal('browser', { runtime: { openOptionsPage } });
 
 const mockedSend = vi.mocked(sendMessage);
 const mockedGetActive = vi.mocked(getActiveProviderId);
@@ -117,5 +108,12 @@ describe('search page', () => {
     });
     expect(await screen.findByText('无效 key')).toBeInTheDocument();
     expect(screen.queryByText(/打开设置/)).not.toBeInTheDocument();
+  });
+
+  it('clicking the topbar settings button opens the options page', async () => {
+    render(<App />);
+    const settingsBtn = await screen.findByRole('button', { name: '设置' });
+    fireEvent.click(settingsBtn);
+    await waitFor(() => expect(openOptionsPage).toHaveBeenCalled());
   });
 });

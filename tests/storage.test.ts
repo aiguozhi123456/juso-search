@@ -10,7 +10,7 @@ import {
   setThemePref,
 } from '@/lib/storage';
 
-// 内存版 chrome.storage.local，仅实现 storage.ts 用到的 get(null)/set。
+// 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(key)/set。
 function installStorage(): void {
   const store = new Map<string, unknown>();
   vi.stubGlobal('browser', {
@@ -18,6 +18,9 @@ function installStorage(): void {
       local: {
         async get(keys: unknown) {
           if (keys === null || keys === undefined) return Object.fromEntries(store);
+          if (typeof keys === 'string') {
+            return store.has(keys) ? { [keys]: store.get(keys) } : {};
+          }
           return {};
         },
         async set(items: Record<string, unknown>) {
