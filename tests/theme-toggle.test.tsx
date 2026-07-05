@@ -19,8 +19,8 @@ function renderWith(pref: 'auto' | 'light' | 'dark') {
 describe('ThemeToggle', () => {
   it('renders three buttons (auto/light/dark)', () => {
     renderWith('auto');
-    // 无 i18n mock 时 t() 回退为键名 theme_group
-    const group = screen.getByRole('group', { name: 'theme_group' });
+    // i18n 用真实查表（默认 zh_CN），theme_group → "主题"
+    const group = screen.getByRole('group', { name: '主题' });
     expect(group.querySelectorAll('button')).toHaveLength(3);
   });
 

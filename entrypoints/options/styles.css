@@ -9,6 +9,7 @@ body {
 
 .options { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
 .options-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.options-toggles { display: flex; align-items: center; gap: 10px; }
 .options h1 { font-size: 22px; }
 .options h2 { font-size: 15px; margin: 24px 0 8px; color: var(--muted); }
 

@@ -8,8 +8,10 @@ import { allProviders } from './providers/registry';
 const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
 const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
 const THEME_KEY = 'themePref'; // ThemePref
+const LOCALE_KEY = 'localePref'; // LocalePref
 
 export type ThemePref = 'auto' | 'light' | 'dark';
+export type LocalePref = 'auto' | 'zh_CN' | 'en';
 
 async function readAll(): Promise<Record<string, unknown>> {
   return browser.storage.local.get(null) as Promise<Record<string, unknown>>;
@@ -74,4 +76,16 @@ export async function getThemePref(): Promise<ThemePref> {
 
 export async function setThemePref(pref: ThemePref): Promise<void> {
   await browser.storage.local.set({ [THEME_KEY]: pref });
+}
+
+/** UI 语言偏好：auto（跟随浏览器 UI 语言，默认）/ zh_CN / en。
+ *  仅读 LOCALE_KEY，不 get(null)（与 themePref 同样的 key 卫生原则）。 */
+export async function getLocalePref(): Promise<LocalePref> {
+  const got = await browser.storage.local.get(LOCALE_KEY);
+  const stored = got[LOCALE_KEY];
+  return stored === 'zh_CN' || stored === 'en' ? stored : 'auto';
+}
+
+export async function setLocalePref(pref: LocalePref): Promise<void> {
+  await browser.storage.local.set({ [LOCALE_KEY]: pref });
 }

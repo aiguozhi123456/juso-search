@@ -8,6 +8,8 @@ import {
   setActiveProviderId,
   getThemePref,
   setThemePref,
+  getLocalePref,
+  setLocalePref,
 } from '@/lib/storage';
 
 // 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(key)/set。
@@ -119,5 +121,25 @@ describe('storage: theme pref', () => {
   it('rejects unknown stored values, falling back to auto', async () => {
     await browser.storage.local.set({ themePref: 'neon' });
     expect(await getThemePref()).toBe('auto');
+  });
+});
+
+describe('storage: locale pref', () => {
+  it('defaults to auto', async () => {
+    expect(await getLocalePref()).toBe('auto');
+  });
+
+  it('round-trips explicit prefs', async () => {
+    await setLocalePref('zh_CN');
+    expect(await getLocalePref()).toBe('zh_CN');
+    await setLocalePref('en');
+    expect(await getLocalePref()).toBe('en');
+    await setLocalePref('auto');
+    expect(await getLocalePref()).toBe('auto');
+  });
+
+  it('rejects unknown stored values, falling back to auto', async () => {
+    await browser.storage.local.set({ localePref: 'fr' });
+    expect(await getLocalePref()).toBe('auto');
   });
 });

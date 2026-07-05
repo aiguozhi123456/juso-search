@@ -11,23 +11,13 @@ vi.mock('@/lib/storage', () => ({
   setKey: vi.fn(),
   hasKey: vi.fn(),
 }));
-// 主题逻辑由 useTheme 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
+// 主题/locale 逻辑由 useTheme/useLocale 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
-// i18n：从真实 zh_CN/messages.json 构造映射（单一事实源，避免手抄漂移）。
-// 真实文案见 tests/i18n-parity.test.ts 的 MSG↔locale 一致性守卫。
-vi.mock('@/lib/i18n', async () => {
-  const mod = (await import('../public/_locales/zh_CN/messages.json')) as unknown as {
-    default?: Record<string, { message: string }>;
-  } & Record<string, { message: string }>;
-  const zh: Record<string, { message: string }> = mod.default ?? mod;
-  return {
-    t: (name: string) => zh[name]?.message ?? name,
-    getUILanguage: () => 'zh_CN',
-    MSG: new Proxy({}, { get: (_t, prop) => prop }),
-  };
-});
+vi.mock('@/lib/useLocale', () => ({
+  useLocale: () => ({ pref: 'auto', setPref: vi.fn() }),
+}));
 
 const mockedSend = vi.mocked(sendMessage);
 const mockedGetActive = vi.mocked(getActiveProviderId);

@@ -4,6 +4,7 @@ import { allProviders } from '@/lib/providers/registry';
 import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { LocaleToggle } from '@/components/LocaleToggle';
 import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
@@ -23,7 +24,10 @@ export default function App() {
     <div className="options">
       <div className="options-header">
         <h1>{t(MSG.opts_title)}</h1>
-        <ThemeToggle />
+        <div className="options-toggles">
+          <LocaleToggle />
+          <ThemeToggle />
+        </div>
       </div>
 
       <section>
