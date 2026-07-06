@@ -6,6 +6,7 @@
   "search_aria": { "message": "搜索词" },
   "btn_search": { "message": "搜索" },
   "btn_searching": { "message": "搜索中…" },
+  "btn_interrupt": { "message": "打断" },
   "answer_heading": { "message": "AI 回答" },
   "no_results": { "message": "无结果" },
   "state_loading": { "message": "搜索中…" },

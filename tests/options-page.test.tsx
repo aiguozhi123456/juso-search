@@ -2,12 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
-import { setActiveProviderId } from '@/lib/storage';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
-vi.mock('@/lib/storage', () => ({
-  setActiveProviderId: vi.fn(),
-}));
 // 主题/locale 逻辑由 useTheme/useLocale 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
@@ -17,11 +13,9 @@ vi.mock('@/lib/useLocale', () => ({
 }));
 
 const mockedSend = vi.mocked(sendMessage);
-const mockedSetActive = vi.mocked(setActiveProviderId);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedSetActive.mockResolvedValue(undefined);
   mockedSend.mockImplementation(((type: string) => {
     if (type === 'getProviderConfig') {
       return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null });
@@ -44,7 +38,7 @@ describe('options page', () => {
     render(<App />);
     const select = await screen.findByRole('combobox');
     fireEvent.change(select, { target: { value: 'exa' } });
-    await waitFor(() => expect(mockedSetActive).toHaveBeenCalledWith('exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
   });
 
   it('only shows configured providers in the active-provider select', async () => {

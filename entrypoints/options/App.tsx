@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
-import { setActiveProviderId } from '@/lib/storage';
 import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -28,7 +27,7 @@ export default function App() {
   const configuredProviders = providers.filter((p) => configuredProviderIds.includes(p.id));
 
   async function choose(id: ProviderId) {
-    await setActiveProviderId(id);
+    await sendMessage('setActiveProvider', id);
     setActive(id);
   }
 

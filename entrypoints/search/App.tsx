@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NormalizedSearchResponse, ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
-import { setActiveProviderId } from '@/lib/storage';
 import { sendMessage } from '@/lib/messaging';
 import type { SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
@@ -15,12 +14,15 @@ import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
   const providers = allProviders();
+  const [query, setQuery] = useState('');
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [active, setActive] = useState<ProviderId | null>(null);
   const [loading, setLoading] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [response, setResponse] = useState<NormalizedSearchResponse | null>(null);
   const [error, setError] = useState<{ message: string; needKey: boolean } | null>(null);
   const reqIdRef = useRef(0);
+  const switchReqIdRef = useRef(0);
 
   useEffect(() => {
     void (async () => {
@@ -30,7 +32,9 @@ export default function App() {
     })();
   }, []);
 
-  async function handleSearch(query: string) {
+  async function handleSearch(rawQuery: string) {
+    const query = rawQuery.trim();
+    if (!query) return;
     const reqId = ++reqIdRef.current;
     setLoading(true);
     setError(null);
@@ -52,8 +56,24 @@ export default function App() {
   }
 
   async function handleSwitch(id: ProviderId) {
-    await setActiveProviderId(id);
-    setActive(id);
+    if (loading || switching) return;
+    if (id === active) return;
+    const switchReqId = ++switchReqIdRef.current;
+    setSwitching(true);
+    try {
+      await sendMessage('setActiveProvider', id);
+      if (switchReqId !== switchReqIdRef.current) return;
+      setActive(id);
+      const nextQuery = query.trim();
+      if (nextQuery) await handleSearch(nextQuery);
+    } finally {
+      if (switchReqId === switchReqIdRef.current) setSwitching(false);
+    }
+  }
+
+  function handleInterrupt() {
+    reqIdRef.current += 1;
+    setLoading(false);
   }
 
   function openSettings() {
@@ -67,13 +87,13 @@ export default function App() {
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1>{t(MSG.search_page_title)}</h1>
-        <ProviderSwitcher providers={configuredProviders} active={active} onSwitch={handleSwitch} />
+        <ProviderSwitcher providers={configuredProviders} active={active} onSwitch={handleSwitch} disabled={loading || switching} />
         <div className="topbar-actions">
           <ThemeToggle />
           <SettingsButton onClick={openSettings} />
         </div>
       </header>
-      <SearchBox onSearch={handleSearch} loading={loading} />
+      <SearchBox value={query} onChange={setQuery} onSearch={handleSearch} onInterrupt={handleInterrupt} loading={loading} />
       <main className="results">
         {loading && <Loading />}
         {!loading && error && (

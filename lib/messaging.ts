@@ -26,6 +26,7 @@ export type ProtocolMap = {
   search(query: string): Promise<SearchReply>;
   testKey(providerId: ProviderId): Promise<TestKeyReply>;
   getProviderConfig(): Promise<ProviderConfigReply>;
+  setActiveProvider(providerId: ProviderId): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
 };
 

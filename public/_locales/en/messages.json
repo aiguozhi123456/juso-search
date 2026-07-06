@@ -6,6 +6,7 @@
   "search_aria": { "message": "Search terms" },
   "btn_search": { "message": "Search" },
   "btn_searching": { "message": "Searching…" },
+  "btn_interrupt": { "message": "Interrupt" },
   "answer_heading": { "message": "AI Answer" },
   "no_results": { "message": "No results" },
   "state_loading": { "message": "Searching…" },

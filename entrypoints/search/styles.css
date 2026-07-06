@@ -27,6 +27,7 @@ body {
   border: 1px solid var(--border); background: var(--bg); border-radius: 999px;
   padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
 }
+.provider-switcher button:disabled { opacity: 0.55; cursor: default; }
 .provider-switcher button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .provider-switcher .no-answer { font-size: 11px; opacity: 0.7; }
 
@@ -49,6 +50,7 @@ body {
   background: var(--accent); color: var(--on-accent); cursor: pointer;
 }
 .search-box button:disabled { opacity: 0.6; cursor: default; }
+.search-box .interrupt-button { background: var(--bg); color: var(--accent); border: 1px solid var(--accent); }
 
 .answer-card {
   background: var(--answer-bg); border: 1px solid var(--answer-border);

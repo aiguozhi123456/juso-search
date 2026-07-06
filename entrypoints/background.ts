@@ -1,5 +1,5 @@
 import { onMessage } from '@/lib/messaging';
-import { handleGetProviderConfig, handleSaveProviderKey, handleSearch, handleTestKey } from '@/lib/gateway';
+import { handleGetProviderConfig, handleSaveProviderKey, handleSearch, handleSetActiveProvider, handleTestKey } from '@/lib/gateway';
 
 export default defineBackground(() => {
   // 独立扩展页：点工具栏图标在标签页打开搜索页（无 default_popup，onClicked 才会触发）
@@ -11,5 +11,6 @@ export default defineBackground(() => {
   onMessage('search', ({ data }) => handleSearch(data));
   onMessage('testKey', ({ data }) => handleTestKey(data));
   onMessage('getProviderConfig', () => handleGetProviderConfig());
+  onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
 });

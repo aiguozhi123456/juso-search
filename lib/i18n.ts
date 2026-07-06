@@ -119,6 +119,7 @@ export const MSG = {
   search_aria: 'search_aria',
   btn_search: 'btn_search',
   btn_searching: 'btn_searching',
+  btn_interrupt: 'btn_interrupt',
   answer_heading: 'answer_heading',
   no_results: 'no_results',
   state_loading: 'state_loading',
