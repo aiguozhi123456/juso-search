@@ -13,7 +13,10 @@ The shared data model returned by every ProviderAdapter: `{ query, provider, ans
 ## Security
 
 ### BYOK
-Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Keys are read only by the background service worker via `getKey()`. The UI uses a `hasKey()` boolean indicator — it never reads the raw key back from storage. Key values are never logged, telemetered, sent to third parties, or committed.
+Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
+
+### Provider Configuration Status
+The declassified status the UI needs to render provider choices without reading stored API keys. It includes configured provider IDs and the active provider ID, returned by the background worker through messaging. Search and active-provider selection surfaces use it to hide unconfigured providers; API-key configuration surfaces still list all known providers so users can add new keys.
 
 ## Behavioral Rules
 

@@ -26,7 +26,7 @@ WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`b
 
 ## 安全
 
-API key 为 BYOK，仅存 `chrome.storage.local`，仅由 background worker 读取。绝不提交 key；页面代码绝不读明文 key（用 `hasKey` 做指示）。
+API key 为 BYOK，仅存 `chrome.storage.local`，仅由 background worker 读取。绝不提交 key；页面代码绝不读已存明文 key，也不读取 `providerKeys` map；需要配置状态时通过 worker message 返回脱敏状态（如已配置 provider id 列表）。
 
 ## 测试
 

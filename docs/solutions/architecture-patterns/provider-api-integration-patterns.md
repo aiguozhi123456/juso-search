@@ -1,6 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
+last_updated: 2026-07-07
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -72,13 +73,13 @@ Key decisions per provider:
 - **Stepfun REST**: No answer available; use `results[].snippet` + `results[].content`. Auth: `Authorization: Bearer <key>`.
 - **Stepfun MCP**: Uses a stateless streamableHttp transport — send an `initialize` handshake (no session persisted), then `tools/call` with `name: "web_search"` and `arguments.input`. The response nests the identical REST result shape as a JSON string inside `result.content[0].text`. Same adapter can serve both Stepfun surfaces with different backends.
 
-**Security**: Keys are BYOK, stored in `chrome.storage.local`, read only inside the background worker. The UI uses a `hasKey` boolean indicator — it never reads the raw key back from storage. Each adapter's constructor or factory receives the key from the worker's secure context.
+**Security**: Keys are BYOK, stored in `chrome.storage.local`, read only inside the background worker. The UI gets sanitized provider configuration status through worker messages (for example, configured provider IDs and active provider ID), and it sends newly typed keys to the worker for storage. It does not read the stored key map back from storage. Each adapter receives the key from the worker's secure context.
 
 ## Why This Matters
 
 - **Isolation**: Each provider's quirks (Stepfun MCP's nested JSON, Exa's grounding schema, Tavily's index-based citations) live in one file. Breaking changes or new providers only touch one adapter.
 - **UI simplicity**: Downstream components switch on `supportsAnswer` once at mount time, avoiding a cascade of conditionals per provider.
-- **Security**: BYOK + worker-only key access means no secret ever leaks into content scripts or page contexts. The `hasKey` pattern eliminates accidental exposure while still enabling the UI to show connection status.
+- **Security**: BYOK + worker-only key access means stored secrets do not leak into content scripts or page contexts. Worker-returned configuration status keeps the UI usable without exposing the `providerKeys` map.
 - **Billing separation**: Each Stepfun adapter uses the same search backend but different meters (pay-as-you-go REST vs Step Plan MCP subscription). Separate adapters make it impossible to charge against the wrong account.
 
 ## When to Apply
@@ -160,10 +161,12 @@ export async function getKey(provider: string): Promise<string> {
 ```
 
 ```ts
-// In settings UI — safe indicator, never the key value
-const [hasKey, setHasKey] = useState(false)
-const check = await browser.runtime.sendMessage({ type: 'hasKey', provider: 'exa' })
-setHasKey(check.ok)
+// In settings/search UI — sanitized status, never the stored key map
+const config = await sendMessage('getProviderConfig', undefined)
+setConfiguredProviderIds(config.configuredProviderIds)
+
+// Saving sends only the key currently typed by the user to the worker.
+await sendMessage('saveProviderKey', { providerId: 'exa', key: typedKey })
 ```
 
 ## Related
