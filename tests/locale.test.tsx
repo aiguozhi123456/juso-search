@@ -30,18 +30,26 @@ beforeEach(() => {
   document.documentElement.removeAttribute('lang');
 });
 
+async function renderUseLocale() {
+  const rendered = renderHook(() => useLocale());
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return rendered;
+}
+
 describe('useLocale', () => {
   it('initializes from stored pref', async () => {
     mockOnChanged();
     vi.mocked(storage.getLocalePref).mockResolvedValue('en');
-    const { result } = renderHook(() => useLocale());
+    const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('en'));
     expect(getCurrentLocale()).toBe('en');
   });
 
   it('setPref optimistically switches and persists', async () => {
     mockOnChanged();
-    const { result } = renderHook(() => useLocale());
+    const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('en'));
     expect(result.current.pref).toBe('en');
@@ -51,15 +59,18 @@ describe('useLocale', () => {
   it('rolls back pref when persist rejects', async () => {
     mockOnChanged();
     vi.mocked(storage.setLocalePref).mockRejectedValueOnce(new Error('quota'));
-    const { result } = renderHook(() => useLocale());
+    const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
-    act(() => result.current.setPref('en'));
+    await act(async () => {
+      result.current.setPref('en');
+      await Promise.resolve();
+    });
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
   });
 
   it('onChanged cross-tab: a valid remote localePref syncs pref', async () => {
     const listeners = mockOnChanged();
-    const { result } = renderHook(() => useLocale());
+    const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
       for (const l of listeners) l({ localePref: { newValue: 'en' } });
@@ -69,7 +80,7 @@ describe('useLocale', () => {
 
   it('onChanged ignores unknown newValue', async () => {
     const listeners = mockOnChanged();
-    const { result } = renderHook(() => useLocale());
+    const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
       for (const l of listeners) l({ localePref: { newValue: 'fr' } });

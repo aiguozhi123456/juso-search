@@ -3,7 +3,7 @@ import {
   getKey,
   setKey,
   clearKey,
-  hasKey,
+  getConfiguredProviderIds,
   getActiveProviderId,
   setActiveProviderId,
   getThemePref,
@@ -47,11 +47,15 @@ describe('storage: BYOK keys', () => {
     expect(await getKey('exa')).toBeNull();
   });
 
-  it('hasKey reports whether a provider has a key', async () => {
-    await setKey('tavily', 'tvly-1');
+  it('returns configured provider ids in registry order', async () => {
     await setKey('stepfun', 'sf-2');
-    expect(await hasKey('tavily')).toBe(true);
-    expect(await hasKey('exa')).toBe(false);
+    await setKey('tavily', 'tvly-1');
+    expect(await getConfiguredProviderIds()).toEqual(['tavily', 'stepfun']);
+  });
+
+  it('ignores unknown provider ids when listing configured providers', async () => {
+    await browser.storage.local.set({ providerKeys: { nonexistent: 'x', exa: 'exa-1' } });
+    expect(await getConfiguredProviderIds()).toEqual(['exa']);
   });
 
   it('clearKey removes only that provider', async () => {
@@ -82,10 +86,10 @@ describe('storage: active provider', () => {
     expect(await getActiveProviderId()).toBe('exa');
   });
 
-  it('honors explicit choice even when that provider has no key (keyMissing path)', async () => {
+  it('falls back when explicit choice has no key', async () => {
     await setKey('tavily', 'tvly-x');
     await setActiveProviderId('stepfun');
-    expect(await getActiveProviderId()).toBe('stepfun');
+    expect(await getActiveProviderId()).toBe('tavily');
   });
 
   it('falls back to first configured when stored active id is invalid', async () => {

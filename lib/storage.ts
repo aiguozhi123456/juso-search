@@ -26,16 +26,15 @@ function isKnownProvider(id: unknown): id is ProviderId {
   return typeof id === 'string' && allProviders().some((p) => p.id === id);
 }
 
+export async function getConfiguredProviderIds(): Promise<ProviderId[]> {
+  const keys = await readKeys();
+  return allProviders().filter((p) => keys[p.id]).map((p) => p.id);
+}
+
 /** 返回某 provider 的 key，未配置则 null。仅 worker 调用。 */
 export async function getKey(id: ProviderId): Promise<string | null> {
   const keys = await readKeys();
   return keys[id] ?? null;
-}
-
-/** 是否已配置某 provider 的 key（不回显明文，供设置页指示用）。 */
-export async function hasKey(id: ProviderId): Promise<boolean> {
-  const keys = await readKeys();
-  return Boolean(keys[id]);
 }
 
 export async function setKey(id: ProviderId, key: string): Promise<void> {
@@ -57,8 +56,8 @@ export async function clearKey(id: ProviderId): Promise<void> {
 export async function getActiveProviderId(): Promise<ProviderId | null> {
   const all = await readAll();
   const stored = all[ACTIVE_KEY];
-  if (isKnownProvider(stored)) return stored;
   const keys = await readKeys();
+  if (isKnownProvider(stored) && keys[stored]) return stored;
   return allProviders().find((p) => keys[p.id])?.id ?? null;
 }
 

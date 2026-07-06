@@ -1,8 +1,8 @@
 import type { ProviderId } from './providers/types';
 import { ProviderError } from './providers/types';
-import type { SearchReply, TestKeyReply } from './messaging';
+import type { ProviderConfigReply, SearchReply, TestKeyReply } from './messaging';
 import { getAdapter } from './providers/registry';
-import { getActiveProviderId, getKey } from './storage';
+import { getActiveProviderId, getConfiguredProviderIds, getKey, setKey } from './storage';
 import { t, MSG } from './i18n';
 
 type SearchErrorReply = Extract<SearchReply, { ok: false }>;
@@ -46,6 +46,18 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
       },
     };
   }
+}
+
+export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
+  const [configuredProviderIds, activeProviderId] = await Promise.all([
+    getConfiguredProviderIds(),
+    getActiveProviderId(),
+  ]);
+  return { configuredProviderIds, activeProviderId };
+}
+
+export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
+  await setKey(providerId, key);
 }
 
 function toSearchError(e: unknown): SearchErrorReply {

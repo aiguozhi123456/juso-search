@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from '@/entrypoints/search/App';
 import { sendMessage } from '@/lib/messaging';
-import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
+import { setActiveProviderId } from '@/lib/storage';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
 vi.mock('@/lib/storage', () => ({
-  getActiveProviderId: vi.fn(),
   setActiveProviderId: vi.fn(),
 }));
 // 主题/locale 逻辑由 useTheme/useLocale 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
@@ -21,17 +20,26 @@ const openOptionsPage = vi.fn();
 vi.stubGlobal('browser', { runtime: { openOptionsPage } });
 
 const mockedSend = vi.mocked(sendMessage);
-const mockedGetActive = vi.mocked(getActiveProviderId);
 const mockedSetActive = vi.mocked(setActiveProviderId);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedGetActive.mockResolvedValue('tavily');
+  mockedSend.mockImplementation(((type: string) => {
+    if (type === 'getProviderConfig') {
+      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+    }
+    return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] } });
+  }) as never);
   mockedSetActive.mockResolvedValue(undefined);
 });
 
 async function doSearch(reply: unknown) {
-  mockedSend.mockResolvedValue(reply as never);
+  mockedSend.mockImplementation(((type: string) => {
+    if (type === 'getProviderConfig') {
+      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+    }
+    return Promise.resolve(reply);
+  }) as never);
   render(<App />);
   fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
   fireEvent.click(screen.getByRole('button', { name: '搜索' }));
@@ -71,6 +79,32 @@ describe('search page', () => {
     const exaBtn = await screen.findByRole('button', { name: /Exa/ });
     fireEvent.click(exaBtn);
     await waitFor(() => expect(mockedSetActive).toHaveBeenCalledWith('exa'));
+  });
+
+  it('hides providers without configured keys', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: 'exa' });
+      }
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'exa', results: [] } });
+    }) as never);
+    render(<App />);
+    expect(await screen.findByRole('button', { name: /Exa/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Stepfun/ })).not.toBeInTheDocument();
+  });
+
+  it('shows no provider buttons when no provider is configured', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null });
+      }
+      return Promise.resolve({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
+    }) as never);
+    render(<App />);
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('getProviderConfig', undefined));
+    expect(screen.queryByRole('button', { name: /Tavily/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '设置' })).toBeInTheDocument();
   });
 
   it('shows a no-results message when results array is empty', async () => {

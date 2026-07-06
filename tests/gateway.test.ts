@@ -4,19 +4,23 @@ import { ProviderError } from '@/lib/providers/types';
 
 vi.mock('@/lib/storage', () => ({
   getActiveProviderId: vi.fn(),
+  getConfiguredProviderIds: vi.fn(),
   getKey: vi.fn(),
+  setKey: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/registry', () => ({
   getAdapter: vi.fn(),
 }));
 
-import { handleSearch, handleTestKey } from '@/lib/gateway';
-import { getActiveProviderId, getKey } from '@/lib/storage';
+import { handleGetProviderConfig, handleSaveProviderKey, handleSearch, handleTestKey } from '@/lib/gateway';
+import { getActiveProviderId, getConfiguredProviderIds, getKey, setKey } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
 
 const mockedGetActive = vi.mocked(getActiveProviderId);
+const mockedGetConfigured = vi.mocked(getConfiguredProviderIds);
 const mockedGetKey = vi.mocked(getKey);
+const mockedSetKey = vi.mocked(setKey);
 const mockedGetAdapter = vi.mocked(getAdapter);
 
 function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter {
@@ -127,5 +131,27 @@ describe('handleTestKey', () => {
     const reply = await handleTestKey('tavily');
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.kind).toBe('providerError');
+  });
+});
+
+describe('handleGetProviderConfig', () => {
+  it('returns configured provider ids and active provider without keys', async () => {
+    mockedGetConfigured.mockResolvedValue(['tavily', 'exa']);
+    mockedGetActive.mockResolvedValue('exa');
+
+    await expect(handleGetProviderConfig()).resolves.toEqual({
+      configuredProviderIds: ['tavily', 'exa'],
+      activeProviderId: 'exa',
+    });
+  });
+});
+
+describe('handleSaveProviderKey', () => {
+  it('writes provider keys from the worker context', async () => {
+    mockedSetKey.mockResolvedValue(undefined);
+
+    await handleSaveProviderKey('tavily', 'tvly-abc');
+
+    expect(mockedSetKey).toHaveBeenCalledWith('tavily', 'tvly-abc');
   });
 });

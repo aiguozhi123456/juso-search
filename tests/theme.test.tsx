@@ -43,11 +43,19 @@ beforeEach(() => {
   document.documentElement.removeAttribute('data-theme');
 });
 
+async function renderUseTheme() {
+  const rendered = renderHook(() => useTheme());
+  await act(async () => {
+    await Promise.resolve();
+  });
+  return rendered;
+}
+
 describe('useTheme', () => {
   it('resolves auto -> light when system is light', async () => {
     mockMatchMedia(false);
     mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     expect(result.current.resolved).toBe('light');
     expect(document.documentElement.dataset.theme).toBe('light');
@@ -56,7 +64,7 @@ describe('useTheme', () => {
   it('resolves auto -> dark when system is dark', async () => {
     mockMatchMedia(true);
     mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.resolved).toBe('dark'));
     expect(document.documentElement.dataset.theme).toBe('dark');
   });
@@ -64,7 +72,7 @@ describe('useTheme', () => {
   it('explicit dark overrides system light', async () => {
     mockMatchMedia(false);
     mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('dark'));
     expect(result.current.resolved).toBe('dark');
@@ -75,7 +83,7 @@ describe('useTheme', () => {
   it('explicit light wins over system dark', async () => {
     mockMatchMedia(true);
     mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('light'));
     expect(result.current.resolved).toBe('light');
@@ -85,9 +93,12 @@ describe('useTheme', () => {
     mockMatchMedia(false);
     mockOnChanged();
     vi.mocked(storage.setThemePref).mockRejectedValueOnce(new Error('quota'));
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
-    act(() => result.current.setPref('dark'));
+    await act(async () => {
+      result.current.setPref('dark');
+      await Promise.resolve();
+    });
     // persist 失败 -> 回滚到 auto，resolved 跟随回到 light
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     expect(result.current.resolved).toBe('light');
@@ -96,7 +107,7 @@ describe('useTheme', () => {
   it('onChanged cross-tab: a valid remote themePref syncs pref + resolved + data-theme', async () => {
     mockMatchMedia(false); // 系统亮
     const listeners = mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     expect(result.current.resolved).toBe('light');
 
@@ -111,7 +122,7 @@ describe('useTheme', () => {
   it('onChanged ignores unknown newValue (validation branch)', async () => {
     mockMatchMedia(false);
     const listeners = mockOnChanged();
-    const { result } = renderHook(() => useTheme());
+    const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
       for (const l of listeners) l({ themePref: { newValue: 'neon' } });

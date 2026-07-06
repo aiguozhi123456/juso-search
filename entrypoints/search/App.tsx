@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NormalizedSearchResponse, ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
-import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
+import { setActiveProviderId } from '@/lib/storage';
 import { sendMessage } from '@/lib/messaging';
 import type { SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
@@ -15,6 +15,7 @@ import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
   const providers = allProviders();
+  const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [active, setActive] = useState<ProviderId | null>(null);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<NormalizedSearchResponse | null>(null);
@@ -22,7 +23,11 @@ export default function App() {
   const reqIdRef = useRef(0);
 
   useEffect(() => {
-    void getActiveProviderId().then(setActive);
+    void (async () => {
+      const config = await sendMessage('getProviderConfig', undefined);
+      setConfiguredProviderIds(config.configuredProviderIds);
+      setActive(config.activeProviderId);
+    })();
   }, []);
 
   async function handleSearch(query: string) {
@@ -56,12 +61,13 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
+  const configuredProviders = providers.filter((p) => configuredProviderIds.includes(p.id));
 
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1>{t(MSG.search_page_title)}</h1>
-        <ProviderSwitcher providers={providers} active={active} onSwitch={handleSwitch} />
+        <ProviderSwitcher providers={configuredProviders} active={active} onSwitch={handleSwitch} />
         <div className="topbar-actions">
           <ThemeToggle />
           <SettingsButton onClick={openSettings} />

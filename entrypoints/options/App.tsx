@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
-import { getActiveProviderId, setActiveProviderId } from '@/lib/storage';
+import { setActiveProviderId } from '@/lib/storage';
+import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
@@ -9,11 +10,22 @@ import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
   const providers = allProviders();
+  const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [active, setActive] = useState<ProviderId | null>(null);
 
   useEffect(() => {
-    void getActiveProviderId().then(setActive);
+    void (async () => {
+      const config = await sendMessage('getProviderConfig', undefined);
+      setConfiguredProviderIds(config.configuredProviderIds);
+      setActive(config.activeProviderId);
+    })();
   }, []);
+
+  function markConfigured(id: ProviderId) {
+    setConfiguredProviderIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+  }
+
+  const configuredProviders = providers.filter((p) => configuredProviderIds.includes(p.id));
 
   async function choose(id: ProviderId) {
     await setActiveProviderId(id);
@@ -35,7 +47,7 @@ export default function App() {
           <option value="" disabled>
             {t(MSG.opts_choose_placeholder)}
           </option>
-          {providers.map((p) => (
+          {configuredProviders.map((p) => (
             <option key={p.id} value={p.id}>
               {t(p.label)}
               {p.supportsAnswer ? '' : t(MSG.opts_no_ai_answer)}
@@ -48,7 +60,12 @@ export default function App() {
         <h2>{t(MSG.opts_apikey_heading)}</h2>
         <p className="hint">{t(MSG.opts_apikey_hint)}</p>
         {providers.map((p) => (
-          <KeyInput key={p.id} provider={p} />
+          <KeyInput
+            key={p.id}
+            provider={p}
+            configured={configuredProviderIds.includes(p.id)}
+            onConfigured={markConfigured}
+          />
         ))}
       </section>
 

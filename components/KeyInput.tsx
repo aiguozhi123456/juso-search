@@ -1,25 +1,27 @@
-import { useEffect, useState } from 'react';
-import type { ProviderAdapter } from '@/lib/providers/types';
-import { hasKey, setKey } from '@/lib/storage';
+import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
+import { useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
 
 type Status = { kind: 'idle' | 'saving' | 'testing' | 'ok' | 'fail'; message: string };
 
-export function KeyInput({ provider }: { provider: ProviderAdapter }) {
+export function KeyInput({
+  provider,
+  configured,
+  onConfigured,
+}: {
+  provider: ProviderAdapter;
+  configured: boolean;
+  onConfigured?: (id: ProviderId) => void;
+}) {
   const [val, setVal] = useState('');
-  const [configured, setConfigured] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'idle', message: '' });
-
-  useEffect(() => {
-    void hasKey(provider.id).then(setConfigured);
-  }, [provider.id]);
 
   async function save() {
     setStatus({ kind: 'saving', message: '' });
     try {
-      await setKey(provider.id, val);
-      setConfigured(true);
+      await sendMessage('saveProviderKey', { providerId: provider.id, key: val });
+      onConfigured?.(provider.id);
       setVal(''); // 明文用完即清，缩短在页面中的留存
       setStatus({ kind: 'ok', message: t(MSG.status_saved) });
     } catch {

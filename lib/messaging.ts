@@ -17,9 +17,16 @@ export type TestKeyReply =
   | { ok: true }
   | { ok: false; error: { kind: 'keyMissing' | 'providerError'; message: string } };
 
+export type ProviderConfigReply = {
+  configuredProviderIds: ProviderId[];
+  activeProviderId: ProviderId | null;
+};
+
 export type ProtocolMap = {
   search(query: string): Promise<SearchReply>;
   testKey(providerId: ProviderId): Promise<TestKeyReply>;
+  getProviderConfig(): Promise<ProviderConfigReply>;
+  saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
 };
 
 const messaging = defineExtensionMessaging<ProtocolMap>();
