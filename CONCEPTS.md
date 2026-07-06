@@ -20,6 +20,11 @@ The declassified status the UI needs to render provider choices without reading 
 
 ## Behavioral Rules
 
+### Active Provider
+The provider selected for subsequent searches. It is represented as a provider id, persisted by the background worker, and shown in search/options selection surfaces only when that provider is configured.
+
+Changing the Active Provider is a stateful worker-side write, not just a UI highlight. UI flows that switch providers and then search must serialize the write before sending the search request, and in-flight switch/search controls should avoid competing writes that could desynchronize visible state from worker storage.
+
 ### UI Language Preference
 The user's chosen language mode for extension UI text. `Auto` follows the browser UI language when the preference is applied; explicit language choices pin the app UI to that language even if the browser language differs. This preference is distinct from the resolved render language, because different preferences can produce the same visible language.
 
