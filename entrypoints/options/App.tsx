@@ -25,7 +25,6 @@ export default function App() {
       <div className="options-header">
         <h1>{t(MSG.opts_title)}</h1>
         <div className="options-toggles">
-          <LocaleToggle />
           <ThemeToggle />
         </div>
       </div>
@@ -51,6 +50,11 @@ export default function App() {
         {providers.map((p) => (
           <KeyInput key={p.id} provider={p} />
         ))}
+      </section>
+
+      <section>
+        <h2>{t(MSG.locale_group)}</h2>
+        <LocaleToggle />
       </section>
     </div>
   );

@@ -53,8 +53,9 @@ function resolvePref(pref: LocalePref): Locale {
  *  auto 模式总是重解析（依赖的 browser UI 语言可能在测试中变化；生产中无副作用）。 */
 export function setLocale(pref: LocalePref): void {
   const next = resolvePref(pref);
+  const prevPref = currentPref;
   currentPref = pref;
-  if (next === currentLocale && pref !== 'auto') return; // 非.auto 且无变化才跳过
+  if (next === currentLocale && pref === prevPref && pref !== 'auto') return; // 非.auto 且无变化才跳过
   currentLocale = next;
   for (const l of listeners) l();
 }

@@ -22,12 +22,15 @@ describe('LocaleToggle', () => {
     // i18n 用真实查表（默认 zh_CN），locale_group → "语言"
     const group = screen.getByRole('group', { name: '语言' });
     expect(group.querySelectorAll('button')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: '自动 (语言)' })).toHaveTextContent('自动');
+    expect(screen.getByRole('button', { name: '中文' })).toHaveTextContent('中文');
+    expect(screen.getByRole('button', { name: 'English' })).toHaveTextContent('English');
   });
 
   it('clicking the EN button calls setPref with "en"', () => {
     renderWith('auto');
     const buttons = screen.getAllByRole('button');
-    // OPTIONS 顺序：auto(A) / zh_CN(中) / en(EN)
+    // OPTIONS 顺序：auto / zh_CN / en
     fireEvent.click(buttons[2]);
     expect(setPref).toHaveBeenCalledWith('en');
     expect(setPref).toHaveBeenCalledTimes(1);

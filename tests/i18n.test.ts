@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { t, getUILanguage, setLocale, getCurrentLocale, getCurrentLocalePref, MSG } from '@/lib/i18n';
+import {
+  t,
+  getUILanguage,
+  setLocale,
+  getCurrentLocale,
+  getCurrentLocalePref,
+  subscribeLocale,
+  MSG,
+} from '@/lib/i18n';
 
 // 新 i18n 层用 import.meta.glob 在构建期打包 messages.json，t() 同步查表。
 // browser.i18n 仅用于 auto 模式解析 UI 语言；getUILanguage 仍走 browser.i18n。
@@ -41,6 +49,20 @@ describe('i18n t() lookup', () => {
     expect(getCurrentLocalePref()).toBe('en');
     setLocale('auto');
     expect(getCurrentLocalePref()).toBe('auto');
+  });
+
+  it('notifies subscribers when pref changes even if resolved locale stays the same', () => {
+    vi.unstubAllGlobals();
+    setLocale('auto');
+    const listener = vi.fn();
+    const unsubscribe = subscribeLocale(listener);
+
+    setLocale('zh_CN');
+
+    unsubscribe();
+    expect(getCurrentLocale()).toBe('zh_CN');
+    expect(getCurrentLocalePref()).toBe('zh_CN');
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 

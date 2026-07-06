@@ -2,17 +2,16 @@ import { useLocale, type LocalePref } from '@/lib/useLocale';
 import { t, MSG } from '@/lib/i18n';
 
 const OPTIONS: { value: LocalePref; label: string }[] = [
-  { value: 'auto', label: 'A' },
-  { value: 'zh_CN', label: '中' },
-  { value: 'en', label: 'EN' },
+  { value: 'auto', label: MSG.locale_auto },
+  { value: 'zh_CN', label: MSG.locale_zh },
+  { value: 'en', label: MSG.locale_en },
 ];
 
-// UI 语言切换：自动（跟随浏览器）/ 中文 / English。
-// 复用 .theme-toggle 样式（搜索页顶栏 + 设置页头部均可放）。
+// 设置页 UI 语言偏好：自动（跟随浏览器）/ 中文 / English。
 export function LocaleToggle() {
   const { pref, setPref } = useLocale();
   return (
-    <div className="theme-toggle locale-toggle" role="group" aria-label={t(MSG.locale_group)}>
+    <div className="locale-toggle" role="group" aria-label={t(MSG.locale_group)}>
       {OPTIONS.map((opt) => {
         const ariaLabel =
           opt.value === 'auto'
@@ -28,7 +27,7 @@ export function LocaleToggle() {
             aria-label={ariaLabel}
             aria-pressed={pref === opt.value}
           >
-            {opt.label}
+            {t(opt.label)}
           </button>
         );
       })}

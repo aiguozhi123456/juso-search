@@ -73,4 +73,12 @@ describe('options page', () => {
     render(<App />);
     expect(screen.getAllByPlaceholderText('粘贴 API key')[0]).toHaveAttribute('type', 'password');
   });
+
+  it('shows language settings after API key settings', () => {
+    render(<App />);
+    const apiKeyHeading = screen.getByRole('heading', { name: /API Key/ });
+    const languageHeading = screen.getByRole('heading', { name: '语言' });
+    expect(screen.getByRole('group', { name: '语言' })).toBeInTheDocument();
+    expect(apiKeyHeading.compareDocumentPosition(languageHeading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });

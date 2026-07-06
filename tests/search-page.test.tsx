@@ -107,4 +107,10 @@ describe('search page', () => {
     fireEvent.click(settingsBtn);
     await waitFor(() => expect(openOptionsPage).toHaveBeenCalled());
   });
+
+  it('does not show language switching on the search page', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tavily/ })).toHaveClass('active'));
+    expect(screen.queryByRole('group', { name: '语言' })).not.toBeInTheDocument();
+  });
 });

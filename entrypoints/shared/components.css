@@ -9,3 +9,30 @@
   cursor: pointer; color: var(--muted);
 }
 .theme-toggle button.active { border-color: var(--accent); color: var(--accent); }
+
+/* 设置页语言切换：正文里的长条形分段控件 */
+.locale-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  max-width: 420px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.locale-toggle button {
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.locale-toggle button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
