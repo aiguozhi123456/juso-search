@@ -47,7 +47,7 @@ export const exaAdapter: ProviderAdapter = {
     opts: SearchOptions,
     apiKey: string,
   ): Promise<NormalizedSearchResponse> {
-    const { status, data } = await postJson<ExaResponse>(ENDPOINT, {
+    const { status, data, errorDetail } = await postJson<ExaResponse>(ENDPOINT, {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
@@ -61,7 +61,7 @@ export const exaAdapter: ProviderAdapter = {
       }),
     });
 
-    const err = mapStatus(status, t(LABEL));
+    const err = mapStatus(status, t(LABEL), errorDetail);
     if (err) throw err;
 
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({

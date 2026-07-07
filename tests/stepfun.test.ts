@@ -57,4 +57,14 @@ describe('stepfunAdapter', () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network'); }));
     await expect(stepfunAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
   });
+
+  it('keeps provider 400 details for request debugging', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => res(400, { error: { message: 'n must be between 1 and 20' } })));
+
+    await expect(stepfunAdapter.search('q', {}, 'sf-key')).rejects.toMatchObject({
+      kind: 'provider',
+      status: 400,
+      message: expect.stringContaining('n must be between 1 and 20'),
+    });
+  });
 });

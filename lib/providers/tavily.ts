@@ -37,7 +37,7 @@ export const tavilyAdapter: ProviderAdapter = {
     opts: SearchOptions,
     apiKey: string,
   ): Promise<NormalizedSearchResponse> {
-    const { status, data } = await postJson<TavilyResponse>(ENDPOINT, {
+    const { status, data, errorDetail } = await postJson<TavilyResponse>(ENDPOINT, {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
@@ -49,7 +49,7 @@ export const tavilyAdapter: ProviderAdapter = {
       }),
     });
 
-    const err = mapStatus(status, t(LABEL));
+    const err = mapStatus(status, t(LABEL), errorDetail);
     if (err) throw err;
 
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({

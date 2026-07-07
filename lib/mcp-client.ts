@@ -1,4 +1,5 @@
 import { ProviderError } from './providers/types';
+import { appendProviderErrorDetail, readProviderErrorDetail } from './providers/http';
 import { t, MSG } from './i18n';
 
 // 最小 MCP streamableHttp 客户端（KTD7）。
@@ -61,10 +62,14 @@ async function rpc<T>(
   } catch {
     throw new ProviderError('network', t(MSG.error_mcp_network));
   }
-  if (res.status === 401 || res.status === 403)
-    throw new ProviderError('unauthorized', t(MSG.error_mcp_unauthorized), res.status);
-  if (res.status === 429) throw new ProviderError('rateLimit', t(MSG.error_mcp_rate_limit), res.status);
-  if (res.status >= 400) throw new ProviderError('provider', t(MSG.error_mcp_http, String(res.status)), res.status);
+  if (!res.ok) {
+    const detail = await readProviderErrorDetail(res);
+    if (res.status === 401 || res.status === 403)
+      throw new ProviderError('unauthorized', appendProviderErrorDetail(t(MSG.error_mcp_unauthorized), detail), res.status);
+    if (res.status === 429)
+      throw new ProviderError('rateLimit', appendProviderErrorDetail(t(MSG.error_mcp_rate_limit), detail), res.status);
+    throw new ProviderError('provider', appendProviderErrorDetail(t(MSG.error_mcp_http, String(res.status)), detail), res.status);
+  }
 
   const nextSessionId = res.headers.get('Mcp-Session-Id');
   const contentType = res.headers.get('content-type') ?? '';

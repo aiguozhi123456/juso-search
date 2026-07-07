@@ -70,6 +70,16 @@ describe('mcpWebSearch', () => {
     await expect(mcpWebSearch('https://x/mcp', 'bad', 'q')).rejects.toMatchObject({ kind: 'unauthorized' });
   });
 
+  it('keeps HTTP 400 details for request debugging', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => res(400, { error: { message: 'invalid tools/call arguments' } })));
+
+    await expect(mcpWebSearch('https://x/mcp', 'k', 'q')).rejects.toMatchObject({
+      kind: 'provider',
+      status: 400,
+      message: expect.stringContaining('invalid tools/call arguments'),
+    });
+  });
+
   it('throws provider on envelope.error', async () => {
     vi.stubGlobal('fetch', mockMcp(
       { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },

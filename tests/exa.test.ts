@@ -87,4 +87,14 @@ describe('exaAdapter', () => {
     await expect(exaAdapter.search('q', {}, 'bad')).rejects.toBeInstanceOf(ProviderError);
     await expect(exaAdapter.search('q', {}, 'bad')).rejects.toMatchObject({ kind: 'unauthorized' });
   });
+
+  it('keeps provider 400 details for request debugging', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => res(400, { message: 'Invalid outputSchema' })));
+
+    await expect(exaAdapter.search('q', {}, 'exa-key')).rejects.toMatchObject({
+      kind: 'provider',
+      status: 400,
+      message: expect.stringContaining('Invalid outputSchema'),
+    });
+  });
 });
