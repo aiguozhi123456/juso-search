@@ -21,7 +21,16 @@ vi.mock('@/lib/useLocale', () => ({
 }));
 // i18n 用真实查表（import.meta.glob 打包，默认 zh_CN），不再 mock —— 断言直接用真实中文文案。
 const openOptionsPage = vi.fn();
-vi.stubGlobal('browser', { runtime: { openOptionsPage } });
+const storageListeners = new Set<(changes: Record<string, unknown>) => void>();
+vi.stubGlobal('browser', {
+  runtime: { openOptionsPage },
+  storage: {
+    onChanged: {
+      addListener: (listener: (changes: Record<string, unknown>) => void) => storageListeners.add(listener),
+      removeListener: (listener: (changes: Record<string, unknown>) => void) => storageListeners.delete(listener),
+    },
+  },
+});
 
 const mockedSend = vi.mocked(sendMessage);
 
@@ -31,7 +40,8 @@ beforeEach(() => {
     if (type === 'getProviderConfig') {
       return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
     }
-    return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] } });
+    if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+    return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
   }) as never);
 });
 
@@ -40,18 +50,20 @@ async function doSearch(reply: unknown) {
     if (type === 'getProviderConfig') {
       return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
     }
+    if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
     return Promise.resolve(reply);
   }) as never);
   render(<App />);
   fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
   fireEvent.click(screen.getByRole('button', { name: '搜索' }));
-  await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', 'hello'));
+  await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'hello', forceRefresh: undefined, providerId: 'tavily' }));
 }
 
 describe('search page', () => {
   it('renders the answer card when the reply has an answer', async () => {
     await doSearch({
       ok: true,
+      cache: { hit: false },
       response: {
         query: 'hello',
         provider: 'tavily',
@@ -66,6 +78,7 @@ describe('search page', () => {
   it('hides the answer card when the provider returns no answer (R5 degradation)', async () => {
     await doSearch({
       ok: true,
+      cache: { hit: false },
       response: {
         query: 'q',
         provider: 'stepfun',
@@ -87,13 +100,13 @@ describe('search page', () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', 'hello'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'hello', forceRefresh: undefined, providerId: 'tavily' }));
 
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'world' } });
     fireEvent.click(await screen.findByRole('button', { name: /Exa/ }));
 
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', 'world'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'world', forceRefresh: undefined, providerId: 'exa' }));
   });
 
   it('switching provider with an empty input does not search', async () => {
@@ -101,11 +114,11 @@ describe('search page', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Exa/ }));
 
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
-    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.any(String));
+    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.objectContaining({ query: expect.any(String) }));
   });
 
   it('disables provider switching while search is loading', async () => {
-    const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [] } }>();
+    const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [] }; cache: { hit: false } }>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
@@ -124,13 +137,13 @@ describe('search page', () => {
 
     expect(mockedSend).not.toHaveBeenCalledWith('setActiveProvider', 'exa');
     await act(async () => {
-      pendingSearch.resolve({ ok: true, response: { query: 'hello', provider: 'tavily', results: [] } });
+      pendingSearch.resolve({ ok: true, response: { query: 'hello', provider: 'tavily', results: [] }, cache: { hit: false } });
       await pendingSearch.promise;
     });
   });
 
   it('interrupting a search drops the stale response and re-enables provider switching', async () => {
-    const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [{ title: string; url: string; snippet: string }] } }>();
+    const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [{ title: string; url: string; snippet: string }] }; cache: { hit: false } }>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
@@ -148,7 +161,7 @@ describe('search page', () => {
     const exaBtn = await screen.findByRole('button', { name: /Exa/ });
     await waitFor(() => expect(exaBtn).not.toBeDisabled());
     await act(async () => {
-      pendingSearch.resolve({ ok: true, response: { query: 'hello', provider: 'tavily', results: [{ title: 'Stale', url: 'https://stale.test', snippet: 'stale' }] } });
+      pendingSearch.resolve({ ok: true, response: { query: 'hello', provider: 'tavily', results: [{ title: 'Stale', url: 'https://stale.test', snippet: 'stale' }] }, cache: { hit: false } });
       await pendingSearch.promise;
     });
 
@@ -164,7 +177,8 @@ describe('search page', () => {
       }
       if (type === 'setActiveProvider' && data === 'exa') return exaSwitch.promise;
       if (type === 'setActiveProvider') return Promise.resolve(undefined);
-      return Promise.resolve({ ok: true, response: { query: data, provider: data === 'hello' ? 'stepfun' : 'tavily', results: [] } });
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: (data as { query: string }).query, provider: (data as { query: string }).query === 'hello' ? 'stepfun' : 'tavily', results: [] }, cache: { hit: false } });
     }) as never);
     render(<App />);
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
@@ -185,13 +199,35 @@ describe('search page', () => {
     expect(screen.getByRole('button', { name: /Exa/ })).toHaveClass('active');
   });
 
+  it('disables history while a provider switch is pending', async () => {
+    const exaSwitch = deferred<void>();
+    mockedSend.mockImplementation(((type: string, data: unknown) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+      }
+      if (type === 'setActiveProvider' && data === 'exa') return exaSwitch.promise;
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /Exa/ }));
+    expect(await screen.findByRole('button', { name: '历史' })).toBeDisabled();
+
+    await act(async () => {
+      exaSwitch.resolve(undefined);
+      await exaSwitch.promise;
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: '历史' })).not.toBeDisabled());
+  });
+
   it('clicking the active provider does not switch or search', async () => {
     render(<App />);
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
     fireEvent.click(await screen.findByRole('button', { name: /Tavily/ }));
 
     expect(mockedSend).not.toHaveBeenCalledWith('setActiveProvider', expect.any(String));
-    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.any(String));
+    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.objectContaining({ query: expect.any(String) }));
   });
 
   it('hides providers without configured keys', async () => {
@@ -199,7 +235,8 @@ describe('search page', () => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: 'exa' });
       }
-      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'exa', results: [] } });
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'exa', results: [] }, cache: { hit: false } });
     }) as never);
     render(<App />);
     expect(await screen.findByRole('button', { name: /Exa/ })).toBeInTheDocument();
@@ -223,6 +260,7 @@ describe('search page', () => {
   it('shows a no-results message when results array is empty', async () => {
     await doSearch({
       ok: true,
+      cache: { hit: false },
       response: {
         query: 'q',
         provider: 'tavily',
@@ -237,6 +275,143 @@ describe('search page', () => {
     await doSearch({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
     expect(await screen.findByText(/打开设置配置 API key/)).toBeInTheDocument();
     expect(screen.getByText('需要 key')).toBeInTheDocument();
+  });
+
+  it('shows cache metadata and refreshes with forceRefresh', async () => {
+    await doSearch({
+      ok: true,
+      cache: { hit: true, entryId: 'cache-1', createdAt: Date.now() - 60_000 },
+      response: {
+        query: 'hello',
+        provider: 'tavily',
+        results: [{ title: 'Cached', url: 'https://cached.test', snippet: 'cached' }],
+      },
+    });
+
+    expect(await screen.findByText(/来自 Tavily 本地缓存/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重新搜索' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'hello', forceRefresh: true, providerId: 'tavily' }));
+  });
+
+  it('selecting a history entry displays the cached response without searching', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+      }
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'exa:cached query', query: 'cached query', normalizedQuery: 'cached query', providerId: 'exa', createdAt: 1, lastAccessedAt: 1, answerPreview: 'cached answer', resultPreviews: [{ title: 'Cached result', url: 'https://cached.test' }], resultCount: 1 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'cache-1',
+          cacheKey: 'exa:cached query',
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'exa',
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: { query: 'cached query', provider: 'exa', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('getCachedSearchEntry', 'cache-1'));
+    expect(await screen.findByText('Cached result')).toBeInTheDocument();
+    expect(screen.getByLabelText('搜索词')).toHaveValue('cached query');
+    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+  });
+
+  it('selecting a history entry drops an in-flight search response', async () => {
+    const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [{ title: string; url: string; snippet: string }] }; cache: { hit: false } }>();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+      }
+      if (type === 'search') return pendingSearch.promise;
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'tavily:cached query', query: 'cached query', normalizedQuery: 'cached query', providerId: 'tavily', createdAt: 1, lastAccessedAt: 1, resultPreviews: [{ title: 'Cached result', url: 'https://cached.test' }], resultCount: 1 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'cache-1',
+          cacheKey: 'tavily:cached query',
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'tavily',
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: { query: 'cached query', provider: 'tavily', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'slow query' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    await act(async () => {
+      pendingSearch.resolve({ ok: true, response: { query: 'slow query', provider: 'tavily', results: [{ title: 'Stale result', url: 'https://stale.test', snippet: 'stale' }] }, cache: { hit: false } });
+      await pendingSearch.promise;
+    });
+
+    expect(await screen.findByText('Cached result')).toBeInTheDocument();
+    expect(screen.queryByText('Stale result')).not.toBeInTheDocument();
+  });
+
+  it('disables refresh while a cached entry provider switch is pending', async () => {
+    const switchPending = deferred<void>();
+    mockedSend.mockImplementation(((type: string, data: unknown) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+      }
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'exa:cached query', query: 'cached query', normalizedQuery: 'cached query', providerId: 'exa', createdAt: 1, lastAccessedAt: 1, resultPreviews: [{ title: 'Cached result', url: 'https://cached.test' }], resultCount: 1 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'cache-1',
+          cacheKey: 'exa:cached query',
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'exa',
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: { query: 'cached query', provider: 'exa', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
+        });
+      }
+      if (type === 'setActiveProvider' && data === 'exa') return switchPending.promise;
+      return Promise.resolve({ ok: true, response: { query: 'cached query', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('getCachedSearchEntry', 'cache-1'));
+    expect(await screen.findByText('Cached result')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重新搜索' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '搜索' })).toBeDisabled();
+
+    await act(async () => {
+      switchPending.resolve(undefined);
+      await switchPending.promise;
+    });
+    expect(await screen.findByRole('button', { name: '重新搜索' })).toBeInTheDocument();
   });
 
   it('shows the error message without settings affordance on providerError', async () => {

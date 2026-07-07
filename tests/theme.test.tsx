@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useTheme } from '@/lib/useTheme';
 import * as storage from '@/lib/storage';
 
-// useTheme 依赖：getThemePref/setThemePref（mock）、browser.storage.onChanged、window.matchMedia
+// useTheme 依赖：getThemePref/setThemePref（mock）、browser.runtime.onMessage、window.matchMedia
 vi.mock('@/lib/storage', () => ({
   getThemePref: vi.fn(),
   setThemePref: vi.fn(),
@@ -22,12 +22,12 @@ function mockMatchMedia(matches: boolean) {
   return listeners;
 }
 
-// 捕获 onChanged 监听器（不再惰性 stub），让跨标签同步路径可被测试。
-function mockOnChanged() {
+// 捕获 runtime.onMessage 监听器，让跨标签同步路径可被测试且不接触 providerKeys。
+function mockRuntimeMessages() {
   const listeners = new Set<(changes: unknown) => void>();
   vi.stubGlobal('browser', {
-    storage: {
-      onChanged: {
+    runtime: {
+      onMessage: {
         addListener: (l: (changes: unknown) => void) => listeners.add(l),
         removeListener: (l: (changes: unknown) => void) => listeners.delete(l),
       },
@@ -54,7 +54,7 @@ async function renderUseTheme() {
 describe('useTheme', () => {
   it('resolves auto -> light when system is light', async () => {
     mockMatchMedia(false);
-    mockOnChanged();
+    mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     expect(result.current.resolved).toBe('light');
@@ -63,7 +63,7 @@ describe('useTheme', () => {
 
   it('resolves auto -> dark when system is dark', async () => {
     mockMatchMedia(true);
-    mockOnChanged();
+    mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.resolved).toBe('dark'));
     expect(document.documentElement.dataset.theme).toBe('dark');
@@ -71,7 +71,7 @@ describe('useTheme', () => {
 
   it('explicit dark overrides system light', async () => {
     mockMatchMedia(false);
-    mockOnChanged();
+    mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('dark'));
@@ -82,7 +82,7 @@ describe('useTheme', () => {
 
   it('explicit light wins over system dark', async () => {
     mockMatchMedia(true);
-    mockOnChanged();
+    mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('light'));
@@ -91,7 +91,7 @@ describe('useTheme', () => {
 
   it('rolls back pref when persist rejects (state/storage divergence guard)', async () => {
     mockMatchMedia(false);
-    mockOnChanged();
+    mockRuntimeMessages();
     vi.mocked(storage.setThemePref).mockRejectedValueOnce(new Error('quota'));
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
@@ -106,13 +106,13 @@ describe('useTheme', () => {
 
   it('onChanged cross-tab: a valid remote themePref syncs pref + resolved + data-theme', async () => {
     mockMatchMedia(false); // 系统亮
-    const listeners = mockOnChanged();
+    const listeners = mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     expect(result.current.resolved).toBe('light');
 
     act(() => {
-      for (const l of listeners) l({ themePref: { newValue: 'dark' } });
+      for (const l of listeners) l({ type: 'uiPrefChanged', key: 'themePref', value: 'dark' });
     });
     await vi.waitFor(() => expect(result.current.pref).toBe('dark'));
     expect(result.current.resolved).toBe('dark');
@@ -121,11 +121,11 @@ describe('useTheme', () => {
 
   it('onChanged ignores unknown newValue (validation branch)', async () => {
     mockMatchMedia(false);
-    const listeners = mockOnChanged();
+    const listeners = mockRuntimeMessages();
     const { result } = await renderUseTheme();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
-      for (const l of listeners) l({ themePref: { newValue: 'neon' } });
+      for (const l of listeners) l({ type: 'uiPrefChanged', key: 'themePref', value: 'neon' });
     });
     expect(result.current.pref).toBe('auto');
     expect(result.current.resolved).toBe('light');

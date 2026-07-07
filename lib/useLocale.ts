@@ -7,31 +7,31 @@ import {
   type LocalePref,
 } from './i18n';
 import { getLocalePref, setLocalePref as persistPref } from './storage';
+import { isUiPrefChangedMessage } from './ui-pref-sync';
 
 export type { LocalePref };
 
 /**
  * UI 语言偏好与切换。
  * - 初始化从 chrome.storage.local 读取（默认 auto）。
- * - 订阅 i18n 模块的 locale 变化（手动切换或跨标签 onChanged 同步），触发组件重渲染。
+  * - 订阅 i18n 模块的 locale 变化（手动切换或跨标签 worker 广播同步），触发组件重渲染。
  * - setPref 乐观更新 + 持久化失败回滚（与 useTheme 同模式）。
  */
 export function useLocale(): { pref: LocalePref; setPref: (pref: LocalePref) => void } {
-  // 初始化 + 监听 storage 变更（多页/多标签同步）
+  // 初始化 + 监听 worker 广播的脱敏变更（多页/多标签同步）
   useEffect(() => {
     let alive = true;
     void getLocalePref().then((stored) => {
       if (!alive) return;
       applyLocalePref(stored);
     });
-    const onChanged = (changes: { localePref?: { newValue?: unknown } }) => {
-      const nv = changes.localePref?.newValue;
-      if (nv === 'auto' || nv === 'zh_CN' || nv === 'en') setLocale(nv);
+    const onMessage = (message: unknown) => {
+      if (isUiPrefChangedMessage(message) && message.key === 'localePref') setLocale(message.value);
     };
-    browser.storage.onChanged.addListener(onChanged);
+    browser.runtime.onMessage.addListener(onMessage);
     return () => {
       alive = false;
-      browser.storage.onChanged.removeListener(onChanged);
+      browser.runtime.onMessage.removeListener(onMessage);
     };
   }, []);
 

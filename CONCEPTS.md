@@ -31,6 +31,12 @@ The user's chosen language mode for extension UI text. `Auto` follows the browse
 ### Answer Capability Degradation (R5)
 When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun (both REST and MCP surfaces) does not.
 
+### Local Search Cache
+The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query (`providerId + normalizedQuery`), so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
+
+### Search Cache Summary
+The lightweight index entry shown in the history panel. It contains query, provider, timestamps, answer preview, and a few result title/url previews, while the replayable slim response is stored separately per cache entry. The panel reads summaries first and lazy-loads the full cached entry only when the user selects one.
+
 ## Billing
 
 ### Step Plan

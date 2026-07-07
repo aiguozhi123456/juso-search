@@ -10,7 +10,15 @@ import {
   setThemePref,
   getLocalePref,
   setLocalePref,
+  getCachedSearch,
+  getCachedSearchEntry,
+  getSearchCacheSummaries,
+  saveCachedSearch,
+  deleteCachedSearch,
+  clearSearchCache,
 } from '@/lib/storage';
+import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
+import type { NormalizedSearchResponse } from '@/lib/providers/types';
 
 // 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(key)/set。
 function installStorage(): void {
@@ -28,9 +36,33 @@ function installStorage(): void {
         async set(items: Record<string, unknown>) {
           for (const [k, v] of Object.entries(items)) store.set(k, v);
         },
+        async remove(keys: string | string[]) {
+          for (const key of Array.isArray(keys) ? keys : [keys]) store.delete(key);
+        },
       },
     },
   });
+}
+
+function responseFixture(overrides: Partial<NormalizedSearchResponse> = {}): NormalizedSearchResponse {
+  return {
+    query: 'hello world',
+    provider: 'tavily',
+    answer: {
+      text: 'A'.repeat(2500),
+      citations: Array.from({ length: 12 }, (_, i) => ({ url: `https://cite-${i}.test`, title: `C${i}` })),
+    },
+    results: Array.from({ length: 12 }, (_, i) => ({
+      title: `R${i}`,
+      url: `https://r-${i}.test`,
+      snippet: i === 0 ? 'S'.repeat(1200) : `snippet ${i}`,
+      content: `content ${i}`,
+      score: i,
+      publishedDate: '2026-07-07',
+      favicon: `https://r-${i}.test/favicon.ico`,
+    })),
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
@@ -145,5 +177,90 @@ describe('storage: locale pref', () => {
   it('rejects unknown stored values, falling back to auto', async () => {
     await browser.storage.local.set({ localePref: 'fr' });
     expect(await getLocalePref()).toBe('auto');
+  });
+});
+
+describe('storage: local search cache', () => {
+  it('returns null on cache miss', async () => {
+    expect(await getCachedSearch('tavily', 'hello')).toBeNull();
+  });
+
+  it('hits by provider and normalized query without crossing providers', async () => {
+    await saveCachedSearch(responseFixture({ query: ' hello   world ' }));
+
+    const hit = await getCachedSearch('tavily', 'hello world');
+    expect(hit?.response.query).toBe(' hello   world ');
+    expect(await getCachedSearch('exa', 'hello world')).toBeNull();
+  });
+
+  it('stores a slim replayable response and summary', async () => {
+    await saveCachedSearch(responseFixture());
+
+    const [summary] = await getSearchCacheSummaries();
+    const hit = await getCachedSearchEntry(summary.id);
+
+    expect(summary.answerPreview).toHaveLength(160);
+    expect(summary.resultPreviews).toHaveLength(3);
+    expect(summary.resultCount).toBe(10);
+    expect(hit?.response.answer?.text).toHaveLength(2000);
+    expect(hit?.response.answer?.citations).toHaveLength(10);
+    expect(hit?.response.results).toHaveLength(10);
+    expect(hit?.response.results[0].snippet).toHaveLength(1000);
+    expect(hit?.response.results[0]).not.toHaveProperty('content');
+  });
+
+  it('replaces an existing provider/query cache entry', async () => {
+    await saveCachedSearch(responseFixture({ results: [{ title: 'old', url: 'https://old.test', snippet: 'old' }] }));
+    await saveCachedSearch(responseFixture({ results: [{ title: 'new', url: 'https://new.test', snippet: 'new' }] }));
+
+    const summaries = await getSearchCacheSummaries();
+    const hit = await getCachedSearch('tavily', 'hello world');
+    expect(summaries).toHaveLength(1);
+    expect(hit?.response.results[0].title).toBe('new');
+  });
+
+  it('returns a cached entry even when LRU touch persistence fails', async () => {
+    await saveCachedSearch(responseFixture({ query: 'cached' }));
+    const originalSet = browser.storage.local.set;
+    browser.storage.local.set = async () => {
+      throw new Error('quota');
+    };
+
+    const hit = await getCachedSearch('tavily', 'cached');
+
+    expect(hit?.query).toBe('cached');
+    browser.storage.local.set = originalSet;
+  });
+
+  it('deletes a single cached entry', async () => {
+    await saveCachedSearch(responseFixture({ query: 'one' }));
+    await saveCachedSearch(responseFixture({ query: 'two' }));
+    const [first] = await getSearchCacheSummaries();
+
+    await deleteCachedSearch(first.id);
+
+    expect(await getCachedSearchEntry(first.id)).toBeNull();
+    expect(await getSearchCacheSummaries()).toHaveLength(1);
+  });
+
+  it('clears all indexed cached entries', async () => {
+    await saveCachedSearch(responseFixture({ query: 'one' }));
+    await saveCachedSearch(responseFixture({ query: 'two' }));
+
+    await clearSearchCache();
+
+    expect(await getSearchCacheSummaries()).toEqual([]);
+    expect(await getCachedSearch('tavily', 'one')).toBeNull();
+  });
+
+  it('enforces the cache capacity', async () => {
+    for (let i = 0; i < SEARCH_CACHE_CAP + 1; i += 1) {
+      await saveCachedSearch(responseFixture({ query: `q-${i}` }));
+    }
+
+    const summaries = await getSearchCacheSummaries();
+    expect(summaries).toHaveLength(SEARCH_CACHE_CAP);
+    expect(summaries[0].query).toBe(`q-${SEARCH_CACHE_CAP}`);
+    expect(await getCachedSearch('tavily', 'q-0')).toBeNull();
   });
 });

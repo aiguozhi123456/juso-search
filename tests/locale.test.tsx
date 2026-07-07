@@ -9,12 +9,12 @@ vi.mock('@/lib/storage', () => ({
   setLocalePref: vi.fn(),
 }));
 
-// 捕获 onChanged 监听器（与 theme.test.tsx 同模式）
-function mockOnChanged() {
+// 捕获 runtime.onMessage 监听器（与 theme.test.tsx 同模式）
+function mockRuntimeMessages() {
   const listeners = new Set<(changes: unknown) => void>();
   vi.stubGlobal('browser', {
-    storage: {
-      onChanged: {
+    runtime: {
+      onMessage: {
         addListener: (l: (c: unknown) => void) => listeners.add(l),
         removeListener: (l: (c: unknown) => void) => listeners.delete(l),
       },
@@ -40,7 +40,7 @@ async function renderUseLocale() {
 
 describe('useLocale', () => {
   it('initializes from stored pref', async () => {
-    mockOnChanged();
+    mockRuntimeMessages();
     vi.mocked(storage.getLocalePref).mockResolvedValue('en');
     const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('en'));
@@ -48,7 +48,7 @@ describe('useLocale', () => {
   });
 
   it('setPref optimistically switches and persists', async () => {
-    mockOnChanged();
+    mockRuntimeMessages();
     const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => result.current.setPref('en'));
@@ -57,7 +57,7 @@ describe('useLocale', () => {
   });
 
   it('rolls back pref when persist rejects', async () => {
-    mockOnChanged();
+    mockRuntimeMessages();
     vi.mocked(storage.setLocalePref).mockRejectedValueOnce(new Error('quota'));
     const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
@@ -69,21 +69,21 @@ describe('useLocale', () => {
   });
 
   it('onChanged cross-tab: a valid remote localePref syncs pref', async () => {
-    const listeners = mockOnChanged();
+    const listeners = mockRuntimeMessages();
     const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
-      for (const l of listeners) l({ localePref: { newValue: 'en' } });
+      for (const l of listeners) l({ type: 'uiPrefChanged', key: 'localePref', value: 'en' });
     });
     await vi.waitFor(() => expect(result.current.pref).toBe('en'));
   });
 
   it('onChanged ignores unknown newValue', async () => {
-    const listeners = mockOnChanged();
+    const listeners = mockRuntimeMessages();
     const { result } = await renderUseLocale();
     await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
     act(() => {
-      for (const l of listeners) l({ localePref: { newValue: 'fr' } });
+      for (const l of listeners) l({ type: 'uiPrefChanged', key: 'localePref', value: 'fr' });
     });
     expect(result.current.pref).toBe('auto');
   });

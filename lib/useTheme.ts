@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getThemePref, setThemePref as persistPref } from './storage';
 import type { ThemePref } from './storage';
+import { isUiPrefChangedMessage } from './ui-pref-sync';
 
 export type { ThemePref };
 export type ResolvedTheme = 'light' | 'dark';
@@ -27,7 +28,7 @@ export interface UseTheme {
 /**
  * 主题偏好与解析。
  * - 初始化从 chrome.storage.local 读取（默认 auto）。
- * - 监听 storage.onChanged 实现多页/多标签同步。
+   * - 监听 worker 广播的脱敏偏好变更实现多页/多标签同步。
  * - auto 模式下监听 prefers-color-scheme 变化实时更新。
  * - resolved 由 pref + systemDark 派生（单一写入路径），写入 document.documentElement.dataset.theme。
  *
@@ -38,21 +39,20 @@ export function useTheme(): UseTheme {
   // 系统深色偏好作为独立状态，便于 auto 模式下 matchMedia 变化时触发派生重算
   const [systemDark, setSystemDark] = useState<boolean>(() => systemPrefersDark());
 
-  // 初始读取 + 监听 storage 变更（多页/多标签同步）
+  // 初始读取 + 监听 worker 广播的脱敏变更（多页/多标签同步）
   useEffect(() => {
     let alive = true;
     void getThemePref().then((stored) => {
       if (!alive) return;
       setPrefState(stored);
     });
-    const onChanged = (changes: { themePref?: { newValue?: unknown } }) => {
-      const nv = changes.themePref?.newValue;
-      if (nv === 'auto' || nv === 'light' || nv === 'dark') setPrefState(nv);
+    const onMessage = (message: unknown) => {
+      if (isUiPrefChangedMessage(message) && message.key === 'themePref') setPrefState(message.value);
     };
-    browser.storage.onChanged.addListener(onChanged);
+    browser.runtime.onMessage.addListener(onMessage);
     return () => {
       alive = false;
-      browser.storage.onChanged.removeListener(onChanged);
+      browser.runtime.onMessage.removeListener(onMessage);
     };
   }, []);
 

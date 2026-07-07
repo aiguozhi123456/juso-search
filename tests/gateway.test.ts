@@ -3,9 +3,15 @@ import type { ProviderAdapter } from '@/lib/providers/types';
 import { ProviderError } from '@/lib/providers/types';
 
 vi.mock('@/lib/storage', () => ({
+  clearSearchCache: vi.fn(),
+  deleteCachedSearch: vi.fn(),
   getActiveProviderId: vi.fn(),
+  getCachedSearch: vi.fn(),
+  getCachedSearchEntry: vi.fn(),
   getConfiguredProviderIds: vi.fn(),
   getKey: vi.fn(),
+  getSearchCacheSummaries: vi.fn(),
+  saveCachedSearch: vi.fn(),
   setActiveProviderId: vi.fn(),
   setKey: vi.fn(),
 }));
@@ -14,13 +20,41 @@ vi.mock('@/lib/providers/registry', () => ({
   getAdapter: vi.fn(),
 }));
 
-import { handleGetProviderConfig, handleSaveProviderKey, handleSearch, handleSetActiveProvider, handleTestKey } from '@/lib/gateway';
-import { getActiveProviderId, getConfiguredProviderIds, getKey, setActiveProviderId, setKey } from '@/lib/storage';
+import {
+  handleClearSearchCache,
+  handleDeleteCachedSearch,
+  handleGetCachedSearchEntry,
+  handleGetProviderConfig,
+  handleGetSearchCacheSummaries,
+  handleSaveProviderKey,
+  handleSearch,
+  handleSetActiveProvider,
+  handleTestKey,
+} from '@/lib/gateway';
+import {
+  clearSearchCache,
+  deleteCachedSearch,
+  getActiveProviderId,
+  getCachedSearch,
+  getCachedSearchEntry,
+  getConfiguredProviderIds,
+  getKey,
+  getSearchCacheSummaries,
+  saveCachedSearch,
+  setActiveProviderId,
+  setKey,
+} from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
 
 const mockedGetActive = vi.mocked(getActiveProviderId);
+const mockedClearSearchCache = vi.mocked(clearSearchCache);
+const mockedDeleteCachedSearch = vi.mocked(deleteCachedSearch);
+const mockedGetCachedSearch = vi.mocked(getCachedSearch);
+const mockedGetCachedSearchEntry = vi.mocked(getCachedSearchEntry);
 const mockedGetConfigured = vi.mocked(getConfiguredProviderIds);
 const mockedGetKey = vi.mocked(getKey);
+const mockedGetSearchCacheSummaries = vi.mocked(getSearchCacheSummaries);
+const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
 const mockedSetActive = vi.mocked(setActiveProviderId);
 const mockedSetKey = vi.mocked(setKey);
 const mockedGetAdapter = vi.mocked(getAdapter);
@@ -37,6 +71,17 @@ function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter 
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedGetCachedSearch.mockResolvedValue(null);
+  mockedSaveCachedSearch.mockImplementation(async (response) => ({
+    id: 'cache-1',
+    cacheKey: `${response.provider}:${response.query}`,
+    query: response.query,
+    normalizedQuery: response.query,
+    providerId: response.provider,
+    createdAt: 1000,
+    lastAccessedAt: 1000,
+    response,
+  }));
 });
 
 describe('handleSearch', () => {
@@ -46,17 +91,128 @@ describe('handleSearch', () => {
     mockedGetKey.mockResolvedValue('tvly-k');
     mockedGetAdapter.mockReturnValue(adapter);
 
-    const reply = await handleSearch('hello');
+    const reply = await handleSearch({ query: 'hello' });
 
+    expect(mockedGetCachedSearch).toHaveBeenCalledWith('tavily', 'hello');
     expect(mockedGetAdapter).toHaveBeenCalledWith('tavily');
     expect(adapter.search).toHaveBeenCalledWith('hello', {}, 'tvly-k');
+    expect(mockedSaveCachedSearch).toHaveBeenCalledWith({ query: 'q', provider: 'tavily', results: [] });
     expect(reply.ok).toBe(true);
-    if (reply.ok) expect(reply.response.provider).toBe('tavily');
+    if (reply.ok) {
+      expect(reply.response.provider).toBe('tavily');
+      expect(reply.cache).toEqual({ hit: false, entryId: 'cache-1', createdAt: 1000 });
+    }
+  });
+
+  it('returns a cached response without calling the adapter', async () => {
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetCachedSearch.mockResolvedValue({
+      id: 'cache-hit',
+      cacheKey: 'tavily:hello',
+      query: 'hello',
+      normalizedQuery: 'hello',
+      providerId: 'tavily',
+      createdAt: 123,
+      lastAccessedAt: 456,
+      response: { query: 'hello', provider: 'tavily', results: [{ title: 'Cached', url: 'https://cached.test', snippet: 'cached' }] },
+    });
+
+    const reply = await handleSearch({ query: 'hello' });
+
+    expect(mockedGetAdapter).not.toHaveBeenCalled();
+    expect(mockedGetKey).not.toHaveBeenCalled();
+    expect(mockedSaveCachedSearch).not.toHaveBeenCalled();
+    expect(reply.ok).toBe(true);
+    if (reply.ok) {
+      expect(reply.cache).toEqual({ hit: true, entryId: 'cache-hit', createdAt: 123 });
+      expect(reply.response.results[0].title).toBe('Cached');
+    }
+  });
+
+  it('forceRefresh bypasses cache and refreshes provider result', async () => {
+    const adapter = fakeAdapter();
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetCachedSearch.mockResolvedValue({
+      id: 'cache-hit',
+      cacheKey: 'tavily:hello',
+      query: 'hello',
+      normalizedQuery: 'hello',
+      providerId: 'tavily',
+      createdAt: 123,
+      lastAccessedAt: 456,
+      response: { query: 'hello', provider: 'tavily', results: [] },
+    });
+    mockedGetKey.mockResolvedValue('tvly-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    await handleSearch({ query: 'hello', forceRefresh: true });
+
+    expect(mockedGetCachedSearch).not.toHaveBeenCalled();
+    expect(adapter.search).toHaveBeenCalledWith('hello', {}, 'tvly-k');
+    expect(mockedSaveCachedSearch).toHaveBeenCalled();
+  });
+
+  it('uses the requested provider snapshot when it is configured', async () => {
+    const adapter = fakeAdapter({ id: 'exa', search: vi.fn().mockResolvedValue({ query: 'q', provider: 'exa', results: [] }) });
+    mockedGetConfigured.mockResolvedValue(['exa']);
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('exa-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearch({ query: 'q', providerId: 'exa' });
+
+    expect(mockedGetActive).not.toHaveBeenCalled();
+    expect(mockedGetAdapter).toHaveBeenCalledWith('exa');
+    expect(adapter.search).toHaveBeenCalledWith('q', {}, 'exa-k');
+    expect(reply.ok).toBe(true);
+  });
+
+  it('does not fall back when the requested provider is no longer configured', async () => {
+    mockedGetConfigured.mockResolvedValue(['tavily']);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+
+    const reply = await handleSearch({ query: 'q', providerId: 'exa' });
+
+    expect(mockedGetActive).not.toHaveBeenCalled();
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');
+  });
+
+  it('does not cache failed provider responses', async () => {
+    const adapter = fakeAdapter({
+      search: vi.fn().mockRejectedValue(new ProviderError('unauthorized', 'bad key', 401)),
+    });
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearch({ query: 'q' });
+
+    expect(reply.ok).toBe(false);
+    expect(mockedSaveCachedSearch).not.toHaveBeenCalled();
+  });
+
+  it('returns provider results even when cache persistence fails', async () => {
+    const adapter = fakeAdapter({
+      search: vi.fn().mockResolvedValue({ query: 'q', provider: 'tavily', results: [{ title: 'R', url: 'https://r.test', snippet: 'r' }] }),
+    });
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('k');
+    mockedGetAdapter.mockReturnValue(adapter);
+    mockedSaveCachedSearch.mockRejectedValue(new Error('storage full'));
+
+    const reply = await handleSearch({ query: 'q' });
+
+    expect(reply.ok).toBe(true);
+    if (reply.ok) {
+      expect(reply.response.results[0].title).toBe('R');
+      expect(reply.cache).toEqual({ hit: false, entryId: undefined, createdAt: undefined });
+    }
   });
 
   it('returns keyMissing when no provider configured', async () => {
     mockedGetActive.mockResolvedValue(null);
-    const reply = await handleSearch('q');
+    const reply = await handleSearch({ query: 'q' });
     expect(reply).toEqual({ ok: false, error: { kind: 'keyMissing', message: expect.any(String) } });
     expect(mockedGetKey).not.toHaveBeenCalled();
   });
@@ -65,7 +221,7 @@ describe('handleSearch', () => {
     mockedGetActive.mockResolvedValue('stepfun');
     mockedGetKey.mockResolvedValue(null);
     mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'stepfun', label: 'provider_stepfun' }));
-    const reply = await handleSearch('q');
+    const reply = await handleSearch({ query: 'q' });
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');
   });
@@ -78,7 +234,7 @@ describe('handleSearch', () => {
     mockedGetKey.mockResolvedValue('k');
     mockedGetAdapter.mockReturnValue(adapter);
 
-    const reply = await handleSearch('q');
+    const reply = await handleSearch({ query: 'q' });
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.kind).toBe('providerError');
@@ -90,7 +246,7 @@ describe('handleSearch', () => {
     mockedGetActive.mockResolvedValue('tavily');
     mockedGetKey.mockResolvedValue('k');
     mockedGetAdapter.mockReturnValue(fakeAdapter({ search: vi.fn().mockRejectedValue(new Error('boom')) }));
-    const reply = await handleSearch('q');
+    const reply = await handleSearch({ query: 'q' });
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.kind).toBe('unknown');
@@ -165,5 +321,38 @@ describe('handleSetActiveProvider', () => {
     await handleSetActiveProvider('exa');
 
     expect(mockedSetActive).toHaveBeenCalledWith('exa');
+  });
+});
+
+describe('search cache handlers', () => {
+  it('returns cache summaries', async () => {
+    mockedGetSearchCacheSummaries.mockResolvedValue([
+      { id: 'c1', cacheKey: 'tavily:q', query: 'q', normalizedQuery: 'q', providerId: 'tavily', createdAt: 1, lastAccessedAt: 1, resultPreviews: [], resultCount: 0 },
+    ]);
+    await expect(handleGetSearchCacheSummaries()).resolves.toHaveLength(1);
+  });
+
+  it('returns a cached entry by id', async () => {
+    mockedGetCachedSearchEntry.mockResolvedValue({
+      id: 'c1',
+      cacheKey: 'tavily:q',
+      query: 'q',
+      normalizedQuery: 'q',
+      providerId: 'tavily',
+      createdAt: 1,
+      lastAccessedAt: 1,
+      response: { query: 'q', provider: 'tavily', results: [] },
+    });
+    await expect(handleGetCachedSearchEntry('c1')).resolves.toEqual(expect.objectContaining({ id: 'c1' }));
+  });
+
+  it('deletes a cached search by id', async () => {
+    await handleDeleteCachedSearch('c1');
+    expect(mockedDeleteCachedSearch).toHaveBeenCalledWith('c1');
+  });
+
+  it('clears the search cache', async () => {
+    await handleClearSearchCache();
+    expect(mockedClearSearchCache).toHaveBeenCalled();
   });
 });

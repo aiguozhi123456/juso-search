@@ -7,11 +7,13 @@ interface Props {
   onSearch: (query: string) => void;
   onInterrupt?: () => void;
   loading?: boolean;
+  disabled?: boolean;
 }
 
-export function SearchBox({ value, onChange, onSearch, onInterrupt, loading }: Props) {
+export function SearchBox({ value, onChange, onSearch, onInterrupt, loading, disabled }: Props) {
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (loading || disabled) return;
     const v = value.trim();
     if (v) onSearch(v);
   }
@@ -21,11 +23,12 @@ export function SearchBox({ value, onChange, onSearch, onInterrupt, loading }: P
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
         placeholder={t(MSG.search_placeholder)}
         autoFocus
         aria-label={t(MSG.search_aria)}
       />
-      <button type="submit" disabled={loading}>
+      <button type="submit" disabled={loading || disabled}>
         {loading ? t(MSG.btn_searching) : t(MSG.btn_search)}
       </button>
       {loading && onInterrupt && (
