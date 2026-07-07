@@ -26,32 +26,39 @@ The repo conventions (AGENTS.md): use the typed `browser` global, not `chrome`; 
 
 ## Guidance
 
-### 1. Apply persisted UI theme before first paint (FOUC prevention)
+### 1. Apply persisted UI theme without violating MV3 CSP
 
-A theme preference read inside a React `useEffect` applies **after** the first paint, so a user with a persisted `pref='dark'` on a light OS sees a white→dark flash on every cold reload. Fix it with a tiny inline `<head>` script that sets `data-theme` synchronously from the media query, then corrects it from storage:
+A theme preference read inside a React `useEffect` applies **after** the first paint, so a user with a persisted `pref='dark'` on a light OS sees a white→dark flash on every cold reload. In Chrome MV3 extension pages, do **not** solve this with inline `<script>`: the default extension CSP blocks inline execution and the page logs `Executing inline script violates ... script-src`.
+
+Use a packaged module script plus a CSS system-theme fallback instead:
 
 ```html
 <!-- entrypoints/<page>/index.html <head> -->
-<script>
-  (function () {
-    try {
-      var d = document.documentElement;
-      var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      d.dataset.theme = sysDark ? 'dark' : 'light';   // synchronous, before paint
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        chrome.storage.local.get('themePref', function (r) {  // async correct
-          var p = r && r.themePref;
-          if (p === 'light' || p === 'dark') d.dataset.theme = p;
-        });
-      }
-    } catch (e) { /* fall back to :root light tokens */ }
-  })();
-</script>
+<script type="module" src="../shared/theme-init.ts"></script>
 ```
 
-The inline script uses `chrome.storage` (not `browser`) deliberately: WXT's `browser` global is module-injected and unavailable to inline HTML. Guard with `typeof chrome`. The React hook then takes over `data-theme` maintenance after mount.
+```ts
+// entrypoints/shared/theme-init.ts
+void browser.storage.local.get('themePref').then((got) => {
+  const pref = got.themePref;
+  // Validate pref, then write document.documentElement.dataset.theme.
+});
+```
 
-Once `data-theme` is reliably written pre-paint, the `@media (prefers-color-scheme: dark)` CSS override becomes redundant — keep **one** dark-token source (`:root[data-theme="dark"]`), not two.
+```css
+/* entrypoints/shared/tokens.css */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    /* dark tokens */
+  }
+}
+
+:root[data-theme="dark"] {
+  /* same dark tokens */
+}
+```
+
+The module script is served from the extension package (`script-src 'self'`), so it satisfies MV3 CSP. It should read only `themePref`, never `get(null)`, to avoid materializing BYOK `providerKeys` in page memory. The CSS fallback gives dark-OS users a correct first paint before the module or React hook writes `data-theme`; the React hook then takes over `data-theme` maintenance after mount.
 
 ### 2. Scope storage reads from page code (BYOK key hygiene)
 

@@ -1,5 +1,5 @@
-/* 共享设计令牌：light 默认 + [data-theme="dark"] 显式深色。
-   data-theme 在首屏前由 index.html 内联脚本写入（FOUC 防护），React 挂载后由 useTheme 维护。
+/* 共享设计令牌：light 默认 + 系统深色首屏兜底 + [data-theme="dark"] 显式深色。
+   data-theme 在 React 挂载前由 CSP-safe theme-init module 写入，挂载后由 useTheme 维护。
    两个入口页 main.tsx 在各自 styles.css 之前 import 本文件。 */
 
 :root {
@@ -15,6 +15,23 @@
   --answer-border: #c2d9ff;
   --success: #1e8e3e;
   --error: #b00020;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #1a1a1a;
+    --bg-soft: #141414;
+    --fg: #e8e8e8;
+    --muted: #9aa0a6;
+    --border: #3c4043;
+    --border-soft: #2a2a2a;
+    --accent: #8ab4f8;
+    --on-accent: #06223f;
+    --answer-bg: #1b2a3a;
+    --answer-border: #2d4a6b;
+    --success: #81c995;
+    --error: #f28b82;
+  }
 }
 
 :root[data-theme="dark"] {

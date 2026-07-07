@@ -32,7 +32,7 @@ export interface UseTheme {
  * - auto 模式下监听 prefers-color-scheme 变化实时更新。
  * - resolved 由 pref + systemDark 派生（单一写入路径），写入 document.documentElement.dataset.theme。
  *
- * 注意：data-theme 在首屏前已由 index.html 内联脚本写入（FOUC 防护），本 hook 接管挂载后的维护。
+ * 注意：data-theme 在挂载前由 theme-init module + CSS media fallback 尽早写入，本 hook 接管挂载后的维护。
  */
 export function useTheme(): UseTheme {
   const [pref, setPrefState] = useState<ThemePref>('auto');

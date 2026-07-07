@@ -3,23 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      // FOUC 防护：首屏前同步按系统偏好设 data-theme，再异步用存储纠正显式偏好。
-      // 在扩展页里 chrome.storage.local 可用；非扩展环境安全降级。
-      (function () {
-        try {
-          var d = document.documentElement;
-          var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          d.dataset.theme = sysDark ? 'dark' : 'light';
-          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.get('themePref', function (r) {
-              var p = r && r.themePref;
-              if (p === 'light' || p === 'dark') d.dataset.theme = p;
-            });
-          }
-        } catch (e) { /* 降级：保留默认 :root light 令牌 */ }
-      })();
-    </script>
+    <script type="module" src="../shared/theme-init.ts"></script>
     <title>AI Search</title>
   </head>
   <body>
