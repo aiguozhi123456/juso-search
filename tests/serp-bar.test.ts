@@ -42,7 +42,7 @@ describe('resolveSerpHandoff — provider chip (回归 ERR_BLOCKED_BY_CLIENT)', 
   it('yields an openSearchPage deep link carrying query+provider (not a navigate)', () => {
     expect(resolveSerpHandoff(tavily, 'hello world')).toEqual({
       kind: 'openSearchPage',
-      deepLink: 'search.html?provider=tavily&query=hello+world',
+      deepLink: '/search.html?provider=tavily&query=hello+world',
     });
   });
 

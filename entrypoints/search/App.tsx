@@ -37,8 +37,12 @@ export default function App() {
   const switchReqIdRef = useRef(0);
 
   useEffect(() => {
+    // ignore guard：StrictMode 下 mount effect 双调；第一次 await 中的请求由第二次
+    // 卸载-重挂时 ignore=true 拦截，避免对付费 provider 重复发送 search 请求。
+    let ignore = false;
     void (async () => {
       const config = await sendMessage('getProviderConfig', undefined);
+      if (ignore) return;
       setConfiguredProviderIds(config.configuredProviderIds);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
@@ -50,9 +54,13 @@ export default function App() {
       setActive(initialProvider);
       if (link.query) {
         setQuery(link.query);
+        if (ignore) return;
         await handleSearch(link.query, { providerId: initialProvider ?? undefined });
       }
     })();
+    return () => {
+      ignore = true;
+    };
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 

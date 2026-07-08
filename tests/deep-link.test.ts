@@ -37,7 +37,7 @@ describe('parseSearchDeepLink', () => {
 describe('buildSearchDeepLink', () => {
   it('builds a search.html deep link with provider + query', () => {
     expect(buildSearchDeepLink('tavily', 'hello world')).toBe(
-      'search.html?provider=tavily&query=hello+world',
+      '/search.html?provider=tavily&query=hello+world',
     );
   });
 });

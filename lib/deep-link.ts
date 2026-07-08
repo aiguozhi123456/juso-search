@@ -28,5 +28,6 @@ export function buildSearchDeepLink(provider: ProviderId, query: string): string
   const params = new URLSearchParams();
   params.set('provider', provider);
   params.set('query', query);
-  return `search.html?${params.toString()}`;
+  // 前导斜杠：runtime.getURL 期望以 / 开头的路径（与 serp-handoff.ts 空查询分支的 /search.html 对齐）。
+  return `/search.html?${params.toString()}`;
 }
