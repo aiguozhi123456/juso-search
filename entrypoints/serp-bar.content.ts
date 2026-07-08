@@ -3,9 +3,10 @@ import type { Root } from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
 import { allSources } from '@/lib/sources';
+import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource } from '@/lib/sources';
-import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl } from '@/lib/engines/registry';
+import { pickAnchorSelector } from '@/lib/engines/serp-anchor';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
@@ -15,41 +16,43 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * 锚点选择器（Google/Bing DOM 易变，真机 dogfood 阶段需复核）：
+ * 锚点选择（Google/Bing DOM 易变，真机 dogfood 阶段需复核）：
  *   Google: #search（结果主区）/ #rso（结果列表）
  *   Bing:   #b_results（结果主区）
  * 栏插在结果容器**之前**（append:'before'），实现「结果上方 inline」。
- * 找不到锚点时回退插到 body 顶部，保证栏至少可见。
+ *
+ * 时序与 SPA 鲁棒性（回归「Bing 有时注入不生效」）：
+ *   - 用 ui.autoMount()（内部 MutationObserver 观察锚点选择器函数），
+ *     锚点元素由 SPA 延迟挂载或后续导航重挂时自动 (re)mount / unmount，
+ *     不再依赖 document_idle 时同步命中锚点。
+ *   - anchor 为**函数**而非首次匹配字符串：每次检查都按当前 URL 重算 engine，
+ *     SPA 切换 engine（google↔bing）也能跟进。
+ *   - 不回退 body：body-before 插入会把 shadow host 挂到 <body> 之外、不占布局，
+ *     造成「完全看不见」。宁可等锚点出现，也不要落到不可见位置。
  */
 export default defineContentScript({
   matches: ['https://www.google.com/search*', 'https://www.bing.com/search*'],
   cssInjectionMode: 'ui',
   async main(ctx) {
-    const url = window.location.href;
-    const currentEngine = matchEngineByUrl(url);
-    if (!currentEngine) return; // 非已知 engine（如国别域名），不注入
+    // 初始化（异步读取 worker 代理的 provider 配置与主题偏好）。
+    // onMount 是同步签名（返回 TMounted），异步值在此预读后经 state 闭包喂给渲染。
+    const state = await loadBarState();
 
-    // 提取当前查询词（栏内 chip 跳转都带上它）。
-    const query = new URLSearchParams(window.location.search).get(currentEngine.queryParam) ?? '';
-
-    // 读已配置 provider（worker 代理，不读 key 明文）。
-    const config = await sendMessage('getProviderConfig', undefined);
-    const sources = allSources(config.configuredProviderIds);
-
-    // 主题跟随：shadow root 隔离了宿主页 CSS，需在 shadowHost 上显式设 data-theme。
-    const themePref = await getThemePref();
-    const resolvedTheme = resolveTheme(themePref);
-
-    // onMount 把 React root 经由 mountedRoot 闭包变量暴露给 locationchange 重渲——
-    // ui.mount() 本身返回 void，{ root } 仅在 onRemove 回调里可达。
+    // onMount/onRemove 之间维护的 React root；autoMount 反复 (un)mount 时，
+    // 通过这个闭包变量让 wxt:locationchange 重渲命中「当前已挂载的 root」。
     let mountedRoot: Root | null = null;
+
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-serp-bar',
       position: 'inline',
-      anchor: pickAnchor(),
+      // 函数锚点：每次都按当前 URL 解析 engine 并给主选择器；autoMount 观察它。
+      anchor: () => pickAnchorSelector(matchEngineByUrl(window.location.href)),
       append: 'before',
       onMount(uiContainer, _shadow, shadowHost) {
-        shadowHost.dataset.theme = resolvedTheme;
+        shadowHost.dataset.theme = state.resolvedTheme;
+        // 防御宿主页 CSS 折叠 host（shadow DOM 只隔离内部样式，host 元素本身受宿主布局支配）。
+        shadowHost.style.display = 'block';
+        shadowHost.style.minHeight = '40px';
         const styleEl = document.createElement('style');
         styleEl.textContent = serpBarStyles;
         uiContainer.append(styleEl);
@@ -57,13 +60,7 @@ export default defineContentScript({
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
         mountedRoot = root;
-        root.render(
-          createElement(SourceSwitcher, {
-            sources,
-            activeId: currentEngine.id,
-            onSelect: (source: SearchSource) => onSelect(source, query),
-          }),
-        );
+        render(root, state, state.engine);
         return { root };
       },
       onRemove(mounted) {
@@ -71,27 +68,63 @@ export default defineContentScript({
         mounted?.root.unmount();
       },
     });
-    ui.mount();
+    // autoMount：锚点出现自动 mount、消失自动 unmount，根治 SPA 重挂导致的「留白无栏」
+    // 与 document_idle 时锚点尚未就绪导致的「完全不出现」。
+    ui.autoMount();
 
     // Google/Bing 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
     // 也不重新注入 content script（WXT ContentScriptContext 专门暴露 wxt:locationchange）。
-    // 在此重算 engine/query 并对同一 React root 重渲，避免 chip 查询词与 active 高亮停在首次。
+    // 在此重算 engine/query 并对同一 React root 重渲（若已挂载），避免 chip 查询词与 active
+    // 高亮停在首次；engine 切换时同步刷新 state.engine 供下一次 onMount 使用。
     ctx.addEventListener(window, 'wxt:locationchange', () => {
-      if (!mountedRoot) return; // 已被 onRemove 卸载，不再重渲
       const nextEngine = matchEngineByUrl(window.location.href);
       if (!nextEngine) return; // 离开已知 engine（如跳到 google.com/maps），不重渲
-      const nextQuery =
-        new URLSearchParams(window.location.search).get(nextEngine.queryParam) ?? '';
-      mountedRoot.render(
-        createElement(SourceSwitcher, {
-          sources,
-          activeId: nextEngine.id,
-          onSelect: (source: SearchSource) => onSelect(source, nextQuery),
-        }),
-      );
+      state.engine = nextEngine;
+      state.query = readQuery(nextEngine);
+      if (!mountedRoot) return; // 当前未挂载（锚点暂时不在），等 autoMount 重挂时自然用新 state
+      render(mountedRoot, state, nextEngine);
     });
   },
 });
+
+interface BarState {
+  engine: SearchEngine;
+  query: string;
+  sources: SearchSource[];
+  resolvedTheme: 'light' | 'dark';
+}
+
+/** 读 config/theme/sources/query 并 resolve theme，产出 onMount 渲染所需全部值。 */
+async function loadBarState(): Promise<BarState> {
+  const engine = matchEngineByUrl(window.location.href);
+  // main() 仅在 matches 命中的 SERP 页运行，engine 必中；保守兜底仍 early-return。
+  if (!engine) {
+    throw new Error('serp-bar: no engine matched on matched SERP URL');
+  }
+  const config = await sendMessage('getProviderConfig', undefined);
+  const sources = allSources(config.configuredProviderIds);
+  const themePref = await getThemePref();
+  return {
+    engine,
+    query: readQuery(engine),
+    sources,
+    resolvedTheme: resolveTheme(themePref),
+  };
+}
+
+function readQuery(engine: SearchEngine): string {
+  return new URLSearchParams(window.location.search).get(engine.queryParam) ?? '';
+}
+
+function render(root: Root, state: BarState, engine: SearchEngine): void {
+  root.render(
+    createElement(SourceSwitcher, {
+      sources: state.sources,
+      activeId: engine.id,
+      onSelect: (source: SearchSource) => onSelect(source, state.query),
+    }),
+  );
+}
 
 /**
  * 选中某 chip：
@@ -110,15 +143,6 @@ function onSelect(source: SearchSource, query: string): void {
     return;
   }
   void sendMessage('openSearchPage', handoff.deepLink);
-}
-
-/** 优先选结果容器；找不到回退 body（append:'before' 对 body 也成立）。 */
-function pickAnchor(): string {
-  const candidates = ['#search', '#rso', '#b_results'];
-  for (const sel of candidates) {
-    if (document.querySelector(sel)) return sel;
-  }
-  return 'body';
 }
 
 function resolveTheme(pref: 'auto' | 'light' | 'dark'): 'light' | 'dark' {

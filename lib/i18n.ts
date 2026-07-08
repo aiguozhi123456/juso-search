@@ -27,17 +27,36 @@ for (const [path, mod] of Object.entries(localeModules)) {
 export type Locale = 'zh_CN' | 'en';
 export type LocalePref = 'auto' | Locale;
 
-/** 模块级当前 locale（订阅者读取此值）。auto 在解析后落到具体 Locale。 */
-let currentLocale: Locale = resolveAuto();
+/**
+ * 模块级当前 locale（订阅者读取此值）。auto 在解析后落到具体 Locale。
+ *
+ * **惰性初始化**：不在模块加载时调用 resolveAuto()。模块的顶层副作用不应依赖
+ * 运行环境——WXT 在构建期用 vite-node 评估入口的 define* 调用以抽取 manifest 选项，
+ * 会连带加载 background 模块图（gateway→providers→http→i18n），此时 browser 解析为
+ * @webext-core/fake-browser，其 getUILanguage 存在但调用即抛「not implemented」，
+ * 会在模块加载阶段炸掉构建。首次读取时（运行时 / 测试 / 真扩展上下文）才解析，
+ * 彻底规避「模块加载有副作用」这个根因。
+ */
+let currentLocale: Locale | undefined;
 let currentPref: LocalePref = 'auto';
 const listeners = new Set<() => void>();
+
+/** 取当前 locale；尚未解析时按 resolveAuto() 惰性播种。 */
+function getResolvedLocale(): Locale {
+  if (currentLocale === undefined) {
+    currentLocale = resolveAuto();
+  }
+  return currentLocale;
+}
 
 /** 把浏览器 UI 语言映射到本项目支持的 locale；无匹配则 en。 */
 function mapUiLanguage(ui: string): Locale {
   return ui.toLowerCase().startsWith('zh') ? 'zh_CN' : 'en';
 }
 
-/** auto → 按 browser.i18n.getUILanguage() 解析；显式 pref 直接返回。 */
+/** auto → 按 browser.i18n.getUILanguage() 解析；显式 pref 直接返回。
+ *  非「自作聪明」地吞异常：此处只在运行时调用（惰性播种），此时 browser 已是真实扩展
+ *  API 或测试显式 stub，调用安全；无 browser 时回落 zh_CN。 */
 function resolveAuto(): Locale {
   if (typeof browser !== 'undefined' && browser?.i18n?.getUILanguage) {
     return mapUiLanguage(browser.i18n.getUILanguage());
@@ -54,15 +73,16 @@ function resolvePref(pref: LocalePref): Locale {
 export function setLocale(pref: LocalePref): void {
   const next = resolvePref(pref);
   const prevPref = currentPref;
+  const prevLocale = getResolvedLocale();
   currentPref = pref;
-  if (next === currentLocale && pref === prevPref && pref !== 'auto') return; // 非.auto 且无变化才跳过
+  if (next === prevLocale && pref === prevPref && pref !== 'auto') return; // 非.auto 且无变化才跳过
   currentLocale = next;
   for (const l of listeners) l();
 }
 
 /** 当前已解析 locale（zh_CN / en）。供 main.tsx 设置 <html lang> 用。 */
 export function getCurrentLocale(): Locale {
-  return currentLocale;
+  return getResolvedLocale();
 }
 
 /** 当前偏好（含 auto）。供切换器 UI 高亮用。 */
@@ -97,7 +117,7 @@ export function t(messageName: string, substitutions?: string | string[]): strin
     return entry.replace(/\$(\d+)/g, (_, i) => subs[Number(i) - 1] ?? '');
   };
   // 当前 locale 找不到 → 回退 en → 再回退 messageName
-  return lookup(currentLocale, messageName) || lookup('en', messageName) || messageName;
+  return lookup(getResolvedLocale(), messageName) || lookup('en', messageName) || messageName;
 }
 
 /** 当前浏览器 UI 语言原始串（如 'zh_CN'/'en-US'），仅用于诊断。 */
