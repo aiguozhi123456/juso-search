@@ -31,6 +31,16 @@ export default defineBackground(() => {
   onMessage('getProviderConfig', () => handleGetProviderConfig());
   onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
+  // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到
+  // chrome-extension:// 会被客户端拦截（ERR_BLOCKED_BY_CLIENT），只能在特权上下文用
+  // tabs.update 导航当前 tab。deepLink 为相对路径（search.html?... 或 /search.html）。
+  onMessage('openSearchPage', ({ data, sender }) => {
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return; // 非内容脚本来源（无 tab），安全跳过
+    void browser.tabs.update(tabId, {
+      url: (browser.runtime.getURL as (p: string) => string)(data),
+    });
+  });
   onMessage('getSearchCacheSummaries', () => handleGetSearchCacheSummaries());
   onMessage('getCachedSearchEntry', ({ data }) => handleGetCachedSearchEntry(data));
   onMessage('deleteCachedSearch', ({ data }) => handleDeleteCachedSearch(data));

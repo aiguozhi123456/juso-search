@@ -55,6 +55,9 @@ export type ProtocolMap = {
   getProviderConfig(): Promise<ProviderConfigReply>;
   setActiveProvider(providerId: ProviderId): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
+  // 由 background 在特权上下文用 tabs.update 把当前 tab 导航到扩展页深链。
+  // SERP 注入栏不能自己 location.assign 到 chrome-extension://（被客户端拦截）。
+  openSearchPage(deepLink: string): Promise<void>;
   getSearchCacheSummaries(): Promise<SearchCacheSummary[]>;
   getCachedSearchEntry(id: string): Promise<SearchCacheEntry | null>;
   deleteCachedSearch(id: string): Promise<void>;

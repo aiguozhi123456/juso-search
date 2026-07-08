@@ -2,11 +2,11 @@ import { createElement } from 'react';
 import type { Root } from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
-import { allSources, isEngineId, isProviderId } from '@/lib/sources';
+import { allSources } from '@/lib/sources';
 import type { SearchSource } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
-import { buildSerpUrl, buildEngineHomeUrl, getEngine, matchEngineByUrl } from '@/lib/engines/registry';
-import { buildSearchDeepLink } from '@/lib/deep-link';
+import { matchEngineByUrl } from '@/lib/engines/registry';
+import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 
@@ -70,19 +70,23 @@ export default defineContentScript({
   },
 });
 
-/** 选中某 chip：engine → 当前 tab 跳该 engine SERP/首页；provider → 跳 Juso 搜索页深链。 */
+/**
+ * 选中某 chip：
+ *   engine   → 当前 tab location.assign 到该 engine SERP/首页（https，网页可导航）；
+ *   provider → 委托 background 用 tabs.update 跳 Juso 搜索页深链（带 query，空查询跳首页）。
+ *
+ * provider 分支不能在网页上下文直接 location.assign 到 chrome-extension://，会被客户端
+ * 拦截（ERR_BLOCKED_BY_CLIENT）；交给 worker 在特权上下文导航当前 tab。跳转意图由
+ * resolveSerpHandoff 纯函数解析（便于单测），此处只负责按 kind 执行副作用。
+ */
 function onSelect(source: SearchSource, query: string): void {
-  const trimmed = query.trim();
-  if (source.kind === 'engine' && isEngineId(source.id)) {
-    const engine = getEngine(source.id);
-    location.assign(trimmed ? buildSerpUrl(engine, trimmed) : buildEngineHomeUrl(engine));
+  const handoff = resolveSerpHandoff(source, query);
+  if (!handoff) return;
+  if (handoff.kind === 'navigate') {
+    location.assign(handoff.url);
     return;
   }
-  // provider → 跳 Juso 搜索页深链（带 query），空查询跳首页。
-  if (isProviderId(source.id)) {
-    const deepLink = trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html';
-    location.assign((browser.runtime.getURL as (p: string) => string)(deepLink));
-  }
+  void sendMessage('openSearchPage', handoff.deepLink);
 }
 
 /** 优先选结果容器；找不到回退 body（append:'before' 对 body 也成立）。 */
