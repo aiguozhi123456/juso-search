@@ -196,6 +196,11 @@ export const MSG = {
   provider_exa: 'provider_exa',
   provider_stepfun: 'provider_stepfun',
   provider_stepfun_plan: 'provider_stepfun_plan',
+  // 常规搜索引擎标签（v2 快切）
+  engine_google: 'engine_google',
+  engine_bing: 'engine_bing',
+  // 统一快切栏
+  source_switcher_aria: 'source_switcher_aria',
   // 后台 / provider 错误（部分带插值 $1=provider/$2=status）
   error_no_provider_key: 'error_no_provider_key',
   error_key_missing_provider: 'error_key_missing_provider',

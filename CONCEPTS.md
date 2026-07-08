@@ -10,6 +10,20 @@ A normalization interface that wraps each external search provider's API (Tavily
 ### NormalizedSearchResponse
 The shared data model returned by every ProviderAdapter: `{ query, provider, answer?, results: NormalizedResult[] }`. The `answer` field is present only when the provider supports synthesized answers (Tavily, Exa) and the request requested one. The `results` array is always populated. This is what the UI renders.
 
+## Search Source (v2)
+
+### Search Engine
+A conventional web search engine (Google, Bing) treated as a **navigation-only** target: it has no API key, no synthesized answer, and no `search()` method. It is described by an `EngineId` + `{ label, favicon, serpUrlTemplate, queryParam }` and lives in a registry parallel to providers (`lib/engines/registry.ts`). Engines are deliberately **not** merged into the `ProviderId` union, because that union is bound to the BYOK key read-path and the `ProviderAdapter.search()` contract — neither of which applies to an engine. The engine's only behaviors are building a SERP URL for a query and being recognized by URL on its result page.
+
+### Search Source
+The unified view layer that lets one switcher bar render both configured AI providers and all engines homogeneously. `SearchSource = { id, kind: 'provider'|'engine', label, supportsAnswer, favicon? }` is projected by `allSources(configuredProviderIds)`: providers are filtered to those configured (same v1 rule), engines are always all shown. The `id` namespaces do not collide (providers: tavily/exa/stepfun/stepfun-plan; engines: google/bing). The `SourceSwitcher` component consumes this shape in three places — the Juso search page and the injected SERP bar.
+
+### SERP Switch Bar
+The same `SourceSwitcher` component injected as a content script (`entrypoints/serp-bar.content.ts`) into Google and Bing result pages, mounted inside a **shadow DOM** (`createShadowRootUi`) so host-page CSS cannot leak in and the bar's tokens cannot leak out. The bar sits inline above the results (anchored before the results container, with a body-top fallback). Clicking any chip performs a **current-tab navigation**: an engine chip jumps to that engine's SERP (or home) carrying the current query; a provider chip jumps to the Juso search page via a Deep Link. This is the v2 fix for v1's standalone-tab entry friction — the switcher now meets the user wherever they already search.
+
+### Deep Link
+A `search.html?provider=X&query=Y` URL that drops the user into the Juso search page with a preselected provider and an auto-fired query. The SERP bar uses it when a provider chip is clicked from a regular search engine page; the page's mount effect parses it (provider must be configured to be honored, else falls back to the active provider). It lets the SERP bar hand off to the AI search experience in one current-tab navigation.
+
 ## Security
 
 ### BYOK
@@ -17,6 +31,9 @@ Bring Your Own Key. The extension stores the user's API keys exclusively in `chr
 
 ### Provider Configuration Status
 The declassified status the UI needs to render provider choices without reading stored API keys. It includes configured provider IDs and the active provider ID, returned by the background worker through messaging. Search and active-provider selection surfaces use it to hide unconfigured providers; API-key configuration surfaces still list all known providers so users can add new keys.
+
+### Config Export
+A user-initiated backup of the extension's configuration (provider keys, active provider, theme, locale) to a JSON file. The background worker assembles the payload and triggers the file download itself via the downloads API, so plaintext keys never enter page memory. The export file contains plaintext API keys and is owned by the user — the extension warns about its sensitivity but does not encrypt it. Import uses a preview-confirm flow: a dry-run shows what would change (keys to fill, prefs that differ), and the user confirms before preferences are overwritten. Keys are always non-destructive (fill empty slots only); preferences are opt-in.
 
 ## Behavioral Rules
 
@@ -36,6 +53,11 @@ The local, per-device cache of successful provider searches used to avoid repeat
 
 ### Search Cache Summary
 The lightweight index entry shown in the history panel. It contains query, provider, timestamps, answer preview, and a few result title/url previews, while the replayable slim response is stored separately per cache entry. The panel reads summaries first and lazy-loads the full cached entry only when the user selects one.
+
+## Storage Schema
+
+### Storage Schema Domain
+A logical partition of `chrome.storage.local` that has its own schema version stamp and migration registry, evolving independently of other domains. The project uses two: a small config domain (user keys and preferences) and a larger cache pool domain (the search result cache). When adding a new persistent storage key, it belongs to exactly one domain, and future shape changes to that key flow through that domain's migration chain — not a global migration. Worker startup checks each domain's version stamp (a single-key read) and runs pending migrations before any gateway handler touches storage; steady-state checks cost near zero because they short-circuit on the stamp alone.
 
 ## Billing
 

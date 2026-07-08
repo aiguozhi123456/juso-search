@@ -31,6 +31,19 @@ body {
 .provider-switcher button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .provider-switcher .no-answer { font-size: 11px; opacity: 0.7; }
 
+/* 统一快切栏（v2）：AI provider + 常规搜索引擎同一行 pill。
+   复用 provider-switcher 的视觉语言，额外支持 engine favicon 对齐。 */
+.source-switcher { display: flex; gap: 6px; flex-wrap: wrap; }
+.source-switcher button {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--border); background: var(--bg); border-radius: 999px;
+  padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
+}
+.source-switcher button:disabled { opacity: 0.55; cursor: default; }
+.source-switcher button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.source-switcher .source-icon { border-radius: 3px; display: inline-block; }
+.source-switcher .no-answer { font-size: 11px; opacity: 0.7; }
+
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .settings-button, .history-button {
   width: 34px; height: 34px; padding: 0; font-size: 16px; line-height: 1;

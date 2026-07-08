@@ -435,4 +435,91 @@ describe('search page', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Tavily/ })).toHaveClass('active'));
     expect(screen.queryByRole('group', { name: '语言' })).not.toBeInTheDocument();
   });
+
+  // ── v2 快切：常规搜索引擎 chip ───────────────────────────────────────────
+  // location.assign / location.search 在 jsdom 下不可直接赋值，用 getter 拦截。
+  function stubLocation(search = ''): { spy: ReturnType<typeof vi.fn>; restore: () => void } {
+    const spy = vi.fn();
+    const real = window.location;
+    const fake = { ...real, assign: spy, search } as unknown as Location;
+    Object.defineProperty(window, 'location', { configurable: true, value: fake, writable: true });
+    return { spy, restore: () => Object.defineProperty(window, 'location', { configurable: true, value: real, writable: true }) };
+  }
+
+  it('renders engine chips alongside configured providers', async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tavily/ })).toHaveClass('active'));
+    expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+  });
+
+  it('clicking an engine chip navigates the current tab to that SERP with the current query', async () => {
+    const { spy, restore } = stubLocation();
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello world' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Google/ }));
+      expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=hello%20world');
+    } finally {
+      restore();
+    }
+  });
+
+  it('clicking an engine chip with empty query navigates to the engine home', async () => {
+    const { spy, restore } = stubLocation();
+    try {
+      render(<App />);
+      fireEvent.click(await screen.findByRole('button', { name: /Bing/ }));
+      expect(spy).toHaveBeenCalledWith('https://www.bing.com/');
+    } finally {
+      restore();
+    }
+  });
+
+  it('engine chips remain even when no provider is configured', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null });
+      }
+      return Promise.resolve({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
+    }) as never);
+    render(<App />);
+    expect(await screen.findByRole('button', { name: /Google/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).not.toBeInTheDocument();
+  });
+
+  // ── v2 深链：search.html?provider=X&query=Y ──────────────────────────────
+  it('reads provider + query from the URL and auto-searches on mount', async () => {
+    const { restore } = stubLocation('?provider=exa&query=deep%20link');
+    try {
+      render(<App />);
+      await waitFor(() =>
+        expect(mockedSend).toHaveBeenCalledWith('search', { query: 'deep link', forceRefresh: undefined, providerId: 'exa' }),
+      );
+      expect(screen.getByLabelText('搜索词')).toHaveValue('deep link');
+    } finally {
+      restore();
+    }
+  });
+
+  it('ignores a deep-link provider that is not configured', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'x', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?provider=exa&query=x');
+    try {
+      render(<App />);
+      // 未配置 exa → 回退到 active tavily，用 query=x 搜
+      await waitFor(() =>
+        expect(mockedSend).toHaveBeenCalledWith('search', { query: 'x', forceRefresh: undefined, providerId: 'tavily' }),
+      );
+    } finally {
+      restore();
+    }
+  });
 });

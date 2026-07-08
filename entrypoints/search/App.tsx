@@ -4,7 +4,7 @@ import { allProviders } from '@/lib/providers/registry';
 import { sendMessage } from '@/lib/messaging';
 import type { SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
-import { ProviderSwitcher } from '@/components/ProviderSwitcher';
+import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { HistoryButton } from '@/components/HistoryButton';
 import { SearchCachePanel } from '@/components/SearchCachePanel';
 import { SettingsButton } from '@/components/SettingsButton';
@@ -14,6 +14,10 @@ import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import type { SearchCacheEntry } from '@/lib/search-cache';
+import { allSources, isEngineId } from '@/lib/sources';
+import type { SearchSource } from '@/lib/sources';
+import { buildSerpUrl, buildEngineHomeUrl, getEngine } from '@/lib/engines/registry';
+import { parseSearchDeepLink } from '@/lib/deep-link';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
 
@@ -36,8 +40,20 @@ export default function App() {
     void (async () => {
       const config = await sendMessage('getProviderConfig', undefined);
       setConfiguredProviderIds(config.configuredProviderIds);
-      setActive(config.activeProviderId);
+      // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
+      // provider 必须已配置才认；query 预填并立即触发一次搜索。
+      const link = parseSearchDeepLink(window.location.search);
+      const initialProvider =
+        link.provider && config.configuredProviderIds.includes(link.provider)
+          ? link.provider
+          : config.activeProviderId;
+      setActive(initialProvider);
+      if (link.query) {
+        setQuery(link.query);
+        await handleSearch(link.query, { providerId: initialProvider ?? undefined });
+      }
     })();
+    // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
   async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId } = {}) {
@@ -77,7 +93,16 @@ export default function App() {
     }
   }
 
-  async function handleSwitch(id: ProviderId) {
+  /** 统一快切：选 provider → 序列化写 + 重搜（沿用 v1）；选 engine → 当前 tab 跳转 SERP。 */
+  async function handleSelectSource(source: SearchSource) {
+    if (source.kind === 'engine' && isEngineId(source.id)) {
+      const nextQuery = query.trim();
+      const engine = getEngine(source.id);
+      // 空查询跳 engine 首页；有查询带 q 跳 SERP。始终当前 tab 跳转。
+      location.assign(nextQuery ? buildSerpUrl(engine, nextQuery) : buildEngineHomeUrl(engine));
+      return;
+    }
+    const id = source.id as ProviderId;
     if (loading || switching) return;
     if (id === active) return;
     const switchReqId = ++switchReqIdRef.current;
@@ -135,13 +160,13 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const configuredProviders = providers.filter((p) => configuredProviderIds.includes(p.id));
+  const sources = allSources(configuredProviderIds);
 
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1>{t(MSG.search_page_title)}</h1>
-        <ProviderSwitcher providers={configuredProviders} active={active} onSwitch={handleSwitch} disabled={loading || switching} />
+        <SourceSwitcher sources={sources} activeId={active} onSelect={handleSelectSource} disabled={loading || switching} />
         <div className="topbar-actions">
           <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />
           <ThemeToggle />

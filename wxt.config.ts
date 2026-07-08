@@ -17,6 +17,16 @@ export default defineConfig({
       'https://api.tavily.com/*',
       'https://api.exa.ai/*',
       'https://api.stepfun.com/*',
+      // v2 SERP 注入快切栏：Google + Bing 结果页（content script 需匹配域的主机权限）。
+      'https://www.google.com/*',
+      'https://www.bing.com/*',
+    ],
+    // engine favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
+    web_accessible_resources: [
+      {
+        resources: ['icons/google.svg', 'icons/bing.svg'],
+        matches: ['https://www.google.com/*', 'https://www.bing.com/*'],
+      },
     ],
   },
 });
