@@ -171,7 +171,7 @@ await sendMessage('saveProviderKey', { providerId: 'exa', key: typedKey })
 
 ## Related
 
-- `docs/plans/2026-07-01-001-product-ai-search-for-humans-plan.md` — full product plan
+- `docs/plans/2026-07-01-001-juso-search-plan.md` — full product plan
 - `lib/providers/` — adapter implementations
 - `lib/gateway.ts` — worker-side dispatch
 - `lib/messaging.ts` — webext-core messaging pattern (ok/error discriminant unions)

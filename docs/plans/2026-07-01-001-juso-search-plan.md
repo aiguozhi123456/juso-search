@@ -3,16 +3,16 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
-title: "AI 搜索 API 转人类用 - Plan"
+title: "聚搜 / Juso - Plan"
 type: feat
 date: 2026-07-01
 ---
 
-# AI 搜索 API 转人类用 - Plan
+# 聚搜 / Juso - Plan
 
 ## Goal Capsule
 
-**目标**：把用户**已付费**的 AI 搜索 API 变成人类日常可用的干净搜索引擎——Chromium MV3 浏览器扩展，BYOK 自带 key，**答案优先**的干净结果页。覆盖 Tavily、Exa、Stepfun 按量、Stepfun Step Plan（订阅）四项 provider。
+**目标**：聚合用户**已付费**的 AI 搜索 API，把 Tavily、Exa、Stepfun 按量、Stepfun Step Plan（订阅）四项 provider 归一成一个人类日常可用的干净搜索入口——Chromium MV3 浏览器扩展，BYOK 自带 key，**答案优先**的干净结果页。
 
 **权威层级**：产品行为与范围以 `## Product Contract` 为准（来自 `ce-brainstorm`）；技术决策、实现单元、验证以 `## Planning Contract` 起各节为准（`ce-plan` 补充）。实现期发现与产品契约冲突，记为显式假设或开放问题，不静默改写产品范围。
 
@@ -30,7 +30,7 @@ date: 2026-07-01
 
 - **目标用户**：已经在为 AI 搜索 API（Tavily / Exa / Stepfun 等）付费的开发者 / AI 折腾者。他们买了 API key 或 Step Plan 订阅（通常是为做 AI 应用），但这笔预算只被程序调用消耗。
 - **痛点**：人类日常搜索仍面对 Google/Bing 的广告与噪音；想用干净搜索又得再花钱买 Kagi / 订阅服务——**付了两份钱**。
-- **价值主张**：复用你已在付费的 AI 搜索 API 预算，把它直接变成你自己的干净搜索引擎。不二次付费。
+- **价值主张**：把你已在付费的多个 AI 搜索 API 聚成一个统一入口，直接变成你自己的干净搜索引擎。不二次付费。
 
 ### 核心体验
 

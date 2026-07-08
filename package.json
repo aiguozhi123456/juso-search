@@ -1,9 +1,9 @@
 {
-  "name": "ai-search-for-humans",
+  "name": "juso-search",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "把已付费的 AI 搜索 API（Tavily / Exa / Stepfun）变成人类用的干净搜索引擎",
+  "description": "聚合已付费的 AI 搜索 API（Tavily / Exa / Stepfun），变成自带 key 的干净搜索引擎",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",

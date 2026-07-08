@@ -143,4 +143,4 @@ it('notifies subscribers when pref changes even if resolved locale stays the sam
 ## Related Issues
 
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` — related i18n, persisted preference, storage, and listener-testing practices; this document covers the narrower UI bug where preference and resolved locale diverge.
-- `docs/plans/2026-07-01-001-product-ai-search-for-humans-plan.md` — product structure for search and options entrypoints.
+- `docs/plans/2026-07-01-001-juso-search-plan.md` — product structure for search and options entrypoints.

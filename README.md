@@ -1,6 +1,6 @@
-# AI Search for Humans
+# 聚搜 / Juso
 
-把已付费的 AI 搜索 API（Tavily / Exa / Stepfun 按量 / Stepfun Step Plan）变成人类日常可用的干净搜索引擎——Chromium MV3 浏览器扩展，BYOK 自带 key，答案优先的干净结果页。
+聚合已付费的 AI 搜索 API（Tavily / Exa / Stepfun 按量 / Stepfun Step Plan），把多家 provider 归一成一个人类日常可用的干净搜索引擎——Chromium MV3 浏览器扩展，BYOK 自带 key，答案优先的结果页。
 
 ## 命令
 
@@ -15,7 +15,7 @@ npm run lint         # ESLint
 
 ## 架构
 
-详见 `docs/plans/2026-07-01-001-product-ai-search-for-humans-plan.md`。
+详见 `docs/plans/2026-07-01-001-juso-search-plan.md`。
 
 - `entrypoints/background.ts` — service worker：图标开页 + API 网关
 - `entrypoints/search/` — 独立搜索页（答案优先结果页）
