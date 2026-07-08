@@ -14,6 +14,7 @@ import {
   handleTestKey,
 } from '@/lib/gateway';
 import { isLocalePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
+import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 
 export default defineBackground(() => {
@@ -33,13 +34,22 @@ export default defineBackground(() => {
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
   // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到
   // chrome-extension:// 会被客户端拦截（ERR_BLOCKED_BY_CLIENT），只能在特权上下文用
-  // tabs.update 导航当前 tab。deepLink 为相对路径（search.html?... 或 /search.html）。
+  // tabs.update 导航当前 tab。buildSafeSearchUrl 固定 base=/search.html 并白名单转发
+  // provider/query 参数，防止误用 caller 把当前 tab 导航到 options.html 等特权页。
   onMessage('openSearchPage', ({ data, sender }) => {
     const tabId = sender.tab?.id;
-    if (tabId === undefined) return; // 非内容脚本来源（无 tab），安全跳过
-    void browser.tabs.update(tabId, {
-      url: (browser.runtime.getURL as (p: string) => string)(data),
-    });
+    if (tabId === undefined) {
+      console.warn('[openSearchPage] no sender tab; ignoring');
+      return; // 非内容脚本来源（无 tab），安全跳过
+    }
+    const target = buildSafeSearchUrl(data);
+    if (!target) {
+      console.warn('[openSearchPage] rejected deep link', data);
+      return;
+    }
+    void browser.tabs
+      .update(tabId, { url: target })
+      .catch((e) => console.warn('[openSearchPage] tabs.update failed', tabId, e));
   });
   onMessage('getSearchCacheSummaries', () => handleGetSearchCacheSummaries());
   onMessage('getCachedSearchEntry', ({ data }) => handleGetCachedSearchEntry(data));

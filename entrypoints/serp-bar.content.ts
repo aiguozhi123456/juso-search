@@ -40,6 +40,9 @@ export default defineContentScript({
     const themePref = await getThemePref();
     const resolvedTheme = resolveTheme(themePref);
 
+    // onMount 把 React root 经由 mountedRoot 闭包变量暴露给 locationchange 重渲——
+    // ui.mount() 本身返回 void，{ root } 仅在 onRemove 回调里可达。
+    let mountedRoot: Root | null = null;
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-serp-bar',
       position: 'inline',
@@ -53,6 +56,7 @@ export default defineContentScript({
         const mountEl = document.createElement('div');
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
+        mountedRoot = root;
         root.render(
           createElement(SourceSwitcher, {
             sources,
@@ -63,10 +67,29 @@ export default defineContentScript({
         return { root };
       },
       onRemove(mounted) {
+        mountedRoot = null;
         mounted?.root.unmount();
       },
     });
     ui.mount();
+
+    // Google/Bing 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
+    // 也不重新注入 content script（WXT ContentScriptContext 专门暴露 wxt:locationchange）。
+    // 在此重算 engine/query 并对同一 React root 重渲，避免 chip 查询词与 active 高亮停在首次。
+    ctx.addEventListener(window, 'wxt:locationchange', () => {
+      if (!mountedRoot) return; // 已被 onRemove 卸载，不再重渲
+      const nextEngine = matchEngineByUrl(window.location.href);
+      if (!nextEngine) return; // 离开已知 engine（如跳到 google.com/maps），不重渲
+      const nextQuery =
+        new URLSearchParams(window.location.search).get(nextEngine.queryParam) ?? '';
+      mountedRoot.render(
+        createElement(SourceSwitcher, {
+          sources,
+          activeId: nextEngine.id,
+          onSelect: (source: SearchSource) => onSelect(source, nextQuery),
+        }),
+      );
+    });
   },
 });
 
