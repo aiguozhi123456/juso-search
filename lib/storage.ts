@@ -17,23 +17,31 @@ import {
 // BYOK key 仅存 chrome.storage.local（R7 信任底线）。
 // ⚠️ getKey 只应由 background service worker 调用；
 //   搜索页/设置页不应直接读 key，仅由 worker 代理调 provider API。
+// ⚠️ 优先用精确键（string | string[]）调用 browser.storage.local.get，
+//   不要 get(null)——后者每次读全库（含 50 个 searchCacheEntry，~1MB），
+//   在 MV3 worker 频繁唤醒下是显著开销，也违背 key 卫生（把敏感键读入单一 record）。
 
-const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
-const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
-const THEME_KEY = 'themePref'; // ThemePref
-const LOCALE_KEY = 'localePref'; // LocalePref
+export const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
+export const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
+export const THEME_KEY = 'themePref'; // ThemePref
+export const LOCALE_KEY = 'localePref'; // LocalePref
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
+// providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
+let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
 
-async function readAll(): Promise<Record<string, unknown>> {
-  return browser.storage.local.get(null) as Promise<Record<string, unknown>>;
+/** 串行化 providerKeys 的读改写（setKey / clearKey / mergeImport），防止并发写覆盖。 */
+export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const run = providerKeysMutationQueue.then(mutation, mutation);
+  providerKeysMutationQueue = run.catch(() => undefined);
+  return run;
 }
 
 async function readKeys(): Promise<Record<string, string>> {
-  const all = await readAll();
-  return (all[KEYS_KEY] ?? {}) as Record<string, string>;
+  const got = await browser.storage.local.get(KEYS_KEY);
+  return (got[KEYS_KEY] ?? {}) as Record<string, string>;
 }
 
 function isKnownProvider(id: unknown): id is ProviderId {
@@ -52,15 +60,19 @@ export async function getKey(id: ProviderId): Promise<string | null> {
 }
 
 export async function setKey(id: ProviderId, key: string): Promise<void> {
-  const keys = await readKeys();
-  keys[id] = key;
-  await browser.storage.local.set({ [KEYS_KEY]: keys });
+  await withProviderKeysMutation(async () => {
+    const keys = await readKeys();
+    keys[id] = key;
+    await browser.storage.local.set({ [KEYS_KEY]: keys });
+  });
 }
 
 export async function clearKey(id: ProviderId): Promise<void> {
-  const keys = await readKeys();
-  delete keys[id];
-  await browser.storage.local.set({ [KEYS_KEY]: keys });
+  await withProviderKeysMutation(async () => {
+    const keys = await readKeys();
+    delete keys[id];
+    await browser.storage.local.set({ [KEYS_KEY]: keys });
+  });
 }
 
 /**
@@ -68,9 +80,9 @@ export async function clearKey(id: ProviderId): Promise<void> {
  * 都没有则 null。切换只影响后续查询（R3）。
  */
 export async function getActiveProviderId(): Promise<ProviderId | null> {
-  const all = await readAll();
-  const stored = all[ACTIVE_KEY];
-  const keys = await readKeys();
+  const got = await browser.storage.local.get([ACTIVE_KEY, KEYS_KEY]);
+  const stored = got[ACTIVE_KEY];
+  const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   if (isKnownProvider(stored) && keys[stored]) return stored;
   return allProviders().find((p) => keys[p.id])?.id ?? null;
 }

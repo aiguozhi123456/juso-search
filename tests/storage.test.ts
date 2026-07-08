@@ -20,7 +20,7 @@ import {
 import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
 
-// 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(key)/set。
+// 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(string)/get(string[])/set/remove。
 function installStorage(): void {
   const store = new Map<string, unknown>();
   vi.stubGlobal('browser', {
@@ -30,6 +30,11 @@ function installStorage(): void {
           if (keys === null || keys === undefined) return Object.fromEntries(store);
           if (typeof keys === 'string') {
             return store.has(keys) ? { [keys]: store.get(keys) } : {};
+          }
+          if (Array.isArray(keys)) {
+            const out: Record<string, unknown> = {};
+            for (const k of keys) if (store.has(k)) out[k] = store.get(k);
+            return out;
           }
           return {};
         },

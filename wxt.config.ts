@@ -12,7 +12,7 @@ export default defineConfig({
     action: {
       default_title: '__MSG_ext_name__',
     },
-    permissions: ['storage'],
+    permissions: ['storage', 'downloads'],
     host_permissions: [
       'https://api.tavily.com/*',
       'https://api.exa.ai/*',

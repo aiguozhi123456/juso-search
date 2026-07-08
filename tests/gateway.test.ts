@@ -20,12 +20,29 @@ vi.mock('@/lib/providers/registry', () => ({
   getAdapter: vi.fn(),
 }));
 
+// schema 启动护栏短路：gateway 模块加载即触发 schemaReady IIFE，
+// 这里把两个 ensure mock 为 no-op，使 schemaReady 立即 resolve（不依赖 browser.storage）。
+vi.mock('@/lib/schema', () => ({ ensureSchema: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/search-cache', () => ({
+  ensureCacheSchema: vi.fn().mockResolvedValue(undefined),
+}));
+
+// config-io 内部直接访问 browser.storage / browser.downloads，这里整体 mock 为可控函数。
+vi.mock('@/lib/config-io', () => ({
+  buildExportPayload: vi.fn(),
+  parseImportPayload: vi.fn(),
+  previewImport: vi.fn(),
+  mergeImport: vi.fn(),
+}));
+
 import {
   handleClearSearchCache,
   handleDeleteCachedSearch,
+  handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
   handleGetSearchCacheSummaries,
+  handleImportConfig,
   handleSaveProviderKey,
   handleSearch,
   handleSetActiveProvider,
@@ -45,6 +62,8 @@ import {
   setKey,
 } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
+import { buildExportPayload, parseImportPayload, mergeImport } from '@/lib/config-io';
+import type { ConfigExport, ImportReport } from '@/lib/config-io';
 
 const mockedGetActive = vi.mocked(getActiveProviderId);
 const mockedClearSearchCache = vi.mocked(clearSearchCache);
@@ -58,6 +77,9 @@ const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
 const mockedSetActive = vi.mocked(setActiveProviderId);
 const mockedSetKey = vi.mocked(setKey);
 const mockedGetAdapter = vi.mocked(getAdapter);
+const mockedBuildExportPayload = vi.mocked(buildExportPayload);
+const mockedParseImportPayload = vi.mocked(parseImportPayload);
+const mockedMergeImport = vi.mocked(mergeImport);
 
 function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter {
   return {
@@ -354,5 +376,82 @@ describe('search cache handlers', () => {
   it('clears the search cache', async () => {
     await handleClearSearchCache();
     expect(mockedClearSearchCache).toHaveBeenCalled();
+  });
+});
+
+describe('handleExportConfig', () => {
+  it('builds payload, turns into data url, and triggers download with a dated filename', async () => {
+    mockedBuildExportPayload.mockResolvedValue({
+      schemaVersion: 1,
+      exportedAt: new Date('2026-07-08T10:00:00Z').getTime(),
+      appVersion: '0.1.0',
+      providerKeys: { tavily: 'tvly-secret' },
+      activeProvider: 'tavily',
+      themePref: 'dark',
+      localePref: 'en',
+    });
+    const onDownload = vi.fn().mockResolvedValue(undefined);
+
+    const reply = await handleExportConfig(onDownload);
+
+    expect(reply.ok).toBe(true);
+    if (reply.ok) {
+      expect(reply.filename).toMatch(/^juso-config-\d{8}-\d{4}\.json$/);
+    }
+    // onDownload 收到 data url（含明文 key）+ 文件名
+    expect(onDownload).toHaveBeenCalledTimes(1);
+    const [url, filename] = onDownload.mock.calls[0];
+    expect(url.startsWith('data:application/json;charset=utf-8,')).toBe(true);
+    expect(decodeURIComponent(url.split(',')[1])).toContain('tvly-secret');
+    expect(filename).toMatch(/^juso-config-\d{8}-\d{4}\.json$/);
+  });
+
+  it('returns download_failed when download throws', async () => {
+    mockedBuildExportPayload.mockResolvedValue({
+      schemaVersion: 1, exportedAt: 0, appVersion: '0.1.0',
+      providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto',
+    });
+    const onDownload = vi.fn().mockRejectedValue(new Error('blocked'));
+    const reply = await handleExportConfig(onDownload);
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('download_failed');
+  });
+});
+
+describe('handleImportConfig', () => {
+  it('parses then merges and returns the report', async () => {
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto' };
+    mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
+    mockedMergeImport.mockResolvedValue({
+      written: ['exa'], skipped: ['tavily'],
+      activeProviderOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
+    } as ImportReport);
+    const reply = await handleImportConfig({ payload, applyPrefs: true });
+    expect(reply.ok).toBe(true);
+    if (reply.ok) {
+      expect(reply.report.written).toEqual(['exa']);
+      expect(reply.report.skipped).toEqual(['tavily']);
+    }
+    expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: true });
+  });
+
+  it('passes applyPrefs=false through to mergeImport', async () => {
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto' };
+    mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
+    mockedMergeImport.mockResolvedValue({
+      written: [], skipped: [],
+      activeProviderOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
+    } as ImportReport);
+    await handleImportConfig({ payload, applyPrefs: false });
+    expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: false });
+  });
+
+  it('returns invalid when parse fails', async () => {
+    const payload = { schemaVersion: 999 } as never;
+    mockedParseImportPayload.mockReturnValue({ ok: false, error: 'schema_version_mismatch' });
+    const reply = await handleImportConfig({ payload, applyPrefs: true });
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('invalid');
+    expect(mockedMergeImport).not.toHaveBeenCalled();
   });
 });

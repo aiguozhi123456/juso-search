@@ -5,6 +5,7 @@ import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
+import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
@@ -71,6 +72,11 @@ export default function App() {
       <section>
         <h2>{t(MSG.locale_group)}</h2>
         <LocaleToggle />
+      </section>
+
+      <section>
+        <h2>{t(MSG.opts_config_io_heading)}</h2>
+        <ConfigExportImport />
       </section>
     </div>
   );

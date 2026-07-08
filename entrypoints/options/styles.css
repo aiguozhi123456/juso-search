@@ -26,3 +26,17 @@ body {
 .key-row .status { font-size: 12px; grid-column: 2 / -1; }
 .key-row .status.ok { color: var(--success); }
 .key-row .status.fail { color: var(--error); }
+
+.config-io .hint.warning { color: var(--error); }
+.config-io-actions { display: flex; gap: 8px; margin-top: 8px; }
+.config-io-actions button { padding: 8px 12px; font-size: 13px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); border-radius: 8px; cursor: pointer; }
+.config-io-actions button:disabled { opacity: 0.5; cursor: default; }
+.config-io .status { font-size: 12px; margin-top: 8px; }
+.config-io .status.ok { color: var(--success); }
+.config-io .status.fail { color: var(--error); }
+
+.config-confirm { margin-top: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-soft); }
+.config-confirm .pref-diffs { margin: 6px 0 10px; padding-left: 20px; font-size: 13px; }
+.config-confirm .pref-diffs code { background: var(--bg); padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.config-confirm .config-io-actions { margin-top: 8px; }
+.status.warning { color: var(--error); }

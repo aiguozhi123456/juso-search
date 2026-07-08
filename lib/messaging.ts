@@ -1,6 +1,7 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
+import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 
 export type SearchRequest = {
   query: string;
@@ -34,6 +35,20 @@ export type ProviderConfigReply = {
   activeProviderId: ProviderId | null;
 };
 
+export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
+
+export type ExportConfigReply =
+  | { ok: true; filename: string }
+  | { ok: false; error: ConfigIoError };
+
+export type ImportConfigReply =
+  | { ok: true; report: ImportReport }
+  | { ok: false; error: ConfigIoError };
+
+export type PreviewImportReply =
+  | { ok: true; preview: ImportPreview }
+  | { ok: false; error: ConfigIoError };
+
 export type ProtocolMap = {
   search(request: SearchRequest): Promise<SearchReply>;
   testKey(providerId: ProviderId): Promise<TestKeyReply>;
@@ -44,6 +59,9 @@ export type ProtocolMap = {
   getCachedSearchEntry(id: string): Promise<SearchCacheEntry | null>;
   deleteCachedSearch(id: string): Promise<void>;
   clearSearchCache(): Promise<void>;
+  exportConfig(): Promise<ExportConfigReply>;
+  previewImport(payload: ConfigExport): Promise<PreviewImportReply>;
+  importConfig(data: { payload: ConfigExport; applyPrefs: boolean }): Promise<ImportConfigReply>;
 };
 
 const messaging = defineExtensionMessaging<ProtocolMap>();
