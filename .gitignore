@@ -3,6 +3,9 @@ node_modules/
 .wxt/
 dist/
 
+# 编辑器 / 工具状态
+.zcode/
+
 # env / secrets — 永不提交
 .env
 .env.*
