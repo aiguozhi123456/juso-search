@@ -2,6 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
+last_updated: 2026-07-09
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -30,7 +31,7 @@ tags:
 
 ## Context
 
-This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan) in `chrome.storage.local`, choose an active provider, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
+This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
 
 The extension's storage had grown organically and accumulated three latent problems:
 
@@ -48,7 +49,7 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on four small keys — `providerKeys`, `activeProvider`, `themePref`, `localePref`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on five small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
@@ -166,16 +167,16 @@ This gives two desirable properties at once: the first message during a migratio
 
 The codebase's R7 rule is: keys live in `chrome.storage.local`, and only the worker reads them. Page code never sees stored plaintext keys. Export/import must respect this.
 
-**Export.** The worker assembles the payload (reading the four config keys precisely with `get([...])`, never `get(null)`), builds the JSON, and then triggers the download *itself* via `browser.downloads.download()` with a `data:` URL. The plaintext key never enters page memory at all. This required adding the `downloads` permission to the manifest — a small, worthwhile cost for R7 preservation.
+**Export.** The worker assembles the payload (reading the config keys precisely with `get([...])`, never `get(null)`), builds the JSON, and then triggers the download *itself* via `browser.downloads.download()` with a `data:` URL. The plaintext key never enters page memory at all. This required adding the `downloads` permission to the manifest — a small, worthwhile cost for R7 preservation.
 
 **Import.** The page (options UI) reads the user-selected file via `FileReader`, then sends the parsed JSON to the worker over messaging. The worker does the validation and merge — page code never decides merge policy.
 
-The validation is a strict whitelist via `parseImportPayload`: only known provider IDs, only expected types, only the supported schema version range. Unknown fields are dropped, not preserved.
+The validation is a strict whitelist via `parseImportPayload`: only known provider IDs for provider preferences, only known source IDs for the default source preference, only expected types, only the supported schema version range. Unknown fields are dropped, not preserved.
 
 Merge semantics are deliberately conservative on both axes:
 
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
-- **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`.
+- **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`).
 
 For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage.ts`) so that read-modify-write is atomic with respect to itself.
 
@@ -328,4 +329,5 @@ async function handleExportConfig() {
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`
 - `lib/gateway.ts` — worker handlers and the readiness gate: `getSchemaReady`, `handleExportConfig`, `handlePreviewImport`, `handleImportConfig`
 - `lib/storage.ts` — `withProviderKeysMutation` (serialization queue for atomic read-modify-write on `providerKeys`)
+- [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only
 - `CONCEPTS.md` — project vocabulary for the BYOK trust boundary (R7)

@@ -1,7 +1,7 @@
 ---
 title: "Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension"
 date: 2026-07-04
-last_updated: 2026-07-07
+last_updated: 2026-07-09
 category: docs/solutions/best-practices
 module: "theme / i18n / storage layer / provider config messaging"
 problem_type: best_practice
@@ -11,6 +11,7 @@ applies_when:
   - "Building a WXT + React Chrome MV3 extension with persisted UI state"
   - "Storing secrets (BYOK API keys) in chrome.storage.local accessed from page code"
   - "Showing provider configuration status without exposing stored API keys to page code"
+  - "Distinguishing provider-only active state from a source-level default that can include keyless engines"
   - "Localizing with Chrome native browser.i18n alongside JS message constants"
   - "Implementing cross-tab state sync via storage.onChanged"
 tags: [wxt, mv3, dark-theme, fouc, i18n, browser-i18n, chrome-storage, byok, worker-message, react-hooks, matchmedia]
@@ -87,10 +88,12 @@ Keep the page-to-worker contract explicitly declassified:
 export type ProviderConfigReply = {
   configuredProviderIds: ProviderId[];
   activeProviderId: ProviderId | null;
+  activeSourceId: SourceId;
 };
 
 export type ProtocolMap = {
   getProviderConfig(): Promise<ProviderConfigReply>;
+  setActiveSource(sourceId: SourceId): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
 };
 ```
@@ -100,11 +103,12 @@ Then implement the storage reads and writes only in the background gateway:
 ```ts
 // lib/gateway.ts
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
-  const [configuredProviderIds, activeProviderId] = await Promise.all([
+  const [configuredProviderIds, activeProviderId, activeSourceId] = await Promise.all([
     getConfiguredProviderIds(),
     getActiveProviderId(),
+    getActiveSourceId(),
   ]);
-  return { configuredProviderIds, activeProviderId };
+  return { configuredProviderIds, activeProviderId, activeSourceId };
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
@@ -125,14 +129,15 @@ await sendMessage('saveProviderKey', { providerId: provider.id, key: val });
 
 This preserves the unavoidable setting-page behavior (the page temporarily holds the new key the user entered) while preventing the page from reading previously stored keys.
 
-### 4. Hide unconfigured providers in selection surfaces, not configuration surfaces
+### 4. Hide unconfigured providers in provider execution surfaces, not configuration surfaces
 
-Provider availability has two different UI meanings:
+Provider availability has different UI meanings depending on whether the surface executes a provider search or selects a broader source/default:
 
-- **Selection surfaces** (`ProviderSwitcher`, active-provider `<select>`) should show only configured providers, so users cannot select a provider that will immediately fail with `keyMissing`.
+- **Provider execution surfaces** should show only configured providers, so users cannot select a provider that will immediately fail with `keyMissing`.
+- **Source/default surfaces** may combine configured providers with keyless engines. Engines such as Google/Bing do not need API keys, so a source-level selector should not disappear just because no BYOK provider is configured.
 - **Configuration surfaces** (`KeyInput` rows) must show all known providers, including unconfigured ones, or users lose the path to configure a new provider.
 
-The storage-side active-provider fallback should match that UI contract: a stored active provider only wins if it is known **and configured**; otherwise fall back to the first configured provider in registry order, or `null` when none exists.
+The storage-side active-provider fallback should match the provider-only contract: a stored active provider only wins if it is known **and configured**; otherwise fall back to the first configured provider in registry order, or `null` when none exists. A separate source-level fallback can continue to a keyless engine after provider fallbacks are exhausted.
 
 ```ts
 export async function getActiveProviderId(): Promise<ProviderId | null> {
@@ -273,7 +278,7 @@ onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId
 // Search/options pages receive sanitized status only.
 const config = await sendMessage('getProviderConfig', undefined);
 setConfiguredProviderIds(config.configuredProviderIds);
-setActive(config.activeProviderId);
+setActive(config.activeSourceId);
 ```
 
 ### i18n parity test skeleton
@@ -297,4 +302,5 @@ describe('i18n locale parity', () => {
 ## Related
 
 - `docs/solutions/architecture-patterns/provider-api-integration-patterns.md` — provider adapter normalization and worker-side gateway shape; related security boundary.
+- `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md` — explains why `activeSource` can include keyless engines while `activeProvider` stays provider-only.
 - `CONCEPTS.md` — `BYOK`, `ProviderAdapter`, and `Provider Configuration Status` entries define the trust invariant and adapter contract referenced above.
