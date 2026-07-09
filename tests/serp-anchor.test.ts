@@ -2,8 +2,9 @@
 //
 // 回归「Bing 有时注入不生效」的根因：原锚 #b_results / #search 是 SPA 导航时被
 // 重建的节点，host 挂其兄弟必被带走；且 autoMount 的 ping-pong 在合并式 swap 上死锁。
-// 现锚「居中内容列内部」（#b_content / #cnt）作首子（append:'first'）——
-// 既持久（SPA 只重建列内子节点），又自动继承列的居中对齐（左对齐 search box）。
+// Bing 现锚 #b_content 前（append:'before'）并运行时同步 #b_content content box，
+// 避开 #b_content 内部的 inline/负 margin 结果层偷点击；Google 回到本轮会话前
+// 的 #appbar + after（用户确认 #cnt + first 仍左偏）。
 // 选择器与 append 模式的正确性在此钉死。
 
 import { describe, it, expect } from 'vitest';
@@ -26,17 +27,20 @@ const bing: SearchEngine = {
 };
 
 describe('pickAnchorStrategy', () => {
-  it('mounts bing inside the centered content column (#b_content), as first child', () => {
-    // append:'first' → host 成为 #b_content 首子，自动继承居中列对齐 search box
-    expect(pickAnchorStrategy(bing)).toEqual({ selector: '#b_content', append: 'first' });
+  it('mounts bing before #b_content and aligns to its content box', () => {
+    expect(pickAnchorStrategy(bing)).toEqual({
+      selector: '#b_content',
+      append: 'before',
+      alignTo: '#b_content',
+    });
   });
 
-  it('mounts google inside the centered content column (#cnt), as first child', () => {
-    expect(pickAnchorStrategy(google)).toEqual({ selector: '#cnt', append: 'first' });
+  it('keeps google on the pre-session appbar anchor', () => {
+    expect(pickAnchorStrategy(google)).toEqual({ selector: '#appbar', append: 'after' });
   });
 
   it('falls back to the google strategy when engine is null', () => {
-    expect(pickAnchorStrategy(null)).toEqual({ selector: '#cnt', append: 'first' });
+    expect(pickAnchorStrategy(null)).toEqual({ selector: '#appbar', append: 'after' });
   });
 });
 

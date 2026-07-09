@@ -8,6 +8,7 @@ import type { SearchSource } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl } from '@/lib/engines/registry';
 import { pickAnchorStrategy } from '@/lib/engines/serp-anchor';
+import type { AnchorStrategy } from '@/lib/engines/serp-anchor';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
@@ -17,18 +18,17 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * ## 锚点策略：挂「居中内容列内部」，一次性 mount
- * 锚点选 **SERP 的居中内容列**（Bing `#b_content` / Google `#cnt`），`append:'first'`
- * 让 shadow host 成为列的**首子**——自动继承列的居中 box，与搜索框左边天然对齐，
- * 不需要任何 CSS 硬编码（兄弟式锚点会让 host 落到 `<body>` 全宽坐标系、左对不齐）。
- * `#b_content`/`#cnt` 是 SPA 导航的**外壳**：SSR 即存在、SPA 只重建其内部子节点，
- * host 挂外壳首子不会被带走。详见 lib/engines/serp-anchor.ts 的策略与证据。
+ * ## 锚点策略：一次性 mount 到持久锚点
+ * Google 回到本轮会话前的 `#appbar + after`；Bing 插在 `#b_content` 前，避开
+ * `#b_content` 内部的旧式 inline/negative-margin 结果布局，再运行时按 `#b_content`
+ * 的 content box 同步 host 左边距/宽度，既对齐 search box，也避免结果层偷点击。
+ * 详见 lib/engines/serp-anchor.ts 的策略与证据。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
  * MutationObserver 在 swap 完成后的微任务才回调，此时 `#b_results` 已是新节点，
  * isNotExist 永不为真、栏永不重挂。且 host 挂到「被换元素的兄弟」必被一起 detach。
- * 挂持久锚点 + 一次性 mount，这两个问题都不存在——host 的父（body）从不消失。
+ * 挂持久锚点 + 一次性 mount，这两个问题都不存在——host 的父级不参与结果重建。
  *
  * 参考：Greasyfork「移动端聚合搜索引擎导航 SearchSwitcher」Bing 分支即锚
  * `header` 一次性 appendChild，无 autoMount、无重挂——验证此模式可行。
@@ -44,8 +44,9 @@ export default defineContentScript({
     // 持久锚点策略：按当前 engine 选 selector + append 模式。
     const strategy = pickAnchorStrategy(state.engine);
 
-    // 已挂载的 React root，供 wxt:locationchange 重渲命中。
+    // 已挂载的 React root/host，供 wxt:locationchange 重渲与布局同步命中。
     let mountedRoot: Root | null = null;
+    let mountedHost: HTMLElement | null = null;
 
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-serp-bar',
@@ -54,11 +55,8 @@ export default defineContentScript({
       append: strategy.append,
       onMount(uiContainer, _shadow, shadowHost) {
         shadowHost.dataset.theme = state.resolvedTheme;
-        // Bing 的 BM 模块加载时会对 #b_content 设 visibility:hidden（cookie-gated
-        // flight，触发 CI.BM HV）。visibility 是继承的，作为 #b_content 首子的 host
-        // 会被一起隐藏；visibility:hidden 可继承但可覆盖（不像 display:none），故显式
-        // 设 visible 让栏在父级隐藏时仍显示，不影响布局。Google #cnt 无此问题。
-        shadowHost.style.visibility = 'visible';
+        mountedHost = shadowHost;
+        applyHostLayout(shadowHost, strategy);
         const styleEl = document.createElement('style');
         styleEl.textContent = serpBarStyles;
         uiContainer.append(styleEl);
@@ -71,6 +69,7 @@ export default defineContentScript({
       },
       onRemove(mounted) {
         mountedRoot = null;
+        mountedHost = null;
         mounted?.root.unmount();
       },
     });
@@ -88,7 +87,12 @@ export default defineContentScript({
       state.engine = nextEngine;
       state.query = readQuery(nextEngine);
       if (!mountedRoot) return;
+      if (mountedHost) syncAlignedHost(mountedHost, strategy);
       render(mountedRoot, state, nextEngine);
+    });
+
+    ctx.addEventListener(window, 'resize', () => {
+      if (mountedHost) syncAlignedHost(mountedHost, strategy);
     });
   },
 });
@@ -130,6 +134,46 @@ function render(root: Root, state: BarState, engine: SearchEngine): void {
       onSelect: (source: SearchSource) => onSelect(source, state.query),
     }),
   );
+}
+
+function applyHostLayout(host: HTMLElement, strategy: AnchorStrategy): void {
+  // createShadowRootUi 会注入 `:host{all:initial!important}`，普通 :host CSS 无法覆盖。
+  // 这些 host 级布局属性必须用 inline !important 固定，避免自定义元素按 inline 参与
+  // Bing 的旧式 SERP 布局而导致视觉位置与 hit-test 位置偏移。
+  host.style.setProperty('display', 'block', 'important');
+  host.style.setProperty('position', 'relative', 'important');
+  host.style.setProperty('z-index', '20', 'important');
+  host.style.setProperty('pointer-events', 'auto', 'important');
+  host.style.setProperty('box-sizing', 'border-box', 'important');
+  host.style.setProperty('padding', '8px 0', 'important');
+  host.style.setProperty(
+    'font-family',
+    'system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
+    'important',
+  );
+  host.style.setProperty('visibility', 'visible', 'important');
+  syncAlignedHost(host, strategy);
+}
+
+function syncAlignedHost(host: HTMLElement, strategy: AnchorStrategy): void {
+  if (!strategy.alignTo) return;
+  const target = document.querySelector(strategy.alignTo);
+  if (!(target instanceof HTMLElement)) return;
+  const rect = target.getBoundingClientRect();
+  const style = window.getComputedStyle(target);
+  const paddingLeft = parsePx(style.paddingLeft);
+  const paddingRight = parsePx(style.paddingRight);
+  const left = Math.max(0, rect.left + window.scrollX + paddingLeft);
+  const width = Math.max(0, rect.width - paddingLeft - paddingRight);
+  host.style.setProperty('margin-left', `${left}px`, 'important');
+  host.style.setProperty('margin-right', '0', 'important');
+  host.style.setProperty('width', `${width}px`, 'important');
+  host.style.setProperty('max-width', `${width}px`, 'important');
+}
+
+function parsePx(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
