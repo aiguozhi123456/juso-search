@@ -5,8 +5,9 @@ import { sendMessage } from '@/lib/messaging';
 import { allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource } from '@/lib/sources';
+import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl } from '@/lib/engines/registry';
-import { pickAnchorSelector } from '@/lib/engines/serp-anchor';
+import { pickAnchorStrategy } from '@/lib/engines/serp-anchor';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
@@ -16,19 +17,19 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * 锚点选择（Google/Bing DOM 易变，真机 dogfood 阶段需复核）：
- *   Google: #search（结果主区）/ #rso（结果列表）
- *   Bing:   #b_results（结果主区）
- * 栏插在结果容器**之前**（append:'before'），实现「结果上方 inline」。
+ * ## 锚点策略：挂「持久容器」，一次性 mount
+ * 锚点选 **页面级持久元素**（Bing `#b_header` / Google `#appbar`）——搜索框所在的
+ * header 或结果区上方的稳定外壳：SSR 即存在、SPA 导航不重建。shadow host 一旦挂上
+ * 就不会被带走。详见 lib/engines/serp-anchor.ts 的策略与证据。
  *
- * 时序与 SPA 鲁棒性（回归「Bing 有时注入不生效」）：
- *   - 用 ui.autoMount()（内部 MutationObserver 观察锚点选择器函数），
- *     锚点元素由 SPA 延迟挂载或后续导航重挂时自动 (re)mount / unmount，
- *     不再依赖 document_idle 时同步命中锚点。
- *   - anchor 为**函数**而非首次匹配字符串：每次检查都按当前 URL 重算 engine，
- *     SPA 切换 engine（google↔bing）也能跟进。
- *   - 不回退 body：body-before 插入会把 shadow host 挂到 <body> 之外、不占布局，
- *     造成「完全看不见」。宁可等锚点出现，也不要落到不可见位置。
+ * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
+ * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
+ * MutationObserver 在 swap 完成后的微任务才回调，此时 `#b_results` 已是新节点，
+ * isNotExist 永不为真、栏永不重挂。且 host 挂到「被换元素的兄弟」必被一起 detach。
+ * 挂持久锚点 + 一次性 mount，这两个问题都不存在——host 的父（body）从不消失。
+ *
+ * 参考：Greasyfork「移动端聚合搜索引擎导航 SearchSwitcher」Bing 分支即锚
+ * `header` 一次性 appendChild，无 autoMount、无重挂——验证此模式可行。
  */
 export default defineContentScript({
   matches: ['https://www.google.com/search*', 'https://www.bing.com/search*'],
@@ -38,21 +39,19 @@ export default defineContentScript({
     // onMount 是同步签名（返回 TMounted），异步值在此预读后经 state 闭包喂给渲染。
     const state = await loadBarState();
 
-    // onMount/onRemove 之间维护的 React root；autoMount 反复 (un)mount 时，
-    // 通过这个闭包变量让 wxt:locationchange 重渲命中「当前已挂载的 root」。
+    // 持久锚点策略：按当前 engine 选 selector + append 模式。
+    const strategy = pickAnchorStrategy(state.engine);
+
+    // 已挂载的 React root，供 wxt:locationchange 重渲命中。
     let mountedRoot: Root | null = null;
 
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-serp-bar',
       position: 'inline',
-      // 函数锚点：每次都按当前 URL 解析 engine 并给主选择器；autoMount 观察它。
-      anchor: () => pickAnchorSelector(matchEngineByUrl(window.location.href)),
-      append: 'before',
+      anchor: strategy.selector,
+      append: strategy.append,
       onMount(uiContainer, _shadow, shadowHost) {
         shadowHost.dataset.theme = state.resolvedTheme;
-        // 防御宿主页 CSS 折叠 host（shadow DOM 只隔离内部样式，host 元素本身受宿主布局支配）。
-        shadowHost.style.display = 'block';
-        shadowHost.style.minHeight = '40px';
         const styleEl = document.createElement('style');
         styleEl.textContent = serpBarStyles;
         uiContainer.append(styleEl);
@@ -68,20 +67,20 @@ export default defineContentScript({
         mounted?.root.unmount();
       },
     });
-    // autoMount：锚点出现自动 mount、消失自动 unmount，根治 SPA 重挂导致的「留白无栏」
-    // 与 document_idle 时锚点尚未就绪导致的「完全不出现」。
-    ui.autoMount();
+    // 一次性 mount：持久锚点在 document_idle 已就绪（SSR），且 SPA 导航不重建它，
+    // 不需要 autoMount 的重挂逻辑——后者反而会在合并式 swap 上死锁。
+    ui.mount();
 
     // Google/Bing 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
     // 也不重新注入 content script（WXT ContentScriptContext 专门暴露 wxt:locationchange）。
-    // 在此重算 engine/query 并对同一 React root 重渲（若已挂载），避免 chip 查询词与 active
-    // 高亮停在首次；engine 切换时同步刷新 state.engine 供下一次 onMount 使用。
+    // 在此重算 engine/query 并对同一 React root 重渲，避免 chip 查询词与 active 高亮
+    // 停在首次。host 已挂在持久锚点的兄弟，SPA 导航不会卸载它。
     ctx.addEventListener(window, 'wxt:locationchange', () => {
       const nextEngine = matchEngineByUrl(window.location.href);
       if (!nextEngine) return; // 离开已知 engine（如跳到 google.com/maps），不重渲
       state.engine = nextEngine;
       state.query = readQuery(nextEngine);
-      if (!mountedRoot) return; // 当前未挂载（锚点暂时不在），等 autoMount 重挂时自然用新 state
+      if (!mountedRoot) return;
       render(mountedRoot, state, nextEngine);
     });
   },
