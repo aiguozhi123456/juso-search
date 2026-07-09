@@ -96,7 +96,7 @@ export function resolveSerpHandoff(source, query): SerpHandoff | null { ... }
 | 路径 | 代码 | 发起上下文 | 目标 | 结果 |
 |---|---|---|---|---|
 | 工具栏开页 | `background.ts` `tabs.create({url: getURL('/search.html')})` | background 特权 | 扩展页 | 正常 |
-| Juso→SERP | `App.tsx` `location.assign(buildSerpUrl(...))` | 扩展页 | https | 正常 |
+| Juso→SERP | `App.tsx` `location.assign(engine.buildSerpUrl(...))` | 扩展页 | https | 正常 |
 | **SERP→Juso** | 原 `serp-bar.content.ts` `location.assign(getURL(...))` | **网页** | **扩展页** | **被拦** |
 
 修复让 SERP→Juso 也从「特权上下文」发起（`tabs.update` 在 background 调用），与工具栏开页同属一条允许的路径。`sender.tab.id` 保证导航的是 chip 所在的当前 tab，用户体验仍是「当前 tab 跳转」。

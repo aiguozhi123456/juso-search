@@ -1,11 +1,7 @@
-import type {
-  NormalizedResult,
-  NormalizedSearchResponse,
-  ProviderAdapter,
-  SearchOptions,
-} from './types';
+import type { NormalizedResult } from './types';
 import { ProviderError } from './types';
-import { mcpWebSearch } from '../mcp-client';
+import { defineProvider, type NormalizedBody } from './base';
+import { mcpTransport } from '../mcp-client';
 import { t, MSG } from '@/lib/i18n';
 
 // Stepfun Step Plan（订阅）：经 MCP web_search tool-call，复用月度 Credit。
@@ -26,16 +22,12 @@ interface StepfunPayload {
 const ENDPOINT = 'https://api.stepfun.com/step_plan/v1/mcp/web_search/mcp';
 const LABEL = 'provider_stepfun_plan';
 
-export const stepfunPlanAdapter: ProviderAdapter = {
+export const stepfunPlanAdapter = defineProvider<string>({
   id: 'stepfun-plan',
   label: LABEL,
   supportsAnswer: false,
-  async search(
-    query: string,
-    _opts: SearchOptions,
-    apiKey: string,
-  ): Promise<NormalizedSearchResponse> {
-    const text = await mcpWebSearch(ENDPOINT, apiKey, query);
+  transport: mcpTransport({ endpoint: ENDPOINT }),
+  normalize(query, text): NormalizedBody {
     let payload: StepfunPayload;
     try {
       payload = JSON.parse(text) as StepfunPayload;
@@ -49,6 +41,6 @@ export const stepfunPlanAdapter: ProviderAdapter = {
       content: r.content,
       publishedDate: r.time || undefined,
     }));
-    return { query, provider: 'stepfun-plan', answer: undefined, results };
+    return { results };
   },
-};
+});

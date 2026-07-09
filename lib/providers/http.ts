@@ -1,4 +1,4 @@
-import { ProviderError } from './types';
+import { ProviderError, type ProviderTransport, type SearchOptions } from './types';
 import { t, MSG } from '@/lib/i18n';
 
 // REST 适配器共享的最小 HTTP 辅助：POST JSON + 统一 network/parse 错误映射。
@@ -91,4 +91,27 @@ function sanitizeProviderErrorDetail(detail: string): string | undefined {
     .trim();
   if (!redacted) return undefined;
   return redacted.length > 240 ? `${redacted.slice(0, 237)}...` : redacted;
+}
+
+/** REST 传输配置。label 为 i18n 消息名，restTransport 内部一次性 t() 解析（消灭每个 adapter 的 t(LABEL)）。 */
+export interface RestTransportConfig {
+  endpoint: string;
+  label: string;
+  buildRequest(query: string, opts: SearchOptions, apiKey: string): {
+    headers?: Record<string, string>;
+    body: string;
+  };
+}
+
+/** 把 postJson + mapStatus + throw 包成一个 ProviderTransport —— 即原 3 个 REST adapter 里
+ *  逐字重复的两行样板。失败抛 ProviderError；成功返回已解析的响应体。 */
+export function restTransport<TRaw>(cfg: RestTransportConfig): ProviderTransport<TRaw> {
+  return {
+    async send(query, opts, apiKey) {
+      const { status, data, errorDetail } = await postJson<TRaw>(cfg.endpoint, cfg.buildRequest(query, opts, apiKey));
+      const err = mapStatus(status, t(cfg.label), errorDetail);
+      if (err) throw err;
+      return data;
+    },
+  };
 }

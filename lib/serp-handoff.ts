@@ -10,7 +10,7 @@
 
 import type { SearchSource } from './sources';
 import { isEngineId, isProviderId } from './sources';
-import { buildSerpUrl, buildEngineHomeUrl, getEngine } from './engines/registry';
+import { getEngine } from './engines/registry';
 import { buildSearchDeepLink } from './deep-link';
 
 export type SerpHandoff =
@@ -22,7 +22,7 @@ export function resolveSerpHandoff(source: SearchSource, query: string): SerpHan
   const trimmed = query.trim();
   if (source.kind === 'engine' && isEngineId(source.id)) {
     const engine = getEngine(source.id);
-    return { kind: 'navigate', url: trimmed ? buildSerpUrl(engine, trimmed) : buildEngineHomeUrl(engine) };
+    return { kind: 'navigate', url: trimmed ? engine.buildSerpUrl(trimmed) : engine.buildHomeUrl() };
   }
   if (isProviderId(source.id)) {
     return {

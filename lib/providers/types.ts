@@ -57,3 +57,9 @@ export class ProviderError extends Error {
     this.status = status;
   }
 }
+
+/** 传输层抽象：把 REST / MCP 统一成「给我 query/opts/key，还我原始响应，失败抛 ProviderError」。
+ *  send() 必须在任何失败情形（network/auth/parse/provider）抛 ProviderError；normalize 永远拿不到错误。 */
+export interface ProviderTransport<TRaw> {
+  send(query: string, opts: SearchOptions, apiKey: string): Promise<TRaw>;
+}

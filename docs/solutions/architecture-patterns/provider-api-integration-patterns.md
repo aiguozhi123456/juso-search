@@ -1,7 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
-last_updated: 2026-07-07
+last_updated: 2026-07-09
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -40,9 +40,10 @@ A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate four AI se
 
 ```
 interface ProviderAdapter {
-  readonly name: string
+  readonly id: ProviderId
+  readonly label: string
   readonly supportsAnswer: boolean
-  search(query: string, config: SearchConfig): Promise<NormalizedSearchResponse>
+  search(query: string, opts: SearchOptions, apiKey: string): Promise<NormalizedSearchResponse>
 }
 ```
 
@@ -51,7 +52,7 @@ The normalized model collapses variation into uniform fields:
 ```
 NormalizedSearchResponse {
   query: string
-  provider: string
+  provider: ProviderId
   answer?: { text: string; citations: Citation[] }
   results: NormalizedResult[]
 }
@@ -60,7 +61,7 @@ NormalizedResult {
   url: string
   snippet: string
   content?: string       // full text (when available)
-  published?: string     // ISO date (Stepfun)
+  publishedDate?: string // ISO date (Stepfun)
   score?: number         // relevance (Tavily)
   favicon?: string
 }
@@ -91,51 +92,49 @@ Key decisions per provider:
 
 ## Examples
 
-**Adapter skeleton** (Tavily example):
+**Adapter definition** (Tavily example) — a declarative config assembled by the `defineProvider` factory, which injects `query`/`provider` and delegates to a transport plus a normalize function:
 
 ```ts
 // lib/providers/tavily.ts
-export class TavilyAdapter implements ProviderAdapter {
-  readonly name = 'tavily'
-  readonly supportsAnswer = true
-
-  private constructor(private key: string) {}
-  static async create(): Promise<TavilyAdapter> {
-    const key = await storage.getKey('tavily')
-    return new TavilyAdapter(key)
-  }
-
-  async search(query: string, config: SearchConfig): Promise<NormalizedSearchResponse> {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, include_answer: true, max_results: config.maxResults ?? 10 }),
-    })
-    if (res.status === 401) throw new AuthError('tavily')
-    if (res.status === 429) throw new RateLimitError('tavily')
-    const json = await res.json()
-    return this.normalize(json, query)
-  }
-
-  private normalize(json: TavilyResponse, query: string): NormalizedSearchResponse { … }
-}
+export const tavilyAdapter = defineProvider<TavilyResponse>({
+  id: 'tavily',
+  label: 'provider_tavily',
+  supportsAnswer: true,
+  transport: restTransport({
+    endpoint: 'https://api.tavily.com/search',
+    label: 'provider_tavily',
+    buildRequest(query, opts, apiKey) {
+      return {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ query, include_answer: true, max_results: opts.maxResults ?? 8 }),
+      };
+    },
+  }),
+  normalize(query, data) {
+    const results = (data.results ?? []).map((r) => ({ /* map to NormalizedResult */ }));
+    const answer = data.answer ? { text: data.answer, citations: /* derive from results */ } : undefined;
+    return { answer, results };
+  },
+});
 ```
 
-**Adapter registry**:
+The worker reads the BYOK key and passes it into `adapter.search(query, opts, key)`; `restTransport` wraps the shared `postJson` + HTTP-status → `ProviderError` mapping, so individual adapters no longer hand-write the fetch/error boilerplate.
+
+**Adapter registry** (synchronous; each entry is a `defineProvider` product):
 
 ```ts
-// lib/gateway.ts
-const adapters: Record<string, ProviderAdapter> = {
-  tavily: await TavilyAdapter.create(),
-  exa: await ExaAdapter.create(),
-  'stepfun-rest': await StepfunRestAdapter.create(),
-  'stepfun-mcp': await StepfunMcpAdapter.create(),
+// lib/providers/registry.ts
+const adapters: Record<ProviderId, ProviderAdapter> = {
+  tavily: tavilyAdapter,
+  exa: exaAdapter,
+  stepfun: stepfunAdapter,
+  'stepfun-plan': stepfunPlanAdapter,
 }
 
-export async function search(provider: string, query: string) {
-  return await adapters[provider].search(query, {})
-}
+export function getAdapter(id: ProviderId): ProviderAdapter { /* throws on unknown id */ }
 ```
+
+The gateway resolves the active provider, reads the key worker-side, and calls `adapter.search(query, opts, key)` (see `lib/gateway.ts`).
 
 **UI degradation** (React):
 
@@ -175,3 +174,4 @@ await sendMessage('saveProviderKey', { providerId: 'exa', key: typedKey })
 - `lib/providers/` — adapter implementations
 - `lib/gateway.ts` — worker-side dispatch
 - `lib/messaging.ts` — webext-core messaging pattern (ok/error discriminant unions)
+- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` — the later standardization that extracted the duplicated REST error-mapping boilerplate into a `ProviderTransport` layer + `defineProvider` factory (the code shape this doc's examples now reflect)

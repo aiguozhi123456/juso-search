@@ -6,9 +6,8 @@ import { allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
-import { matchEngineByUrl } from '@/lib/engines/registry';
-import { pickAnchorStrategy } from '@/lib/engines/serp-anchor';
-import type { AnchorStrategy } from '@/lib/engines/serp-anchor';
+import { matchEngineByUrl, anchorFor } from '@/lib/engines/registry';
+import type { AnchorStrategy } from '@/lib/engines/types';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
@@ -23,7 +22,7 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * #center_col 内，自动继承居中列对齐 search box；#search 元素身份在 SPA 导航时保持，
  * host 存活。Bing 用 `#b_content 前` + 运行时同步 content box：避开 #b_content 内部的
  * 旧式 inline/negative-margin 结果布局偷点击，且 #b_results 被激进重建故不能挂其兄弟。
- * 详见 lib/engines/serp-anchor.ts 的策略与证据。
+ * 详见各 engine 的 anchor 字段（lib/engines/{google,bing}.ts）与 registry.ts 的 anchorFor。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
@@ -43,7 +42,7 @@ export default defineContentScript({
     const state = await loadBarState();
 
     // 持久锚点策略：按当前 engine 选 selector + append 模式。
-    const strategy = pickAnchorStrategy(state.engine);
+    const strategy = anchorFor(state.engine);
 
     // 已挂载的 React root/host，供 wxt:locationchange 重渲与布局同步命中。
     let mountedRoot: Root | null = null;
@@ -124,7 +123,7 @@ async function loadBarState(): Promise<BarState> {
 }
 
 function readQuery(engine: SearchEngine): string {
-  return new URLSearchParams(window.location.search).get(engine.queryParam) ?? '';
+  return engine.extractQuery(window.location.href) ?? '';
 }
 
 function render(root: Root, state: BarState, engine: SearchEngine): void {

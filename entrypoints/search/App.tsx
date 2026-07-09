@@ -16,7 +16,7 @@ import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import type { SearchCacheEntry } from '@/lib/search-cache';
 import { allSources, isEngineId } from '@/lib/sources';
 import type { SearchSource } from '@/lib/sources';
-import { buildSerpUrl, buildEngineHomeUrl, getEngine } from '@/lib/engines/registry';
+import { getEngine } from '@/lib/engines/registry';
 import { parseSearchDeepLink } from '@/lib/deep-link';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
@@ -107,7 +107,7 @@ export default function App() {
       const nextQuery = query.trim();
       const engine = getEngine(source.id);
       // 空查询跳 engine 首页；有查询带 q 跳 SERP。始终当前 tab 跳转。
-      location.assign(nextQuery ? buildSerpUrl(engine, nextQuery) : buildEngineHomeUrl(engine));
+      location.assign(nextQuery ? engine.buildSerpUrl(nextQuery) : engine.buildHomeUrl());
       return;
     }
     const id = source.id as ProviderId;

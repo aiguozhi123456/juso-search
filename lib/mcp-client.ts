@@ -1,4 +1,4 @@
-import { ProviderError } from './providers/types';
+import { ProviderError, type ProviderTransport, type SearchOptions } from './providers/types';
 import { appendProviderErrorDetail, readProviderErrorDetail } from './providers/http';
 import { t, MSG } from './i18n';
 
@@ -122,4 +122,19 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string): 
   const text = tool.result.content?.[0]?.text;
   if (!text) throw new ProviderError('parse', t(MSG.error_mcp_no_text));
   return text;
+}
+
+/** MCP 传输配置。 */
+export interface McpTransportConfig {
+  endpoint: string;
+}
+
+/** 把 mcpWebSearch 包成一个 ProviderTransport<string>。返回的是工具调用文本（normalize 内自行 JSON.parse）。
+ *  错误映射沿用 mcp-client 自有的 error_mcp_* 路径（不与 REST 的 mapStatus / error_http_* 混用）。 */
+export function mcpTransport(cfg: McpTransportConfig): ProviderTransport<string> {
+  return {
+    async send(query, _opts: SearchOptions, apiKey) {
+      return mcpWebSearch(cfg.endpoint, apiKey, query);
+    },
+  };
 }

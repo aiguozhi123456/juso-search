@@ -1,11 +1,6 @@
-import type {
-  NormalizedResult,
-  NormalizedSearchResponse,
-  ProviderAdapter,
-  SearchOptions,
-} from './types';
-import { mapStatus, postJson } from './http';
-import { t } from '@/lib/i18n';
+import type { NormalizedResult } from './types';
+import { defineProvider, type NormalizedBody } from './base';
+import { restTransport } from './http';
 
 // POST https://api.stepfun.com/v1/search (Bearer，按量计费)
 // 仅返回 results（snippet + content），无综合答案 -> supportsAnswer=false。
@@ -25,26 +20,21 @@ interface StepfunResponse {
 const ENDPOINT = 'https://api.stepfun.com/v1/search';
 const LABEL = 'provider_stepfun';
 
-export const stepfunAdapter: ProviderAdapter = {
+export const stepfunAdapter = defineProvider<StepfunResponse>({
   id: 'stepfun',
   label: LABEL,
   supportsAnswer: false,
-  async search(
-    query: string,
-    opts: SearchOptions,
-    apiKey: string,
-  ): Promise<NormalizedSearchResponse> {
-    const { status, data, errorDetail } = await postJson<StepfunResponse>(ENDPOINT, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ query, n: opts.maxResults ?? 8 }),
-    });
-
-    const err = mapStatus(status, t(LABEL), errorDetail);
-    if (err) throw err;
-
+  transport: restTransport({
+    endpoint: ENDPOINT,
+    label: LABEL,
+    buildRequest(query, opts, apiKey) {
+      return {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ query, n: opts.maxResults ?? 8 }),
+      };
+    },
+  }),
+  normalize(query, data): NormalizedBody {
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({
       title: r.title,
       url: r.url,
@@ -53,6 +43,6 @@ export const stepfunAdapter: ProviderAdapter = {
       publishedDate: r.time,
     }));
 
-    return { query, provider: 'stepfun', answer: undefined, results };
+    return { results };
   },
-};
+});

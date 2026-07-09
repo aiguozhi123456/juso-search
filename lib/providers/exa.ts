@@ -1,12 +1,6 @@
-import type {
-  NormalizedAnswer,
-  NormalizedResult,
-  NormalizedSearchResponse,
-  ProviderAdapter,
-  SearchOptions,
-} from './types';
-import { mapStatus, postJson } from './http';
-import { t } from '@/lib/i18n';
+import type { NormalizedAnswer, NormalizedResult } from './types';
+import { defineProvider, type NormalizedBody } from './base';
+import { restTransport } from './http';
 
 // POST https://api.exa.ai/search (x-api-key)
 // outputSchema:{type:'text'} -> output.content（综合答案）+ output.grounding（字段级引用）
@@ -38,32 +32,27 @@ interface ExaResponse {
 const ENDPOINT = 'https://api.exa.ai/search';
 const LABEL = 'provider_exa';
 
-export const exaAdapter: ProviderAdapter = {
+export const exaAdapter = defineProvider<ExaResponse>({
   id: 'exa',
   label: LABEL,
   supportsAnswer: true,
-  async search(
-    query: string,
-    opts: SearchOptions,
-    apiKey: string,
-  ): Promise<NormalizedSearchResponse> {
-    const { status, data, errorDetail } = await postJson<ExaResponse>(ENDPOINT, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        query,
-        type: 'auto',
-        numResults: opts.maxResults ?? 8,
-        outputSchema: { type: 'text', description: 'A concise synthesized answer to the query.' },
-        contents: { text: true, highlights: true },
-      }),
-    });
-
-    const err = mapStatus(status, t(LABEL), errorDetail);
-    if (err) throw err;
-
+  transport: restTransport({
+    endpoint: ENDPOINT,
+    label: LABEL,
+    buildRequest(query, opts, apiKey) {
+      return {
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify({
+          query,
+          type: 'auto',
+          numResults: opts.maxResults ?? 8,
+          outputSchema: { type: 'text', description: 'A concise synthesized answer to the query.' },
+          contents: { text: true, highlights: true },
+        }),
+      };
+    },
+  }),
+  normalize(query, data): NormalizedBody {
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({
       title: r.title ?? r.url,
       url: r.url,
@@ -92,6 +81,6 @@ export const exaAdapter: ProviderAdapter = {
       };
     }
 
-    return { query, provider: 'exa', answer, results };
+    return { answer, results };
   },
-};
+});

@@ -1,13 +1,6 @@
-import type {
-  NormalizedAnswer,
-  NormalizedResult,
-  NormalizedSearchResponse,
-  ProviderAdapter,
-  SearchOptions,
-} from './types';
-import { ProviderError } from './types';
-import { mapStatus, postJson } from './http';
-import { t } from '@/lib/i18n';
+import type { NormalizedAnswer, NormalizedResult } from './types';
+import { defineProvider, type NormalizedBody } from './base';
+import { restTransport } from './http';
 
 // POST https://api.tavily.com/search (Bearer)
 // include_answer=true -> answer 字符串；results[].content 是短摘要（snippet）。
@@ -28,30 +21,21 @@ interface TavilyResponse {
 const ENDPOINT = 'https://api.tavily.com/search';
 const LABEL = 'provider_tavily';
 
-export const tavilyAdapter: ProviderAdapter = {
+export const tavilyAdapter = defineProvider<TavilyResponse>({
   id: 'tavily',
   label: LABEL,
   supportsAnswer: true,
-  async search(
-    query: string,
-    opts: SearchOptions,
-    apiKey: string,
-  ): Promise<NormalizedSearchResponse> {
-    const { status, data, errorDetail } = await postJson<TavilyResponse>(ENDPOINT, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        query,
-        include_answer: true,
-        max_results: opts.maxResults ?? 8,
-      }),
-    });
-
-    const err = mapStatus(status, t(LABEL), errorDetail);
-    if (err) throw err;
-
+  transport: restTransport({
+    endpoint: ENDPOINT,
+    label: LABEL,
+    buildRequest(query, opts, apiKey) {
+      return {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ query, include_answer: true, max_results: opts.maxResults ?? 8 }),
+      };
+    },
+  }),
+  normalize(query, data): NormalizedBody {
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({
       title: r.title,
       url: r.url,
@@ -65,8 +49,6 @@ export const tavilyAdapter: ProviderAdapter = {
       ? { text: data.answer, citations: results.map((r) => ({ url: r.url, title: r.title })) }
       : undefined;
 
-    return { query, provider: 'tavily', answer, results };
+    return { answer, results };
   },
-};
-
-export { ProviderError };
+});

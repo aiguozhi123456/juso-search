@@ -1,6 +1,7 @@
 ---
 title: "Engine-Specific SERP Bar Injection Anchors for Google and Bing"
 date: 2026-07-09
+last_updated: 2026-07-09
 category: ui-bugs
 module: "serp-bar / content-script"
 problem_type: ui_bug
@@ -21,7 +22,9 @@ tags:
   - shadow-dom
   - serp-bar
 related_components:
-  - lib/engines/serp-anchor.ts
+  - lib/engines/google.ts
+  - lib/engines/bing.ts
+  - lib/engines/registry.ts
   - entrypoints/shared/serp-bar-styles.ts
 ---
 
@@ -62,11 +65,10 @@ The fix implements **engine-specific anchor strategies** (commit 9351872), ackno
 ### Google: `#search` + `before` (original Phase 1 anchor)
 
 ```typescript
-// Defined in lib/engines/serp-anchor.ts
-const SERP_ANCHORS: Record<EngineId, AnchorStrategy> = {
-  google: { selector: '#search', append: 'before' },
-  bing:   { selector: '#b_content', append: 'before', alignTo: '#b_content' },
-};
+// Each engine now declares its anchor inline as `engine.anchor`
+// (lib/engines/google.ts, lib/engines/bing.ts); values unchanged:
+//   google: { selector: '#search', append: 'before' }
+//   bing:   { selector: '#b_content', append: 'before', alignTo: '#b_content' }
 ```
 
 The host becomes a preceding sibling of `#search` inside `#center_col` (Google's centered results column), automatically inheriting the column's left alignment with the search box. `#search` element identity persists across Google SPA navigation — only the inner `#rso` results subtree is updated — so the host is not taken down.
@@ -74,7 +76,7 @@ The host becomes a preceding sibling of `#search` inside `#center_col` (Google's
 ### Bing: `#b_content` + `before` + runtime content box synchronization
 
 ```typescript
-// Defined in lib/engines/serp-anchor.ts
+// bing engine anchor (lib/engines/bing.ts) — engine.anchor
 bing: { selector: '#b_content', append: 'before', alignTo: '#b_content' },
 ```
 
