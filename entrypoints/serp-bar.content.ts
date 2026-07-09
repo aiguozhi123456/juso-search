@@ -17,10 +17,12 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * ## 锚点策略：挂「持久容器」，一次性 mount
- * 锚点选 **页面级持久元素**（Bing `#b_header` / Google `#appbar`）——搜索框所在的
- * header 或结果区上方的稳定外壳：SSR 即存在、SPA 导航不重建。shadow host 一旦挂上
- * 就不会被带走。详见 lib/engines/serp-anchor.ts 的策略与证据。
+ * ## 锚点策略：挂「居中内容列内部」，一次性 mount
+ * 锚点选 **SERP 的居中内容列**（Bing `#b_content` / Google `#cnt`），`append:'first'`
+ * 让 shadow host 成为列的**首子**——自动继承列的居中 box，与搜索框左边天然对齐，
+ * 不需要任何 CSS 硬编码（兄弟式锚点会让 host 落到 `<body>` 全宽坐标系、左对不齐）。
+ * `#b_content`/`#cnt` 是 SPA 导航的**外壳**：SSR 即存在、SPA 只重建其内部子节点，
+ * host 挂外壳首子不会被带走。详见 lib/engines/serp-anchor.ts 的策略与证据。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
@@ -52,6 +54,11 @@ export default defineContentScript({
       append: strategy.append,
       onMount(uiContainer, _shadow, shadowHost) {
         shadowHost.dataset.theme = state.resolvedTheme;
+        // Bing 的 BM 模块加载时会对 #b_content 设 visibility:hidden（cookie-gated
+        // flight，触发 CI.BM HV）。visibility 是继承的，作为 #b_content 首子的 host
+        // 会被一起隐藏；visibility:hidden 可继承但可覆盖（不像 display:none），故显式
+        // 设 visible 让栏在父级隐藏时仍显示，不影响布局。Google #cnt 无此问题。
+        shadowHost.style.visibility = 'visible';
         const styleEl = document.createElement('style');
         styleEl.textContent = serpBarStyles;
         uiContainer.append(styleEl);
