@@ -1,11 +1,11 @@
 // SERP 注入锚点策略（pickAnchorStrategy）—— v2 快切栏锚点逻辑。
 //
-// 回归「Bing 有时注入不生效」的根因：原锚 #b_results / #search 是 SPA 导航时被
-// 重建的节点，host 挂其兄弟必被带走；且 autoMount 的 ping-pong 在合并式 swap 上死锁。
-// Bing 现锚 #b_content 前（append:'before'）并运行时同步 #b_content content box，
-// 避开 #b_content 内部的 inline/负 margin 结果层偷点击；Google 回到本轮会话前
-// 的 #appbar + after（用户确认 #cnt + first 仍左偏）。
-// 选择器与 append 模式的正确性在此钉死。
+// Bing 注入失效的根因：Bing 的 #b_results 被 SPA 激进重建，host 挂其兄弟会被带走；
+// 且 autoMount 的 ping-pong 在合并式 swap 上死锁。注意 Google 的 #search 与 Bing 的
+// #b_results 行为不同——#search 元素身份在 SPA 导航时保持（只更新内部 #rso 子树），
+// host 作前置兄弟能存活，故 Google 可用 #search + before（dogfood 验证）。
+// 两套独立方案：Google #search + before（继承 #center_col 居中对齐）；
+// Bing #b_content 前 + 运行时同步 content box（避开内部旧式 inline/负 margin 布局偷点击）。
 
 import { describe, it, expect } from 'vitest';
 import { pickAnchorStrategy } from '@/lib/engines/serp-anchor';
@@ -35,25 +35,26 @@ describe('pickAnchorStrategy', () => {
     });
   });
 
-  it('keeps google on the pre-session appbar anchor', () => {
-    expect(pickAnchorStrategy(google)).toEqual({ selector: '#appbar', append: 'after' });
+  it('mounts google before #search (inherits centered column alignment)', () => {
+    expect(pickAnchorStrategy(google)).toEqual({ selector: '#search', append: 'before' });
   });
 
   it('falls back to the google strategy when engine is null', () => {
-    expect(pickAnchorStrategy(null)).toEqual({ selector: '#appbar', append: 'after' });
+    expect(pickAnchorStrategy(null)).toEqual({ selector: '#search', append: 'before' });
   });
 });
 
-describe('pickAnchorStrategy — regression: never anchor SPA-swapped containers', () => {
-  // 回归：#b_results / #search / #rso 是 SPA 导航时被重建的节点，挂它们或其兄弟
-  // 会在 Bing/Google 重建结果列时把 host 一起 detach。这里钉死：任何 engine 的
-  // 策略都不应返回这些易变选择器，也不应回退 body。
-  const swappedSelectors = ['#b_results', '#search', '#rso', 'body'];
+describe('pickAnchorStrategy — regression: Bing avoids its rebuilt result node', () => {
+  // 回归「Bing 注入失效」：Bing 的 #b_results 被 SPA 激进重建，host 挂其兄弟会被带走。
+  // 注意：Google 的 #search 与此不同——其元素身份在 SPA 导航时保持（只更新内部 #rso），
+  // 故 Google 用 #search + before 是安全的，不应列入禁用。此处只约束 Bing 避开 #b_results。
+  it('bing never anchors the SPA-rebuilt #b_results', () => {
+    expect(pickAnchorStrategy(bing).selector).not.toBe('#b_results');
+  });
 
-  for (const engine of [google, bing]) {
-    it(`${engine.id} strategy avoids SPA-swapped selectors`, () => {
-      const { selector } = pickAnchorStrategy(engine);
-      expect(swappedSelectors).not.toContain(selector);
-    });
-  }
+  it('no engine falls back to body (body-before renders outside <body>, invisible)', () => {
+    for (const engine of [google, bing, null]) {
+      expect(pickAnchorStrategy(engine).selector).not.toBe('body');
+    }
+  });
 });

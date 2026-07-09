@@ -18,10 +18,11 @@ import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * ## 锚点策略：一次性 mount 到持久锚点
- * Google 回到本轮会话前的 `#appbar + after`；Bing 插在 `#b_content` 前，避开
- * `#b_content` 内部的旧式 inline/negative-margin 结果布局，再运行时按 `#b_content`
- * 的 content box 同步 host 左边距/宽度，既对齐 search box，也避免结果层偷点击。
+ * ## 锚点策略：两套独立方案，一次性 mount
+ * Google 用 `#search + before`（d8dde21 起即此方案）：host 作为 #search 前置兄弟落在
+ * #center_col 内，自动继承居中列对齐 search box；#search 元素身份在 SPA 导航时保持，
+ * host 存活。Bing 用 `#b_content 前` + 运行时同步 content box：避开 #b_content 内部的
+ * 旧式 inline/negative-margin 结果布局偷点击，且 #b_results 被激进重建故不能挂其兄弟。
  * 详见 lib/engines/serp-anchor.ts 的策略与证据。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）

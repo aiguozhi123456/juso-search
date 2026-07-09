@@ -36,18 +36,24 @@ export interface AnchorStrategy {
   alignTo?: string;
 }
 
-/** 各 engine 的持久锚点策略（按 EngineId 索引）。
- *  - Bing  → 插在 #b_content 前（避开结果内部 overlay），并按 #b_content content box 同步尺寸。
- *  - Google → 回到本轮会话前的 #appbar + after（用户确认 #cnt + first 仍左偏）。 */
+/** 各 engine 的持久锚点策略（按 EngineId 索引）。两套独立方案——Google/Bing 的 SERP
+ *  DOM 与 SPA 行为差异大，不该为了统一抽象而牺牲各自正确性。
+ *  - Google → #search + before：host 作为 #search 前置兄弟落在 #center_col 内，自动继承
+ *    居中列对齐 search box（dogfood 验证定位准）。SPA 导航时 #search 元素身份保持、只更新
+ *    内部 #rso 子树，host 存活（d8dde21 起即此方案，未报失效）。
+ *    注：若日后 Google 改为像 Bing 那样重建 #search，需切到 #cnt/外壳 + alignTo 方案。
+ *  - Bing → #b_content 前 + alignTo：Bing 的 #b_results 会被激进重建（带走兄弟 host），
+ *    且 #b_content 内部是旧式 inline/负 margin 布局会偷点击；故 host 插 #b_content 之前
+ *    （body 层级，避开内部布局），再运行时同步 #b_content content box 对齐。 */
 const SERP_ANCHORS: Record<EngineId, AnchorStrategy> = {
-  google: { selector: '#appbar', append: 'after' },
+  google: { selector: '#search', append: 'before' },
   bing: { selector: '#b_content', append: 'before', alignTo: '#b_content' },
 };
 
 /**
  * 返回某 engine 的持久锚点策略。
  *
- *   google → { #appbar, after }
+ *   google → { #search, before }
  *   bing  → { #b_content, before, alignTo: #b_content }
  *   null / 未知 engine → google 策略（安全兜底；content script 的 matches 已保证
  *     SERP 页必有 engine，此处兜底仅为类型完备）。
