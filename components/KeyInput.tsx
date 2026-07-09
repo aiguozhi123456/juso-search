@@ -3,16 +3,18 @@ import { useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
 
-type Status = { kind: 'idle' | 'saving' | 'testing' | 'ok' | 'fail'; message: string };
+type Status = { kind: 'idle' | 'saving' | 'testing' | 'deleting' | 'ok' | 'fail'; message: string };
 
 export function KeyInput({
   provider,
   configured,
   onConfigured,
+  onRemoved,
 }: {
   provider: ProviderAdapter;
   configured: boolean;
   onConfigured?: (id: ProviderId) => void;
+  onRemoved?: (id: ProviderId) => void;
 }) {
   const [val, setVal] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle', message: '' });
@@ -43,7 +45,20 @@ export function KeyInput({
     }
   }
 
-  const busy = status.kind === 'saving' || status.kind === 'testing';
+  async function del() {
+    if (!window.confirm(t(MSG.confirm_delete_key, t(provider.label)))) return;
+    setStatus({ kind: 'deleting', message: '' });
+    try {
+      await sendMessage('deleteProviderKey', provider.id);
+      onRemoved?.(provider.id);
+      setVal('');
+      setStatus({ kind: 'ok', message: t(MSG.status_deleted) });
+    } catch {
+      setStatus({ kind: 'fail', message: t(MSG.status_delete_failed) });
+    }
+  }
+
+  const busy = status.kind === 'saving' || status.kind === 'testing' || status.kind === 'deleting';
   // 有未保存的输入时不允许"测试"（测试只校验已存储的 key）
   const testDisabled = !configured || !!val || busy;
 
@@ -67,7 +82,20 @@ export function KeyInput({
       <button onClick={test} disabled={testDisabled}>
         {t(MSG.btn_test)}
       </button>
-      {busy && <span className="status">{status.kind === 'saving' ? t(MSG.status_saving) : t(MSG.status_testing)}</span>}
+      {configured && (
+        <button onClick={del} disabled={busy}>
+          {t(MSG.btn_delete)}
+        </button>
+      )}
+      {busy && (
+        <span className="status">
+          {status.kind === 'saving'
+            ? t(MSG.status_saving)
+            : status.kind === 'testing'
+              ? t(MSG.status_testing)
+              : t(MSG.status_deleting)}
+        </span>
+      )}
       {!busy && status.message && <span className={`status ${status.kind}`}>{status.message}</span>}
     </div>
   );

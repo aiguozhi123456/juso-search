@@ -11,13 +11,14 @@ type Status =
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
 
-const PREF_LABELS: Record<'activeProvider' | 'themePref' | 'localePref', string> = {
+const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref', string> = {
   activeProvider: 'activeProvider',
+  activeSource: 'activeSource',
   themePref: 'themePref',
   localePref: 'localePref',
 };
 
-export function ConfigExportImport() {
+export function ConfigExportImport({ onImported }: { onImported?: () => void } = {}) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -75,6 +76,7 @@ export function ConfigExportImport() {
     try {
       const reply = await sendMessage('importConfig', { payload, applyPrefs });
       if (reply.ok) {
+        onImported?.();
         setStatus({ kind: 'imported', report: reply.report });
       } else {
         setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, reply.error.message) });
@@ -88,8 +90,17 @@ export function ConfigExportImport() {
     setStatus({ kind: 'idle' });
   }
 
-  function prefLabel(key: 'activeProvider' | 'themePref' | 'localePref'): string {
+  function prefLabel(key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref'): string {
     return t(`opts_pref_${PREF_LABELS[key]}`);
+  }
+
+  function importReportPrefs(report: ImportReport): string {
+    const labels = [];
+    if (report.activeProviderOverridden) labels.push(prefLabel('activeProvider'));
+    if (report.activeSourceOverridden) labels.push(prefLabel('activeSource'));
+    if (report.themePrefOverridden) labels.push(prefLabel('themePref'));
+    if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
+    return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';
   }
 
   return (
@@ -142,8 +153,7 @@ export function ConfigExportImport() {
         <p className="status ok">
           {t(MSG.opts_config_imported)}{' '}
           {t(MSG.opts_config_import_report_keys, [String(status.report.written.length), String(status.report.skipped.length)])}{' '}
-          {(status.report.activeProviderOverridden || status.report.themePrefOverridden || status.report.localePrefOverridden)
-            && t(MSG.opts_config_import_report_prefs)}
+          {importReportPrefs(status.report)}
         </p>
       )}
       {status.kind === 'error' && (

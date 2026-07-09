@@ -34,7 +34,7 @@ describe('ConfigExportImport', () => {
         return Promise.resolve({ ok: true, preview: { written: ['exa'], skipped: ['tavily'], prefDiffs: [] } });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, themePrefOverridden: false, localePrefOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -59,12 +59,13 @@ describe('ConfigExportImport', () => {
             prefDiffs: [
               { key: 'themePref', from: 'light', to: 'dark' },
               { key: 'activeProvider', from: 'tavily', to: 'exa' },
+              { key: 'activeSource', from: 'tavily', to: 'google' },
             ],
           },
         });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, themePrefOverridden: true, localePrefOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -74,6 +75,7 @@ describe('ConfigExportImport', () => {
     fireEvent.change(input, { target: { files: [file] } });
     // 确认对话框出现（含 diff 行）
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
+    expect(screen.getByText(/默认搜索源/)).toBeInTheDocument();
     expect(screen.getByText(/light/)).toBeInTheDocument();
     expect(screen.getByText(/dark/)).toBeInTheDocument();
     // 点击"导入（含偏好）"

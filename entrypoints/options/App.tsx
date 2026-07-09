@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
+import type { SourceId } from '@/lib/sources';
+import { allSources } from '@/lib/sources';
 import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -11,24 +13,40 @@ import { t, MSG } from '@/lib/i18n';
 export default function App() {
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
-  const [active, setActive] = useState<ProviderId | null>(null);
+  const [active, setActive] = useState<SourceId | null>(null);
 
   useEffect(() => {
     void (async () => {
       const config = await sendMessage('getProviderConfig', undefined);
       setConfiguredProviderIds(config.configuredProviderIds);
-      setActive(config.activeProviderId);
+      setActive(config.activeSourceId);
     })();
   }, []);
 
   function markConfigured(id: ProviderId) {
     setConfiguredProviderIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+    syncConfig();
   }
 
-  const configuredProviders = providers.filter((p) => configuredProviderIds.includes(p.id));
+  function markRemoved(id: ProviderId) {
+    setConfiguredProviderIds((ids) => ids.filter((x) => x !== id));
+    // worker 端会按 activeSource → activeProvider → 默认 engine 重新解析有效默认源；
+    // 此处重新拉取配置以同步 active，避免下拉框显示已失效的选项。
+    syncConfig();
+  }
 
-  async function choose(id: ProviderId) {
-    await sendMessage('setActiveProvider', id);
+  function syncConfig() {
+    void (async () => {
+      const config = await sendMessage('getProviderConfig', undefined);
+      setActive(config.activeSourceId);
+      setConfiguredProviderIds(config.configuredProviderIds);
+    })();
+  }
+
+  const configuredSources = allSources(configuredProviderIds);
+
+  async function choose(id: SourceId) {
+    await sendMessage('setActiveSource', id);
     setActive(id);
   }
 
@@ -43,14 +61,14 @@ export default function App() {
 
       <section>
         <h2>{t(MSG.opts_active_engine)}</h2>
-        <select value={active ?? ''} onChange={(e) => choose(e.target.value as ProviderId)}>
+        <select value={active ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
           <option value="" disabled>
             {t(MSG.opts_choose_placeholder)}
           </option>
-          {configuredProviders.map((p) => (
-            <option key={p.id} value={p.id}>
-              {t(p.label)}
-              {p.supportsAnswer ? '' : t(MSG.opts_no_ai_answer)}
+          {configuredSources.map((s) => (
+            <option key={s.id} value={s.id}>
+              {t(s.label)}
+              {s.kind === 'provider' && !s.supportsAnswer ? t(MSG.opts_no_ai_answer) : ''}
             </option>
           ))}
         </select>
@@ -65,6 +83,7 @@ export default function App() {
             provider={p}
             configured={configuredProviderIds.includes(p.id)}
             onConfigured={markConfigured}
+            onRemoved={markRemoved}
           />
         ))}
       </section>
@@ -76,7 +95,7 @@ export default function App() {
 
       <section>
         <h2>{t(MSG.opts_config_io_heading)}</h2>
-        <ConfigExportImport />
+        <ConfigExportImport onImported={syncConfig} />
       </section>
     </div>
   );

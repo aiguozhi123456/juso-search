@@ -14,8 +14,8 @@ import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import type { SearchCacheEntry } from '@/lib/search-cache';
-import { allSources, isEngineId } from '@/lib/sources';
-import type { SearchSource } from '@/lib/sources';
+import { allSources, isEngineId, isProviderId } from '@/lib/sources';
+import type { SearchSource, SourceId } from '@/lib/sources';
 import { getEngine } from '@/lib/engines/registry';
 import { parseSearchDeepLink } from '@/lib/deep-link';
 
@@ -25,7 +25,7 @@ export default function App() {
   const providers = allProviders();
   const [query, setQuery] = useState('');
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
-  const [active, setActive] = useState<ProviderId | null>(null);
+  const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -47,15 +47,13 @@ export default function App() {
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
-      const initialProvider =
-        link.provider && config.configuredProviderIds.includes(link.provider)
-          ? link.provider
-          : config.activeProviderId;
-      setActive(initialProvider);
+      const linkProvider = link.provider && config.configuredProviderIds.includes(link.provider) ? link.provider : null;
+      const initialSource = linkProvider ?? config.activeSourceId;
+      setActive(initialSource);
       if (link.query) {
         setQuery(link.query);
         if (ignore) return;
-        await handleSearch(link.query, { providerId: initialProvider ?? undefined });
+        await handleSearch(link.query, linkProvider ? { providerId: linkProvider } : { sourceId: initialSource });
       }
     })();
     return () => {
@@ -64,9 +62,21 @@ export default function App() {
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
-  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId } = {}) {
+  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId; sourceId?: SourceId } = {}) {
     const query = rawQuery.trim();
     if (!query) return;
+    let source: SourceId | null;
+    try {
+      source = opts.providerId ?? opts.sourceId ?? active ?? await loadSourceSnapshot();
+    } catch {
+      setError({ message: t(MSG.search_failed_retry), needKey: false });
+      return;
+    }
+    if (source && isEngineId(source)) {
+      location.assign(getEngine(source).buildSerpUrl(query));
+      return;
+    }
+    const providerId = source && isProviderId(source) ? source : undefined;
     const isRefresh = opts.forceRefresh === true;
     const hadResponse = response !== null;
     const reqId = ++reqIdRef.current;
@@ -78,7 +88,6 @@ export default function App() {
       setCacheMeta(null);
     }
     try {
-      const providerId = opts.providerId ?? active ?? await loadProviderSnapshot();
       const reply: SearchReply = await sendMessage('search', {
         query,
         forceRefresh: opts.forceRefresh,
@@ -106,17 +115,20 @@ export default function App() {
     if (source.kind === 'engine' && isEngineId(source.id)) {
       const nextQuery = query.trim();
       const engine = getEngine(source.id);
+      setActive(source.id);
+      await sendMessage('setActiveSource', source.id).catch(() => undefined);
       // 空查询跳 engine 首页；有查询带 q 跳 SERP。始终当前 tab 跳转。
       location.assign(nextQuery ? engine.buildSerpUrl(nextQuery) : engine.buildHomeUrl());
       return;
     }
-    const id = source.id as ProviderId;
+    if (!isProviderId(source.id)) return;
+    const id = source.id;
     if (loading || switching) return;
     if (id === active) return;
     const switchReqId = ++switchReqIdRef.current;
     setSwitching(true);
     try {
-      await sendMessage('setActiveProvider', id);
+      await sendMessage('setActiveSource', id);
       if (switchReqId !== switchReqIdRef.current) return;
       setActive(id);
       const nextQuery = query.trim();
@@ -142,7 +154,7 @@ export default function App() {
     if (configuredProviderIds.includes(entry.providerId) && entry.providerId !== active) {
       const switchReqId = ++switchReqIdRef.current;
       setSwitching(true);
-      void sendMessage('setActiveProvider', entry.providerId)
+      void sendMessage('setActiveSource', entry.providerId)
         .then(() => {
           if (switchReqId === switchReqIdRef.current) setActive(entry.providerId);
         })
@@ -156,11 +168,11 @@ export default function App() {
     await handleSearch(response?.query ?? query, { forceRefresh: true, providerId: response?.provider });
   }
 
-  async function loadProviderSnapshot(): Promise<ProviderId | undefined> {
+  async function loadSourceSnapshot(): Promise<SourceId | null> {
     const config = await sendMessage('getProviderConfig', undefined);
     setConfiguredProviderIds(config.configuredProviderIds);
-    setActive(config.activeProviderId);
-    return config.activeProviderId ?? undefined;
+    setActive(config.activeSourceId);
+    return config.activeSourceId;
   }
 
   function openSettings() {

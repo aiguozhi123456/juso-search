@@ -1,7 +1,7 @@
 // 配置导入/导出（仅 config 域，不含缓存池）。
 //
 // 设计：
-// - 导出由 worker 组装 payload（worker 本就是 key 的唯一读者），精确读 4 个 config 键，
+// - 导出由 worker 组装 payload（worker 本就是 key 的唯一读者），精确读 5 个 config 键，
 //   不读 searchCacheEntry 池；payload 含明文 key（BYOK 数据归用户，文件归用户所有）。
 // - 导入走校验 + 合并语义：providerKeys 仅填空（不覆盖已有 key），prefs 显式包含才覆盖。
 // - 所有 storage IO 走精确键，绝不 get(null)。
@@ -9,14 +9,19 @@
 // 安全（R7）：本模块只在 worker 上下文调用（由 gateway handler 触发），不进入页面代码。
 
 import type { LocalePref, ThemePref } from './storage';
-import { ACTIVE_KEY, KEYS_KEY, LOCALE_KEY, THEME_KEY, withProviderKeysMutation } from './storage';
+import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, KEYS_KEY, LOCALE_KEY, THEME_KEY, withProviderKeysMutation } from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
+import type { EngineId } from './engines/types';
+import { allEngines } from './engines/registry';
+import type { SourceId } from './sources';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
+const KNOWN_ENGINE_IDS = new Set<EngineId>(allEngines().map((e) => e.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
 const LOCALE_VALUES = new Set<LocalePref>(['auto', 'zh_CN', 'en']);
+const DEFAULT_ENGINE_ID: EngineId = 'google';
 
 /** 导出文件结构。schemaVersion 用 number（非字面量），避免版本升级后类型过度约束。 */
 export interface ConfigExport {
@@ -25,22 +30,19 @@ export interface ConfigExport {
   appVersion: string;
   providerKeys: Record<string, string>;
   activeProvider: ProviderId | null;
+  activeSource: SourceId | null;
   themePref: ThemePref;
   localePref: LocalePref;
 }
 
-/** worker 端组装导出 payload。精确读 4 个 config 键，不读缓存池。 */
+/** worker 端组装导出 payload。精确读 5 个 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, THEME_KEY, LOCALE_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
-  const providerKeys: Record<string, string> = {};
-  for (const [id, k] of Object.entries(keys)) {
-    if (KNOWN_PROVIDER_IDS.has(id as ProviderId) && typeof k === 'string') {
-      providerKeys[id] = k;
-    }
-  }
+  const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
   const active = KNOWN_PROVIDER_IDS.has(activeRaw as ProviderId) ? (activeRaw as ProviderId) : null;
+  const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys);
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   return {
@@ -49,6 +51,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     appVersion: getAppVersion(),
     providerKeys,
     activeProvider: active,
+    activeSource,
     themePref: theme,
     localePref: locale,
   };
@@ -92,6 +95,10 @@ export function parseImportPayload(raw: unknown): ParseResult {
   if (active !== null && !KNOWN_PROVIDER_IDS.has(active as ProviderId)) {
     return { ok: false, error: 'invalid_active_provider' };
   }
+  const activeSource = obj.activeSource;
+  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource)) {
+    return { ok: false, error: 'invalid_active_source' };
+  }
   const theme = obj.themePref;
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
@@ -104,6 +111,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       appVersion: typeof obj.appVersion === 'string' ? obj.appVersion : 'unknown',
       providerKeys,
       activeProvider: active as ProviderId | null,
+      activeSource: activeSource === undefined ? active as ProviderId | null : activeSource as SourceId | null,
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
     },
@@ -119,6 +127,8 @@ export interface ImportReport {
   skipped: ProviderId[];
   /** 是否覆盖了 activeProvider（仅当 applyPrefs 且当前值不同）。 */
   activeProviderOverridden: boolean;
+  /** 是否覆盖了 activeSource。 */
+  activeSourceOverridden: boolean;
   /** 是否覆盖了 themePref。 */
   themePrefOverridden: boolean;
   /** 是否覆盖了 localePref。 */
@@ -127,7 +137,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'themePref' | 'localePref';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref';
   from: string | null;
   to: string | null;
 }
@@ -148,7 +158,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, THEME_KEY, LOCALE_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -164,6 +174,10 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   const newActive = payload.activeProvider;
   if (curActive !== newActive) {
     prefDiffs.push({ key: 'activeProvider', from: curActive, to: newActive });
+  }
+  const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], curActive, normalizeProviderKeys(current));
+  if (curActiveSource !== payload.activeSource) {
+    prefDiffs.push({ key: 'activeSource', from: curActiveSource, to: payload.activeSource });
   }
   const curTheme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   if (curTheme !== payload.themePref) {
@@ -193,7 +207,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, THEME_KEY, LOCALE_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -219,6 +233,7 @@ export async function mergeImport(
 
     // prefs 覆盖：仅当 applyPrefs=true 时写入。默认 false 保护用户显式 prefs 不被默认值覆盖。
     let activeOverridden = false;
+    let activeSourceOverridden = false;
     let themeOverridden = false;
     let localeOverridden = false;
     if (applyPrefs) {
@@ -226,6 +241,11 @@ export async function mergeImport(
       if (curActive !== payload.activeProvider) {
         setObj[ACTIVE_KEY] = payload.activeProvider;
         activeOverridden = true;
+      }
+      const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], curActive, normalizeProviderKeys(current));
+      if (curActiveSource !== payload.activeSource) {
+        setObj[ACTIVE_SOURCE_KEY] = payload.activeSource;
+        activeSourceOverridden = true;
       }
       const curTheme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
       if (curTheme !== payload.themePref) {
@@ -244,8 +264,37 @@ export async function mergeImport(
       written,
       skipped,
       activeProviderOverridden: activeOverridden,
+      activeSourceOverridden,
       themePrefOverridden: themeOverridden,
       localePrefOverridden: localeOverridden,
     };
   });
+}
+
+function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {
+  const providerKeys: Record<string, string> = {};
+  for (const [id, k] of Object.entries(keys)) {
+    if (KNOWN_PROVIDER_IDS.has(id as ProviderId) && typeof k === 'string') {
+      providerKeys[id] = k;
+    }
+  }
+  return providerKeys;
+}
+
+function isKnownSource(value: unknown): value is SourceId {
+  return typeof value === 'string'
+    && (KNOWN_PROVIDER_IDS.has(value as ProviderId) || KNOWN_ENGINE_IDS.has(value as EngineId));
+}
+
+function effectiveActiveSource(
+  storedSource: unknown,
+  activeProvider: ProviderId | null,
+  providerKeys: Record<string, string>,
+): SourceId {
+  if (typeof storedSource === 'string') {
+    if (KNOWN_ENGINE_IDS.has(storedSource as EngineId)) return storedSource as EngineId;
+    if (KNOWN_PROVIDER_IDS.has(storedSource as ProviderId) && providerKeys[storedSource]) return storedSource as ProviderId;
+  }
+  if (activeProvider && providerKeys[activeProvider]) return activeProvider;
+  return allProviders().find((p) => providerKeys[p.id])?.id ?? DEFAULT_ENGINE_ID;
 }

@@ -1,5 +1,6 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
+import type { SourceId } from './sources';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 
@@ -33,6 +34,7 @@ export type TestKeyReply =
 export type ProviderConfigReply = {
   configuredProviderIds: ProviderId[];
   activeProviderId: ProviderId | null;
+  activeSourceId: SourceId;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -54,7 +56,9 @@ export type ProtocolMap = {
   testKey(providerId: ProviderId): Promise<TestKeyReply>;
   getProviderConfig(): Promise<ProviderConfigReply>;
   setActiveProvider(providerId: ProviderId): Promise<void>;
+  setActiveSource(sourceId: SourceId): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
+  deleteProviderKey(providerId: ProviderId): Promise<void>;
   // 由 background 在特权上下文用 tabs.update 把当前 tab 导航到扩展页深链。
   // SERP 注入栏不能自己 location.assign 到 chrome-extension://（被客户端拦截）。
   openSearchPage(deepLink: string): Promise<void>;

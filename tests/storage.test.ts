@@ -6,6 +6,8 @@ import {
   getConfiguredProviderIds,
   getActiveProviderId,
   setActiveProviderId,
+  getActiveSourceId,
+  setActiveSourceId,
   getThemePref,
   setThemePref,
   getLocalePref,
@@ -142,6 +144,37 @@ describe('storage: active provider', () => {
     expect(await getActiveProviderId()).toBe('exa');
     await setActiveProviderId(null);
     expect(await getActiveProviderId()).toBe('exa');
+  });
+});
+
+describe('storage: active source', () => {
+  it('defaults to google when nothing configured', async () => {
+    expect(await getActiveSourceId()).toBe('google');
+  });
+
+  it('explicit engine wins without keys', async () => {
+    await setActiveSourceId('bing');
+    expect(await getActiveSourceId()).toBe('bing');
+  });
+
+  it('missing activeSource falls back to effective active provider', async () => {
+    await setKey('tavily', 'tvly-x');
+    await setKey('exa', 'exa-x');
+    await setActiveProviderId('exa');
+    expect(await getActiveSourceId()).toBe('exa');
+  });
+
+  it('stored provider activeSource without key falls back', async () => {
+    await setKey('tavily', 'tvly-x');
+    await setActiveSourceId('exa');
+    expect(await getActiveSourceId()).toBe('tavily');
+  });
+
+  it('invalid stored source falls back', async () => {
+    await browser.storage.local.set({ activeSource: 'ghost' });
+    expect(await getActiveSourceId()).toBe('google');
+    await setKey('exa', 'exa-x');
+    expect(await getActiveSourceId()).toBe('exa');
   });
 });
 

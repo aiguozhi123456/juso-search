@@ -44,6 +44,7 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
     appVersion: '0.1.0',
     providerKeys: { tavily: 'tvly-1' },
     activeProvider: 'tavily',
+    activeSource: 'tavily',
     themePref: 'auto',
     localePref: 'auto',
     ...overrides,
@@ -55,10 +56,11 @@ beforeEach(() => {
 });
 
 describe('buildExportPayload', () => {
-  it('reads the 4 config keys precisely (not get(null))', async () => {
+  it('reads the 5 config keys precisely (not get(null))', async () => {
     installStorage({
       providerKeys: { tavily: 'tvly-1', exa: 'exa-1' },
       activeProvider: 'exa',
+      activeSource: 'google',
       themePref: 'dark',
       localePref: 'en',
       searchCacheIndex: { version: 1, order: ['x'], byKey: {}, summaries: {} }, // 不应被读
@@ -67,6 +69,7 @@ describe('buildExportPayload', () => {
     const payload = await buildExportPayload();
     expect(payload.providerKeys).toEqual({ tavily: 'tvly-1', exa: 'exa-1' });
     expect(payload.activeProvider).toBe('exa');
+    expect(payload.activeSource).toBe('google');
     expect(payload.themePref).toBe('dark');
     expect(payload.localePref).toBe('en');
     expect(payload.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
@@ -82,6 +85,15 @@ describe('buildExportPayload', () => {
     expect(payload.themePref).toBe('auto');
     expect(payload.localePref).toBe('auto');
     expect(payload.activeProvider).toBeNull();
+    expect(payload.activeSource).toBe('google');
+  });
+
+  it('falls back activeSource through activeProvider and configured keys', async () => {
+    installStorage({ providerKeys: { exa: 'exa-1' }, activeProvider: 'exa' });
+    await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'exa' });
+
+    installStorage({ providerKeys: { tavily: 'tvly-1' }, activeProvider: 'exa', activeSource: 'exa' });
+    await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'tavily' });
   });
 
   it('filters out unknown provider ids from providerKeys', async () => {
@@ -140,6 +152,25 @@ describe('parseImportPayload', () => {
     expect(result.ok).toBe(true);
   });
 
+  it('normalizes missing activeSource to activeProvider', () => {
+    const payload = { ...validPayload({ activeProvider: 'exa' }) } as Record<string, unknown>;
+    delete payload.activeSource;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.activeSource).toBe('exa');
+  });
+
+  it('accepts engine activeSource', () => {
+    const result = parseImportPayload(validPayload({ activeSource: 'google' }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.activeSource).toBe('google');
+  });
+
+  it('rejects invalid activeSource', () => {
+    const result = parseImportPayload(validPayload({ activeSource: 'ghost' as never }));
+    expect(result).toEqual({ ok: false, error: 'invalid_active_source' });
+  });
+
   it('rejects invalid themePref', () => {
     const result = parseImportPayload(validPayload({ themePref: 'neon' as never }));
     expect(result.ok).toBe(false);
@@ -172,45 +203,53 @@ describe('mergeImport', () => {
   });
 
   it('does NOT touch prefs by default (applyPrefs undefined)', async () => {
-    installStorage({ activeProvider: 'exa', themePref: 'light', localePref: 'zh_CN' });
+    installStorage({ activeProvider: 'exa', activeSource: 'bing', themePref: 'light', localePref: 'zh_CN' });
     const report = await mergeImport(validPayload({
       activeProvider: 'tavily',
+      activeSource: 'google',
       themePref: 'dark',
       localePref: 'en',
     }));
     expect(report.activeProviderOverridden).toBe(false);
+    expect(report.activeSourceOverridden).toBe(false);
     expect(report.themePrefOverridden).toBe(false);
     expect(report.localePrefOverridden).toBe(false);
-    const got = await browser.storage.local.get(['activeProvider', 'themePref', 'localePref']);
+    const got = await browser.storage.local.get(['activeProvider', 'activeSource', 'themePref', 'localePref']);
     expect(got.activeProvider).toBe('exa');
+    expect(got.activeSource).toBe('bing');
     expect(got.themePref).toBe('light');
     expect(got.localePref).toBe('zh_CN');
   });
 
   it('overrides prefs only when applyPrefs=true', async () => {
-    installStorage({ activeProvider: 'exa', themePref: 'light', localePref: 'zh_CN' });
+    installStorage({ activeProvider: 'exa', activeSource: 'bing', themePref: 'light', localePref: 'zh_CN' });
     const report = await mergeImport(validPayload({
       activeProvider: 'tavily',
+      activeSource: 'google',
       themePref: 'dark',
       localePref: 'en',
     }), { applyPrefs: true });
     expect(report.activeProviderOverridden).toBe(true);
+    expect(report.activeSourceOverridden).toBe(true);
     expect(report.themePrefOverridden).toBe(true);
     expect(report.localePrefOverridden).toBe(true);
-    const got = await browser.storage.local.get(['activeProvider', 'themePref', 'localePref']);
+    const got = await browser.storage.local.get(['activeProvider', 'activeSource', 'themePref', 'localePref']);
     expect(got.activeProvider).toBe('tavily');
+    expect(got.activeSource).toBe('google');
     expect(got.themePref).toBe('dark');
     expect(got.localePref).toBe('en');
   });
 
   it('applyPrefs=true does not mark overridden when values are identical', async () => {
-    installStorage({ activeProvider: 'tavily', themePref: 'dark', localePref: 'en' });
+    installStorage({ activeProvider: 'tavily', activeSource: 'tavily', providerKeys: { tavily: 'k' }, themePref: 'dark', localePref: 'en' });
     const report = await mergeImport(validPayload({
       activeProvider: 'tavily',
+      activeSource: 'tavily',
       themePref: 'dark',
       localePref: 'en',
     }), { applyPrefs: true });
     expect(report.activeProviderOverridden).toBe(false);
+    expect(report.activeSourceOverridden).toBe(false);
     expect(report.themePrefOverridden).toBe(false);
     expect(report.localePrefOverridden).toBe(false);
   });
@@ -229,20 +268,23 @@ describe('previewImport (dry-run)', () => {
     installStorage({
       providerKeys: { tavily: 'existing' },
       activeProvider: 'tavily',
+      activeSource: 'tavily',
       themePref: 'light',
       localePref: 'zh_CN',
     });
     const preview = await previewImport(validPayload({
       providerKeys: { tavily: 'imported', exa: 'new-exa' },
       activeProvider: 'exa',
+      activeSource: 'google',
       themePref: 'dark',
       localePref: 'zh_CN', // unchanged
     }));
     expect(preview.written).toEqual(['exa']);
     expect(preview.skipped).toEqual(['tavily']);
-    // 只有 activeProvider 与 themePref 不同；localePref 相同，不进 diffs
+    // activeProvider / activeSource / themePref 不同；localePref 相同，不进 diffs
     expect(preview.prefDiffs).toEqual([
       { key: 'activeProvider', from: 'tavily', to: 'exa' },
+      { key: 'activeSource', from: 'tavily', to: 'google' },
       { key: 'themePref', from: 'light', to: 'dark' },
     ]);
     // dry-run：storage 不变
@@ -252,9 +294,9 @@ describe('previewImport (dry-run)', () => {
   });
 
   it('returns empty prefDiffs when all prefs match current', async () => {
-    installStorage({ activeProvider: 'tavily', themePref: 'auto', localePref: 'auto' });
+    installStorage({ activeProvider: 'tavily', activeSource: 'tavily', providerKeys: { tavily: 'k' }, themePref: 'auto', localePref: 'auto' });
     const preview = await previewImport(validPayload({
-      activeProvider: 'tavily', themePref: 'auto', localePref: 'auto',
+      activeProvider: 'tavily', activeSource: 'tavily', themePref: 'auto', localePref: 'auto',
     }));
     expect(preview.prefDiffs).toEqual([]);
   });

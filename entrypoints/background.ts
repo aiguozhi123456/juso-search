@@ -2,6 +2,7 @@ import { onMessage } from '@/lib/messaging';
 import {
   handleClearSearchCache,
   handleDeleteCachedSearch,
+  handleDeleteProviderKey,
   handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
@@ -11,6 +12,7 @@ import {
   handleSaveProviderKey,
   handleSearch,
   handleSetActiveProvider,
+  handleSetActiveSource,
   handleTestKey,
 } from '@/lib/gateway';
 import { isLocalePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
@@ -31,7 +33,9 @@ export default defineBackground(() => {
   onMessage('testKey', ({ data }) => handleTestKey(data));
   onMessage('getProviderConfig', () => handleGetProviderConfig());
   onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
+  onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
+  onMessage('deleteProviderKey', ({ data }) => handleDeleteProviderKey(data));
   // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到
   // chrome-extension:// 会被客户端拦截（ERR_BLOCKED_BY_CLIENT），只能在特权上下文用
   // tabs.update 导航当前 tab。buildSafeSearchUrl 固定 base=/search.html 并白名单转发

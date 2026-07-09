@@ -1,5 +1,8 @@
+import type { EngineId } from './engines/types';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
+import type { SourceId } from './sources';
+import { isEngineId } from './sources';
 import {
   SEARCH_CACHE_CAP,
   SEARCH_CACHE_INDEX_KEY,
@@ -23,6 +26,7 @@ import {
 
 export const KEYS_KEY = 'providerKeys'; // Record<ProviderId, string>
 export const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
+export const ACTIVE_SOURCE_KEY = 'activeSource'; // SourceId | null
 export const THEME_KEY = 'themePref'; // ThemePref
 export const LOCALE_KEY = 'localePref'; // LocalePref
 
@@ -47,6 +51,8 @@ async function readKeys(): Promise<Record<string, string>> {
 function isKnownProvider(id: unknown): id is ProviderId {
   return typeof id === 'string' && allProviders().some((p) => p.id === id);
 }
+
+const DEFAULT_ENGINE_ID: EngineId = 'google';
 
 export async function getConfiguredProviderIds(): Promise<ProviderId[]> {
   const keys = await readKeys();
@@ -89,6 +95,23 @@ export async function getActiveProviderId(): Promise<ProviderId | null> {
 
 export async function setActiveProviderId(id: ProviderId | null): Promise<void> {
   await browser.storage.local.set({ [ACTIVE_KEY]: id });
+}
+
+export async function getActiveSourceId(): Promise<SourceId> {
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY]);
+  const storedSource = got[ACTIVE_SOURCE_KEY];
+  const storedProvider = got[ACTIVE_KEY];
+  const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
+  if (typeof storedSource === 'string') {
+    if (isEngineId(storedSource)) return storedSource;
+    if (isKnownProvider(storedSource) && keys[storedSource]) return storedSource;
+  }
+  if (isKnownProvider(storedProvider) && keys[storedProvider]) return storedProvider;
+  return allProviders().find((p) => keys[p.id])?.id ?? DEFAULT_ENGINE_ID;
+}
+
+export async function setActiveSourceId(id: SourceId | null): Promise<void> {
+  await browser.storage.local.set({ [ACTIVE_SOURCE_KEY]: id });
 }
 
 /** 主题偏好：auto（跟随系统，默认）/ light / dark。

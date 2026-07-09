@@ -3,9 +3,11 @@ import type { ProviderAdapter } from '@/lib/providers/types';
 import { ProviderError } from '@/lib/providers/types';
 
 vi.mock('@/lib/storage', () => ({
+  clearKey: vi.fn(),
   clearSearchCache: vi.fn(),
   deleteCachedSearch: vi.fn(),
   getActiveProviderId: vi.fn(),
+  getActiveSourceId: vi.fn(),
   getCachedSearch: vi.fn(),
   getCachedSearchEntry: vi.fn(),
   getConfiguredProviderIds: vi.fn(),
@@ -13,10 +15,17 @@ vi.mock('@/lib/storage', () => ({
   getSearchCacheSummaries: vi.fn(),
   saveCachedSearch: vi.fn(),
   setActiveProviderId: vi.fn(),
+  setActiveSourceId: vi.fn(),
   setKey: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/registry', () => ({
+  allProviders: vi.fn(() => [
+    { id: 'tavily', label: 'provider_tavily', supportsAnswer: true },
+    { id: 'exa', label: 'provider_exa', supportsAnswer: true },
+    { id: 'stepfun', label: 'provider_stepfun', supportsAnswer: false },
+    { id: 'stepfun-plan', label: 'provider_stepfun_plan', supportsAnswer: true },
+  ]),
   getAdapter: vi.fn(),
 }));
 
@@ -38,6 +47,7 @@ vi.mock('@/lib/config-io', () => ({
 import {
   handleClearSearchCache,
   handleDeleteCachedSearch,
+  handleDeleteProviderKey,
   handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
@@ -46,12 +56,15 @@ import {
   handleSaveProviderKey,
   handleSearch,
   handleSetActiveProvider,
+  handleSetActiveSource,
   handleTestKey,
 } from '@/lib/gateway';
 import {
+  clearKey,
   clearSearchCache,
   deleteCachedSearch,
   getActiveProviderId,
+  getActiveSourceId,
   getCachedSearch,
   getCachedSearchEntry,
   getConfiguredProviderIds,
@@ -59,6 +72,7 @@ import {
   getSearchCacheSummaries,
   saveCachedSearch,
   setActiveProviderId,
+  setActiveSourceId,
   setKey,
 } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
@@ -66,6 +80,7 @@ import { buildExportPayload, parseImportPayload, mergeImport } from '@/lib/confi
 import type { ConfigExport, ImportReport } from '@/lib/config-io';
 
 const mockedGetActive = vi.mocked(getActiveProviderId);
+const mockedGetActiveSource = vi.mocked(getActiveSourceId);
 const mockedClearSearchCache = vi.mocked(clearSearchCache);
 const mockedDeleteCachedSearch = vi.mocked(deleteCachedSearch);
 const mockedGetCachedSearch = vi.mocked(getCachedSearch);
@@ -75,7 +90,9 @@ const mockedGetKey = vi.mocked(getKey);
 const mockedGetSearchCacheSummaries = vi.mocked(getSearchCacheSummaries);
 const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
 const mockedSetActive = vi.mocked(setActiveProviderId);
+const mockedSetActiveSource = vi.mocked(setActiveSourceId);
 const mockedSetKey = vi.mocked(setKey);
+const mockedClearKey = vi.mocked(clearKey);
 const mockedGetAdapter = vi.mocked(getAdapter);
 const mockedBuildExportPayload = vi.mocked(buildExportPayload);
 const mockedParseImportPayload = vi.mocked(parseImportPayload);
@@ -318,10 +335,12 @@ describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
     mockedGetConfigured.mockResolvedValue(['tavily', 'exa']);
     mockedGetActive.mockResolvedValue('exa');
+    mockedGetActiveSource.mockResolvedValue('google');
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
       activeProviderId: 'exa',
+      activeSourceId: 'google',
     });
   });
 });
@@ -336,12 +355,45 @@ describe('handleSaveProviderKey', () => {
   });
 });
 
+describe('handleDeleteProviderKey', () => {
+  it('clears the provider key from the worker context', async () => {
+    mockedClearKey.mockResolvedValue(undefined);
+
+    await handleDeleteProviderKey('tavily');
+
+    expect(mockedClearKey).toHaveBeenCalledWith('tavily');
+  });
+});
+
 describe('handleSetActiveProvider', () => {
-  it('writes the active provider from the worker context', async () => {
+  it('writes both active provider and active source from the worker context', async () => {
     mockedSetActive.mockResolvedValue(undefined);
+    mockedSetActiveSource.mockResolvedValue(undefined);
 
     await handleSetActiveProvider('exa');
 
+    expect(mockedSetActive).toHaveBeenCalledWith('exa');
+    expect(mockedSetActiveSource).toHaveBeenCalledWith('exa');
+  });
+});
+
+describe('handleSetActiveSource', () => {
+  it('writes only activeSource for an engine', async () => {
+    mockedSetActiveSource.mockResolvedValue(undefined);
+
+    await handleSetActiveSource('google');
+
+    expect(mockedSetActiveSource).toHaveBeenCalledWith('google');
+    expect(mockedSetActive).not.toHaveBeenCalled();
+  });
+
+  it('writes activeSource and activeProvider for a provider', async () => {
+    mockedSetActiveSource.mockResolvedValue(undefined);
+    mockedSetActive.mockResolvedValue(undefined);
+
+    await handleSetActiveSource('exa');
+
+    expect(mockedSetActiveSource).toHaveBeenCalledWith('exa');
     expect(mockedSetActive).toHaveBeenCalledWith('exa');
   });
 });
@@ -387,6 +439,7 @@ describe('handleExportConfig', () => {
       appVersion: '0.1.0',
       providerKeys: { tavily: 'tvly-secret' },
       activeProvider: 'tavily',
+      activeSource: 'tavily',
       themePref: 'dark',
       localePref: 'en',
     });
@@ -409,7 +462,7 @@ describe('handleExportConfig', () => {
   it('returns download_failed when download throws', async () => {
     mockedBuildExportPayload.mockResolvedValue({
       schemaVersion: 1, exportedAt: 0, appVersion: '0.1.0',
-      providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto',
+      providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto',
     });
     const onDownload = vi.fn().mockRejectedValue(new Error('blocked'));
     const reply = await handleExportConfig(onDownload);
@@ -420,11 +473,11 @@ describe('handleExportConfig', () => {
 
 describe('handleImportConfig', () => {
   it('parses then merges and returns the report', async () => {
-    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto' };
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto' };
     mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
     mockedMergeImport.mockResolvedValue({
       written: ['exa'], skipped: ['tavily'],
-      activeProviderOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
+      activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
     expect(reply.ok).toBe(true);
@@ -436,11 +489,11 @@ describe('handleImportConfig', () => {
   });
 
   it('passes applyPrefs=false through to mergeImport', async () => {
-    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, themePref: 'auto', localePref: 'auto' };
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto' };
     mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
-      activeProviderOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
+      activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });
     expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: false });

@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedSend.mockImplementation(((type: string) => {
     if (type === 'getProviderConfig') {
-      return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null });
+      return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
     }
     return Promise.resolve({ ok: true });
   }) as never);
@@ -34,17 +34,26 @@ describe('options page', () => {
     expect(await screen.findByText('已保存')).toBeInTheDocument();
   });
 
-  it('selecting active provider writes active id', async () => {
+  it('selecting active provider writes active source id', async () => {
     render(<App />);
     const select = await screen.findByRole('combobox');
     fireEvent.change(select, { target: { value: 'exa' } });
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
   });
 
-  it('only shows configured providers in the active-provider select', async () => {
+  it('selecting an engine writes active source id', async () => {
+    render(<App />);
+    const select = await screen.findByRole('combobox');
+    fireEvent.change(select, { target: { value: 'google' } });
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'google'));
+  });
+
+  it('shows configured providers and engines in the active-source select', async () => {
     render(<App />);
     const select = await screen.findByRole('combobox');
     expect(select).toHaveTextContent('Exa');
+    expect(select).toHaveTextContent('Google');
+    expect(select).toHaveTextContent('Bing');
     expect(select).not.toHaveTextContent('Tavily');
     expect(select).not.toHaveTextContent('Stepfun');
   });
@@ -61,7 +70,19 @@ describe('options page', () => {
     expect(keyScope.getByText('Stepfun Step Plan')).toBeInTheDocument();
   });
 
-  it('adds a provider to the active-provider select after saving its key', async () => {
+  it('adds a provider to the active-source select after saving its key', async () => {
+    let configCalls = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configCalls += 1;
+        return Promise.resolve(
+          configCalls === 1
+            ? { configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' }
+            : { configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' },
+        );
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
     render(<App />);
     const select = await screen.findByRole('combobox');
     expect(select).not.toHaveTextContent('Tavily');
@@ -74,7 +95,7 @@ describe('options page', () => {
   it('test success shows 验证通过', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -87,7 +108,7 @@ describe('options page', () => {
   it('test failure shows the error message', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       return Promise.resolve({ ok: false, error: { kind: 'providerError', message: '无效 key' } });
     }) as never);
@@ -95,6 +116,16 @@ describe('options page', () => {
     await screen.findAllByText(/已配置/);
     fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]);
     expect(await screen.findByText('无效 key')).toBeInTheDocument();
+  });
+
+  it('deleting a configured key asks the worker to delete it', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<App />);
+    await screen.findAllByText(/已配置/);
+    fireEvent.click(screen.getByRole('button', { name: '删除' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('deleteProviderKey', 'exa'));
+    await waitFor(() => expect(mockedSend.mock.calls.filter(([type]) => type === 'getProviderConfig')).toHaveLength(2));
+    confirmSpy.mockRestore();
   });
 
   it('masks the key input', async () => {

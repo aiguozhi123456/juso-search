@@ -1,11 +1,15 @@
 import type { ProviderId } from './providers/types';
 import { ProviderError } from './providers/types';
 import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
+import type { SourceId } from './sources';
+import { isProviderId } from './sources';
 import { getAdapter } from './providers/registry';
 import {
+  clearKey,
   clearSearchCache,
   deleteCachedSearch,
   getActiveProviderId,
+  getActiveSourceId,
   getCachedSearch,
   getCachedSearchEntry,
   getConfiguredProviderIds,
@@ -13,6 +17,7 @@ import {
   getSearchCacheSummaries,
   saveCachedSearch,
   setActiveProviderId,
+  setActiveSourceId,
   setKey,
 } from './storage';
 import { t, MSG } from './i18n';
@@ -104,11 +109,12 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
 
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
-  const [configuredProviderIds, activeProviderId] = await Promise.all([
+  const [configuredProviderIds, activeProviderId, activeSourceId] = await Promise.all([
     getConfiguredProviderIds(),
     getActiveProviderId(),
+    getActiveSourceId(),
   ]);
-  return { configuredProviderIds, activeProviderId };
+  return { configuredProviderIds, activeProviderId, activeSourceId };
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
@@ -116,9 +122,23 @@ export async function handleSaveProviderKey(providerId: ProviderId, key: string)
   await setKey(providerId, key);
 }
 
+export async function handleDeleteProviderKey(providerId: ProviderId): Promise<void> {
+  await getSchemaReady();
+  await clearKey(providerId);
+}
+
 export async function handleSetActiveProvider(providerId: ProviderId): Promise<void> {
   await getSchemaReady();
-  await setActiveProviderId(providerId);
+  await Promise.all([setActiveProviderId(providerId), setActiveSourceId(providerId)]);
+}
+
+export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
+  await getSchemaReady();
+  if (isProviderId(sourceId)) {
+    await Promise.all([setActiveSourceId(sourceId), setActiveProviderId(sourceId)]);
+    return;
+  }
+  await setActiveSourceId(sourceId);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedSend.mockImplementation(((type: string) => {
     if (type === 'getProviderConfig') {
-      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
     }
     if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
     return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
@@ -48,7 +48,7 @@ beforeEach(() => {
 async function doSearch(reply: unknown) {
   mockedSend.mockImplementation(((type: string) => {
     if (type === 'getProviderConfig') {
-      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+      return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
     }
     if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
     return Promise.resolve(reply);
@@ -89,11 +89,11 @@ describe('search page', () => {
     expect(screen.queryByText('AI 回答')).not.toBeInTheDocument();
   });
 
-  it('switching provider writes active provider id', async () => {
+  it('switching provider writes active source id', async () => {
     render(<App />);
     const exaBtn = await screen.findByRole('button', { name: /Exa/ });
     fireEvent.click(exaBtn);
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
   });
 
   it('switching provider searches with the current input value', async () => {
@@ -105,7 +105,7 @@ describe('search page', () => {
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'world' } });
     fireEvent.click(await screen.findByRole('button', { name: /Exa/ }));
 
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'world', forceRefresh: undefined, providerId: 'exa' }));
   });
 
@@ -113,7 +113,7 @@ describe('search page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /Exa/ }));
 
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
     expect(mockedSend).not.toHaveBeenCalledWith('search', expect.objectContaining({ query: expect.any(String) }));
   });
 
@@ -121,7 +121,7 @@ describe('search page', () => {
     const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [] }; cache: { hit: false } }>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'search') return pendingSearch.promise;
       return Promise.resolve(undefined);
@@ -135,7 +135,7 @@ describe('search page', () => {
     await waitFor(() => expect(exaBtn).toBeDisabled());
     fireEvent.click(exaBtn);
 
-    expect(mockedSend).not.toHaveBeenCalledWith('setActiveProvider', 'exa');
+    expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'exa');
     await act(async () => {
       pendingSearch.resolve({ ok: true, response: { query: 'hello', provider: 'tavily', results: [] }, cache: { hit: false } });
       await pendingSearch.promise;
@@ -146,7 +146,7 @@ describe('search page', () => {
     const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [{ title: string; url: string; snippet: string }] }; cache: { hit: false } }>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'search') return pendingSearch.promise;
       return Promise.resolve(undefined);
@@ -173,10 +173,10 @@ describe('search page', () => {
     const exaSwitch = deferred<void>();
     mockedSend.mockImplementation(((type: string, data: unknown) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa', 'stepfun'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa', 'stepfun'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
-      if (type === 'setActiveProvider' && data === 'exa') return exaSwitch.promise;
-      if (type === 'setActiveProvider') return Promise.resolve(undefined);
+      if (type === 'setActiveSource' && data === 'exa') return exaSwitch.promise;
+      if (type === 'setActiveSource') return Promise.resolve(undefined);
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: (data as { query: string }).query, provider: (data as { query: string }).query === 'hello' ? 'stepfun' : 'tavily', results: [] }, cache: { hit: false } });
     }) as never);
@@ -188,8 +188,8 @@ describe('search page', () => {
     await waitFor(() => expect(stepfunBtn).toBeDisabled());
     fireEvent.click(stepfunBtn);
 
-    expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa');
-    expect(mockedSend).not.toHaveBeenCalledWith('setActiveProvider', 'stepfun');
+    expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa');
+    expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'stepfun');
     await act(async () => {
       exaSwitch.resolve(undefined);
       await exaSwitch.promise;
@@ -203,9 +203,9 @@ describe('search page', () => {
     const exaSwitch = deferred<void>();
     mockedSend.mockImplementation(((type: string, data: unknown) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
-      if (type === 'setActiveProvider' && data === 'exa') return exaSwitch.promise;
+      if (type === 'setActiveSource' && data === 'exa') return exaSwitch.promise;
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
     }) as never);
@@ -226,14 +226,14 @@ describe('search page', () => {
     fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
     fireEvent.click(await screen.findByRole('button', { name: /Tavily/ }));
 
-    expect(mockedSend).not.toHaveBeenCalledWith('setActiveProvider', expect.any(String));
+    expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', expect.any(String));
     expect(mockedSend).not.toHaveBeenCalledWith('search', expect.objectContaining({ query: expect.any(String) }));
   });
 
   it('hides providers without configured keys', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: 'exa' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa' });
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'q', provider: 'exa', results: [] }, cache: { hit: false } });
@@ -247,7 +247,7 @@ describe('search page', () => {
   it('shows no provider buttons when no provider is configured', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null });
+        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
     }) as never);
@@ -296,7 +296,7 @@ describe('search page', () => {
   it('selecting a history entry displays the cached response without searching', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'getSearchCacheSummaries') {
         return Promise.resolve([
@@ -326,14 +326,14 @@ describe('search page', () => {
     expect(await screen.findByText('Cached result')).toBeInTheDocument();
     expect(screen.getByLabelText('搜索词')).toHaveValue('cached query');
     expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveProvider', 'exa'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
   });
 
   it('selecting a history entry drops an in-flight search response', async () => {
     const pendingSearch = deferred<{ ok: true; response: { query: string; provider: 'tavily'; results: [{ title: string; url: string; snippet: string }] }; cache: { hit: false } }>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'search') return pendingSearch.promise;
       if (type === 'getSearchCacheSummaries') {
@@ -375,7 +375,7 @@ describe('search page', () => {
     const switchPending = deferred<void>();
     mockedSend.mockImplementation(((type: string, data: unknown) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'getSearchCacheSummaries') {
         return Promise.resolve([
@@ -394,7 +394,7 @@ describe('search page', () => {
           response: { query: 'cached query', provider: 'exa', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
         });
       }
-      if (type === 'setActiveProvider' && data === 'exa') return switchPending.promise;
+      if (type === 'setActiveSource' && data === 'exa') return switchPending.promise;
       return Promise.resolve({ ok: true, response: { query: 'cached query', provider: 'tavily', results: [] }, cache: { hit: false } });
     }) as never);
     render(<App />);
@@ -453,12 +453,64 @@ describe('search page', () => {
     expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
   });
 
+  it('highlights the active engine chip from provider config', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'google' });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Google/ })).toHaveClass('active'));
+  });
+
+  it('manual search with an active engine navigates to Google without worker search', async () => {
+    const { spy, restore } = stubLocation();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'google' });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      await screen.findByRole('button', { name: /Google/ });
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello world' } });
+      fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+      expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=hello%20world');
+      expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+    } finally {
+      restore();
+    }
+  });
+
+  it('bare mount with an active engine does not auto-navigate', async () => {
+    const { spy, restore } = stubLocation();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'google' });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      await waitFor(() => expect(screen.getByRole('button', { name: /Google/ })).toHaveClass('active'));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
   it('clicking an engine chip navigates the current tab to that SERP with the current query', async () => {
     const { spy, restore } = stubLocation();
     try {
       render(<App />);
       fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello world' } });
       fireEvent.click(await screen.findByRole('button', { name: /Google/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'google'));
       expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=hello%20world');
     } finally {
       restore();
@@ -470,6 +522,7 @@ describe('search page', () => {
     try {
       render(<App />);
       fireEvent.click(await screen.findByRole('button', { name: /Bing/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'bing'));
       expect(spy).toHaveBeenCalledWith('https://www.bing.com/');
     } finally {
       restore();
@@ -479,7 +532,7 @@ describe('search page', () => {
   it('engine chips remain even when no provider is configured', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null });
+        return Promise.resolve({ configuredProviderIds: [], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: false, error: { kind: 'keyMissing', message: '需要 key' } });
     }) as never);
@@ -506,7 +559,7 @@ describe('search page', () => {
   it('ignores a deep-link provider that is not configured', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'x', provider: 'tavily', results: [] }, cache: { hit: false } });
