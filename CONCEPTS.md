@@ -16,7 +16,12 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 A conventional web search engine (Google, Bing, Baidu) treated as a **navigation-only** target: it has no API key, no synthesized answer, and no `search()` method. Each engine is a self-contained behavioral adapter owning its SERP-URL building, canonical SERP recognition, query extraction, and SERP-injection anchor strategy; it sits in a registry parallel to providers. Engines are deliberately **not** merged into the `ProviderId` union, because that union is bound to the BYOK key read-path and the `ProviderAdapter.search()` contract — neither of which applies to an engine.
 
 ### Search Source
-The unified view layer that lets one switcher bar render both configured AI providers and all engines homogeneously. Each source carries a kind discriminator (provider or engine), a display label, whether it supports synthesized answers, and (for engines) a favicon. Providers are filtered to those configured (same v1 rule); engines are always all shown. The id namespaces do not collide (providers: tavily/exa/stepfun/stepfun-plan; engines: google/bing/baidu). The SourceSwitcher component consumes this view in two places — the Juso search page and the injected SERP bar.
+The unified user-facing representation of a configured AI provider or a conventional Search Engine, allowing the same source controls to present both despite their different execution contracts.
+
+### Source Order
+The user's preferred ordering of the complete known Search Source set, independent of which provider-backed sources are currently visible.
+
+Visibility is a projection of Source Order: unconfigured providers may disappear temporarily without being removed from the preference, and return to their prior relative position when configured again. Missing future sources are appended deterministically, while direct edits and configuration imports share one serialized mutation boundary.
 
 ### Active Source
 The user's default search source preference. It may point to a configured AI provider or to a keyless conventional engine, so it belongs to the source/UI layer rather than the provider/key layer.
@@ -42,10 +47,14 @@ A `search.html?provider=X&query=Y` URL that drops the user into the Juso search 
 Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
 
 ### Provider Configuration Status
-The declassified status the UI needs to render provider and source choices without reading stored API keys. It includes configured provider IDs, the provider-only active provider, and the user-facing Active Source, returned by the background worker through messaging. Provider execution surfaces use it to hide unconfigured providers; source selection surfaces combine configured providers with always-available engines; API-key configuration surfaces still list all known providers so users can add new keys.
+The declassified status the UI needs to render provider and source choices without reading stored API keys. It includes configured provider identities, the provider-only Active Provider, the user-facing Active Source, and Source Order, returned by the background worker through messaging.
+
+Provider execution surfaces hide unconfigured providers; source selection surfaces project visible choices from Source Order; API-key configuration surfaces still list all known providers so users can add new keys.
 
 ### Config Export
-A user-initiated backup of the extension's configuration (provider keys, active provider, Active Source, theme, locale) to a JSON file. The background worker assembles the payload and triggers the file download itself via the downloads API, so plaintext keys never enter page memory. The export file contains plaintext API keys and is owned by the user — the extension warns about its sensitivity but does not encrypt it. Import uses a preview-confirm flow: a dry-run shows what would change (keys to fill, prefs that differ), and the user confirms before preferences are overwritten. Keys are always non-destructive (fill empty slots only); preferences are opt-in.
+A user-initiated JSON backup of provider keys and user preferences, including Active Source and Source Order. The background worker assembles and downloads it so plaintext keys never enter page memory; the file remains sensitive, user-owned, and unencrypted.
+
+Import uses a preview-confirm flow. Keys only fill empty slots, preference replacement is opt-in, and preferences absent from an older file do not overwrite values introduced by newer versions.
 
 ## Behavioral Rules
 
