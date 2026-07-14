@@ -405,12 +405,9 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
   `ProviderId`/`EngineId`" v2 decision this learning preserves and refines.
 - `docs/solutions/ui-bugs/serp-bar-engine-specific-anchors.md`
   — the engine anchor rationale, now relocated from the deleted
-  `lib/engines/serp-anchor.ts` into per-engine `anchor` fields. (Its
-  references to the deleted file are a refresh candidate.)
+  `lib/engines/serp-anchor.ts` into per-engine `anchor` fields.
 
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
-- `serp-bar-engine-specific-anchors.md` — references the deleted
-  `lib/engines/serp-anchor.ts`; point those at the per-engine `anchor` field.
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor
   flat `ProviderAdapter` + inline `TavilyAdapter` error mapping this learning
   extracts into `restTransport`/`defineProvider`.
