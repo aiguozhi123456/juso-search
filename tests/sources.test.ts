@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allSources, isEngineId, isProviderId } from '@/lib/sources';
+import { allSources, isEngineId, isProviderId, normalizeSourceOrder } from '@/lib/sources';
 
 describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
@@ -41,6 +41,17 @@ describe('allSources', () => {
     const byId = Object.fromEntries(sources.map((s) => [s.id, s]));
     expect(byId.tavily.supportsAnswer).toBe(true);
     expect(byId.stepfun.supportsAnswer).toBe(false);
+  });
+
+  it('projects configured providers and engines in a custom mixed order', () => {
+    expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'])
+      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu']);
+  });
+
+  it('normalizes unknown, duplicate, and omitted source ids', () => {
+    expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
+      'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu',
+    ]);
   });
 });
 

@@ -453,6 +453,23 @@ describe('search page', () => {
     expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
   });
 
+  it('renders chips in the configured non-default source order', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+          sourceOrder: ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'q', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+    await screen.findByRole('button', { name: /Tavily/ });
+    expect([...document.querySelectorAll('.source-switcher button')].map((button) => button.textContent))
+      .toEqual(['Bing', 'Exa', 'Google', 'Tavily', 'Baidu']);
+  });
+
   it('highlights the active engine chip from provider config', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {

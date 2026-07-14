@@ -16,6 +16,14 @@ body {
 .options select { padding: 8px 10px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--fg); }
 
 .hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+.options > section > .status { font-size: 12px; margin: 8px 0 0; }
+.options > section > .status.fail { color: var(--error); }
+
+.source-order-list { border-top: 1px solid var(--border-soft); }
+.source-order-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; border-bottom: 1px solid var(--border-soft); font-size: 14px; }
+.source-order-actions { display: flex; gap: 6px; }
+.source-order-actions button { width: 30px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; font-size: 16px; line-height: 1; }
+.source-order-actions button:disabled { opacity: 0.5; cursor: default; }
 
 .key-row { display: grid; grid-template-columns: 160px 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border-soft); }
 .key-row label { font-size: 14px; font-weight: 500; }
@@ -40,3 +48,8 @@ body {
 .config-confirm .pref-diffs code { background: var(--bg); padding: 1px 4px; border-radius: 4px; font-size: 12px; }
 .config-confirm .config-io-actions { margin-top: 8px; }
 .status.warning { color: var(--error); }
+
+@media (max-width: 480px) {
+  .options { padding-inline: 12px; }
+  .source-order-row { min-height: 42px; }
+}

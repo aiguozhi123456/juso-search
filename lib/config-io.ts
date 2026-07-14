@@ -1,7 +1,7 @@
 // 配置导入/导出（仅 config 域，不含缓存池）。
 //
 // 设计：
-// - 导出由 worker 组装 payload（worker 本就是 key 的唯一读者），精确读 5 个 config 键，
+// - 导出由 worker 组装 payload（worker 本就是 key 的唯一读者），精确读 config 键，
 //   不读 searchCacheEntry 池；payload 含明文 key（BYOK 数据归用户，文件归用户所有）。
 // - 导入走校验 + 合并语义：providerKeys 仅填空（不覆盖已有 key），prefs 显式包含才覆盖。
 // - 所有 storage IO 走精确键，绝不 get(null)。
@@ -9,12 +9,21 @@
 // 安全（R7）：本模块只在 worker 上下文调用（由 gateway handler 触发），不进入页面代码。
 
 import type { LocalePref, ThemePref } from './storage';
-import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, KEYS_KEY, LOCALE_KEY, THEME_KEY, withProviderKeysMutation } from './storage';
+import {
+  ACTIVE_KEY,
+  ACTIVE_SOURCE_KEY,
+  KEYS_KEY,
+  LOCALE_KEY,
+  SOURCE_ORDER_KEY,
+  THEME_KEY,
+  withProviderKeysMutation,
+  withSourceOrderMutation,
+} from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
-import type { SourceId } from './sources';
+import { normalizeSourceOrder, type SourceId } from './sources';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
@@ -33,11 +42,12 @@ export interface ConfigExport {
   activeSource: SourceId | null;
   themePref: ThemePref;
   localePref: LocalePref;
+  sourceOrder?: SourceId[];
 }
 
-/** worker 端组装导出 payload。精确读 5 个 config 键，不读缓存池。 */
+/** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
@@ -54,6 +64,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     activeSource,
     themePref: theme,
     localePref: locale,
+    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY]),
   };
 }
 
@@ -103,6 +114,16 @@ export function parseImportPayload(raw: unknown): ParseResult {
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
   if (!LOCALE_VALUES.has(locale as LocalePref)) return { ok: false, error: 'invalid_locale' };
+  const hasSourceOrder = Object.prototype.hasOwnProperty.call(obj, 'sourceOrder');
+  const sourceOrder = obj.sourceOrder;
+  if (hasSourceOrder) {
+    if (!Array.isArray(sourceOrder)) return { ok: false, error: 'invalid_source_order' };
+    const seen = new Set<SourceId>();
+    for (const sourceId of sourceOrder) {
+      if (!isKnownSource(sourceId) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
+      seen.add(sourceId);
+    }
+  }
   return {
     ok: true,
     value: {
@@ -114,6 +135,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       activeSource: activeSource === undefined ? active as ProviderId | null : activeSource as SourceId | null,
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder) : undefined,
     },
   };
 }
@@ -133,11 +155,13 @@ export interface ImportReport {
   themePrefOverridden: boolean;
   /** 是否覆盖了 localePref。 */
   localePrefOverridden: boolean;
+  /** 是否覆盖了 sourceOrder。 */
+  sourceOrderOverridden: boolean;
 }
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder';
   from: string | null;
   to: string | null;
 }
@@ -158,7 +182,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -187,7 +211,13 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (curLocale !== payload.localePref) {
     prefDiffs.push({ key: 'localePref', from: curLocale, to: payload.localePref });
   }
-
+  if (payload.sourceOrder !== undefined) {
+    const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
+    const newSourceOrder = normalizeSourceOrder(payload.sourceOrder);
+    if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
+      prefDiffs.push({ key: 'sourceOrder', from: curSourceOrder.join(' > '), to: newSourceOrder.join(' > ') });
+    }
+  }
   return { written, skipped, prefDiffs };
 }
 
@@ -206,8 +236,8 @@ export async function mergeImport(
 ): Promise<ImportReport> {
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
-  return withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY]);
+  return withSourceOrderMutation(() => withProviderKeysMutation(async () => {
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -236,6 +266,7 @@ export async function mergeImport(
     let activeSourceOverridden = false;
     let themeOverridden = false;
     let localeOverridden = false;
+    let sourceOrderOverridden = false;
     if (applyPrefs) {
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
       if (curActive !== payload.activeProvider) {
@@ -257,6 +288,14 @@ export async function mergeImport(
         setObj[LOCALE_KEY] = payload.localePref;
         localeOverridden = true;
       }
+      if (payload.sourceOrder !== undefined) {
+        const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
+        const newSourceOrder = normalizeSourceOrder(payload.sourceOrder);
+        if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
+          setObj[SOURCE_ORDER_KEY] = newSourceOrder;
+          sourceOrderOverridden = true;
+        }
+      }
     }
     await browser.storage.local.set(setObj);
 
@@ -267,8 +306,9 @@ export async function mergeImport(
       activeSourceOverridden,
       themePrefOverridden: themeOverridden,
       localePrefOverridden: localeOverridden,
+      sourceOrderOverridden,
     };
-  });
+  }));
 }
 
 function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {
@@ -297,4 +337,8 @@ function effectiveActiveSource(
   }
   if (activeProvider && providerKeys[activeProvider]) return activeProvider;
   return allProviders().find((p) => providerKeys[p.id])?.id ?? DEFAULT_ENGINE_ID;
+}
+
+function sameSourceOrder(left: SourceId[], right: SourceId[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
 }

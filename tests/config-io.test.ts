@@ -7,9 +7,14 @@ import {
   type ConfigExport,
 } from '@/lib/config-io';
 import { CURRENT_SCHEMA_VERSION } from '@/lib/schema';
+import { setSourceOrder } from '@/lib/storage';
+import type { SourceId } from '@/lib/sources';
 
 // 内存版 chrome.storage.local，支持 get(string | string[] | null) + set + remove。
-function installStorage(seed: Record<string, unknown> = {}): { store: Map<string, unknown> } {
+function installStorage(
+  seed: Record<string, unknown> = {},
+  hooks: { beforeSet?: (items: Record<string, unknown>) => Promise<void> } = {},
+): { store: Map<string, unknown> } {
   const store = new Map<string, unknown>(Object.entries(seed));
   vi.stubGlobal('browser', {
     runtime: { getManifest: () => ({ version: '0.1.0' }) },
@@ -26,6 +31,7 @@ function installStorage(seed: Record<string, unknown> = {}): { store: Map<string
           return {};
         },
         async set(items: Record<string, unknown>) {
+          await hooks.beforeSet?.(items);
           for (const [k, v] of Object.entries(items)) store.set(k, v);
         },
         async remove(keys: string | string[]) {
@@ -101,6 +107,13 @@ describe('buildExportPayload', () => {
     const payload = await buildExportPayload();
     expect(payload.providerKeys).toEqual({ tavily: 'good', exa: 'good2' });
   });
+
+  it('exports a normalized complete source order', async () => {
+    installStorage({ sourceOrder: ['bing', 'exa', 'ghost', 'bing'] });
+    await expect(buildExportPayload()).resolves.toMatchObject({
+      sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'google', 'baidu'],
+    });
+  });
 });
 
 describe('parseImportPayload', () => {
@@ -158,6 +171,31 @@ describe('parseImportPayload', () => {
     const result = parseImportPayload(payload);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.activeSource).toBe('exa');
+  });
+
+  it('normalizes a missing sourceOrder for compatible old payloads', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.sourceOrder;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.sourceOrder).toBeUndefined();
+  });
+
+  it('normalizes a valid partial sourceOrder by appending missing sources', () => {
+    const result = parseImportPayload(validPayload({ sourceOrder: ['bing', 'tavily'] }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu']);
+  });
+
+  it.each([
+    ['unknown source', ['ghost']],
+    ['non-string source', [123]],
+    ['duplicate source', ['bing', 'bing']],
+  ])('rejects sourceOrder with %s', (_label, sourceOrder) => {
+    expect(parseImportPayload(validPayload({ sourceOrder: sourceOrder as never }))).toEqual({
+      ok: false,
+      error: 'invalid_source_order',
+    });
   });
 
   it('accepts engine activeSource', () => {
@@ -252,6 +290,36 @@ describe('mergeImport', () => {
     expect(report.activeSourceOverridden).toBe(false);
     expect(report.themePrefOverridden).toBe(false);
     expect(report.localePrefOverridden).toBe(false);
+    expect(report.sourceOrderOverridden).toBe(false);
+  });
+
+  it('writes sourceOrder only when applying preferences', async () => {
+    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu'] });
+    await mergeImport(payload);
+    expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toBeUndefined();
+
+    const report = await mergeImport(payload, { applyPrefs: true });
+    expect(report.sourceOrderOverridden).toBe(true);
+    expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toEqual(payload.sourceOrder);
+  });
+
+  it('preserves the current source order for a legacy payload throughout parse, preview, and merge', async () => {
+    const currentOrder = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
+    installStorage({ sourceOrder: currentOrder });
+    const rawPayload = validPayload() as unknown as Record<string, unknown>;
+    delete rawPayload.sourceOrder;
+
+    const parsed = parseImportPayload(rawPayload);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.sourceOrder).toBeUndefined();
+
+    const preview = await previewImport(parsed.value);
+    expect(preview.prefDiffs).not.toContainEqual(expect.objectContaining({ key: 'sourceOrder' }));
+
+    const report = await mergeImport(parsed.value, { applyPrefs: true });
+    expect(report.sourceOrderOverridden).toBe(false);
+    expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toEqual(currentOrder);
   });
 
   it('preserves existing unknown keys in storage (does not strip)', async () => {
@@ -260,6 +328,31 @@ describe('mergeImport', () => {
     const got = await browser.storage.local.get('providerKeys');
     // mystery 不在已知 provider 列表，被 mergeImport 当作非法丢弃（只保留已知 provider 的合法 key）
     expect(got.providerKeys).toEqual({ tavily: 'keep', exa: 'new' });
+  });
+
+  it('keeps a later source order move after an earlier import completes', async () => {
+    let releaseImportSet!: () => void;
+    let signalImportSet!: () => void;
+    const importSet = new Promise<void>((resolve) => { releaseImportSet = resolve; });
+    const importSetStarted = new Promise<void>((resolve) => { signalImportSet = resolve; });
+    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
+    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
+    const { store } = installStorage({}, {
+      beforeSet: async (items) => {
+        if (items.providerKeys && items.sourceOrder) {
+          signalImportSet();
+          await importSet;
+        }
+      },
+    });
+
+    const importPromise = mergeImport(validPayload({ sourceOrder: importedOrder }), { applyPrefs: true });
+    await importSetStarted;
+    const movePromise = setSourceOrder(movedOrder);
+    releaseImportSet();
+    await Promise.all([importPromise, movePromise]);
+
+    expect(store.get('sourceOrder')).toEqual(movedOrder);
   });
 });
 
@@ -299,5 +392,24 @@ describe('previewImport (dry-run)', () => {
       activeProvider: 'tavily', activeSource: 'tavily', themePref: 'auto', localePref: 'auto',
     }));
     expect(preview.prefDiffs).toEqual([]);
+  });
+
+  it('reports a preference diff when only the normalized source order differs', async () => {
+    installStorage({
+      providerKeys: { tavily: 'tvly-1' },
+      activeProvider: 'tavily',
+      activeSource: 'tavily',
+      themePref: 'auto',
+      localePref: 'auto',
+      sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu'],
+    });
+    const preview = await previewImport(validPayload({
+      sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
+    }));
+    expect(preview.prefDiffs).toEqual([{
+      key: 'sourceOrder',
+      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu',
+    }]);
   });
 });

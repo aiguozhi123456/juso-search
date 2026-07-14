@@ -1,4 +1,4 @@
-// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref）。
+// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder）。
 //
 // 双版本体系：config 域用 `schemaVersion`（本文件），缓存池用 `cacheSchemaVersion`
 // （见 search-cache.ts 的 ensureCacheSchema + cacheMigrations）。两域独立演进——
@@ -17,7 +17,7 @@ export const CURRENT_SCHEMA_VERSION = 1;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {

@@ -12,6 +12,8 @@ import {
   setThemePref,
   getLocalePref,
   setLocalePref,
+  getSourceOrder,
+  setSourceOrder,
   getCachedSearch,
   getCachedSearchEntry,
   getSearchCacheSummaries,
@@ -215,6 +217,18 @@ describe('storage: locale pref', () => {
   it('rejects unknown stored values, falling back to auto', async () => {
     await browser.storage.local.set({ localePref: 'fr' });
     expect(await getLocalePref()).toBe('auto');
+  });
+});
+
+describe('storage: source order', () => {
+  it('round-trips a normalized complete order', async () => {
+    await setSourceOrder(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan']);
+    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan']);
+  });
+
+  it('normalizes invalid stored values', async () => {
+    await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
+    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu']);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   handleSearch,
   handleSetActiveProvider,
   handleSetActiveSource,
+  handleSetSourceOrder,
   handleTestKey,
 } from '@/lib/gateway';
 import { isLocalePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
@@ -34,6 +35,7 @@ export default defineBackground(() => {
   onMessage('getProviderConfig', () => handleGetProviderConfig());
   onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
   onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
+  onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
   onMessage('deleteProviderKey', ({ data }) => handleDeleteProviderKey(data));
   // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到

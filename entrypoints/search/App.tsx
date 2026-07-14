@@ -25,6 +25,7 @@ export default function App() {
   const providers = allProviders();
   const [query, setQuery] = useState('');
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
+  const [sourceOrder, setSourceOrder] = useState<SourceId[]>([]);
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -44,6 +45,7 @@ export default function App() {
       const config = await sendMessage('getProviderConfig', undefined);
       if (ignore) return;
       setConfiguredProviderIds(config.configuredProviderIds);
+      setSourceOrder(config.sourceOrder ?? []);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
@@ -171,6 +173,7 @@ export default function App() {
   async function loadSourceSnapshot(): Promise<SourceId | null> {
     const config = await sendMessage('getProviderConfig', undefined);
     setConfiguredProviderIds(config.configuredProviderIds);
+    setSourceOrder(config.sourceOrder ?? []);
     setActive(config.activeSourceId);
     return config.activeSourceId;
   }
@@ -180,7 +183,7 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds);
+  const sources = allSources(configuredProviderIds, sourceOrder);
 
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>

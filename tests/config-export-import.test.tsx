@@ -34,7 +34,7 @@ describe('ConfigExportImport', () => {
         return Promise.resolve({ ok: true, preview: { written: ['exa'], skipped: ['tavily'], prefDiffs: [] } });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -65,7 +65,7 @@ describe('ConfigExportImport', () => {
         });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: false, sourceOrderOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -75,13 +75,45 @@ describe('ConfigExportImport', () => {
     fireEvent.change(input, { target: { files: [file] } });
     // 确认对话框出现（含 diff 行）
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
-    expect(screen.getByText(/默认搜索源/)).toBeInTheDocument();
+    expect(screen.getByText(/默认搜索源/, { selector: '.pref-diffs li' })).toBeInTheDocument();
     expect(screen.getByText(/light/)).toBeInTheDocument();
     expect(screen.getByText(/dark/)).toBeInTheDocument();
     // 点击"导入（含偏好）"
     fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('importConfig', expect.objectContaining({ applyPrefs: true })));
     expect(await screen.findByText(/已覆盖/)).toBeInTheDocument();
+  });
+
+  it('confirms and reports when source order is the only preference diff', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'previewImport') {
+        return Promise.resolve({
+          ok: true,
+          preview: {
+            written: [], skipped: [],
+            prefDiffs: [{ key: 'sourceOrder', from: 'google > bing', to: 'bing > google' }],
+          },
+        });
+      }
+      if (type === 'importConfig') {
+        return Promise.resolve({
+          ok: true,
+          report: {
+            written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
+            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: true,
+          },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<ConfigExportImport />);
+    const input = screen.getByDisplayValue('') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
+    expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
+    expect(screen.getByText(/快切栏顺序/, { selector: '.pref-diffs li' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('importConfig', expect.objectContaining({ applyPrefs: true })));
+    expect(await screen.findByText(/已覆盖：快切栏顺序/)).toBeInTheDocument();
   });
 
   it('oversized file is rejected before any messaging', async () => {

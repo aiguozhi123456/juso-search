@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
-import { allSources } from '@/lib/sources';
+import { allSources, normalizeSourceOrder } from '@/lib/sources';
 import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -14,13 +14,14 @@ export default function App() {
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [active, setActive] = useState<SourceId | null>(null);
+  const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
+  const [savingSourceOrder, setSavingSourceOrder] = useState(false);
+  const [sourceOrderError, setSourceOrderError] = useState('');
+  const configRequestEpoch = useRef(0);
+  const sourceOrderRevision = useRef(0);
 
   useEffect(() => {
-    void (async () => {
-      const config = await sendMessage('getProviderConfig', undefined);
-      setConfiguredProviderIds(config.configuredProviderIds);
-      setActive(config.activeSourceId);
-    })();
+    syncConfig();
   }, []);
 
   function markConfigured(id: ProviderId) {
@@ -37,17 +38,48 @@ export default function App() {
 
   function syncConfig() {
     void (async () => {
+      const requestEpoch = ++configRequestEpoch.current;
+      const orderRevisionAtRequest = sourceOrderRevision.current;
       const config = await sendMessage('getProviderConfig', undefined);
       setActive(config.activeSourceId);
       setConfiguredProviderIds(config.configuredProviderIds);
+      if (requestEpoch === configRequestEpoch.current && orderRevisionAtRequest === sourceOrderRevision.current) {
+        setSourceOrder(normalizeSourceOrder(config.sourceOrder));
+      }
     })();
   }
 
-  const configuredSources = allSources(configuredProviderIds);
+  const configuredSources = allSources(configuredProviderIds, sourceOrder);
 
   async function choose(id: SourceId) {
     await sendMessage('setActiveSource', id);
     setActive(id);
+  }
+
+  async function moveSource(sourceId: SourceId, direction: -1 | 1) {
+    const visibleIndex = configuredSources.findIndex((source) => source.id === sourceId);
+    const adjacentSource = configuredSources[visibleIndex + direction];
+    if (visibleIndex === -1 || !adjacentSource || savingSourceOrder) return;
+
+    const previousOrder = sourceOrder;
+    const nextOrder = [...sourceOrder];
+    const sourceIndex = nextOrder.indexOf(sourceId);
+    const adjacentIndex = nextOrder.indexOf(adjacentSource.id);
+    [nextOrder[sourceIndex], nextOrder[adjacentIndex]] = [nextOrder[adjacentIndex], nextOrder[sourceIndex]];
+
+    sourceOrderRevision.current += 1;
+    setSourceOrder(nextOrder);
+    setSavingSourceOrder(true);
+    setSourceOrderError('');
+    try {
+      await sendMessage('setSourceOrder', nextOrder);
+    } catch {
+      setSourceOrder(previousOrder);
+      setSourceOrderError(t(MSG.opts_source_order_save_failed));
+    } finally {
+      sourceOrderRevision.current += 1;
+      setSavingSourceOrder(false);
+    }
   }
 
   return (
@@ -72,6 +104,42 @@ export default function App() {
             </option>
           ))}
         </select>
+      </section>
+
+      <section>
+        <h2>{t(MSG.opts_source_order_heading)}</h2>
+        <p className="hint">{t(MSG.opts_source_order_hint)}</p>
+        <div className="source-order-list">
+          {configuredSources.map((source, index) => {
+            const sourceName = t(source.label);
+            return (
+              <div className="source-order-row" key={source.id}>
+                <span>{sourceName}</span>
+                <div className="source-order-actions">
+                  <button
+                    type="button"
+                    aria-label={t(MSG.opts_source_order_move_up, sourceName)}
+                    title={t(MSG.opts_source_order_move_up, sourceName)}
+                    disabled={savingSourceOrder || index === 0}
+                    onClick={() => moveSource(source.id, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t(MSG.opts_source_order_move_down, sourceName)}
+                    title={t(MSG.opts_source_order_move_down, sourceName)}
+                    disabled={savingSourceOrder || index === configuredSources.length - 1}
+                    onClick={() => moveSource(source.id, 1)}
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
       </section>
 
       <section>

@@ -15,10 +15,12 @@ import {
   getConfiguredProviderIds,
   getKey,
   getSearchCacheSummaries,
+  getSourceOrder,
   saveCachedSearch,
   setActiveProviderId,
   setActiveSourceId,
   setKey,
+  setSourceOrder,
 } from './storage';
 import { t, MSG } from './i18n';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
@@ -109,12 +111,13 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
 
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
-  const [configuredProviderIds, activeProviderId, activeSourceId] = await Promise.all([
+  const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder] = await Promise.all([
     getConfiguredProviderIds(),
     getActiveProviderId(),
     getActiveSourceId(),
+    getSourceOrder(),
   ]);
-  return { configuredProviderIds, activeProviderId, activeSourceId };
+  return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder };
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
@@ -139,6 +142,11 @@ export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
     return;
   }
   await setActiveSourceId(sourceId);
+}
+
+export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {
+  await getSchemaReady();
+  await setSourceOrder(sourceOrder);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

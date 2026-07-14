@@ -24,6 +24,10 @@ export interface SearchSource {
 }
 
 const ENGINE_IDS: ReadonlySet<string> = new Set(allEngines().map((e) => e.id));
+const DEFAULT_SOURCE_ORDER: SourceId[] = [
+  ...allProviders().map((provider) => provider.id),
+  ...allEngines().map((engine) => engine.id),
+];
 
 export function isEngineId(id: string): id is EngineId {
   return ENGINE_IDS.has(id);
@@ -34,26 +38,49 @@ export function isProviderId(id: string): id is ProviderId {
 }
 
 /**
- * 投影出统一快切栏的候选源：已配置的 AI provider（按 registry 序）+ 全部常规 engine。
+ * 规范化用户保存的完整来源顺序：保留已知 id 的首次出现，遗漏项按默认 registry 顺序补尾。
+ */
+export function normalizeSourceOrder(order: unknown): SourceId[] {
+  const seen = new Set<SourceId>();
+  const normalized: SourceId[] = [];
+  const sourceOrder = Array.isArray(order) ? order : [];
+  for (const id of sourceOrder) {
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id)) || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  for (const id of DEFAULT_SOURCE_ORDER) {
+    if (!seen.has(id)) normalized.push(id);
+  }
+  return normalized;
+}
+
+/**
+ * 投影出统一快切栏的候选源：按用户顺序排序的已配置 AI provider + 全部常规 engine。
  * provider 按 configuredProviderIds 过滤（沿用 v1「隐藏未配置 provider」）；engine 恒全显示。
  */
-export function allSources(configuredProviderIds: ProviderId[]): SearchSource[] {
-  const providerSources: SearchSource[] = allProviders()
-    .filter((p) => configuredProviderIds.includes(p.id))
-    .map((p) => ({
-      id: p.id,
-      kind: 'provider' as const,
-      label: p.label,
-      supportsAnswer: p.supportsAnswer,
-    }));
-  const engineSources: SearchSource[] = allEngines().map((e) => ({
-    id: e.id,
-    kind: 'engine' as const,
-    label: e.label,
-    supportsAnswer: false,
-    favicon: e.favicon,
-  }));
-  return [...providerSources, ...engineSources];
+export function allSources(configuredProviderIds: ProviderId[], sourceOrder?: readonly SourceId[]): SearchSource[] {
+  const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
+  const enginesById = new Map(allEngines().map((engine) => [engine.id, engine]));
+  return normalizeSourceOrder(sourceOrder).flatMap((id): SearchSource[] => {
+    const provider = providersById.get(id as ProviderId);
+    if (provider) {
+      return configuredProviderIds.includes(provider.id) ? [{
+        id: provider.id,
+        kind: 'provider',
+        label: provider.label,
+        supportsAnswer: provider.supportsAnswer,
+      }] : [];
+    }
+    const engine = enginesById.get(id as EngineId)!;
+    return [{
+      id: engine.id,
+      kind: 'engine',
+      label: engine.label,
+      supportsAnswer: false,
+      favicon: engine.favicon,
+    }];
+  });
 }
 
 /** 解析 engine favicon 为扩展可访问 URL（测试/非扩展上下文回退原路径）。 */

@@ -11,11 +11,12 @@ type Status =
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
 
-const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref', string> = {
+const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder', string> = {
   activeProvider: 'activeProvider',
   activeSource: 'activeSource',
   themePref: 'themePref',
   localePref: 'localePref',
+  sourceOrder: 'sourceOrder',
 };
 
 export function ConfigExportImport({ onImported }: { onImported?: () => void } = {}) {
@@ -90,7 +91,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     setStatus({ kind: 'idle' });
   }
 
-  function prefLabel(key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref'): string {
+  function prefLabel(key: keyof typeof PREF_LABELS): string {
     return t(`opts_pref_${PREF_LABELS[key]}`);
   }
 
@@ -100,6 +101,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     if (report.activeSourceOverridden) labels.push(prefLabel('activeSource'));
     if (report.themePrefOverridden) labels.push(prefLabel('themePref'));
     if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
+    if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
     return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';
   }
 

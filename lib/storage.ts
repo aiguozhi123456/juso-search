@@ -2,7 +2,7 @@ import type { EngineId } from './engines/types';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { SourceId } from './sources';
-import { isEngineId } from './sources';
+import { isEngineId, normalizeSourceOrder } from './sources';
 import {
   SEARCH_CACHE_CAP,
   SEARCH_CACHE_INDEX_KEY,
@@ -29,17 +29,27 @@ export const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
 export const ACTIVE_SOURCE_KEY = 'activeSource'; // SourceId | null
 export const THEME_KEY = 'themePref'; // ThemePref
 export const LOCALE_KEY = 'localePref'; // LocalePref
+export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 // providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
+// sourceOrder 的读改写串行队列：setSourceOrder/mergeImport 共用，避免导入覆盖较新的移动。
+let sourceOrderMutationQueue: Promise<unknown> = Promise.resolve();
 
 /** 串行化 providerKeys 的读改写（setKey / clearKey / mergeImport），防止并发写覆盖。 */
 export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = providerKeysMutationQueue.then(mutation, mutation);
   providerKeysMutationQueue = run.catch(() => undefined);
+  return run;
+}
+
+/** 串行化 sourceOrder 写入（setSourceOrder / mergeImport），保持调用顺序。 */
+export function withSourceOrderMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const run = sourceOrderMutationQueue.then(mutation, mutation);
+  sourceOrderMutationQueue = run.catch(() => undefined);
   return run;
 }
 
@@ -136,6 +146,18 @@ export async function getLocalePref(): Promise<LocalePref> {
 
 export async function setLocalePref(pref: LocalePref): Promise<void> {
   await browser.storage.local.set({ [LOCALE_KEY]: pref });
+}
+
+/** 快切来源完整顺序；仅读自身键，非法值回退到完整默认顺序。 */
+export async function getSourceOrder(): Promise<SourceId[]> {
+  const got = await browser.storage.local.get(SOURCE_ORDER_KEY);
+  return normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
+}
+
+export async function setSourceOrder(order: SourceId[]): Promise<void> {
+  await withSourceOrderMutation(async () => {
+    await browser.storage.local.set({ [SOURCE_ORDER_KEY]: normalizeSourceOrder(order) });
+  });
 }
 
 async function readSearchCacheIndex(): Promise<SearchCacheIndex> {
