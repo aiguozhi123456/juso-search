@@ -10,10 +10,11 @@ severity: low
 applies_when:
   - Adding a new search provider (REST or MCP) without hand-writing the fetch/error boilerplate per adapter
   - Elevating a pure data-record type (e.g. an engine) into a behavioral interface so per-instance logic lives alongside its data rather than in scattered free functions and switches
+  - Adding a navigation-only engine whose canonical SERP route or query parameter differs from the existing engines
   - Unifying two transport families (REST + MCP) behind a single ProviderTransport extension point while deliberately preserving their distinct error mappings
   - Deciding whether a factory (defineProvider) is warranted for one layer vs. leaving a parallel concept intentionally unfactored (engines)
   - Tempted to merge two parallel id types (ProviderId, EngineId); only the cross-cutting composition point (SourceId) should merge
-tags: [provider-adapter, engine, transport, abstraction, define-provider, factory, byok, refactor]
+tags: [provider-adapter, engine, transport, define-provider, factory, byok, baidu, serp-scope]
 related_components:
   - lib/providers/base.ts
   - lib/providers/http.ts
@@ -25,8 +26,12 @@ related_components:
   - lib/engines/types.ts
   - lib/engines/google.ts
   - lib/engines/bing.ts
+  - lib/engines/baidu.ts
   - lib/engines/registry.ts
+  - lib/engines/scopes.ts
   - lib/sources.ts
+  - entrypoints/serp-bar.content.ts
+  - wxt.config.ts
 ---
 
 # Standardize extension points, not shapes: parallel adapter layers (provider + engine)
@@ -41,7 +46,7 @@ drifted into opposite shapes:
   `stepfun`, `stepfun-plan` — each behind a `ProviderAdapter.search(query,
   opts, key)` contract, BYOK keys, return `{ answer?, results }`.
 - **Engines** (`lib/engines/`): navigation-only SERP targets — `google`,
-  `bing` — no key, no `answer`, no `search()`. Only build SERP URLs and tell
+  `bing`, `baidu` — no key, no `answer`, no `search()`. Only build SERP URLs and tell
   the SERP-injection content script where to mount.
 
 By the time the SERP switch bar landed, the **provider** layer was already
@@ -182,7 +187,7 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
 ### 3. Move engine behavior onto the adapter, but centralize cross-consumer scope
 
 For engines, promote the data record to a behavioral interface and co-locate
-one file per engine (`google.ts`, `bing.ts`). The private construction details
+one file per engine (`google.ts`, `bing.ts`, `baidu.ts`). The private construction details
 (`serpUrlTemplate`, `queryParam`) become module-local consts and leave the
 public contract:
 
@@ -226,7 +231,49 @@ set and canonical SERP predicate live in `lib/engines/scopes.ts`. Those facts
 also drive the static content-script and web-accessible-resource matches, so
 keeping a private host comparison inside each engine would reintroduce
 configuration drift. The shared predicate requires HTTPS, the default port,
-pathname `/search`, and exact hostname membership.
+the engine's canonical pathname, and exact hostname membership. Do not encode
+`/search` as a universal engine assumption: Google and Bing recognize
+`/search`, while Baidu recognizes `/s`. URL building and query extraction are
+separate adapter concerns: Google/Bing use `q`, while Baidu uses `wd`; query
+presence is not required for a URL to belong to an engine's canonical route.
+
+```ts
+// lib/engines/baidu.ts — route-specific engine contract
+const SERP_URL_TEMPLATE = 'https://www.baidu.com/s?wd={q}';
+const QUERY_PARAM = 'wd';
+const ANCHOR: AnchorStrategy = {
+  selector: '#content_left',
+  append: 'before',
+  alignTo: '#content_left',
+};
+
+export const baiduEngine: SearchEngine = {
+  id: 'baidu',
+  label: 'engine_baidu',
+  favicon: '/icons/baidu.svg',
+  buildSerpUrl(query) {
+    return SERP_URL_TEMPLATE.replace('{q}', encodeURIComponent(query));
+  },
+  buildHomeUrl() { return 'https://www.baidu.com/'; },
+  matches(url) {
+    try { return isSerpUrl(new URL(url), isBaiduSerpHostname, '/s'); }
+    catch { return false; }
+  },
+  extractQuery(url) {
+    try { return new URL(url).searchParams.get(QUERY_PARAM); }
+    catch { return null; }
+  },
+  anchor: ANCHOR,
+};
+```
+
+Static content-script patterns must also preserve this route difference. The
+approved host registry produces `/search*` for Google/Bing and `/s*` for
+Baidu. Web-accessible-resource patterns remain host-wide (`/*`) because they
+serve engine favicons, but they still derive from the same approved exact-host
+set. Chrome match patterns are only the injection boundary; `matches()` is the
+stricter runtime trust decision and rejects HTTP, custom ports, forged hosts,
+and prefix paths such as `/something`.
 
 Delete the `serp-anchor.ts` switch file entirely; the per-engine strategy now
 lives as `engine.anchor`, with `anchorFor(engine|null)` + `DEFAULT_ANCHOR`
@@ -236,7 +283,11 @@ preserving the "google is the safe default" project knowledge.
 
 ```ts
 // lib/engines/registry.ts
-const engines: Record<EngineId, SearchEngine> = { google: googleEngine, bing: bingEngine };
+const engines: Record<EngineId, SearchEngine> = {
+  google: googleEngine,
+  bing: bingEngine,
+  baidu: baiduEngine,
+};
 
 export function allEngines(): SearchEngine[] { return Object.values(engines); }
 ```
@@ -296,8 +347,29 @@ and the `search(query, opts, key)` contract; engines satisfy neither.
 composition point. Resist any urge to make `defineProvider` / an
 engine-factory return a common base type "for symmetry."
 
-**Behavior preserved exactly.** This was a pure structural refactor: 274/274
-tests pass, typecheck + eslint clean. One regression *was* caught in review —
+**Canonical routes are engine behavior, not registry defaults.** A registry
+can centralize approved hosts and enumerate adapters without pretending their
+public SERPs share a path or query parameter. Baidu is the proof case: a global
+`/search?q=` assumption would either fail to inject on Baidu or force broad
+host-wide content-script matches. The current implementation records `/s`
+explicitly at two extension boundaries: `baiduEngine.matches()` for strict
+runtime recognition and `SERP_CONTENT_MATCH_PATTERNS` for static injection.
+Tests assert both boundaries so they cannot drift silently; do not claim a
+single source of route metadata until the code actually provides one.
+
+**Registry projection should carry a new engine through generic consumers.**
+After `baiduEngine` is registered, `allEngines()` and `isEngineId()` make it
+available to `allSources()`, active-source storage, config import validation,
+gateway source handling, both source switchers, and SERP handoff without
+Baidu-specific production branches. The provider path stays unchanged:
+`isProviderId('baidu')` remains false, no `providerKeys.baidu` slot exists, and
+selecting Baidu never invokes `ProviderAdapter.search()`.
+
+**Validation history.** The original behavior-preserving structural refactor
+passed 274/274 tests. The later behavior-adding Baidu extension passed 318/318 tests plus typecheck,
+eslint, and a production WXT build; the generated manifest contains
+`https://www.baidu.com/s*` and `icons/baidu.svg`. One regression *was* caught
+in the original refactor review —
 a fixer had rewritten `ProviderError`'s `super(message)` into
 `super(kind, message)`, which would have silently replaced every user-facing
 error string with the error kind. The `ProviderError` constructor signature
@@ -325,6 +397,8 @@ Apply this when **any** of these are true:
   fetch/error boilerplate.
 - Two "parallel" concepts share a registry, but one is data-only while the
   other is behavioral — and you want both extension points to be clean.
+- A new engine has a different canonical route, query parameter, approved
+  hostname set, or persistent SERP layout anchor.
 - You're standardizing extension points and feel the pull to force identical
   shapes onto different problems.
 
@@ -390,13 +464,35 @@ function pickAnchorStrategy(engine: EngineId): AnchorStrategy {
 
 ### Engine: after (self-contained behavioral object)
 
-See `googleEngine` / `bingEngine` in **Guidance §3**. Each engine owns its URL
+See `googleEngine`, `bingEngine`, and `baiduEngine` in **Guidance §3**. Each engine owns its URL
 building, recognition entry point, query extraction, and anchor strategy;
-cross-consumer host scope stays centralized. Adding Baidu or DuckDuckGo still
-requires no behavior switch, but it does require updating every explicit
-extension boundary: add the engine id and module, register the adapter, add its
-approved hosts to the shared scope, extend registry/scope tests, and verify the
-generated manifest contains the intended matches and permissions.
+cross-consumer host scope stays centralized. Baidu demonstrates that adding an
+engine still requires no behavior switch even when its route and query
+parameter differ. The explicit extension boundaries are captured in the
+checklist below.
+
+### Adding a route-specific navigation engine (full checklist)
+
+1. Add the id only to `EngineId`; do not widen `ProviderId` or provider-key storage.
+2. Implement one engine module that owns SERP/home URL building, strict URL
+   recognition, query extraction, favicon metadata, and the complete anchor strategy.
+3. Register the adapter, add its exact approved hosts, and explicitly add its
+   canonical path to both runtime matching and static scope generation. Keep runtime
+   URL checks stricter than manifest patterns, and test the two route declarations
+   together until route metadata is genuinely centralized.
+4. Add the typed i18n key, every locale entry, the favicon asset, and
+   `web_accessible_resources` exposure.
+5. Verify registry-derived source composition, active-source storage, config IO,
+   gateway isolation, UI rendering, and SERP handoff without engine-specific branches.
+6. Test positive and negative URL cases, including protocol, port, exact host,
+   exact path, query encoding/extraction, and the full anchor object.
+7. Run typecheck, lint, the full test suite, and a production build; inspect the
+   generated manifest rather than trusting source config alone.
+8. On the live SERP, use DevTools to confirm the anchor exists, layout aligns,
+   controls remain clickable, and navigation does not leave duplicate or stale mounts.
+
+The final browser check matters for Baidu's `#content_left`: contract tests prove
+what the adapter requests, not that the external page still exposes a stable node.
 
 ### Adding a new REST provider (full checklist)
 
@@ -422,8 +518,15 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`
   — centralizes approved SERP hosts across engine recognition, static content
   scripts, resource exposure, and SPA mount/remove behavior.
+- `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`
+  — explains why Baidu can persist as an active source without entering provider
+  key storage or provider search execution.
 
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor
   flat `ProviderAdapter` + inline `TavilyAdapter` error mapping this learning
   extracts into `restTransport`/`defineProvider`.
+- `google-bing-serp-scope-minimization.md` — still treats `/search` as universal
+  and should be refreshed for Baidu's `/s` route and route-aware content patterns.
+- `serp-bar-engine-specific-anchors.md` — should add Baidu's `#content_left`
+  strategy while retaining live-browser validation as a residual risk.
