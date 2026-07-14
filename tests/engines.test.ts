@@ -61,12 +61,20 @@ describe('anchor strategy', () => {
       alignTo: '#b_content',
     });
   });
-  it('google anchors before #search', () => {
-    expect(anchorFor(getEngine('google'))).toEqual({ selector: '#search', append: 'before' });
+  it('google anchors before #rcnt and aligns to #center_col above AIO', () => {
+    expect(anchorFor(getEngine('google'))).toEqual({
+      selector: '#rcnt',
+      append: 'before',
+      alignTo: '#center_col',
+    });
   });
   it('null engine falls back to DEFAULT_ANCHOR', () => {
     expect(anchorFor(null)).toEqual(DEFAULT_ANCHOR);
-    expect(anchorFor(null)).toEqual({ selector: '#search', append: 'before' });
+    expect(anchorFor(null)).toEqual({
+      selector: '#rcnt',
+      append: 'before',
+      alignTo: '#center_col',
+    });
   });
   it('regression: Bing avoids its rebuilt result node', () => {
     expect(anchorFor(getEngine('bing')).selector).not.toBe('#b_results');

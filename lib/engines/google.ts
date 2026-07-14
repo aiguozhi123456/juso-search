@@ -5,11 +5,9 @@ import type { AnchorStrategy, SearchEngine } from './types';
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
 const QUERY_PARAM = 'q';
-// Google → #search + before：host 作为 #search 前置兄弟落在 #center_col 内，自动继承
-// 居中列对齐 search box（dogfood 验证定位准）。SPA 导航时 #search 元素身份保持、只更新
-// 内部 #rso 子树，host 存活。
-// 注：若日后 Google 改为像 Bing 那样重建 #search，需切到 #cnt/外壳 + alignTo 方案。
-const ANCHOR: AnchorStrategy = { selector: '#search', append: 'before' };
+// Google → #rcnt + before + #center_col 对齐：AI Overview 是 #rcnt 内、#center_col 前的
+// 结果模块；host 必须置于 #rcnt 外才能排在 AIO 上方，同时按 #center_col content box 对齐。
+const ANCHOR: AnchorStrategy = { selector: '#rcnt', append: 'before', alignTo: '#center_col' };
 
 export const googleEngine: SearchEngine = {
   id: 'google',

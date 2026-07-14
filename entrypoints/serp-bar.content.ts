@@ -19,9 +19,9 @@ import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
  * ## 锚点策略：两套独立方案，一次性 mount
- * Google 用 `#search + before`（d8dde21 起即此方案）：host 作为 #search 前置兄弟落在
- * #center_col 内，自动继承居中列对齐 search box；#search 元素身份在 SPA 导航时保持，
- * host 存活。Bing 用 `#b_content 前` + 运行时同步 content box：避开 #b_content 内部的
+ * Google 用 `#rcnt + before` + `#center_col` content-box 同步：AI Overview 位于 #rcnt 内且
+ * 排在 #center_col 前，host 须在 #rcnt 外才会位于 AIO/普通结果前方。Bing 用 `#b_content 前`
+ * + 运行时同步 content box：避开 #b_content 内部的
  * 旧式 inline/negative-margin 结果布局偷点击，且 #b_results 被激进重建故不能挂其兄弟。
  * 详见各 engine 的 anchor 字段（lib/engines/{google,bing}.ts）与 registry.ts 的 anchorFor。
  *

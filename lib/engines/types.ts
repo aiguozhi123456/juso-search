@@ -46,5 +46,9 @@ export interface SearchEngine {
   readonly anchor: AnchorStrategy;
 }
 
-/** null / 未知 engine 的兜底锚点（= google 策略）。显式命名，承载「google 是安全默认」这一项目知识。 */
-export const DEFAULT_ANCHOR: AnchorStrategy = { selector: '#search', append: 'before' };
+/** null / 未知 engine 的兜底锚点（= Google 的 #rcnt 外置、#center_col 对齐策略）。 */
+export const DEFAULT_ANCHOR: AnchorStrategy = {
+  selector: '#rcnt',
+  append: 'before',
+  alignTo: '#center_col',
+};

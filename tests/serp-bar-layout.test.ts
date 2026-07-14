@@ -33,6 +33,17 @@ describe('SERP bar shadow-host layout', () => {
     expect(layout.width).toBeCloseTo(983.667, 3);
   });
 
+  it('aligns the Google host to #center_col relative to its outer parent', () => {
+    expect(
+      calculateAlignedHostLayout(
+        { left: 0, width: 868 },
+        { borderLeft: 0, borderRight: 0, paddingLeft: 0, paddingRight: 0 },
+        { left: 52, width: 652 },
+        { borderLeft: 0, borderRight: 0, paddingLeft: 0, paddingRight: 0 },
+      ),
+    ).toEqual({ offsetLeft: 52, width: 652 });
+  });
+
   it('uses parent-relative content boxes and clamps negative geometry', () => {
     expect(
       calculateAlignedHostLayout(

@@ -39,6 +39,7 @@ The "聚搜" Chrome extension injects a `SourceSwitcher` UI bar into Google and 
 - Bing: the SourceSwitcher bar vanishes after performing a new search (SPA pushState navigation). The bar also appeared left-offset (full-bleed, x=0) when anchored to page-level persistent elements that sit outside the centered results column.
 - Bing: when the bar is placed inside the results column, click hit-tests are offset — the visible button position does not match the clickable region because the shadow DOM host participates in Bing's legacy inline flow and overlapping transparent layers steal mouse events.
 - Google: the bar appears left-offset when anchored to `#cnt` or `#appbar` because those elements' positioning does not align with the search box column.
+- Google AIO: the bar appears below AI Overview because `#search + before` places it inside `#center_col`, while Google renders the AI Overview wrapper before `#center_col` inside `#rcnt`.
 - All engines: the bar disappears permanently on Bing SPA navigation when anchored to `#b_results` because that element is aggressively rebuilt on pushState.
 
 ## What Didn't Work
@@ -54,24 +55,26 @@ The "聚搜" Chrome extension injects a `SourceSwitcher` UI bar into Google and 
 
 **Phase 4 — Centered column `#b_content` / `#cnt` with `append:'first'` (e65ddf4):** Switched to `#b_content` + `first` (Bing) and `#cnt` + `first` (Google). The host lives inside the centered column and inherits alignment automatically. Google alignment mostly worked but Bing suffered click hit-test offset. Root cause: WXT's `createShadowRootUi` inserts `:host { all: initial !important }` in shadow CSS (`shadow-root.mjs:19`), overriding the non-important `:host { display: block }` from `serp-bar-styles.ts`. The host becomes inline/initial. Bing's `#b_content` has legacy inline result layout: `<main>` and `<aside>` are inline, `#b_results` and `#b_context` are `inline-block`, and `#b_tween` inside `<main>` has `margin-top: -28px` with `position: relative`. This overlapping transparent layer steals mouse events — the visual button position does not equal the clickable region.
 
+**Google `#search + before` (superseded by AIO):** This placed the host as a preceding sibling of `#search` inside `#center_col`, so it was only above ordinary results. On a 883px viewport AIO page, real DevTools measured `#rcnt` at `left=0, top=162, width=868`; its direct child at index 1 was the AI Overview wrapper at `top=162, width=868, height=554`, while direct child index 2 was `#center_col` at `left=52, top=716, width=652`. The host consequently remained at `left=52, top=716`, below AIO. No AI-specific selector can make this sibling cross the preceding `#rcnt` child.
+
 **Pre-existing bug in `lib/i18n.ts`:** Module-level side effect calling `browser.i18n.getUILanguage()` at load time broke WXT build-time vite-node evaluation when the new content script was first built. Fixed by lazy-loading the i18n function (module load no longer executes environment-dependent code).
 
 **Regression test mislabel:** The regression test and comments mistakenly listed `#search` as "SPA-swapped/forbidden". This conflated Google's `#search` (element identity persists across SPA nav) with Bing's `#b_results` (aggressively rebuilt). Corrected.
 
 ## Solution
 
-The fix implements **engine-specific anchor strategies** (commit 9351872), acknowledging that Google and Bing SERP DOM and SPA behavior are fundamentally different. Two independent strategies, selected at mount time based on the engine:
+The solution uses **engine-specific anchor strategies**, acknowledging that Google and Bing SERP DOM and SPA behavior are fundamentally different. The original split landed in commit 9351872; the Google strategy was later raised above `#rcnt` after AI Overview exposed a deeper ordering boundary. Two independent strategies are selected at mount time:
 
-### Google: `#search` + `before` (original Phase 1 anchor)
+### Google: `#rcnt` + `before` + `#center_col` content-box synchronization
 
 ```typescript
 // Each engine now declares its anchor inline as `engine.anchor`
-// (lib/engines/google.ts, lib/engines/bing.ts); values unchanged:
-//   google: { selector: '#search', append: 'before' }
+// (lib/engines/google.ts, lib/engines/bing.ts):
+//   google: { selector: '#rcnt', append: 'before', alignTo: '#center_col' }
 //   bing:   { selector: '#b_content', append: 'before', alignTo: '#b_content' }
 ```
 
-The host becomes a preceding sibling of `#search` inside `#center_col` (Google's centered results column), automatically inheriting the column's left alignment with the search box. `#search` element identity persists across Google SPA navigation — only the inner `#rso` results subtree is updated — so the host is not taken down.
+The host becomes a preceding sibling of the complete `#rcnt` results container, so it is before both the AI Overview wrapper and `#center_col`. It uses the same parent-relative content-box calculation as Bing to align with `#center_col`. On the measured 883px AIO viewport, `#center_col` is `left=52, width=652`; the runtime subtracts the actual host parent's content origin instead of assuming document coordinates. This structural strategy also applies to ordinary result pages without AIO; it does not depend on detecting any AI-specific node.
 
 ### Bing: `#b_content` + `before` + runtime content-box synchronization
 
@@ -115,7 +118,7 @@ The static host layout is defined in the custom shadow CSS passed as `css: serpB
 
 This stylesheet is inserted after WXT's shadow reset. For the host, shadow-tree important declarations have encapsulation-context precedence over external important inline declarations. Therefore external inline longhand styles cannot reliably defeat `:host { all: initial !important }`; only the two namespaced custom properties are set externally.
 
-### Events that trigger position sync (Bing)
+### Events that trigger position sync
 
 ```typescript
 // On mount (called directly from onMount)
@@ -135,12 +138,12 @@ ctx.addEventListener(window, 'resize', () => {
 
 | Aspect | Google | Bing |
 |--------|--------|------|
-| Results container | `#search` (element identity persists across SPA) | `#b_results` (aggressively rebuilt on pushState) |
-| Results shell | `#center_col` (stable) | `#b_content` (stable outer shell) |
+| Results container | `#rcnt` (contains AIO and `#center_col`) | `#b_results` (aggressively rebuilt on pushState) |
+| Results shell | `#center_col` (main column, aligned dynamically) | `#b_content` (stable outer shell) |
 | Layout model | Block/flow — no overlapping layers | Legacy inline layout with `inline-block` children and `position: relative` overlapping elements |
 | SPA behavior | Inner content swapped, top-level elements preserved | DOM rebuilt aggressively including parent ordering |
 
-A unified anchor strategy must either: (a) live inside an engine's layout and risk hit-test offset on Bing, or (b) live outside and risk misalignment on both engines, or (c) live outside and track alignment for both — but Google's `#search` solution is simpler and more robust, so there is no reason to force a unified approach.
+A unified anchor strategy must either: (a) live inside an engine's layout and risk hit-test offset on Bing, or (b) live outside and risk misalignment on both engines, or (c) live outside and track alignment for both. Google and Bing use the third layout pattern with engine-specific persistent shells and alignment targets, while retaining their distinct DOM anchors.
 
 The **Bing fix** works because:
 1. **The host lives outside `#b_content`** — it is a body-level sibling inserted before `#b_content`, not inside it. This avoids participation in Bing's legacy inline flow entirely. The overlapping `#b_tween` layer inside `<main>` cannot steal clicks from the host.
@@ -149,15 +152,16 @@ The **Bing fix** works because:
 4. **Runtime position synchronization** via paired `getBoundingClientRect()` values on mount, resize, and SPA navigation keeps the bar aligned to the Bing main result area's `#b_content` content box without participating in that column's layout. The offset is parent-relative, so it remains correct when the body has non-zero border or padding.
 
 The **Google fix** works because:
-1. **`#search` is not SPA-swapped** — unlike Bing's `#b_results`, Google's `#search` element identity persists across SPA navigation (only the inner `#rso` subtree updates). The host remains attached.
-2. **`#center_col` provides free alignment** — the host is a preceding sibling of `#search` inside `#center_col`, Google's centered results column. The host inherits the column's left alignment with the search box automatically.
-3. **No overlay/layer stealing** — Google's simpler block layout does not have the overlapping transparent layers that Bing has.
+1. **The host is outside `#rcnt`** — it precedes the entire result container, so it appears before a Google AI Overview regardless of whether that module exists.
+2. **`#center_col` provides the correct horizontal target** — paired viewport rects convert its content box into a parent-relative offset and width without assuming document coordinates.
+3. **No AIO selector is required** — normal and AIO result pages have the same `#rcnt`/`#center_col` strategy, so no observer, timer, or re-mount behavior is needed.
 
 ## Prevention
 
 - **Never use `autoMount()` with function anchors as a workaround for SPA-rebuilt elements** — the `isNotExist`/`waitElement` ping-pong deadlocks when DOM mutation is coalesced into a single microtask. Instead, anchor to a persistent parent shell that survives SPA navigation.
 - **Verify regression test assumptions about specific DOM elements** — the `#search` element was incorrectly labeled "SPA-swapped" in comments and tests because it was conflated with Bing's `#b_results`. Always verify each engine's element lifecycle independently.
 - **Test anchor strategies on each engine independently** — do not assume a strategy that works on one engine will work on another. Google and Bing SERP DOM are qualitatively different.
+- **Anchor Google above `#rcnt`, not merely above `#search`** — AIO is a preceding `#rcnt` child. Keep `#center_col` solely as the content-box alignment target and record real-page geometry in the regression tests.
 - **When using `createShadowRootUi`, restore the host in custom shadow CSS after WXT's reset** — WXT's `:host { all: initial !important }` resets display, visibility, position, and pointer events. Shadow-tree important declarations take precedence over external host inline important declarations, so external code should pass dynamic values through namespaced CSS custom properties instead of host longhands.
 - **Add regression tests for each engine independently** — the test suite should cover Google and Bing SPA navigation scenarios separately, verifying bar presence and clickability after pushState.
 - **Test with real browser layout** — unit tests and jsdom cannot catch inline flow interaction bugs like hit-test offset. Use browser-level testing (Playwright, dogfood) to verify click targets and visual alignment.

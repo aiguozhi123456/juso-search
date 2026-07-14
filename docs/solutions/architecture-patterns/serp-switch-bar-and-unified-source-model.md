@@ -58,6 +58,6 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 ## Consequences
 
-- **SERP DOM anchors are fragile.** Google/Bing result-container selectors (`#search`, `#rso`, `#b_results`) drift on redesign. The bar falls back to `body` insertion if no anchor matches, but the exact "above results" placement needs dogfood re-validation after major search-engine redesigns. This is called out as a known maintenance surface.
+- **SERP DOM anchors are fragile.** Google/Bing result-container selectors (`#rcnt`, `#center_col`, `#rso`, `#b_results`) drift on redesign. A missing configured anchor prevents the bar from mounting, and the exact "above results" placement needs dogfood re-validation after major search-engine redesigns. This is called out as a known maintenance surface.
 - **Three-place i18n hygiene.** Any new source label or bar string must land in `MSG` + both `messages.json` simultaneously or the i18n-parity test fails. The engine/google/bing keys demonstrate this invariant.
 - **Provider behavior is unchanged.** The BYOK worker-only-key boundary, the `NormalizedSearchResponse` model, the cache keying, and the gateway are untouched — v2 is purely additive around a new view layer and a content-script host.

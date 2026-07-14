@@ -204,7 +204,7 @@ export interface SearchEngine {
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
 const QUERY_PARAM = 'q';
-const ANCHOR: AnchorStrategy = { selector: '#search', append: 'before' };
+const ANCHOR: AnchorStrategy = { selector: '#rcnt', append: 'before', alignTo: '#center_col' };
 
 export const googleEngine: SearchEngine = {
   id: 'google',
