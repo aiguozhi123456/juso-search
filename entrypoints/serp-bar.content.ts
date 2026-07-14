@@ -12,13 +12,14 @@ import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
+import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
 
 /**
  * v2 SERP 注入快切栏：在 Google/Bing 搜索结果页注入一行 chip，
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * ## 锚点策略：两套独立方案，一次性 mount
+ * ## 锚点策略：两套独立方案，按 SERP URL 生命周期 mount
  * Google 用 `#rcnt + before` + `#center_col` content-box 同步：AI Overview 位于 #rcnt 内且
  * 排在 #center_col 前，host 须在 #rcnt 外才会位于 AIO/普通结果前方。Bing 用 `#b_content 前`
  * + 运行时同步 content box：避开 #b_content 内部的
@@ -29,18 +30,22 @@ import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
  * MutationObserver 在 swap 完成后的微任务才回调，此时 `#b_results` 已是新节点，
  * isNotExist 永不为真、栏永不重挂。且 host 挂到「被换元素的兄弟」必被一起 detach。
- * 挂持久锚点 + 一次性 mount，这两个问题都不存在——host 的父级不参与结果重建。
+ * 挂持久锚点 + 手动按 URL mount/remove，这两个问题都不存在——host 的父级不参与结果重建。
  *
  * 参考：Greasyfork「移动端聚合搜索引擎导航 SearchSwitcher」Bing 分支即锚
  * `header` 一次性 appendChild，无 autoMount、无重挂——验证此模式可行。
  */
 export default defineContentScript({
-  matches: ['https://www.google.com/search*', 'https://www.bing.com/search*'],
+  matches: SERP_CONTENT_MATCH_PATTERNS,
   cssInjectionMode: 'ui',
   async main(ctx) {
+    const initialUrl = window.location.href;
+    const engine = matchEngineByUrl(initialUrl);
+    if (!engine) return;
+
     // 初始化（异步读取 worker 代理的 provider 配置与主题偏好）。
     // onMount 是同步签名（返回 TMounted），异步值在此预读后经 state 闭包喂给渲染。
-    const state = await loadBarState();
+    const state = await loadBarState(engine, initialUrl);
 
     // 持久锚点策略：按当前 engine 选 selector + append 模式。
     const strategy = anchorFor(state.engine);
@@ -72,23 +77,49 @@ export default defineContentScript({
         mounted?.root.unmount();
       },
     });
-    // 一次性 mount：持久锚点在 document_idle 已就绪（SSR），且 SPA 导航不重建它，
-    // 不需要 autoMount 的重挂逻辑——后者反而会在合并式 swap 上死锁。
-    ui.mount();
-
     // Google/Bing 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
     // 也不重新注入 content script（WXT ContentScriptContext 专门暴露 wxt:locationchange）。
-    // 在此重算 engine/query 并对同一 React root 重渲，避免 chip 查询词与 active 高亮
-    // 停在首次。host 已挂在持久锚点的兄弟，SPA 导航不会卸载它。
-    ctx.addEventListener(window, 'wxt:locationchange', () => {
-      const nextEngine = matchEngineByUrl(window.location.href);
-      if (!nextEngine) return; // 离开已知 engine（如跳到 google.com/maps），不重渲
+    // 按 URL 手动 mount/remove：离开 /search 时卸载，返回时重挂；不使用按锚点存在性
+    // 检测的 autoMount，避免合并式 DOM swap 导致死锁。
+    let locationRevision = 0;
+    let mountObserver: MutationObserver | null = null;
+    const stopWaitingForAnchor = () => {
+      mountObserver?.disconnect();
+      mountObserver = null;
+    };
+    const mountWhenAnchorReady = (revision: number) => {
+      const mountIfReady = () => {
+        if (revision !== locationRevision || ui.mounted) return false;
+        if (!document.querySelector(strategy.selector)) return false;
+        ui.mount();
+        return true;
+      };
+      if (mountIfReady()) return;
+      mountObserver = new MutationObserver(() => {
+        if (revision !== locationRevision || mountIfReady()) stopWaitingForAnchor();
+      });
+      mountObserver.observe(document.documentElement, { childList: true, subtree: true });
+    };
+    const syncLocation = (url: string) => {
+      const revision = ++locationRevision;
+      stopWaitingForAnchor();
+      const nextEngine = matchEngineByUrl(url);
+      if (!nextEngine) {
+        if (ui.mounted) ui.remove();
+        return;
+      }
       state.engine = nextEngine;
-      state.query = readQuery(nextEngine);
-      if (!mountedRoot) return;
+      state.query = readQuery(nextEngine, url);
+      if (!ui.mounted) {
+        mountWhenAnchorReady(revision);
+        return;
+      }
       if (mountedHost) syncAlignedHost(mountedHost, strategy);
-      render(mountedRoot, state, nextEngine);
-    });
+      if (mountedRoot) render(mountedRoot, state, nextEngine);
+    };
+    ctx.onInvalidated(stopWaitingForAnchor);
+    ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => syncLocation(newUrl.href));
+    syncLocation(window.location.href);
 
     ctx.addEventListener(window, 'resize', () => {
       if (mountedHost) syncAlignedHost(mountedHost, strategy);
@@ -104,25 +135,20 @@ interface BarState {
 }
 
 /** 读 config/theme/sources/query 并 resolve theme，产出 onMount 渲染所需全部值。 */
-async function loadBarState(): Promise<BarState> {
-  const engine = matchEngineByUrl(window.location.href);
-  // main() 仅在 matches 命中的 SERP 页运行，engine 必中；保守兜底仍 early-return。
-  if (!engine) {
-    throw new Error('serp-bar: no engine matched on matched SERP URL');
-  }
+async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
   const config = await sendMessage('getProviderConfig', undefined);
   const sources = allSources(config.configuredProviderIds);
   const themePref = await getThemePref();
   return {
     engine,
-    query: readQuery(engine),
+    query: readQuery(engine, url),
     sources,
     resolvedTheme: resolveTheme(themePref),
   };
 }
 
-function readQuery(engine: SearchEngine): string {
-  return engine.extractQuery(window.location.href) ?? '';
+function readQuery(engine: SearchEngine, url: string): string {
+  return engine.extractQuery(url) ?? '';
 }
 
 function render(root: Root, state: BarState, engine: SearchEngine): void {

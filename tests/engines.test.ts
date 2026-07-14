@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorFor } from '@/lib/engines/registry';
 import { DEFAULT_ANCHOR } from '@/lib/engines/types';
+import { BING_SERP_HOSTS, GOOGLE_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
   it('registers google + bing', () => {
@@ -27,11 +28,32 @@ describe('matchEngineByUrl', () => {
   it('matches google host', () => {
     expect(matchEngineByUrl('https://www.google.com/search?q=x')?.id).toBe('google');
   });
+  it('matches Google country hosts', () => {
+    expect(matchEngineByUrl('https://www.google.co.jp/search?q=x')?.id).toBe('google');
+    expect(matchEngineByUrl('https://www.google.com.hk/search?q=x')?.id).toBe('google');
+  });
   it('matches bing host', () => {
     expect(matchEngineByUrl('https://www.bing.com/search?q=x')?.id).toBe('bing');
   });
-  it('rejects unsupported ccTLD', () => {
-    expect(matchEngineByUrl('https://www.google.co.jp/search?q=x')).toBeNull();
+  it('matches Bing China host', () => {
+    expect(matchEngineByUrl('https://cn.bing.com/search?q=x')?.id).toBe('bing');
+  });
+  it('rejects forged and unsupported hosts', () => {
+    expect(matchEngineByUrl('https://www.google.co.jp.example.com/search?q=x')).toBeNull();
+    expect(matchEngineByUrl('https://www.google.fr/search?q=x')).toBeNull();
+    expect(matchEngineByUrl('https://www.bing.co.uk/search?q=x')).toBeNull();
+  });
+  it.each([
+    'http://www.google.com/search?q=x',
+    'https://www.google.com:8443/search?q=x',
+    'https://www.google.com/maps?q=x',
+    'https://www.google.com/searching?q=x',
+    'http://www.bing.com/search?q=x',
+    'https://www.bing.com:8443/search?q=x',
+    'https://www.bing.com/maps?q=x',
+    'https://www.bing.com/searching?q=x',
+  ])('rejects non-canonical SERP URL %s', (url) => {
+    expect(matchEngineByUrl(url)).toBeNull();
   });
   it('rejects non-url', () => {
     expect(matchEngineByUrl('not a url')).toBeNull();
@@ -45,11 +67,25 @@ describe('extractQuery', () => {
   it('returns bing query', () => {
     expect(extractQuery('https://www.bing.com/search?q=hello')).toBe('hello');
   });
+  it('returns a country-domain Google query', () => {
+    expect(extractQuery('https://www.google.co.jp/search?q=react+hooks')).toBe('react hooks');
+  });
   it('returns null when no query param', () => {
     expect(extractQuery('https://www.google.com/search')).toBeNull();
   });
   it('returns null for unknown host', () => {
     expect(extractQuery('https://example.com/search?q=x')).toBeNull();
+  });
+});
+
+describe('engine scopes', () => {
+  it('has a registry match for every configured host', () => {
+    for (const host of GOOGLE_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/search?q=x`)?.id).toBe('google');
+    }
+    for (const host of BING_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/search?q=x`)?.id).toBe('bing');
+    }
   });
 });
 

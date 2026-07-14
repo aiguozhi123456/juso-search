@@ -3,8 +3,7 @@ import { DEFAULT_ANCHOR } from './types';
 import { googleEngine } from './google';
 import { bingEngine } from './bing';
 
-// 本轮仅接 Google + Bing（host_permissions 最小化，降低商店审核风险）。
-// 国别域名（google.co.jp 等）后续按相同模式扩展：新增一个 lib/engines/<name>.ts + 在此注册。
+// 仅注册 Google + Bing；各自支持的 SERP 国别主机由 scopes.ts 集中定义。
 const engines: Record<EngineId, SearchEngine> = {
   google: googleEngine,
   bing: bingEngine,

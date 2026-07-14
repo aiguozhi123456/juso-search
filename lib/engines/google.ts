@@ -1,6 +1,7 @@
 // Google 常规搜索引擎适配器：纯导航目标，无 key / 无 answer / 无 search()。
 // serpUrlTemplate / queryParam 是本模块私有构造细节，不进 SearchEngine 公共契约。
 import type { AnchorStrategy, SearchEngine } from './types';
+import { isGoogleSerpHostname, isSerpUrl } from './scopes';
 
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
@@ -21,7 +22,7 @@ export const googleEngine: SearchEngine = {
   },
   matches(url: string): boolean {
     try {
-      return new URL(url).host === SERP_URL.host;
+      return isSerpUrl(new URL(url), isGoogleSerpHostname);
     } catch {
       return false;
     }

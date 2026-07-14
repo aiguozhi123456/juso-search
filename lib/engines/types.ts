@@ -38,7 +38,7 @@ export interface SearchEngine {
   buildSerpUrl(query: string): string;
   /** 构建 engine 首页 URL（无查询时跳转用，如 https://www.google.com/）。 */
   buildHomeUrl(): string;
-  /** host 级归属判定：该 URL 是否属于本 engine 的 SERP（registry 的 matchEngineByUrl 逐 engine 委托）。 */
+  /** SERP URL 归属判定：该 URL 是否为本 engine 支持 host 上的默认 HTTPS /search 页面（registry 的 matchEngineByUrl 逐 engine 委托）。 */
   matches(url: string): boolean;
   /** 从本 engine 的 SERP URL 提取查询词；非本 engine 或无查询参数返回 null。 */
   extractQuery(url: string): string | null;

@@ -5,6 +5,7 @@
 // host 作为它的前置兄弟既不会被内部重建带走，也不继承 Bing BM 对 #b_content 的 visibility 隐藏。
 // dogfood 维护说明：Google/Bing 改版可能改这些 ID；真机复核后再改此处即可。
 import type { AnchorStrategy, SearchEngine } from './types';
+import { isBingSerpHostname, isSerpUrl } from './scopes';
 
 const SERP_URL_TEMPLATE = 'https://www.bing.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
@@ -23,7 +24,7 @@ export const bingEngine: SearchEngine = {
   },
   matches(url: string): boolean {
     try {
-      return new URL(url).host === SERP_URL.host;
+      return isSerpUrl(new URL(url), isBingSerpHostname);
     } catch {
       return false;
     }
