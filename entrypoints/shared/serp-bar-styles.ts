@@ -26,6 +26,10 @@ export const serpBarStyles = `
   pointer-events: auto !important;
 }
 
+:host([data-engine="bing"]) {
+  z-index: 1 !important;
+}
+
 .source-switcher { display: flex; gap: 6px; flex-wrap: wrap; }
 .source-switcher button {
   display: inline-flex; align-items: center; gap: 5px;

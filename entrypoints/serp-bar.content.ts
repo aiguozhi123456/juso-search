@@ -61,6 +61,7 @@ export default defineContentScript({
       append: strategy.append,
       css: serpBarStyles,
       onMount(uiContainer, _shadow, shadowHost) {
+        shadowHost.dataset.engine = state.engine.id;
         shadowHost.dataset.theme = state.resolvedTheme;
         mountedHost = shadowHost;
         syncAlignedHost(shadowHost, strategy);

@@ -10,6 +10,7 @@ severity: high
 symptoms:
   - "Bing host keeps computed display:inline and margin-left:0 despite external inline important styles"
   - "Bing bar visual position or clickable geometry diverges from the main results content box"
+  - "Bing native autosuggest is covered where it expands into the quick-switch bar area"
   - "Google bar appears below AI Overview instead of above the complete result experience"
 root_cause: logic_error
 resolution_type: code_fix
@@ -19,8 +20,8 @@ tags:
   - bing
   - google
   - shadow-dom
-  - css-cascade
-  - ai-overview
+  - stacking-context
+  - autosuggest
   - serp-bar
 related_components:
   - entrypoints/serp-bar.content.ts
@@ -72,6 +73,8 @@ The "聚搜" Chrome extension injects a `SourceSwitcher` UI bar into Google and 
 
 **Regression test mislabel:** The regression test and comments mistakenly listed `#search` as "SPA-swapped/forbidden". This conflated Google's `#search` (element identity persists across SPA nav) with Bing's `#b_results` (aggressively rebuilt). Corrected.
 
+**Stacking-only alternatives excluded for the autosuggest conflict:** Moving the host back inside `#b_content` or next to `#b_results` would revive the earlier hit-test or SPA-detachment failures. Changing the host to `position: static` would discard the known-good positioned host contract, while disabling host pointer events would make the switch bar itself non-interactive. The stacking fix therefore leaves anchor, positioning, geometry, visibility, and pointer behavior unchanged.
+
 ## Solution
 
 The final solution combines one shared host-layout primitive with engine-specific structural boundaries.
@@ -88,6 +91,7 @@ const ui = await createShadowRootUi(ctx, {
   append: strategy.append,
   css: serpBarStyles,
   onMount(uiContainer, _shadow, shadowHost) {
+    shadowHost.dataset.engine = state.engine.id;
     syncAlignedHost(shadowHost, strategy);
     // Mount React into uiContainer.
   },
@@ -108,9 +112,17 @@ Static host longhands are restored by later shadow-tree important declarations. 
   visibility: visible !important;
   pointer-events: auto !important;
 }
+
+:host([data-engine="bing"]) {
+  z-index: 1 !important;
+}
 ```
 
 CSS `all` does not reset custom properties, so the outer host can safely provide dynamic values consumed by the later inner rule.
+
+`onMount` marks the host with `data-engine`. In a shadow stylesheet, `:host([data-engine="bing"])` matches the custom element that owns the shadow root when that outer host carries the attribute; it does not search for a descendant inside the shadow tree. This mount-to-CSS bridge lets one shared stylesheet express engine-specific host behavior without leaking selectors into Bing's document.
+
+Bing keeps the shared relative positioning and pointer events, but its native `#sw_as` autosuggest layer is around `z-index: 6`. The Bing-only override uses `1`, with the intended ordering of ordinary result content, then the switch bar, then native suggestions. Other engines do not match the override and retain the shared `20` layer. Both declarations remain important so they continue to beat WXT's earlier important host reset; the more specific Bing selector is also declared after the shared rule. The actual ancestor stacking contexts and hit testing still require real-browser confirmation.
 
 ### Choose an outer boundary per engine
 
@@ -235,6 +247,7 @@ The **Bing fix** works because:
 2. **`#b_content` is a persistent shell** — it is not SPA-swapped. Only its internal children are rebuilt. The host survives navigation.
 3. **The custom shadow stylesheet follows WXT's reset** — its important host rules restore display, positioning, hit-testing, visibility, and box sizing in the same encapsulation context. External inline important longhands do not override the shadow reset.
 4. **Runtime position synchronization** via paired `getBoundingClientRect()` values on mount, resize, and SPA navigation keeps the bar aligned to the Bing main result area's `#b_content` content box without participating in that column's layout. The offset is parent-relative, so it remains correct when the body has non-zero border or padding.
+5. **The host no longer declares a layer above autosuggest** — `position: relative` plus a non-auto `z-index` makes the body-level host a stacking context. Stacking compares the relevant sibling or ancestor contexts as complete units; a descendant cannot escape a lower parent context merely by declaring a larger number. The previous host level `20` exceeded Bing's public `#sw_as` value (approximately `6`); the Bing-tagged host now declares `1`, which is designed to sit above ordinary results but below suggestions. Real-browser inspection must still confirm the effective ancestor contexts and pointer hit testing.
 
 The **Google fix** works because:
 1. **The host is outside `#rcnt`** — it precedes the entire result container, so it appears before a Google AI Overview regardless of whether that module exists.
@@ -248,12 +261,21 @@ The **Google fix** works because:
 - **Test anchor strategies on each engine independently** — do not assume a strategy that works on one engine will work on another. Google and Bing SERP DOM are qualitatively different.
 - **Anchor Google above `#rcnt`, not merely above `#search`** — AIO is a preceding `#rcnt` child. Keep `#center_col` solely as the content-box alignment target and record real-page geometry in the regression tests.
 - **When using `createShadowRootUi`, restore the host in custom shadow CSS after WXT's reset** — WXT's `:host { all: initial !important }` resets display, visibility, position, and pointer events. Shadow-tree important declarations take precedence over external host inline important declarations, so external code should pass dynamic values through namespaced CSS custom properties instead of host longhands.
+- **Treat host stacking as engine-specific** — preserve the mount-time `data-engine` bridge and the later Bing override; otherwise Bing silently falls back to the shared layer. Do not revert Bing to static positioning or disable pointer events, because legacy result layers can steal clicks.
 - **Add regression tests for each engine independently** — the test suite should cover Google and Bing SPA navigation scenarios separately, verifying bar presence and clickability after pushState.
 - **Test with real browser layout** — unit tests and jsdom cannot catch inline flow interaction bugs like hit-test offset. Use browser-level testing (Playwright, dogfood) to verify click targets and visual alignment.
+- **Lock the host-to-CSS contract in unit tests** — read the content-script source to assert that `onMount` assigns `shadowHost.dataset.engine`, then assert that the shared `20` rule and Bing `1` override both exist and that the override is declared later. These tests prevent a silent fallback to the shared layer, but they do not prove paint order or pointer hit-testing.
 - **Lock the complete strategy objects** — tests assert Bing `{ selector: '#b_content', append: 'before', alignTo: '#b_content' }` and Google/default `{ selector: '#rcnt', append: 'before', alignTo: '#center_col' }`, not selectors alone.
 - **Preserve measured geometry cases** — Bing must produce `offsetLeft=113`, `width≈983.667`; Google must produce `offsetLeft=52`, `width=652`; a non-zero parent/border/padding case must remain to prevent document-origin regressions.
 - **Treat jsdom as a contract test, not browser proof** — unit tests can lock strategy data, formulas, and CSS text, but real DevTools must confirm computed styles, rectangles, hit testing, AIO ordering, resize, and SPA navigation.
-- **Run the complete repository checks after anchor or scope changes** — `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all passed after the scope lifecycle refresh (`309` tests).
+- **Run the complete repository checks after anchor or scope changes** — `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all passed for the autosuggest fix (`320` tests). Automated real-browser verification did not complete because the local `agent-browser` process hit a `ChildProcess.kill` exception, so the unit/build checks must not be reported as browser proof.
+
+Real-browser verification should cover the remaining observable contract:
+
+1. Open Bing autosuggest and confirm suggestions paint above the switch bar across the overlap area.
+2. Click and keyboard-select suggestions in that area, then close autosuggest and confirm every switch-bar chip remains clickable at its visible position.
+3. Submit another Bing search through SPA navigation and confirm the bar survives, stays aligned, and retains computed `z-index: 1` after `#b_results` replacement.
+4. Repeat at narrow and wide viewport sizes, then confirm Google and Baidu hosts still compute to the shared `z-index: 20`.
 
 ## Related Issues
 

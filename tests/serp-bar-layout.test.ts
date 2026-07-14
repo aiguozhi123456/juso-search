@@ -1,8 +1,18 @@
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
 
 describe('SERP bar shadow-host layout', () => {
+  it('sets the shadow host engine data attribute during mount', async () => {
+    const source = await readFile(resolve(process.cwd(), 'entrypoints/serp-bar.content.ts'), 'utf8');
+
+    expect(source).toMatch(
+      /onMount\([^)]*shadowHost\)\s*\{\s*shadowHost\.dataset\.engine\s*=\s*state\.engine\.id;/,
+    );
+  });
+
   it('restores host layout with important rules and namespaced alignment variables', () => {
     for (const property of [
       'display: block',
@@ -19,6 +29,17 @@ describe('SERP bar shadow-host layout', () => {
     expect(serpBarStyles).toMatch(/margin-left:\s*var\(--juso-serp-offset-left, 0px\)\s*!important/);
     expect(serpBarStyles).toMatch(/width:\s*var\(--juso-serp-width, auto\)\s*!important/);
     expect(serpBarStyles).not.toMatch(/--juso-serp-(?:offset-left|width)\s*:/);
+  });
+
+  it('keeps Bing below native suggestions without lowering other engines', () => {
+    const sharedHostRule = serpBarStyles.match(/:host \{[^}]*z-index:\s*20\s*!important[^}]*\}/);
+    const bingHostRule = serpBarStyles.match(
+      /:host\(\[data-engine="bing"\]\)\s*\{[^}]*z-index:\s*1\s*!important[^}]*\}/,
+    );
+
+    expect(sharedHostRule).not.toBeNull();
+    expect(bingHostRule).not.toBeNull();
+    expect(serpBarStyles.indexOf(bingHostRule![0])).toBeGreaterThan(serpBarStyles.indexOf(sharedHostRule![0]));
   });
 
   it('aligns the Bing host to the target content box', () => {

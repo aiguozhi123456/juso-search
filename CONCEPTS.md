@@ -26,7 +26,7 @@ An Active Source does not replace the Active Provider: provider sources keep bot
 ### SERP Switch Bar
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 
-It appears before the engine's complete result experience while aligning with that engine's main content column. Each Search Engine owns its placement rule so the control can remain outside replaceable or overlapping result internals. Engine choices navigate directly; provider choices hand off through a Deep Link.
+It appears before the engine's complete result experience while aligning with that engine's main content column. Its integration rules keep the control outside replaceable or overlapping result internals without covering native page interactions. Engine choices navigate directly; provider choices hand off through a Deep Link.
 
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
