@@ -177,19 +177,38 @@ host.style.setProperty('--juso-serp-width', `${layout.width}px`, 'important');
 
 The host is a body-level sibling placed BEFORE `#b_content`. This keeps it outside `#b_content`'s legacy inline result layout entirely — the overlapping `#b_tween` layer cannot steal clicks.
 
-### Events that trigger position sync
+### Events that drive scope lifecycle and position sync
 
 ```typescript
-// On mount (called directly from onMount)
-// On wxt:locationchange (SPA nav)
-ctx.addEventListener(window, 'wxt:locationchange', () => {
+const syncLocation = (url: string) => {
+  const revision = ++locationRevision;
+  stopWaitingForAnchor();
+  const nextEngine = matchEngineByUrl(url);
+  if (!nextEngine) {
+    if (ui.mounted) ui.remove();
+    return;
+  }
+  if (!ui.mounted) {
+    mountWhenAnchorReady(revision);
+    return;
+  }
   if (mountedHost) syncAlignedHost(mountedHost, strategy);
+};
+
+ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => {
+  syncLocation(newUrl.href);
 });
-// On resize
 ctx.addEventListener(window, 'resize', () => {
   if (mountedHost) syncAlignedHost(mountedHost, strategy);
 });
 ```
+
+`wxt:locationchange` may fire before `window.location` reflects the destination,
+so the handler consumes `newUrl` directly. Leaving the canonical `/search`
+scope removes the bar. Returning first checks the persistent engine anchor
+synchronously; only when it is absent does a revision-guarded
+`MutationObserver` wait for it to appear. A newer navigation, a successful
+mount, or context invalidation disconnects the stale wait.
 
 ## Why This Works
 
@@ -220,11 +239,11 @@ The **Bing fix** works because:
 The **Google fix** works because:
 1. **The host is outside `#rcnt`** — it precedes the entire result container, so it appears before a Google AI Overview regardless of whether that module exists.
 2. **`#center_col` provides the correct horizontal target** — paired viewport rects convert its content box into a parent-relative offset and width without assuming document coordinates.
-3. **No AIO selector is required** — normal and AIO result pages have the same `#rcnt`/`#center_col` strategy, so no observer, timer, or re-mount behavior is needed.
+3. **No AIO selector is required** — normal and AIO result pages have the same `#rcnt`/`#center_col` strategy. The shared scope lifecycle may wait for `#rcnt` when returning from a non-SERP route, but no AIO-specific observer or placement branch is needed.
 
 ## Prevention
 
-- **Never use `autoMount()` with function anchors as a workaround for SPA-rebuilt elements** — the `isNotExist`/`waitElement` ping-pong deadlocks when DOM mutation is coalesced into a single microtask. Instead, anchor to a persistent parent shell that survives SPA navigation.
+- **Never use `autoMount()` with function anchors as a workaround for SPA-rebuilt elements** — the `isNotExist`/`waitElement` ping-pong deadlocks when DOM mutation is coalesced into a single microtask. Anchor to a persistent parent shell, and when URL scope requires a remount, use a cancellable one-way wait for that anchor to appear.
 - **Verify regression test assumptions about specific DOM elements** — the `#search` element was incorrectly labeled "SPA-swapped" in comments and tests because it was conflated with Bing's `#b_results`. Always verify each engine's element lifecycle independently.
 - **Test anchor strategies on each engine independently** — do not assume a strategy that works on one engine will work on another. Google and Bing SERP DOM are qualitatively different.
 - **Anchor Google above `#rcnt`, not merely above `#search`** — AIO is a preceding `#rcnt` child. Keep `#center_col` solely as the content-box alignment target and record real-page geometry in the regression tests.
@@ -234,7 +253,7 @@ The **Google fix** works because:
 - **Lock the complete strategy objects** — tests assert Bing `{ selector: '#b_content', append: 'before', alignTo: '#b_content' }` and Google/default `{ selector: '#rcnt', append: 'before', alignTo: '#center_col' }`, not selectors alone.
 - **Preserve measured geometry cases** — Bing must produce `offsetLeft=113`, `width≈983.667`; Google must produce `offsetLeft=52`, `width=652`; a non-zero parent/border/padding case must remain to prevent document-origin regressions.
 - **Treat jsdom as a contract test, not browser proof** — unit tests can lock strategy data, formulas, and CSS text, but real DevTools must confirm computed styles, rectangles, hit testing, AIO ordering, resize, and SPA navigation.
-- **Run the complete repository checks after anchor changes** — `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all passed for the final fixes (`295` tests).
+- **Run the complete repository checks after anchor or scope changes** — `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` all passed after the scope lifecycle refresh (`309` tests).
 
 ## Related Issues
 
@@ -245,5 +264,6 @@ The **Google fix** works because:
 - Commit `9351872` — original engine-specific strategy split
 - Commit `6f2c511` — restores the Bing host in shadow CSS and introduces parent-relative content-box alignment
 - Commit `3b98e43` — places the Google host before `#rcnt` and aligns it to `#center_col` above AI Overview
+- `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — exact host scope, canonical SERP recognition, and cancellable SPA remount lifecycle
 - `lib/i18n.ts` — module-level side effect bug discovered during Phase 2
 - `docs/solutions/architecture-patterns/serp-switch-bar-and-unified-source-model.md` — the SERP bar architecture doc (anchor sections now superseded by this fix)

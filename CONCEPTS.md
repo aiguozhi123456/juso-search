@@ -13,7 +13,7 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 ## Search Source (v2)
 
 ### Search Engine
-A conventional web search engine (Google, Bing) treated as a **navigation-only** target: it has no API key, no synthesized answer, and no `search()` method. Each engine is a self-contained behavioral adapter owning its SERP-URL building, host-level URL recognition, query extraction, and SERP-injection anchor strategy; it sits in a registry parallel to providers. Engines are deliberately **not** merged into the `ProviderId` union, because that union is bound to the BYOK key read-path and the `ProviderAdapter.search()` contract — neither of which applies to an engine.
+A conventional web search engine (Google, Bing) treated as a **navigation-only** target: it has no API key, no synthesized answer, and no `search()` method. Each engine is a self-contained behavioral adapter owning its SERP-URL building, canonical SERP recognition, query extraction, and SERP-injection anchor strategy; it sits in a registry parallel to providers. Engines are deliberately **not** merged into the `ProviderId` union, because that union is bound to the BYOK key read-path and the `ProviderAdapter.search()` contract — neither of which applies to an engine.
 
 ### Search Source
 The unified view layer that lets one switcher bar render both configured AI providers and all engines homogeneously. Each source carries a kind discriminator (provider or engine), a display label, whether it supports synthesized answers, and (for engines) a favicon. Providers are filtered to those configured (same v1 rule); engines are always all shown. The id namespaces do not collide (providers: tavily/exa/stepfun/stepfun-plan; engines: google/bing). The SourceSwitcher component consumes this view in three places — the Juso search page and the injected SERP bar.
@@ -27,6 +27,11 @@ An Active Source does not replace the Active Provider: provider sources keep bot
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 
 It appears before the engine's complete result experience while aligning with that engine's main content column. Each Search Engine owns its placement rule so the control can remain outside replaceable or overlapping result internals. Engine choices navigate directly; provider choices hand off through a Deep Link.
+
+### SERP Scope
+The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
+
+SERP Scope controls where the bar mounts and remains deliberately separate from privileged cross-origin host access. Leaving the scope removes the bar; returning waits for the engine's placement anchor before remounting, and stale navigation waits are canceled.
 
 ### Deep Link
 A `search.html?provider=X&query=Y` URL that drops the user into the Juso search page with a preselected provider and an auto-fired query. The SERP bar uses it when a provider chip is clicked from a regular search engine page; the page's mount effect parses it (provider must be configured to be honored, else falls back to the active provider). It lets the SERP bar hand off to the AI search experience in one current-tab navigation.

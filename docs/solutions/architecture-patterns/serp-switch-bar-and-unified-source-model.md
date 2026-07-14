@@ -1,6 +1,7 @@
 ---
 title: "Unified Source Model and Shadow-DOM SERP Switch Bar for Cross-Engine Quick-Switching"
 date: 2026-07-08
+last_updated: 2026-07-14
 category: architecture-patterns
 module: "engines / sources / content-script / search page"
 problem_type: architecture_pattern
@@ -54,10 +55,10 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 5. **Deep link as the SERP→Juso handoff.** `search.html?provider=X&query=Y` (`lib/deep-link.ts`) carries state across the current-tab navigation. The search page mount effect parses it: `provider` is honored only if configured (else falls back to active), and a present `query` pre-fills and auto-fires one search. This avoids needing cross-tab messaging for the handoff.
 
-6. **Manifest surface stays minimal.** Only `www.google.com` and `www.bing.com` enter `host_permissions` (country domains deferred); `web_accessible_resources` exposes only the two engine favicon SVGs to those matches; the content script is statically matched (no `scripting`/`activeTab` permission needed).
+6. **Manifest surface stays minimal.** `lib/engines/scopes.ts` centralizes five approved Google hosts (`.com`, Hong Kong, Taiwan, Japan, and the UK) plus `www.bing.com` / `cn.bing.com` for static content-script and favicon-resource matches. Search hosts do not enter `host_permissions`; only the provider API hosts require those permissions, and no `scripting`/`activeTab` permission is needed.
 
 ## Consequences
 
-- **SERP DOM anchors are fragile.** Google/Bing result-container selectors (`#rcnt`, `#center_col`, `#rso`, `#b_results`) drift on redesign. A missing configured anchor prevents the bar from mounting, and the exact "above results" placement needs dogfood re-validation after major search-engine redesigns. This is called out as a known maintenance surface.
+- **SERP DOM anchors are fragile.** Google/Bing result-container selectors (`#rcnt`, `#center_col`, `#rso`, `#b_results`) drift on redesign. Mounting waits for the configured anchor and cancels stale waits on SPA navigation, but a renamed anchor still prevents the bar from appearing; the exact "above results" placement needs dogfood re-validation after major search-engine redesigns.
 - **Three-place i18n hygiene.** Any new source label or bar string must land in `MSG` + both `messages.json` simultaneously or the i18n-parity test fails. The engine/google/bing keys demonstrate this invariant.
 - **Provider behavior is unchanged.** The BYOK worker-only-key boundary, the `NormalizedSearchResponse` model, the cache keying, and the gateway are untouched — v2 is purely additive around a new view layer and a content-script host.

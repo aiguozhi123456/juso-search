@@ -1,7 +1,8 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-category: docs/solutions/architecture-patterns
+last_updated: 2026-07-14
+category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
 component: tooling
@@ -178,7 +179,7 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
 });
 ```
 
-### 3. Move behavior onto the data record — but keep registry-scope concerns in the registry
+### 3. Move engine behavior onto the adapter, but centralize cross-consumer scope
 
 For engines, promote the data record to a behavioral interface and co-locate
 one file per engine (`google.ts`, `bing.ts`). The private construction details
@@ -200,7 +201,9 @@ export interface SearchEngine {
 ```
 
 ```ts
-// lib/engines/google.ts — entire engine
+// lib/engines/google.ts — recognition excerpt
+import { isGoogleSerpHostname, isSerpUrl } from './scopes';
+
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
 const QUERY_PARAM = 'q';
@@ -212,11 +215,18 @@ export const googleEngine: SearchEngine = {
   favicon: '/icons/google.svg',
   buildSerpUrl(query) { return SERP_URL_TEMPLATE.replace('{q}', encodeURIComponent(query)); },
   buildHomeUrl()      { return SERP_URL.origin + '/'; },
-  matches(url)        { try { return new URL(url).host === SERP_URL.host; } catch { return false; } },
+  matches(url)        { try { return isSerpUrl(new URL(url), isGoogleSerpHostname); } catch { return false; } },
   extractQuery(url)   { try { return new URL(url).searchParams.get(QUERY_PARAM); } catch { return null; } },
   anchor: ANCHOR,
 };
 ```
+
+The adapter still owns the decision to identify itself, but the approved host
+set and canonical SERP predicate live in `lib/engines/scopes.ts`. Those facts
+also drive the static content-script and web-accessible-resource matches, so
+keeping a private host comparison inside each engine would reintroduce
+configuration drift. The shared predicate requires HTTPS, the default port,
+pathname `/search`, and exact hostname membership.
 
 Delete the `serp-anchor.ts` switch file entirely; the per-engine strategy now
 lives as `engine.anchor`, with `anchorFor(engine|null)` + `DEFAULT_ANCHOR`
@@ -380,10 +390,13 @@ function pickAnchorStrategy(engine: EngineId): AnchorStrategy {
 
 ### Engine: after (self-contained behavioral object)
 
-See `googleEngine` / `bingEngine` in **Guidance §3**. Each engine owns its
-URL building, host matching, query extraction, and anchor strategy. Adding
-Baidu or DuckDuckGo is now: create `lib/engines/baidu.ts`, add one line to
-the `engines` record. No switch to edit.
+See `googleEngine` / `bingEngine` in **Guidance §3**. Each engine owns its URL
+building, recognition entry point, query extraction, and anchor strategy;
+cross-consumer host scope stays centralized. Adding Baidu or DuckDuckGo still
+requires no behavior switch, but it does require updating every explicit
+extension boundary: add the engine id and module, register the adapter, add its
+approved hosts to the shared scope, extend registry/scope tests, and verify the
+generated manifest contains the intended matches and permissions.
 
 ### Adding a new REST provider (full checklist)
 
@@ -406,6 +419,9 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
 - `docs/solutions/ui-bugs/serp-bar-engine-specific-anchors.md`
   — the engine anchor rationale, now relocated from the deleted
   `lib/engines/serp-anchor.ts` into per-engine `anchor` fields.
+- `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`
+  — centralizes approved SERP hosts across engine recognition, static content
+  scripts, resource exposure, and SPA mount/remove behavior.
 
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor
