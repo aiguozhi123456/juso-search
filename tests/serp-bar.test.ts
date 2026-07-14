@@ -21,6 +21,13 @@ const google: SearchSource = {
   supportsAnswer: false,
   favicon: '/icons/google.svg',
 };
+const baidu: SearchSource = {
+  id: 'baidu',
+  kind: 'engine',
+  label: 'engine_baidu',
+  supportsAnswer: false,
+  favicon: '/icons/baidu.svg',
+};
 
 describe('resolveSerpHandoff — engine chip', () => {
   it('yields a navigate intent to the SERP with the query', () => {
@@ -34,6 +41,17 @@ describe('resolveSerpHandoff — engine chip', () => {
     expect(resolveSerpHandoff(google, '   ')).toEqual({
       kind: 'navigate',
       url: 'https://www.google.com/',
+    });
+  });
+
+  it('hands off query and empty query to Baidu', () => {
+    expect(resolveSerpHandoff(baidu, '中文 搜索')).toEqual({
+      kind: 'navigate',
+      url: 'https://www.baidu.com/s?wd=%E4%B8%AD%E6%96%87%20%E6%90%9C%E7%B4%A2',
+    });
+    expect(resolveSerpHandoff(baidu, '   ')).toEqual({
+      kind: 'navigate',
+      url: 'https://www.baidu.com/',
     });
   });
 });

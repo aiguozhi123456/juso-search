@@ -15,7 +15,7 @@ import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
 import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
 
 /**
- * v2 SERP 注入快切栏：在 Google/Bing 搜索结果页注入一行 chip，
+ * v2 SERP 注入快切栏：在 Google/Bing/Baidu 搜索结果页注入一行 chip，
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
@@ -24,7 +24,7 @@ import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
  * 排在 #center_col 前，host 须在 #rcnt 外才会位于 AIO/普通结果前方。Bing 用 `#b_content 前`
  * + 运行时同步 content box：避开 #b_content 内部的
  * 旧式 inline/negative-margin 结果布局偷点击，且 #b_results 被激进重建故不能挂其兄弟。
- * 详见各 engine 的 anchor 字段（lib/engines/{google,bing}.ts）与 registry.ts 的 anchorFor。
+ * 详见各 engine 的 anchor 字段（lib/engines/{google,bing,baidu}.ts）与 registry.ts 的 anchorFor。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
@@ -77,9 +77,9 @@ export default defineContentScript({
         mounted?.root.unmount();
       },
     });
-    // Google/Bing 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
+    // Google/Bing/Baidu 是 SPA：后续搜索用 history.pushState/replaceState，不重载页面、
     // 也不重新注入 content script（WXT ContentScriptContext 专门暴露 wxt:locationchange）。
-    // 按 URL 手动 mount/remove：离开 /search 时卸载，返回时重挂；不使用按锚点存在性
+    // 按 URL 手动 mount/remove：离开当前 engine 的 canonical SERP route 时卸载，返回时重挂；不使用按锚点存在性
     // 检测的 autoMount，避免合并式 DOM swap 导致死锁。
     let locationRevision = 0;
     let mountObserver: MutationObserver | null = null;

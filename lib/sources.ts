@@ -2,7 +2,7 @@
 //
 // 把「已配置的 AI provider」与「全部常规搜索引擎」投影成同构的 SearchSource，
 // 供单一栏组件（SourceSwitcher）在 Juso 搜索页与 SERP 注入栏两处统一消费。
-// id 空间不冲突：provider 用 tavily/exa/stepfun/stepfun-plan，engine 用 google/bing。
+// id 空间不冲突：provider 用 tavily/exa/stepfun/stepfun-plan，engine 用 google/bing/baidu。
 
 import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';

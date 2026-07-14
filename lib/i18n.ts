@@ -225,6 +225,7 @@ export const MSG = {
   // 常规搜索引擎标签（v2 快切）
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',
+  engine_baidu: 'engine_baidu',
   // 统一快切栏
   source_switcher_aria: 'source_switcher_aria',
   // 后台 / provider 错误（部分带插值 $1=provider/$2=status）

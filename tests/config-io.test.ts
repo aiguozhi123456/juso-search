@@ -161,9 +161,9 @@ describe('parseImportPayload', () => {
   });
 
   it('accepts engine activeSource', () => {
-    const result = parseImportPayload(validPayload({ activeSource: 'google' }));
+    const result = parseImportPayload(validPayload({ activeSource: 'baidu' }));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.activeSource).toBe('google');
+    if (result.ok) expect(result.value.activeSource).toBe('baidu');
   });
 
   it('rejects invalid activeSource', () => {

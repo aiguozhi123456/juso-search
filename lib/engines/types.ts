@@ -5,7 +5,7 @@
 // 注入切换栏，以及把 AI provider 与常规引擎投影成同一个快切栏。
 //
 // v3：engine 从纯数据记录升级为带方法的自包含适配器——buildSerpUrl/matches/
-// extractQuery/anchor 各自归属到每个 engine，新增 engine（百度/DuckDuckGo）时
+// extractQuery/anchor 各自归属到每个 engine，新增 engine（DuckDuckGo 等）时
 // 不再需要改散落的自由函数。serpUrlTemplate/queryParam 降级为各 engine 模块内的
 // 私有构造细节。
 //
@@ -13,7 +13,7 @@
 // 而常规引擎两者都没有——把它们塞进同一联合会污染 gateway / storage 的
 // key 读路径。详见 docs/solutions architecture-patterns v2 learning。
 
-export type EngineId = 'google' | 'bing';
+export type EngineId = 'google' | 'bing' | 'baidu';
 
 /** WXT append 模式的本地镜像（与 wxt 的 ContentScriptAppendMode 字面量一致，避免在纯数据模块里 import wxt 类型）。 */
 export type AppendMode = 'last' | 'first' | 'replace' | 'before' | 'after';
@@ -38,7 +38,7 @@ export interface SearchEngine {
   buildSerpUrl(query: string): string;
   /** 构建 engine 首页 URL（无查询时跳转用，如 https://www.google.com/）。 */
   buildHomeUrl(): string;
-  /** SERP URL 归属判定：该 URL 是否为本 engine 支持 host 上的默认 HTTPS /search 页面（registry 的 matchEngineByUrl 逐 engine 委托）。 */
+  /** SERP URL 归属判定：该 URL 是否为本 engine 支持 host 上的 canonical HTTPS SERP route（registry 的 matchEngineByUrl 逐 engine 委托）。 */
   matches(url: string): boolean;
   /** 从本 engine 的 SERP URL 提取查询词；非本 engine 或无查询参数返回 null。 */
   extractQuery(url: string): string | null;

@@ -2,11 +2,13 @@ import type { AnchorStrategy, EngineId, SearchEngine } from './types';
 import { DEFAULT_ANCHOR } from './types';
 import { googleEngine } from './google';
 import { bingEngine } from './bing';
+import { baiduEngine } from './baidu';
 
-// 仅注册 Google + Bing；各自支持的 SERP 国别主机由 scopes.ts 集中定义。
+// 注册 Google、Bing 与 Baidu；各自支持的 SERP 主机由 scopes.ts 集中定义。
 const engines: Record<EngineId, SearchEngine> = {
   google: googleEngine,
   bing: bingEngine,
+  baidu: baiduEngine,
 };
 
 export function getEngine(id: EngineId): SearchEngine {

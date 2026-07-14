@@ -381,9 +381,9 @@ describe('handleSetActiveSource', () => {
   it('writes only activeSource for an engine', async () => {
     mockedSetActiveSource.mockResolvedValue(undefined);
 
-    await handleSetActiveSource('google');
+    await handleSetActiveSource('baidu');
 
-    expect(mockedSetActiveSource).toHaveBeenCalledWith('google');
+    expect(mockedSetActiveSource).toHaveBeenCalledWith('baidu');
     expect(mockedSetActive).not.toHaveBeenCalled();
   });
 

@@ -5,7 +5,7 @@ describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
     const sources = allSources(['tavily']);
     const ids = sources.map((s) => s.id);
-    expect(ids).toEqual(['tavily', 'google', 'bing']);
+    expect(ids).toEqual(['tavily', 'google', 'bing', 'baidu']);
   });
 
   it('filters out unconfigured providers but keeps all engines', () => {
@@ -13,12 +13,12 @@ describe('allSources', () => {
     const providerIds = sources.filter((s) => s.kind === 'provider').map((s) => s.id);
     const engineIds = sources.filter((s) => s.kind === 'engine').map((s) => s.id);
     expect(providerIds).toEqual(['exa']);
-    expect(engineIds).toEqual(['google', 'bing']);
+    expect(engineIds).toEqual(['google', 'bing', 'baidu']);
   });
 
   it('with no configured providers, only engines remain', () => {
     const sources = allSources([]);
-    expect(sources.map((s) => s.id)).toEqual(['google', 'bing']);
+    expect(sources.map((s) => s.id)).toEqual(['google', 'bing', 'baidu']);
     expect(sources.every((s) => s.kind === 'engine')).toBe(true);
   });
 
@@ -48,6 +48,7 @@ describe('type guards', () => {
   it('isEngineId recognizes engine ids', () => {
     expect(isEngineId('google')).toBe(true);
     expect(isEngineId('bing')).toBe(true);
+    expect(isEngineId('baidu')).toBe(true);
     expect(isEngineId('tavily')).toBe(false);
   });
 

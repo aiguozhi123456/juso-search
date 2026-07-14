@@ -152,9 +152,9 @@ describe('storage: active source', () => {
     expect(await getActiveSourceId()).toBe('google');
   });
 
-  it('explicit engine wins without keys', async () => {
-    await setActiveSourceId('bing');
-    expect(await getActiveSourceId()).toBe('bing');
+  it('explicit baidu engine round-trips without keys', async () => {
+    await setActiveSourceId('baidu');
+    expect(await getActiveSourceId()).toBe('baidu');
   });
 
   it('missing activeSource falls back to effective active provider', async () => {

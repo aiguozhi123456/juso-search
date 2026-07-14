@@ -22,7 +22,7 @@ export default defineConfig({
     // 静态 content script 不需要额外 host permission；engine favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
     web_accessible_resources: [
       {
-        resources: ['icons/google.svg', 'icons/bing.svg'],
+        resources: ['icons/google.svg', 'icons/bing.svg', 'icons/baidu.svg'],
         matches: SERP_HOST_MATCH_PATTERNS,
       },
     ],

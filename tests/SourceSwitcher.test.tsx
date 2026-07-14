@@ -10,6 +10,7 @@ const sources: SearchSource[] = [
   { id: 'stepfun' as ProviderId, kind: 'provider', label: 'provider_stepfun', supportsAnswer: false },
   { id: 'google' as EngineId, kind: 'engine', label: 'engine_google', supportsAnswer: false, favicon: '/icons/google.svg' },
   { id: 'bing' as EngineId, kind: 'engine', label: 'engine_bing', supportsAnswer: false, favicon: '/icons/bing.svg' },
+  { id: 'baidu' as EngineId, kind: 'engine', label: 'engine_baidu', supportsAnswer: false, favicon: '/icons/baidu.svg' },
 ];
 
 describe('SourceSwitcher', () => {
@@ -20,6 +21,7 @@ describe('SourceSwitcher', () => {
     expect(screen.getByRole('button', { name: /Stepfun 按量/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Baidu/ })).toBeInTheDocument();
   });
 
   it('marks only the active source with active class + aria-pressed', () => {
@@ -34,9 +36,9 @@ describe('SourceSwitcher', () => {
 
   it('renders favicons for engine sources', () => {
     const { container } = render(<SourceSwitcher sources={sources} activeId={null} onSelect={vi.fn()} />);
-    // 两个 engine 各一个 favicon（alt="" 为装饰图，不以 img role 暴露，直接查 DOM）
+    // 三个 engine 各一个 favicon（alt="" 为装饰图，不以 img role 暴露，直接查 DOM）
     const imgs = container.querySelectorAll('img.source-icon');
-    expect(imgs).toHaveLength(2);
+    expect(imgs).toHaveLength(3);
   });
 
   it('shows the no-answer badge only for providers without answer support', () => {
@@ -50,8 +52,8 @@ describe('SourceSwitcher', () => {
   it('calls onSelect with the clicked source', () => {
     const onSelect = vi.fn();
     render(<SourceSwitcher sources={sources} activeId="tavily" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole('button', { name: /Bing/ }));
-    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'bing', kind: 'engine' }));
+    fireEvent.click(screen.getByRole('button', { name: /Baidu/ }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'baidu', kind: 'engine' }));
   });
 
   it('disables all buttons when disabled', () => {
