@@ -11,6 +11,7 @@ import type { AnchorStrategy } from '@/lib/engines/types';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
+import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
 
 /**
  * v2 SERP 注入快切栏：在 Google/Bing 搜索结果页注入一行 chip，
@@ -53,13 +54,11 @@ export default defineContentScript({
       position: 'inline',
       anchor: strategy.selector,
       append: strategy.append,
+      css: serpBarStyles,
       onMount(uiContainer, _shadow, shadowHost) {
         shadowHost.dataset.theme = state.resolvedTheme;
         mountedHost = shadowHost;
-        applyHostLayout(shadowHost, strategy);
-        const styleEl = document.createElement('style');
-        styleEl.textContent = serpBarStyles;
-        uiContainer.append(styleEl);
+        syncAlignedHost(shadowHost, strategy);
         const mountEl = document.createElement('div');
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
@@ -136,39 +135,28 @@ function render(root: Root, state: BarState, engine: SearchEngine): void {
   );
 }
 
-function applyHostLayout(host: HTMLElement, strategy: AnchorStrategy): void {
-  // createShadowRootUi 会注入 `:host{all:initial!important}`，普通 :host CSS 无法覆盖。
-  // 这些 host 级布局属性必须用 inline !important 固定，避免自定义元素按 inline 参与
-  // Bing 的旧式 SERP 布局而导致视觉位置与 hit-test 位置偏移。
-  host.style.setProperty('display', 'block', 'important');
-  host.style.setProperty('position', 'relative', 'important');
-  host.style.setProperty('z-index', '20', 'important');
-  host.style.setProperty('pointer-events', 'auto', 'important');
-  host.style.setProperty('box-sizing', 'border-box', 'important');
-  host.style.setProperty('padding', '8px 0', 'important');
-  host.style.setProperty(
-    'font-family',
-    'system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
-    'important',
-  );
-  host.style.setProperty('visibility', 'visible', 'important');
-  syncAlignedHost(host, strategy);
-}
-
 function syncAlignedHost(host: HTMLElement, strategy: AnchorStrategy): void {
   if (!strategy.alignTo) return;
   const target = document.querySelector(strategy.alignTo);
-  if (!(target instanceof HTMLElement)) return;
-  const rect = target.getBoundingClientRect();
-  const style = window.getComputedStyle(target);
-  const paddingLeft = parsePx(style.paddingLeft);
-  const paddingRight = parsePx(style.paddingRight);
-  const left = Math.max(0, rect.left + window.scrollX + paddingLeft);
-  const width = Math.max(0, rect.width - paddingLeft - paddingRight);
-  host.style.setProperty('margin-left', `${left}px`, 'important');
-  host.style.setProperty('margin-right', '0', 'important');
-  host.style.setProperty('width', `${width}px`, 'important');
-  host.style.setProperty('max-width', `${width}px`, 'important');
+  const parent = host.parentElement;
+  if (!(target instanceof HTMLElement) || !(parent instanceof HTMLElement)) return;
+  const layout = calculateAlignedHostLayout(
+    parent.getBoundingClientRect(),
+    readHorizontalBoxStyle(window.getComputedStyle(parent)),
+    target.getBoundingClientRect(),
+    readHorizontalBoxStyle(window.getComputedStyle(target)),
+  );
+  host.style.setProperty('--juso-serp-offset-left', `${layout.offsetLeft}px`, 'important');
+  host.style.setProperty('--juso-serp-width', `${layout.width}px`, 'important');
+}
+
+function readHorizontalBoxStyle(style: CSSStyleDeclaration) {
+  return {
+    borderLeft: parsePx(style.borderLeftWidth),
+    borderRight: parsePx(style.borderRightWidth),
+    paddingLeft: parsePx(style.paddingLeft),
+    paddingRight: parsePx(style.paddingRight),
+  };
 }
 
 function parsePx(value: string): number {

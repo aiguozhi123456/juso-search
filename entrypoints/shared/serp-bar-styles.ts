@@ -14,9 +14,16 @@ export const serpBarStyles = `
 }
 
 :host {
-  display: block;
-  padding: 8px 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  display: block !important;
+  position: relative !important;
+  z-index: 20 !important;
+  box-sizing: border-box !important;
+  padding: 8px 0 !important;
+  margin-left: var(--juso-serp-offset-left, 0px) !important;
+  width: var(--juso-serp-width, auto) !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
 }
 
 .source-switcher { display: flex; gap: 6px; flex-wrap: wrap; }

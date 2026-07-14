@@ -1,7 +1,7 @@
 ---
 title: "Engine-Specific SERP Bar Injection Anchors for Google and Bing"
 date: 2026-07-09
-last_updated: 2026-07-09
+last_updated: 2026-07-14
 category: ui-bugs
 module: "serp-bar / content-script"
 problem_type: ui_bug
@@ -73,55 +73,52 @@ The fix implements **engine-specific anchor strategies** (commit 9351872), ackno
 
 The host becomes a preceding sibling of `#search` inside `#center_col` (Google's centered results column), automatically inheriting the column's left alignment with the search box. `#search` element identity persists across Google SPA navigation — only the inner `#rso` results subtree is updated — so the host is not taken down.
 
-### Bing: `#b_content` + `before` + runtime content box synchronization
+### Bing: `#b_content` + `before` + runtime content-box synchronization
 
 ```typescript
 // bing engine anchor (lib/engines/bing.ts) — engine.anchor
 bing: { selector: '#b_content', append: 'before', alignTo: '#b_content' },
 ```
 
-When the strategy has `alignTo` set, the content script syncs the host's position on mount, on resize, and on `wxt:locationchange`:
+When the strategy has `alignTo` set, the content script syncs the host's position on mount, on resize, and on `wxt:locationchange`. The target is the **Bing main result area `#b_content` content box**, not the search input.
 
 ```typescript
 function syncAlignedHost(host: HTMLElement, strategy: AnchorStrategy): void {
   if (!strategy.alignTo) return;
   const target = document.querySelector(strategy.alignTo);
-  if (!(target instanceof HTMLElement)) return;
-  const rect = target.getBoundingClientRect();
-  const style = window.getComputedStyle(target);
-  const paddingLeft = parsePx(style.paddingLeft);
-  const paddingRight = parsePx(style.paddingRight);
-  const left = Math.max(0, rect.left + window.scrollX + paddingLeft);
-  const width = Math.max(0, rect.width - paddingLeft - paddingRight);
-  host.style.setProperty('margin-left', `${left}px`, 'important');
-  host.style.setProperty('margin-right', '0', 'important');
-  host.style.setProperty('width', `${width}px`, 'important');
-  host.style.setProperty('max-width', `${width}px`, 'important');
+  const parent = host.parentElement;
+  if (!(target instanceof HTMLElement) || !(parent instanceof HTMLElement)) return;
+  const layout = calculateAlignedHostLayout(parentRect, parentStyle, targetRect, targetStyle);
+  host.style.setProperty('--juso-serp-offset-left', `${layout.offsetLeft}px`, 'important');
+  host.style.setProperty('--juso-serp-width', `${layout.width}px`, 'important');
 }
 ```
+
+`calculateAlignedHostLayout` is a DOM-independent helper: it calculates each content left as `rect.left + borderLeft + paddingLeft`, calculates target content width by subtracting both borders and paddings, then subtracts the parent content left from the target content left. Both results clamp to zero. No scroll offset is involved because both rects are in the same viewport coordinate system.
 
 The host is a body-level sibling placed BEFORE `#b_content`. This keeps it outside `#b_content`'s legacy inline result layout entirely — the overlapping `#b_tween` layer cannot steal clicks.
 
-The host is also hardened on mount with inline `!important` styles that beat WXT's `:host { all: initial !important }` reset:
+The static host layout is defined in the custom shadow CSS passed as `css: serpBarStyles`:
 
-```typescript
-function applyHostLayout(host: HTMLElement, strategy: AnchorStrategy): void {
-  host.style.setProperty('display', 'block', 'important');
-  host.style.setProperty('position', 'relative', 'important');
-  host.style.setProperty('z-index', '20', 'important');
-  host.style.setProperty('pointer-events', 'auto', 'important');
-  host.style.setProperty('box-sizing', 'border-box', 'important');
-  host.style.setProperty('padding', '8px 0', 'important');
-  host.style.setProperty('font-family', systemUi, 'important');
-  host.style.setProperty('visibility', 'visible', 'important');
-  syncAlignedHost(host, strategy);
+```css
+:host {
+  display: block !important;
+  position: relative !important;
+  z-index: 20 !important;
+  box-sizing: border-box !important;
+  padding: 8px 0 !important;
+  margin-left: var(--juso-serp-offset-left, 0px) !important;
+  width: var(--juso-serp-width, auto) !important;
+  visibility: visible !important;
 }
 ```
+
+This stylesheet is inserted after WXT's shadow reset. For the host, shadow-tree important declarations have encapsulation-context precedence over external important inline declarations. Therefore external inline longhand styles cannot reliably defeat `:host { all: initial !important }`; only the two namespaced custom properties are set externally.
 
 ### Events that trigger position sync (Bing)
 
 ```typescript
-// On mount (auto-called by applyHostLayout)
+// On mount (called directly from onMount)
 // On wxt:locationchange (SPA nav)
 ctx.addEventListener(window, 'wxt:locationchange', () => {
   if (mountedHost) syncAlignedHost(mountedHost, strategy);
@@ -148,8 +145,8 @@ A unified anchor strategy must either: (a) live inside an engine's layout and ri
 The **Bing fix** works because:
 1. **The host lives outside `#b_content`** — it is a body-level sibling inserted before `#b_content`, not inside it. This avoids participation in Bing's legacy inline flow entirely. The overlapping `#b_tween` layer inside `<main>` cannot steal clicks from the host.
 2. **`#b_content` is a persistent shell** — it is not SPA-swapped. Only its internal children are rebuilt. The host survives navigation.
-3. **`!important` inline styles** beat WXT's `:host { all: initial !important }` because they are applied directly on the element after mount, with `!important` specificity that matches the shadow CSS reset — when specificity is equal, inline style wins over shadow DOM style per CSS cascade rules.
-4. **Runtime position synchronization** via `getBoundingClientRect()` on mount, resize, and SPA navigation keeps the bar aligned to the centered column without participating in that column's layout.
+3. **The custom shadow stylesheet follows WXT's reset** — its important host rules restore display, positioning, hit-testing, visibility, and box sizing in the same encapsulation context. External inline important longhands do not override the shadow reset.
+4. **Runtime position synchronization** via paired `getBoundingClientRect()` values on mount, resize, and SPA navigation keeps the bar aligned to the Bing main result area's `#b_content` content box without participating in that column's layout. The offset is parent-relative, so it remains correct when the body has non-zero border or padding.
 
 The **Google fix** works because:
 1. **`#search` is not SPA-swapped** — unlike Bing's `#b_results`, Google's `#search` element identity persists across SPA navigation (only the inner `#rso` subtree updates). The host remains attached.
@@ -161,7 +158,7 @@ The **Google fix** works because:
 - **Never use `autoMount()` with function anchors as a workaround for SPA-rebuilt elements** — the `isNotExist`/`waitElement` ping-pong deadlocks when DOM mutation is coalesced into a single microtask. Instead, anchor to a persistent parent shell that survives SPA navigation.
 - **Verify regression test assumptions about specific DOM elements** — the `#search` element was incorrectly labeled "SPA-swapped" in comments and tests because it was conflated with Bing's `#b_results`. Always verify each engine's element lifecycle independently.
 - **Test anchor strategies on each engine independently** — do not assume a strategy that works on one engine will work on another. Google and Bing SERP DOM are qualitatively different.
-- **When using `createShadowRootUi`, always harden the host with `!important` inline styles** — WXT's `:host { all: initial !important }` resets everything including `display`, `visibility`, `position`, and `pointer-events`. Apply `display: block !important`, `visibility: visible !important`, and other critical styles after mount.
+- **When using `createShadowRootUi`, restore the host in custom shadow CSS after WXT's reset** — WXT's `:host { all: initial !important }` resets display, visibility, position, and pointer events. Shadow-tree important declarations take precedence over external host inline important declarations, so external code should pass dynamic values through namespaced CSS custom properties instead of host longhands.
 - **Add regression tests for each engine independently** — the test suite should cover Google and Bing SPA navigation scenarios separately, verifying bar presence and clickability after pushState.
 - **Test with real browser layout** — unit tests and jsdom cannot catch inline flow interaction bugs like hit-test offset. Use browser-level testing (Playwright, dogfood) to verify click targets and visual alignment.
 
