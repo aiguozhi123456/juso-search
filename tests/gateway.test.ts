@@ -472,7 +472,7 @@ describe('handleExportConfig', () => {
     mockedBuildExportPayload.mockResolvedValue({
       schemaVersion: 1,
       exportedAt: new Date('2026-07-08T10:00:00Z').getTime(),
-      appVersion: '0.1.0',
+      appVersion: '1.0.0',
       providerKeys: { tavily: 'tvly-secret' },
       activeProvider: 'tavily',
       activeSource: 'tavily',
@@ -497,7 +497,7 @@ describe('handleExportConfig', () => {
 
   it('returns download_failed when download throws', async () => {
     mockedBuildExportPayload.mockResolvedValue({
-      schemaVersion: 1, exportedAt: 0, appVersion: '0.1.0',
+      schemaVersion: 1, exportedAt: 0, appVersion: '1.0.0',
       providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto',
     });
     const onDownload = vi.fn().mockRejectedValue(new Error('blocked'));

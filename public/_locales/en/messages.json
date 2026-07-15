@@ -1,6 +1,6 @@
 {
   "ext_name": { "message": "Juso" },
-  "ext_description": { "message": "Aggregate paid AI search APIs (Tavily / Exa / Stepfun) into a clean BYOK search engine" },
+  "ext_description": { "message": "For humans and local AI agents: choose and switch search engines and AI search services in one place." },
   "search_page_title": { "message": "Juso" },
   "search_placeholder": { "message": "Enter search terms…" },
   "search_aria": { "message": "Search terms" },
@@ -38,7 +38,7 @@
   "opts_source_order_move_down": { "message": "Move $1 down", "placeholders": { "1": { "content": "$1" } } },
   "opts_source_order_save_failed": { "message": "Failed to save order, rolled back" },
   "opts_apikey_heading": { "message": "API Key (BYOK, stored locally only)" },
-  "opts_apikey_hint": { "message": "Keys are stored only in this machine's chrome.storage.local and sent to the selected provider solely by the background script; never uploaded to third parties." },
+  "opts_apikey_hint": { "message": "Keys are stored only in this machine's chrome.storage.local and sent to the selected provider solely by the background script, without passing through a Juso proxy." },
   "status_saved": { "message": "Saved" },
   "status_save_failed": { "message": "Save failed" },
   "status_validated": { "message": "Validated" },

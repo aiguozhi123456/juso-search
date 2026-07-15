@@ -1,6 +1,6 @@
 {
   "ext_name": { "message": "聚搜" },
-  "ext_description": { "message": "聚合已付费的 AI 搜索 API（Tavily / Exa / Stepfun），变成自带 key 的干净搜索引擎" },
+  "ext_description": { "message": "为人类与本地 AI 智能体统一选择和切换搜索引擎与 AI 搜索服务" },
   "search_page_title": { "message": "聚搜" },
   "search_placeholder": { "message": "输入搜索词…" },
   "search_aria": { "message": "搜索词" },
@@ -38,7 +38,7 @@
   "opts_source_order_move_down": { "message": "$1 下移", "placeholders": { "1": { "content": "$1" } } },
   "opts_source_order_save_failed": { "message": "顺序保存失败，已回滚" },
   "opts_apikey_heading": { "message": "API Key（BYOK，仅存本地）" },
-  "opts_apikey_hint": { "message": "key 只保存在本机 chrome.storage.local，仅由后台脚本发往所选 provider，不会上传第三方。" },
+  "opts_apikey_hint": { "message": "key 只保存在本机 chrome.storage.local，仅由后台脚本发往所选 provider，不经过 Juso 中转。" },
   "status_saved": { "message": "已保存" },
   "status_save_failed": { "message": "保存失败" },
   "status_validated": { "message": "验证通过" },

@@ -35,4 +35,9 @@ describe('i18n locale parity', () => {
       expect(msg, `en "${key}" has empty message`).toBeTruthy();
     }
   });
+
+  it('keeps extension descriptions within Chrome’s 132-character limit', () => {
+    expect(zh.ext_description.message.length).toBeLessThanOrEqual(132);
+    expect(en.ext_description.message.length).toBeLessThanOrEqual(132);
+  });
 });

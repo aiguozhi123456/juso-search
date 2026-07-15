@@ -103,7 +103,7 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string, s
       params: {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'juso-search', version: '0.1.0' },
+        clientInfo: { name: 'juso-search', version: '1.0.0' },
       },
     },
     undefined,

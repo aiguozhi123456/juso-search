@@ -17,7 +17,7 @@ function installStorage(
 ): { store: Map<string, unknown> } {
   const store = new Map<string, unknown>(Object.entries(seed));
   vi.stubGlobal('browser', {
-    runtime: { getManifest: () => ({ version: '0.1.0' }) },
+    runtime: { getManifest: () => ({ version: '1.0.0' }) },
     storage: {
       local: {
         async get(keys: unknown) {
@@ -47,7 +47,7 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: 123,
-    appVersion: '0.1.0',
+    appVersion: '1.0.0',
     providerKeys: { tavily: 'tvly-1' },
     activeProvider: 'tavily',
     activeSource: 'tavily',
@@ -79,7 +79,7 @@ describe('buildExportPayload', () => {
     expect(payload.themePref).toBe('dark');
     expect(payload.localePref).toBe('en');
     expect(payload.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(payload.appVersion).toBe('0.1.0');
+    expect(payload.appVersion).toBe('1.0.0');
     expect(payload.exportedAt).toBeGreaterThan(0);
     // 缓存池键不应出现在任何读取结果里
     expect(payload).not.toHaveProperty('searchCacheIndex');
