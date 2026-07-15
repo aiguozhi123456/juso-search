@@ -8,8 +8,8 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 | For | What it does today |
 | --- | --- |
-| People | Aggregates and switches conventional search engines |
-| People | Makes AI search APIs usable in an independent search page |
+| People | Aggregates conventional search engines with fast switching in both the Juso page and result pages |
+| People | Turns AI search APIs into a search experience that can fast-switch with conventional engines |
 | Local AI agents | Provides one access path to configured AI search APIs |
 | Local AI agents | Searches conventional engines through a real browser |
 
@@ -42,7 +42,7 @@ You can now search and switch among Google, Bing, Baidu, and your configured AI 
 
 ### Local AI Agents
 
-1. Install and enable the extension as above. Configure at least one AI search service if you plan to use `search`.
+1. Install and enable the extension as above. `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
 2. Install or copy `skills/juso-search/` into your agent’s skills directory, for example `.agents/skills/juso-search/`.
 3. Set `JUSO_EXTENSION_ID`, or provide `--extension-id` with a command.
 4. Run commands from the skill directory, for example:
