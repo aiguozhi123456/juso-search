@@ -13,7 +13,9 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 ## Search Source (v2)
 
 ### Search Engine
-A conventional web search engine (Google, Bing, Baidu) treated as a **navigation-only** target: it has no API key, no synthesized answer, and no `search()` method. Each engine is a self-contained behavioral adapter owning its SERP-URL building, canonical SERP recognition, query extraction, and SERP-injection anchor strategy; it sits in a registry parallel to providers. Engines are deliberately **not** merged into the `ProviderId` union, because that union is bound to the BYOK key read-path and the `ProviderAdapter.search()` contract — neither of which applies to an engine.
+A conventional web search engine (Google, Bing, Baidu) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and may expose ordinary rendered SERP results through a separate browser-extraction path; it remains parallel to providers rather than joining their execution contract.
+
+Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata.
 
 ### Search Source
 The unified user-facing representation of a configured AI provider or a conventional Search Engine, allowing the same source controls to present both despite their different execution contracts.
@@ -42,6 +44,11 @@ SERP Scope controls where the bar mounts and remains deliberately separate from 
 A `search.html?provider=X&query=Y` URL that drops the user into the Juso search page with a preselected provider and an auto-fired query. The SERP bar uses it when a provider chip is clicked from a regular search engine page; the page's mount effect parses it (provider must be configured to be honored, else falls back to the active provider). It lets the SERP bar hand off to the AI search experience in one current-tab navigation.
 
 ## Security
+
+### Agent Bridge
+A short-lived, loopback-only capability channel that lets a local Agent invoke selected extension-worker actions without receiving the extension's stored secrets.
+
+Each invocation uses a new local port, token, and request identity. The bridge grants one bounded request, validates both request and response against that action, and disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
 
 ### BYOK
 Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
