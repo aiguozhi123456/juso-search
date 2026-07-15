@@ -11,11 +11,11 @@ export interface PostJsonResult<T> {
 
 export async function postJson<T>(
   url: string,
-  init: { headers?: Record<string, string>; body: string },
+  init: { headers?: Record<string, string>; body: string; signal?: AbortSignal },
 ): Promise<PostJsonResult<T>> {
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers: init.headers, body: init.body });
+    res = await fetch(url, { method: 'POST', headers: init.headers, body: init.body, signal: init.signal });
   } catch {
     throw new ProviderError('network', t(MSG.error_http_network));
   }
@@ -108,7 +108,7 @@ export interface RestTransportConfig {
 export function restTransport<TRaw>(cfg: RestTransportConfig): ProviderTransport<TRaw> {
   return {
     async send(query, opts, apiKey) {
-      const { status, data, errorDetail } = await postJson<TRaw>(cfg.endpoint, cfg.buildRequest(query, opts, apiKey));
+      const { status, data, errorDetail } = await postJson<TRaw>(cfg.endpoint, { ...cfg.buildRequest(query, opts, apiKey), signal: opts.signal });
       const err = mapStatus(status, t(cfg.label), errorDetail);
       if (err) throw err;
       return data;

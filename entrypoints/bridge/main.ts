@@ -1,0 +1,26 @@
+import { parseBridgeFragment } from '@/lib/agent-bridge';
+import { sendMessage } from '@/lib/messaging';
+
+const root = document.getElementById('root');
+const fragment = window.location.hash;
+history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+
+void connect();
+
+async function connect(): Promise<void> {
+  const credentials = parseBridgeFragment(fragment);
+  if (!credentials.ok) return setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+  try {
+    const result = await sendMessage('agentBridgeClaim', credentials.value);
+    setStatus(
+      result.ok ? '请求已完成。' : '连接失败。请从 Juso Agent 重新发起。',
+      result.ok ? 'Request completed.' : 'Connection failed. Start again from Juso Agent.',
+    );
+  } catch {
+    setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+  }
+}
+
+function setStatus(chinese: string, english: string): void {
+  if (root) root.innerHTML = `${chinese}<br />${english}`;
+}

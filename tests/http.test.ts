@@ -52,4 +52,14 @@ describe('mapStatus', () => {
 
     expect(out.errorDetail).toBe('Field required');
   });
+
+  it('passes an optional cancellation signal to fetch', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn<typeof fetch>(async () => res(200, {}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await postJson<unknown>('https://example.test/search', { body: '{}', signal: controller.signal });
+
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+  });
 });

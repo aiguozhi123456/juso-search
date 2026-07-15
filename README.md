@@ -10,6 +10,7 @@ npm run dev          # 开发（WXT HMR）
 npm run build        # 产出 .output/chrome-mv3/，可在 chrome://extensions 以"已解包"加载
 npm run typecheck    # 类型检查
 npm test             # 运行 Vitest 单测
+npm run test:python  # 运行 Agent Skill Python 单测
 npm run lint         # ESLint
 ```
 
@@ -27,3 +28,7 @@ npm run lint         # ESLint
 ## 安全
 
 API key **仅存 `chrome.storage.local`**，仅由 background worker 读取并发往对应 provider；不进 git、不上传第三方、无遥测。
+
+## Agent Skill
+
+将 `skills/juso-search/` 安装或复制到项目的 `.agents/skills/juso-search/`，并设置 `JUSO_EXTENSION_ID` 为已安装扩展的 32 位 ID；随后可运行 `python scripts/juso_search.py list-providers` 或带显式 `--provider` 的搜索命令。详见该目录的 `SKILL.md`。

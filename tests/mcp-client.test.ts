@@ -28,6 +28,21 @@ describe('mcpWebSearch', () => {
     expect(text).toBe('{"results":[]}');
   });
 
+  it('passes an optional cancellation signal to both MCP requests', async () => {
+    const controller = new AbortController();
+    const fetchMock = mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: 'ok' }] } },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await mcpWebSearch('https://x/mcp', 'k', 'q', controller.signal);
+
+    expect(fetchMock.mock.calls).toHaveLength(2);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ signal: controller.signal });
+  });
+
   it('parses an SSE tools/call response', async () => {
     const sse = [
       'event: message',

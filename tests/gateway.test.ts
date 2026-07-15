@@ -239,6 +239,25 @@ describe('handleSearch', () => {
     expect(mockedSaveCachedSearch).not.toHaveBeenCalled();
   });
 
+  it('does not cache a successful response when the signal aborts before persistence', async () => {
+    const controller = new AbortController();
+    const adapter = fakeAdapter({
+      search: vi.fn().mockImplementation(async () => {
+        controller.abort();
+        return { query: 'q', provider: 'tavily', results: [] };
+      }),
+    });
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearch({ query: 'q' }, controller.signal);
+
+    expect(mockedSaveCachedSearch).not.toHaveBeenCalled();
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('unknown');
+  });
+
   it('returns provider results even when cache persistence fails', async () => {
     const adapter = fakeAdapter({
       search: vi.fn().mockResolvedValue({ query: 'q', provider: 'tavily', results: [{ title: 'R', url: 'https://r.test', snippet: 'r' }] }),

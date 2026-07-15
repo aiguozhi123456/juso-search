@@ -11,6 +11,7 @@
     "prepare": "wxt prepare",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:python": "python -m unittest tests/scripts/test_juso_search.py",
     "test:watch": "vitest",
     "lint": "eslint ."
   },

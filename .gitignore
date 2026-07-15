@@ -13,3 +13,7 @@ dist/
 *.local
 secrets.*
 *.key
+
+# Python test cache
+__pycache__/
+*.py[cod]

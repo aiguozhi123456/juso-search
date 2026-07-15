@@ -8,6 +8,7 @@ import {
   handleGetProviderConfig,
   handleGetSearchCacheSummaries,
   handleImportConfig,
+  handleListAgentProviders,
   handlePreviewImport,
   handleSaveProviderKey,
   handleSearch,
@@ -19,6 +20,8 @@ import {
 import { isLocalePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
+import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
+import { runEngineSearch } from '@/lib/engine-search';
 
 export default defineBackground(() => {
   // 预热 schema 迁移：worker 启动即触发 ensureSchema+ensureCacheSchema（懒加载 memoized），
@@ -64,6 +67,10 @@ export default defineBackground(() => {
   onMessage('exportConfig', () => handleExportConfig());
   onMessage('previewImport', ({ data }) => handlePreviewImport(data));
   onMessage('importConfig', ({ data }) => handleImportConfig(data));
+  onMessage('agentBridgeClaim', async ({ data, sender }) => {
+    if (!isTrustedBridgeSender(sender, browser.runtime.id)) return { ok: false };
+    return runAgentBridge(data, { fetch, handleSearch, listProviders: handleListAgentProviders, handleEngineSearch: (request, signal) => runEngineSearch(request, signal, { tabs: browser.tabs }) });
+  });
 
   browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;

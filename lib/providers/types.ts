@@ -33,6 +33,8 @@ export interface NormalizedSearchResponse {
 
 export interface SearchOptions {
   maxResults?: number;
+  /** 可选取消信号；bridge deadline 使用，普通 UI 调用无需提供。 */
+  signal?: AbortSignal;
 }
 
 export interface ProviderAdapter {

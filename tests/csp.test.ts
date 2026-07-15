@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const ENTRYPOINT_HTMLS = [
   'entrypoints/search/index.html',
   'entrypoints/options/index.html',
+  'entrypoints/bridge/index.html',
 ];
 
 function getScriptTags(html: string): string[] {

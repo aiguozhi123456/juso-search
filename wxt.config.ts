@@ -15,6 +15,7 @@ export default defineConfig({
     },
     permissions: ['storage', 'downloads'],
     host_permissions: [
+      'http://127.0.0.1/*',
       'https://api.tavily.com/*',
       'https://api.exa.ai/*',
       'https://api.stepfun.com/*',

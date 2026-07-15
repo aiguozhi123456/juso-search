@@ -4,6 +4,8 @@ import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } fr
 import type { SourceId } from './sources';
 import { isProviderId } from './sources';
 import { getAdapter } from './providers/registry';
+import { allProviders } from './providers/registry';
+import type { AgentListProvidersReply } from './agent-bridge';
 import {
   clearKey,
   clearSearchCache,
@@ -51,7 +53,7 @@ type SearchErrorReply = Extract<SearchReply, { ok: false }>;
 
 /** 搜索：优先复用本地缓存；forceRefresh 时 worker 读 key → 调激活 provider → 写缓存。
  *  providerId 绑定 UI 视图（避免跨标签 active 漂移导致搜/缓存到错误 provider）。 */
-export async function handleSearch(request: SearchRequest): Promise<SearchReply> {
+export async function handleSearch(request: SearchRequest, signal?: AbortSignal): Promise<SearchReply> {
   await getSchemaReady();
   try {
     const query = request.query.trim();
@@ -78,7 +80,10 @@ export async function handleSearch(request: SearchRequest): Promise<SearchReply>
     if (!key) {
       return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
     }
-    const response = await adapter.search(query, {}, key);
+    const response = await adapter.search(query, { signal }, key);
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    }
     const cached = await saveCachedSearch(response).catch(() => null);
     return { ok: true, response, cache: { hit: false, entryId: cached?.id, createdAt: cached?.createdAt } };
   } catch (e) {
@@ -118,6 +123,18 @@ export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
     getSourceOrder(),
   ]);
   return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder };
+}
+
+/** Agent bridge 的脱敏 provider 清单：只公开能力和是否已配置，绝不返回 key。 */
+export async function handleListAgentProviders(): Promise<AgentListProvidersReply> {
+  const { configuredProviderIds } = await handleGetProviderConfig();
+  return {
+    providers: allProviders().map((provider) => ({
+      id: provider.id,
+      supportsAnswer: provider.supportsAnswer,
+      configured: configuredProviderIds.includes(provider.id),
+    })),
+  };
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {

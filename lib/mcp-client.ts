@@ -55,10 +55,11 @@ async function rpc<T>(
   apiKey: string,
   payload: object,
   sessionId?: string | null,
+  signal?: AbortSignal,
 ): Promise<{ result: T; sessionId: string | null }> {
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers: headersFor(apiKey, sessionId), body: JSON.stringify(payload) });
+    res = await fetch(url, { method: 'POST', headers: headersFor(apiKey, sessionId), body: JSON.stringify(payload), signal });
   } catch {
     throw new ProviderError('network', t(MSG.error_mcp_network));
   }
@@ -91,7 +92,7 @@ async function rpc<T>(
  * 调用 Stepfun Step Plan 的 MCP `web_search` 工具，返回 `content[0].text`
  * （一个 JSON 字符串：{ query, category, results:[{url,position,title,time,snippet,content}] }）。
  */
-export async function mcpWebSearch(url: string, apiKey: string, query: string): Promise<string> {
+export async function mcpWebSearch(url: string, apiKey: string, query: string, signal?: AbortSignal): Promise<string> {
   const init = await rpc(
     url,
     apiKey,
@@ -105,6 +106,8 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string): 
         clientInfo: { name: 'juso-search', version: '0.1.0' },
       },
     },
+    undefined,
+    signal,
   );
 
   const tool = await rpc<McpToolResult>(
@@ -117,6 +120,7 @@ export async function mcpWebSearch(url: string, apiKey: string, query: string): 
       params: { name: 'web_search', arguments: { query } },
     },
     init.sessionId,
+    signal,
   );
 
   const text = tool.result.content?.[0]?.text;
@@ -133,8 +137,8 @@ export interface McpTransportConfig {
  *  错误映射沿用 mcp-client 自有的 error_mcp_* 路径（不与 REST 的 mapStatus / error_http_* 混用）。 */
 export function mcpTransport(cfg: McpTransportConfig): ProviderTransport<string> {
   return {
-    async send(query, _opts: SearchOptions, apiKey) {
-      return mcpWebSearch(cfg.endpoint, apiKey, query);
+    async send(query, opts: SearchOptions, apiKey) {
+      return mcpWebSearch(cfg.endpoint, apiKey, query, opts.signal);
     },
   };
 }

@@ -71,6 +71,8 @@ export type ProtocolMap = {
   exportConfig(): Promise<ExportConfigReply>;
   previewImport(payload: ConfigExport): Promise<PreviewImportReply>;
   importConfig(data: { payload: ConfigExport; applyPrefs: boolean }): Promise<ImportConfigReply>;
+  /** bridge.html 仅把 fragment 中已解析的本地 Agent 凭据交给 worker。 */
+  agentBridgeClaim(data: { port: number; token: string }): Promise<{ ok: boolean }>;
 };
 
 const messaging = defineExtensionMessaging<ProtocolMap>();

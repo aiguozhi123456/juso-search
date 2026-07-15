@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BAIDU_SERP_HOSTS,
   BING_SERP_HOSTS,
+  ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
   GOOGLE_SERP_HOSTS,
   SERP_CONTENT_MATCH_PATTERNS,
   SERP_HOST_MATCH_PATTERNS,
@@ -19,6 +20,7 @@ describe('SERP scopes', () => {
     ]);
     expect(new Set(SERP_HOST_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
     expect(new Set(SERP_CONTENT_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
+    expect(ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS).toEqual(SERP_HOST_MATCH_PATTERNS);
   });
 
   it('uses only the approved Google, Bing and Baidu hosts', () => {
