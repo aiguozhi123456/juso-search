@@ -44,14 +44,26 @@ You can now search and switch among Google, Bing, Baidu, and your configured AI 
 
 1. Install and enable the extension as above. `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
 2. Install or copy `skills/juso-search/` into your agent’s skills directory, for example `.agents/skills/juso-search/`.
-3. Set `JUSO_EXTENSION_ID`, or provide `--extension-id` with a command.
-4. Run commands from the skill directory, for example:
+3. Open `chrome://extensions` (`edge://extensions` in Edge), enable Developer mode, and copy the 32-character ID shown on the Juso extension card.
+4. Set that value as `JUSO_EXTENSION_ID`, or provide it with `--extension-id`:
+
+```powershell
+$env:JUSO_EXTENSION_ID = "YOUR_EXTENSION_ID"
+```
+
+```bash
+export JUSO_EXTENSION_ID="YOUR_EXTENSION_ID"
+```
+
+5. Run commands from the skill directory, for example:
 
 ```bash
 python scripts/juso_search.py list-providers
 python scripts/juso_search.py search "latest AI research" --provider tavily
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
 ```
+
+You can skip the environment variable and run `python scripts/juso_search.py --extension-id YOUR_EXTENSION_ID list-providers` instead. Loading another copy of the extension from a different directory may change its ID, so copy it again when needed.
 
 The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, and Baidu through the browser—without receiving stored credentials.
 
