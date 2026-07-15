@@ -36,7 +36,7 @@ Juso v1.0.0 is available for adopters comfortable with manual installation and c
 ### People
 
 1. Install and enable the extension through Installation and Updates.
-2. Configure an AI search-service key in extension settings if wanted, choose a Search Source, and open the Juso search page.
+2. Open the Juso search page and choose a Search Source. Google, Bing, and Baidu need no configuration; configure the corresponding key in extension settings only when using an AI search service.
 
 You can now search and switch among Google, Bing, Baidu, and your configured AI search services from one entry point.
 
