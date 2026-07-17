@@ -23,7 +23,12 @@ The unified user-facing representation of a configured AI provider or a conventi
 ### Source Order
 The user's preferred ordering of the complete known Search Source set, independent of which provider-backed sources are currently visible.
 
-Visibility is a projection of Source Order: unconfigured providers may disappear temporarily without being removed from the preference, and return to their prior relative position when configured again. Missing future sources are appended deterministically, while direct edits and configuration imports share one serialized mutation boundary.
+Unconfigured providers may disappear temporarily without being removed from the preference, and return to their prior relative position when configured again (the implicit axis of Source Visibility). Missing future sources are appended deterministically, while direct edits and configuration imports share one serialized mutation boundary.
+
+### Source Visibility
+The user's explicit choice of which Search Sources appear in the quick-switch bar, modeled as a sparse set of hidden sources that is independent of Source Order and independent of the Active Source.
+
+Visibility has two independent axes. The implicit axis hides a source automatically while it lacks a configured key, and restores it when configured. The explicit axis is this user-chosen hide, which can remove any configured provider or engine regardless of key state. Only the explicit axis is a stored preference; both are applied as a final projection at render time, never persisted as the rendered list itself. A hidden source remains a valid Active Source and remains listed on configuration management surfaces so it can be shown again; the hide set is sparse, so normalization never re-adds sources the user removed.
 
 ### Active Source
 The user's default search source preference. It may point to a configured AI provider or to a keyless conventional engine, so it belongs to the source/UI layer rather than the provider/key layer.
