@@ -11,12 +11,13 @@ type Status =
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
 
-const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder', string> = {
+const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden', string> = {
   activeProvider: 'activeProvider',
   activeSource: 'activeSource',
   themePref: 'themePref',
   localePref: 'localePref',
   sourceOrder: 'sourceOrder',
+  sourceHidden: 'sourceHidden',
 };
 
 export function ConfigExportImport({ onImported }: { onImported?: () => void } = {}) {
@@ -102,6 +103,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     if (report.themePrefOverridden) labels.push(prefLabel('themePref'));
     if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
     if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
+    if (report.sourceHiddenOverridden) labels.push(prefLabel('sourceHidden'));
     return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';
   }
 

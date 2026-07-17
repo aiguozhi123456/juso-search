@@ -83,7 +83,7 @@ describe('options page', () => {
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
     expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu']);
-    expect(screen.getByRole('heading', { name: '快切栏顺序' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu/);
   });
 
   it('disables moving the first source up and the last source down', async () => {
@@ -109,11 +109,11 @@ describe('options page', () => {
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', [
       'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu',
     ]));
-    expect(screen.getByRole('heading', { name: '快切栏顺序' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
     expect(screen.getByRole('button', { name: 'Google 下移' })).toBeDisabled();
     save.resolve();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Google 下移' })).not.toBeDisabled());
-    expect(screen.getByRole('heading', { name: '快切栏顺序' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
   });
 
   it('rolls back the order and shows an error when saving fails', async () => {
@@ -127,7 +127,40 @@ describe('options page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('顺序保存失败，已回滚');
-    expect(screen.getByRole('heading', { name: '快切栏顺序' }).parentElement).toHaveTextContent(/Exa[\s\S]*Google[\s\S]*Bing[\s\S]*Baidu/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Exa[\s\S]*Google[\s\S]*Bing[\s\S]*Baidu/);
+  });
+
+  it('hides a source from the quick-switch bar by persisting it in sourceHidden', async () => {
+    const save = deferred<void>();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      if (type === 'setSourceHidden') return save.promise;
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '在快切栏隐藏 Bing' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceHidden', ['bing']));
+    // 隐藏态：可访问名翻转为“显示”，行挂上 --hidden 修饰类
+    expect(screen.getByRole('button', { name: '在快切栏显示 Bing' })).toBeInTheDocument();
+    expect(document.querySelector('.source-order-row--hidden')).toBeTruthy();
+    save.resolve();
+  });
+
+  it('rolls back the hidden state when saving fails', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      if (type === 'setSourceHidden') return Promise.reject(new Error('storage unavailable'));
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '在快切栏隐藏 Bing' }));
+    // 失败后回滚：可访问名恢复为“隐藏”语义
+    await waitFor(() => expect(screen.getByRole('button', { name: '在快切栏隐藏 Bing' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: '在快切栏显示 Bing' })).not.toBeInTheDocument();
   });
 
   it('does not let an older config response undo a successful source order move', async () => {
@@ -166,7 +199,7 @@ describe('options page', () => {
       sourceOrder: ['exa', 'google', 'bing', 'baidu', 'tavily', 'stepfun', 'stepfun-plan'],
     });
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('Exa'));
-    expect(screen.getByRole('heading', { name: '快切栏顺序' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
   });
 
   it('still shows all providers in the API key section', async () => {

@@ -14,16 +14,18 @@ import {
   ACTIVE_SOURCE_KEY,
   KEYS_KEY,
   LOCALE_KEY,
+  SOURCE_HIDDEN_KEY,
   SOURCE_ORDER_KEY,
   THEME_KEY,
   withProviderKeysMutation,
+  withSourceHiddenMutation,
   withSourceOrderMutation,
 } from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
-import { normalizeSourceOrder, type SourceId } from './sources';
+import { normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
@@ -43,11 +45,12 @@ export interface ConfigExport {
   themePref: ThemePref;
   localePref: LocalePref;
   sourceOrder?: SourceId[];
+  sourceHidden?: SourceId[];
 }
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
@@ -65,6 +68,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     themePref: theme,
     localePref: locale,
     sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY]),
+    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]),
   };
 }
 
@@ -124,6 +128,16 @@ export function parseImportPayload(raw: unknown): ParseResult {
       seen.add(sourceId);
     }
   }
+  const hasSourceHidden = Object.prototype.hasOwnProperty.call(obj, 'sourceHidden');
+  const sourceHidden = obj.sourceHidden;
+  if (hasSourceHidden) {
+    if (!Array.isArray(sourceHidden)) return { ok: false, error: 'invalid_source_hidden' };
+    const seenHidden = new Set<SourceId>();
+    for (const sourceId of sourceHidden) {
+      if (!isKnownSource(sourceId) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
+      seenHidden.add(sourceId);
+    }
+  }
   return {
     ok: true,
     value: {
@@ -136,6 +150,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
       sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden) : undefined,
     },
   };
 }
@@ -157,11 +172,13 @@ export interface ImportReport {
   localePrefOverridden: boolean;
   /** 是否覆盖了 sourceOrder。 */
   sourceOrderOverridden: boolean;
+  /** 是否覆盖了 sourceHidden。 */
+  sourceHiddenOverridden: boolean;
 }
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden';
   from: string | null;
   to: string | null;
 }
@@ -182,7 +199,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -218,6 +235,13 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
       prefDiffs.push({ key: 'sourceOrder', from: curSourceOrder.join(' > '), to: newSourceOrder.join(' > ') });
     }
   }
+  if (payload.sourceHidden !== undefined) {
+    const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]);
+    const newSourceHidden = normalizeSourceHidden(payload.sourceHidden);
+    if (!sameSourceOrder(curSourceHidden, newSourceHidden)) {
+      prefDiffs.push({ key: 'sourceHidden', from: curSourceHidden.join(' > '), to: newSourceHidden.join(' > ') });
+    }
+  }
   return { written, skipped, prefDiffs };
 }
 
@@ -236,8 +260,8 @@ export async function mergeImport(
 ): Promise<ImportReport> {
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
-  return withSourceOrderMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY]);
+  return withSourceHiddenMutation(() => withSourceOrderMutation(() => withProviderKeysMutation(async () => {
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -267,6 +291,7 @@ export async function mergeImport(
     let themeOverridden = false;
     let localeOverridden = false;
     let sourceOrderOverridden = false;
+    let sourceHiddenOverridden = false;
     if (applyPrefs) {
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
       if (curActive !== payload.activeProvider) {
@@ -296,6 +321,14 @@ export async function mergeImport(
           sourceOrderOverridden = true;
         }
       }
+      if (payload.sourceHidden !== undefined) {
+        const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]);
+        const newSourceHidden = normalizeSourceHidden(payload.sourceHidden);
+        if (!sameSourceOrder(curSourceHidden, newSourceHidden)) {
+          setObj[SOURCE_HIDDEN_KEY] = newSourceHidden;
+          sourceHiddenOverridden = true;
+        }
+      }
     }
     await browser.storage.local.set(setObj);
 
@@ -307,8 +340,9 @@ export async function mergeImport(
       themePrefOverridden: themeOverridden,
       localePrefOverridden: localeOverridden,
       sourceOrderOverridden,
+      sourceHiddenOverridden,
     };
-  }));
+  })));
 }
 
 function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {

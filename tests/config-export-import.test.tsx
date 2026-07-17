@@ -34,7 +34,7 @@ describe('ConfigExportImport', () => {
         return Promise.resolve({ ok: true, preview: { written: ['exa'], skipped: ['tavily'], prefDiffs: [] } });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: ['tavily'], activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false, sourceHiddenOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -65,7 +65,7 @@ describe('ConfigExportImport', () => {
         });
       }
       if (type === 'importConfig') {
-        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: false, sourceOrderOverridden: false } });
+        return Promise.resolve({ ok: true, report: { written: ['exa'], skipped: [], activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: false, sourceOrderOverridden: false, sourceHiddenOverridden: false } });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -100,7 +100,7 @@ describe('ConfigExportImport', () => {
           ok: true,
           report: {
             written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
-            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: true,
+            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: true, sourceHiddenOverridden: false,
           },
         });
       }

@@ -2,7 +2,7 @@ import type { EngineId } from './engines/types';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { SourceId } from './sources';
-import { isEngineId, normalizeSourceOrder } from './sources';
+import { isEngineId, normalizeSourceHidden, normalizeSourceOrder } from './sources';
 import {
   SEARCH_CACHE_CAP,
   SEARCH_CACHE_INDEX_KEY,
@@ -30,6 +30,7 @@ export const ACTIVE_SOURCE_KEY = 'activeSource'; // SourceId | null
 export const THEME_KEY = 'themePref'; // ThemePref
 export const LOCALE_KEY = 'localePref'; // LocalePref
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
+export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
@@ -38,6 +39,8 @@ let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
 // sourceOrder 的读改写串行队列：setSourceOrder/mergeImport 共用，避免导入覆盖较新的移动。
 let sourceOrderMutationQueue: Promise<unknown> = Promise.resolve();
+// sourceHidden 的读改写串行队列：setSourceHidden/mergeImport 共用，保持调用顺序。
+let sourceHiddenMutationQueue: Promise<unknown> = Promise.resolve();
 
 /** 串行化 providerKeys 的读改写（setKey / clearKey / mergeImport），防止并发写覆盖。 */
 export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
@@ -50,6 +53,13 @@ export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise
 export function withSourceOrderMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = sourceOrderMutationQueue.then(mutation, mutation);
   sourceOrderMutationQueue = run.catch(() => undefined);
+  return run;
+}
+
+/** 串行化 sourceHidden 写入（setSourceHidden / mergeImport），保持调用顺序。 */
+export function withSourceHiddenMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const run = sourceHiddenMutationQueue.then(mutation, mutation);
+  sourceHiddenMutationQueue = run.catch(() => undefined);
   return run;
 }
 
@@ -157,6 +167,18 @@ export async function getSourceOrder(): Promise<SourceId[]> {
 export async function setSourceOrder(order: SourceId[]): Promise<void> {
   await withSourceOrderMutation(async () => {
     await browser.storage.local.set({ [SOURCE_ORDER_KEY]: normalizeSourceOrder(order) });
+  });
+}
+
+/** 快切栏隐藏来源清单；仅读自身键，非法值回退到空数组。 */
+export async function getSourceHidden(): Promise<SourceId[]> {
+  const got = await browser.storage.local.get(SOURCE_HIDDEN_KEY);
+  return normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]);
+}
+
+export async function setSourceHidden(ids: SourceId[]): Promise<void> {
+  await withSourceHiddenMutation(async () => {
+    await browser.storage.local.set({ [SOURCE_HIDDEN_KEY]: normalizeSourceHidden(ids) });
   });
 }
 

@@ -17,8 +17,11 @@ export default function App() {
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
   const [savingSourceOrder, setSavingSourceOrder] = useState(false);
   const [sourceOrderError, setSourceOrderError] = useState('');
+  const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
+  const [savingSourceHidden, setSavingSourceHidden] = useState(false);
   const configRequestEpoch = useRef(0);
   const sourceOrderRevision = useRef(0);
+  const sourceHiddenRevision = useRef(0);
 
   useEffect(() => {
     syncConfig();
@@ -40,11 +43,15 @@ export default function App() {
     void (async () => {
       const requestEpoch = ++configRequestEpoch.current;
       const orderRevisionAtRequest = sourceOrderRevision.current;
+      const hiddenRevisionAtRequest = sourceHiddenRevision.current;
       const config = await sendMessage('getProviderConfig', undefined);
       setActive(config.activeSourceId);
       setConfiguredProviderIds(config.configuredProviderIds);
       if (requestEpoch === configRequestEpoch.current && orderRevisionAtRequest === sourceOrderRevision.current) {
         setSourceOrder(normalizeSourceOrder(config.sourceOrder));
+      }
+      if (requestEpoch === configRequestEpoch.current && hiddenRevisionAtRequest === sourceHiddenRevision.current) {
+        setSourceHiddenState(config.sourceHidden ?? []);
       }
     })();
   }
@@ -82,6 +89,25 @@ export default function App() {
     }
   }
 
+  async function toggleHidden(sourceId: SourceId) {
+    const previous = sourceHidden;
+    const isHidden = sourceHidden.includes(sourceId);
+    const next = isHidden ? sourceHidden.filter((id) => id !== sourceId) : [...sourceHidden, sourceId];
+
+    sourceHiddenRevision.current += 1;
+    setSourceHiddenState(next);
+    setSavingSourceHidden(true);
+    try {
+      await sendMessage('setSourceHidden', next);
+    } catch {
+      sourceHiddenRevision.current += 1;
+      setSourceHiddenState(previous);
+    } finally {
+      sourceHiddenRevision.current += 1;
+      setSavingSourceHidden(false);
+    }
+  }
+
   return (
     <div className="options">
       <div className="options-header">
@@ -107,20 +133,31 @@ export default function App() {
       </section>
 
       <section>
-        <h2>{t(MSG.opts_source_order_heading)}</h2>
-        <p className="hint">{t(MSG.opts_source_order_hint)}</p>
+        <h2>{t(MSG.opts_quickbar_heading)}</h2>
+        <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
         <div className="source-order-list">
           {configuredSources.map((source, index) => {
             const sourceName = t(source.label);
+            const hidden = sourceHidden.includes(source.id);
             return (
-              <div className="source-order-row" key={source.id}>
+              <div className={`source-order-row${hidden ? ' source-order-row--hidden' : ''}`} key={source.id}>
                 <span>{sourceName}</span>
                 <div className="source-order-actions">
                   <button
                     type="button"
+                    className="hide-toggle"
+                    aria-label={t(hidden ? MSG.opts_quickbar_toggle_show : MSG.opts_quickbar_toggle_hide, sourceName)}
+                    title={t(hidden ? MSG.opts_quickbar_toggle_show : MSG.opts_quickbar_toggle_hide, sourceName)}
+                    disabled={savingSourceHidden}
+                    onClick={() => toggleHidden(source.id)}
+                  >
+                    {hidden ? t(MSG.opts_quickbar_show) : t(MSG.opts_quickbar_hide)}
+                  </button>
+                  <button
+                    type="button"
                     aria-label={t(MSG.opts_source_order_move_up, sourceName)}
                     title={t(MSG.opts_source_order_move_up, sourceName)}
-                    disabled={savingSourceOrder || index === 0}
+                    disabled={savingSourceOrder || savingSourceHidden || index === 0}
                     onClick={() => moveSource(source.id, -1)}
                   >
                     ↑
@@ -129,7 +166,7 @@ export default function App() {
                     type="button"
                     aria-label={t(MSG.opts_source_order_move_down, sourceName)}
                     title={t(MSG.opts_source_order_move_down, sourceName)}
-                    disabled={savingSourceOrder || index === configuredSources.length - 1}
+                    disabled={savingSourceOrder || savingSourceHidden || index === configuredSources.length - 1}
                     onClick={() => moveSource(source.id, 1)}
                   >
                     ↓

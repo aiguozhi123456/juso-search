@@ -14,6 +14,7 @@ import {
   handleSearch,
   handleSetActiveProvider,
   handleSetActiveSource,
+  handleSetSourceHidden,
   handleSetSourceOrder,
   handleTestKey,
 } from '@/lib/gateway';
@@ -39,6 +40,7 @@ export default defineBackground(() => {
   onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
   onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
   onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
+  onMessage('setSourceHidden', ({ data }) => handleSetSourceHidden(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
   onMessage('deleteProviderKey', ({ data }) => handleDeleteProviderKey(data));
   // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到

@@ -14,6 +14,8 @@ import {
   setLocalePref,
   getSourceOrder,
   setSourceOrder,
+  getSourceHidden,
+  setSourceHidden,
   getCachedSearch,
   getCachedSearchEntry,
   getSearchCacheSummaries,
@@ -229,6 +231,16 @@ describe('storage: source order', () => {
   it('normalizes invalid stored values', async () => {
     await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
     expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu']);
+  });
+});
+
+describe('sourceHidden', () => {
+  it('returns empty array when unset', async () => {
+    expect(await getSourceHidden()).toEqual([]);
+  });
+  it('persists and reads back a normalized list', async () => {
+    await setSourceHidden(['baidu', 'tavily', 'ghost' as never, 'baidu']);
+    expect(await getSourceHidden()).toEqual(['baidu', 'tavily']);
   });
 });
 

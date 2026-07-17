@@ -138,7 +138,7 @@ interface BarState {
 /** 读 config/theme/sources/query 并 resolve theme，产出 onMount 渲染所需全部值。 */
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
   const config = await sendMessage('getProviderConfig', undefined);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden);
   const themePref = await getThemePref();
   return {
     engine,

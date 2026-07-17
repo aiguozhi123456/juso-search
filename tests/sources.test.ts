@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allSources, isEngineId, isProviderId, normalizeSourceOrder } from '@/lib/sources';
+import { allSources, isEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder } from '@/lib/sources';
 
 describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
@@ -52,6 +52,25 @@ describe('allSources', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
       'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu',
     ]);
+  });
+
+  it('filters out hidden providers and engines', () => {
+    const sources = allSources(['tavily', 'exa'], undefined, ['tavily', 'baidu']);
+    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing']);
+  });
+
+  it('ignores an empty hidden list', () => {
+    expect(allSources(['tavily'], undefined, []).map((s) => s.id)).toEqual(['tavily', 'google', 'bing', 'baidu']);
+  });
+});
+
+describe('normalizeSourceHidden', () => {
+  it('keeps known ids, dedupes, preserves first-seen order', () => {
+    expect(normalizeSourceHidden(['baidu', 'ghost', 'tavily', 'baidu', 123 as never])).toEqual(['baidu', 'tavily']);
+  });
+  it('returns empty for non-array', () => {
+    expect(normalizeSourceHidden(undefined)).toEqual([]);
+    expect(normalizeSourceHidden('tavily')).toEqual([]);
   });
 });
 

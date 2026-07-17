@@ -36,6 +36,7 @@ export type ProviderConfigReply = {
   activeProviderId: ProviderId | null;
   activeSourceId: SourceId;
   sourceOrder: SourceId[];
+  sourceHidden: SourceId[];
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -59,6 +60,7 @@ export type ProtocolMap = {
   setActiveProvider(providerId: ProviderId): Promise<void>;
   setActiveSource(sourceId: SourceId): Promise<void>;
   setSourceOrder(sourceOrder: SourceId[]): Promise<void>;
+  setSourceHidden(sourceHidden: SourceId[]): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
   deleteProviderKey(providerId: ProviderId): Promise<void>;
   // 由 background 在特权上下文用 tabs.update 把当前 tab 导航到扩展页深链。

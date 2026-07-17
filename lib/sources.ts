@@ -55,14 +55,35 @@ export function normalizeSourceOrder(order: unknown): SourceId[] {
   return normalized;
 }
 
+/** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。 */
+export function normalizeSourceHidden(ids: unknown): SourceId[] {
+  const list = Array.isArray(ids) ? ids : [];
+  const seen = new Set<SourceId>();
+  const normalized: SourceId[] = [];
+  for (const id of list) {
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id)) || seen.has(id as SourceId)) continue;
+    seen.add(id as SourceId);
+    normalized.push(id as SourceId);
+  }
+  return normalized;
+}
+
 /**
  * 投影出统一快切栏的候选源：按用户顺序排序的已配置 AI provider + 全部常规 engine。
  * provider 按 configuredProviderIds 过滤（沿用 v1「隐藏未配置 provider」）；engine 恒全显示。
+ * `hiddenSourceIds` 中列出的 source（provider 或 engine）会被进一步从投影中剔除，
+ * 仅作用于快切栏本身——设置页管理列表不应传入此参数，以便用户对隐藏项进行管理。
  */
-export function allSources(configuredProviderIds: ProviderId[], sourceOrder?: readonly SourceId[]): SearchSource[] {
+export function allSources(
+  configuredProviderIds: ProviderId[],
+  sourceOrder?: readonly SourceId[],
+  hiddenSourceIds?: readonly SourceId[],
+): SearchSource[] {
+  const hidden = hiddenSourceIds && hiddenSourceIds.length > 0 ? new Set(hiddenSourceIds) : null;
   const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
   const enginesById = new Map(allEngines().map((engine) => [engine.id, engine]));
   return normalizeSourceOrder(sourceOrder).flatMap((id): SearchSource[] => {
+    if (hidden && hidden.has(id)) return [];
     const provider = providersById.get(id as ProviderId);
     if (provider) {
       return configuredProviderIds.includes(provider.id) ? [{

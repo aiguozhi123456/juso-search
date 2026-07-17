@@ -13,11 +13,13 @@ vi.mock('@/lib/storage', () => ({
   getConfiguredProviderIds: vi.fn(),
   getKey: vi.fn(),
   getSearchCacheSummaries: vi.fn(),
+  getSourceHidden: vi.fn(),
   getSourceOrder: vi.fn(),
   saveCachedSearch: vi.fn(),
   setActiveProviderId: vi.fn(),
   setActiveSourceId: vi.fn(),
   setKey: vi.fn(),
+  setSourceHidden: vi.fn(),
   setSourceOrder: vi.fn(),
 }));
 
@@ -60,6 +62,7 @@ import {
   handleSetActiveProvider,
   handleSetActiveSource,
   handleSetSourceOrder,
+  handleSetSourceHidden,
   handleTestKey,
 } from '@/lib/gateway';
 import {
@@ -73,11 +76,13 @@ import {
   getConfiguredProviderIds,
   getKey,
   getSearchCacheSummaries,
+  getSourceHidden,
   getSourceOrder,
   saveCachedSearch,
   setActiveProviderId,
   setActiveSourceId,
   setKey,
+  setSourceHidden,
   setSourceOrder,
 } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
@@ -92,6 +97,7 @@ const mockedGetCachedSearch = vi.mocked(getCachedSearch);
 const mockedGetCachedSearchEntry = vi.mocked(getCachedSearchEntry);
 const mockedGetConfigured = vi.mocked(getConfiguredProviderIds);
 const mockedGetSourceOrder = vi.mocked(getSourceOrder);
+const mockedGetSourceHidden = vi.mocked(getSourceHidden);
 const mockedGetKey = vi.mocked(getKey);
 const mockedGetSearchCacheSummaries = vi.mocked(getSearchCacheSummaries);
 const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
@@ -99,6 +105,7 @@ const mockedSetActive = vi.mocked(setActiveProviderId);
 const mockedSetActiveSource = vi.mocked(setActiveSourceId);
 const mockedSetKey = vi.mocked(setKey);
 const mockedSetSourceOrder = vi.mocked(setSourceOrder);
+const mockedSetSourceHidden = vi.mocked(setSourceHidden);
 const mockedClearKey = vi.mocked(clearKey);
 const mockedGetAdapter = vi.mocked(getAdapter);
 const mockedBuildExportPayload = vi.mocked(buildExportPayload);
@@ -129,6 +136,7 @@ beforeEach(() => {
     response,
   }));
   mockedGetSourceOrder.mockResolvedValue(['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu']);
+  mockedGetSourceHidden.mockResolvedValue([]);
 });
 
 describe('handleSearch', () => {
@@ -369,7 +377,16 @@ describe('handleGetProviderConfig', () => {
       activeProviderId: 'exa',
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
+      sourceHidden: [],
     });
+  });
+});
+
+describe('handleSetSourceHidden', () => {
+  it('writes the hidden source list from the worker context', async () => {
+    mockedSetSourceHidden.mockResolvedValue(undefined);
+    await handleSetSourceHidden(['baidu']);
+    expect(mockedSetSourceHidden).toHaveBeenCalledWith(['baidu']);
   });
 });
 
@@ -514,7 +531,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
-      sourceOrderOverridden: true,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
     expect(reply.ok).toBe(true);
@@ -531,7 +548,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
-      sourceOrderOverridden: false,
+      sourceOrderOverridden: false, sourceHiddenOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });
     expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: false });

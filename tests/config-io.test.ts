@@ -62,13 +62,14 @@ beforeEach(() => {
 });
 
 describe('buildExportPayload', () => {
-  it('reads the 5 config keys precisely (not get(null))', async () => {
+  it('reads the config keys precisely (not get(null))', async () => {
     installStorage({
       providerKeys: { tavily: 'tvly-1', exa: 'exa-1' },
       activeProvider: 'exa',
       activeSource: 'google',
       themePref: 'dark',
       localePref: 'en',
+      sourceHidden: ['baidu'],
       searchCacheIndex: { version: 1, order: ['x'], byKey: {}, summaries: {} }, // 不应被读
       searchCacheEntry: { big: 'payload' },
     });
@@ -81,6 +82,7 @@ describe('buildExportPayload', () => {
     expect(payload.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(payload.appVersion).toBe('1.0.0');
     expect(payload.exportedAt).toBeGreaterThan(0);
+    expect(payload.sourceHidden).toEqual(['baidu']);
     // 缓存池键不应出现在任何读取结果里
     expect(payload).not.toHaveProperty('searchCacheIndex');
   });
@@ -113,6 +115,18 @@ describe('buildExportPayload', () => {
     await expect(buildExportPayload()).resolves.toMatchObject({
       sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'google', 'baidu'],
     });
+  });
+
+  it('exports a normalized hidden source list', async () => {
+    installStorage({ sourceHidden: ['baidu', 'ghost', 'baidu'] });
+    const payload = await buildExportPayload();
+    expect(payload.sourceHidden).toEqual(['baidu']);
+  });
+
+  it('exports an empty hidden list when unset', async () => {
+    installStorage({});
+    const payload = await buildExportPayload();
+    expect(payload.sourceHidden).toEqual([]);
   });
 });
 
@@ -196,6 +210,28 @@ describe('parseImportPayload', () => {
       ok: false,
       error: 'invalid_source_order',
     });
+  });
+
+  it('normalizes a missing sourceHidden for compatible old payloads', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.sourceHidden;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.sourceHidden).toBeUndefined();
+  });
+
+  it('normalizes a valid partial sourceHidden', () => {
+    const result = parseImportPayload(validPayload({ sourceHidden: ['baidu', 'tavily'] }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.sourceHidden).toEqual(['baidu', 'tavily']);
+  });
+
+  it.each([
+    ['unknown source', ['ghost']],
+    ['non-string source', [123]],
+    ['duplicate source', ['bing', 'bing']],
+  ])('rejects sourceHidden with %s', (_label, sourceHidden) => {
+    expect(parseImportPayload(validPayload({ sourceHidden: sourceHidden as never }))).toEqual({ ok: false, error: 'invalid_source_hidden' });
   });
 
   it('accepts engine activeSource', () => {
@@ -291,6 +327,7 @@ describe('mergeImport', () => {
     expect(report.themePrefOverridden).toBe(false);
     expect(report.localePrefOverridden).toBe(false);
     expect(report.sourceOrderOverridden).toBe(false);
+    expect(report.sourceHiddenOverridden).toBe(false);
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
@@ -301,6 +338,15 @@ describe('mergeImport', () => {
     const report = await mergeImport(payload, { applyPrefs: true });
     expect(report.sourceOrderOverridden).toBe(true);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toEqual(payload.sourceOrder);
+  });
+
+  it('writes sourceHidden only when applying preferences', async () => {
+    const payload = validPayload({ sourceHidden: ['baidu', 'tavily'] });
+    await mergeImport(payload);
+    expect((await browser.storage.local.get('sourceHidden')).sourceHidden).toBeUndefined();
+    const report = await mergeImport(payload, { applyPrefs: true });
+    expect(report.sourceHiddenOverridden).toBe(true);
+    expect((await browser.storage.local.get('sourceHidden')).sourceHidden).toEqual(['baidu', 'tavily']);
   });
 
   it('preserves the current source order for a legacy payload throughout parse, preview, and merge', async () => {
@@ -411,5 +457,14 @@ describe('previewImport (dry-run)', () => {
       from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu',
       to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu',
     }]);
+  });
+
+  it('reports a preference diff when only the hidden source list differs', async () => {
+    installStorage({
+      providerKeys: { tavily: 'tvly-1' }, activeProvider: 'tavily', activeSource: 'tavily',
+      themePref: 'auto', localePref: 'auto', sourceHidden: ['baidu'],
+    });
+    const preview = await previewImport(validPayload({ sourceHidden: ['bing', 'tavily'] }));
+    expect(preview.prefDiffs).toEqual([{ key: 'sourceHidden', from: 'baidu', to: 'bing > tavily' }]);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import App from '@/entrypoints/search/App';
 import { sendMessage } from '@/lib/messaging';
 
@@ -60,6 +60,26 @@ async function doSearch(reply: unknown) {
 }
 
 describe('search page', () => {
+  it('hides sources marked hidden in sourceHidden from the quick-switch bar', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['tavily', 'exa'],
+          activeProviderId: 'tavily',
+          activeSourceId: 'tavily',
+          sourceHidden: ['google'],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    const switcher = await screen.findByRole('group', { name: '切换搜索来源' });
+    expect(within(switcher).queryByText('Google')).not.toBeInTheDocument();
+    expect(within(switcher).getByText('Tavily')).toBeInTheDocument();
+    expect(within(switcher).getByText('Bing')).toBeInTheDocument();
+  });
+
   it('renders the answer card when the reply has an answer', async () => {
     await doSearch({
       ok: true,

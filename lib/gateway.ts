@@ -17,11 +17,13 @@ import {
   getConfiguredProviderIds,
   getKey,
   getSearchCacheSummaries,
+  getSourceHidden,
   getSourceOrder,
   saveCachedSearch,
   setActiveProviderId,
   setActiveSourceId,
   setKey,
+  setSourceHidden,
   setSourceOrder,
 } from './storage';
 import { t, MSG } from './i18n';
@@ -116,13 +118,14 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
 
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
-  const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder] = await Promise.all([
+  const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden] = await Promise.all([
     getConfiguredProviderIds(),
     getActiveProviderId(),
     getActiveSourceId(),
     getSourceOrder(),
+    getSourceHidden(),
   ]);
-  return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder };
+  return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden };
 }
 
 /** Agent bridge 的脱敏 provider 清单：只公开能力和是否已配置，绝不返回 key。 */
@@ -164,6 +167,11 @@ export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
 export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {
   await getSchemaReady();
   await setSourceOrder(sourceOrder);
+}
+
+export async function handleSetSourceHidden(sourceHidden: SourceId[]): Promise<void> {
+  await getSchemaReady();
+  await setSourceHidden(sourceHidden);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

@@ -21,8 +21,10 @@ body {
 
 .source-order-list { border-top: 1px solid var(--border-soft); }
 .source-order-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; border-bottom: 1px solid var(--border-soft); font-size: 14px; }
+.source-order-row--hidden > span:first-child { opacity: 0.45; }
 .source-order-actions { display: flex; gap: 6px; }
 .source-order-actions button { width: 30px; height: 28px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); cursor: pointer; font-size: 16px; line-height: 1; }
+.source-order-actions button.hide-toggle { width: auto; min-width: 52px; padding: 0 8px; font-size: 13px; }
 .source-order-actions button:disabled { opacity: 0.5; cursor: default; }
 
 .key-row { display: grid; grid-template-columns: 160px 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border-soft); }
