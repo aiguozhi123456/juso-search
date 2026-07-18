@@ -6,12 +6,13 @@ import { allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
-import { matchEngineByUrl, anchorFor } from '@/lib/engines/registry';
+import { matchEngineByUrl, anchorsFor } from '@/lib/engines/registry';
 import type { AnchorStrategy } from '@/lib/engines/types';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getThemePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
+import { pickAnchor, injectPageStyles, removePageStyles } from '@/lib/serp-bar-mount';
 import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
 
 /**
@@ -19,12 +20,16 @@ import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
  * 把「已配置 AI provider」与「常规搜索引擎」放进同一栏，点击即当前 tab 跳转。
  * 用 shadow DOM 隔离样式，避免污染宿主页。
  *
- * ## 锚点策略：两套独立方案，按 SERP URL 生命周期 mount
- * Google 用 `#rcnt + before` + `#center_col` content-box 同步：AI Overview 位于 #rcnt 内且
- * 排在 #center_col 前，host 须在 #rcnt 外才会位于 AIO/普通结果前方。Bing 用 `#b_content 前`
- * + 运行时同步 content box：避开 #b_content 内部的
- * 旧式 inline/negative-margin 结果布局偷点击，且 #b_results 被激进重建故不能挂其兄弟。
- * 详见各 engine 的 anchor 字段（lib/engines/{google,bing,baidu}.ts）与 registry.ts 的 anchorFor。
+ * ## 锚点策略：候选级联，按 SERP URL 生命周期 mount
+ * 每个 engine 在 lib/engines/*.ts 的 `anchors` 字段声明按优先级降序的候选；content script
+ * 启动时取首个选择器命中的候选（pickAnchor），全缺失则交 mountWhenAnchorReady 等末位候选。
+ *   - Google：首选 `#rcnt + before + alignTo #center_col`（host 在 #rcnt 外，排在 AIO 上方）；
+ *     回退 `#center_col + first`——该策略真机复测会落到 AIO 下方（2026-07-17），仅作 #rcnt 缺失时的防御性兜底。
+ *   - Baidu ：首选 `#container + first`；回退 `#content_left + before + alignTo #content_left`。
+ *   - Bing  ：仅 `#b_content + before + alignTo #b_content`——避开 #b_content 内部 overlay/inline
+ *     布局偷点击，且 #b_results 被激进重建故不能挂其兄弟（searchEngineJump 的 Bing 规则亦同）。
+ * 注：Baidu 的 pageStyles CSS 值仍待真机复核（见 lib/engines/baidu.ts 的 TODO(qa) 标记）。
+ * 详见各 engine 的 anchors 字段（lib/engines/{google,bing,baidu}.ts）与 registry.ts 的 anchorsFor。
  *
  * **不用 `ui.autoMount()`**：autoMount 的 ping-pong（waitElement 的 isNotExist 检测）
  * 在 Bing/Google「同一同步任务里移除旧节点 + 添加新节点」的合并式 SPA swap 上死锁——
@@ -47,8 +52,11 @@ export default defineContentScript({
     // onMount 是同步签名（返回 TMounted），异步值在此预读后经 state 闭包喂给渲染。
     const state = await loadBarState(engine, initialUrl);
 
-    // 持久锚点策略：按当前 engine 选 selector + append 模式。
-    const strategy = anchorFor(state.engine);
+    // 持久锚点策略：按当前 engine 的候选列表（首选→回退）取首个已存在的选择器；
+    // 全部缺失时落到末位候选，交由 mountWhenAnchorReady 等待其出现。
+    // 注：级联解析仅在 content script 启动时做一次，SPA 导航不重解析——若启动时首选
+    // 选择器缺失则本次生命周期内走回退，并不劣于此前单锚点行为。
+    const strategy = pickAnchor(anchorsFor(state.engine));
 
     // 已挂载的 React root/host，供 wxt:locationchange 重渲与布局同步命中。
     let mountedRoot: Root | null = null;
@@ -65,6 +73,7 @@ export default defineContentScript({
         shadowHost.dataset.theme = state.resolvedTheme;
         mountedHost = shadowHost;
         syncAlignedHost(shadowHost, strategy);
+        injectPageStyles(state.engine);
         const mountEl = document.createElement('div');
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
@@ -75,6 +84,7 @@ export default defineContentScript({
       onRemove(mounted) {
         mountedRoot = null;
         mountedHost = null;
+        removePageStyles();
         mounted?.root.unmount();
       },
     });

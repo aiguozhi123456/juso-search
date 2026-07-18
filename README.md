@@ -119,6 +119,10 @@ npm run lint
 
 这不是路线图或承诺。我们可能根据需求、接口可用性与服务稳定性，适配更多 AI 搜索服务和传统搜索引擎；也可能探索可选的多来源并行检索、去重、排序和保留来源的结果融合。任何这类能力都应让用户明确控制成本、范围和等待时间。
 
+## 鸣谢
+
+本扩展在 Google / Bing / Baidu 结果页注入切换栏的部分思路——“作为结果容器首子元素插入以继承宽度、简化对齐”，以及“向宿主页注入 CSS shim 给切换栏腾出空间”——参考自 [searchEngineJump 搜索引擎快捷跳转](https://greasyfork.org/zh-CN/scripts/27752-searchenginejump)（作者：NLF、锐经、[qxin i](https://github.com/qxinGitHub/searchEngineJump)，MIT 许可）。本扩展的实现独立编写，与原脚本不共享代码。
+
 ## 许可证
 
 Juso 的完整本地搜索闭环——当前扩展、来源集成、智能体访问、本地配置与缓存——以 [MPL-2.0](LICENSE) 开放。该承诺不表示未来可能出现的托管或运营服务必然开源或免费。

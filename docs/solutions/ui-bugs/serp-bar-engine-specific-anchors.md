@@ -1,7 +1,7 @@
 ---
 title: "Engine-Specific SERP Bar Injection Anchors for Google and Bing"
 date: 2026-07-09
-last_updated: 2026-07-14
+last_updated: 2026-07-17
 category: ui-bugs
 module: "serp-bar / content-script"
 problem_type: ui_bug
@@ -19,10 +19,13 @@ tags:
   - content-script
   - bing
   - google
+  - baidu
   - shadow-dom
   - stacking-context
   - autosuggest
   - serp-bar
+  - anchor-cascade
+  - page-styles
 related_components:
   - entrypoints/serp-bar.content.ts
   - entrypoints/shared/serp-bar-styles.ts
@@ -36,6 +39,29 @@ related_components:
 ---
 
 # Engine-Specific Shadow DOM Anchors for SERP SourceSwitcher
+
+## Update 2026-07-17 — Anchor cascade + pageStyles + Baidu (Google priority reversed)
+
+The single-anchor-per-engine design below has been **partially superseded by an ordered anchor cascade** (`engine.anchors: AnchorStrategy[]`) plus a per-engine host-page CSS shim (`engine.pageStyles?: string`). New runtime helpers live in `lib/serp-bar-mount.ts` (`pickAnchor` / `injectPageStyles` / `removePageStyles`); they are imported by `serp-bar.content.ts` and **must not** be re-exported as content-script named members (WXT build-break trap — see `docs/solutions/runtime-errors/serp-to-extension-page-blocked-by-client.md`; testability extraction pattern — see `docs/solutions/architecture-patterns/testable-content-script-helpers-via-lib-extraction.md`).
+
+Per-engine cascade (priority order, primary first):
+
+| Engine | Primary | Fallback |
+|---|---|---|
+| Google | `#rcnt + before + alignTo #center_col` (above AIO) | `#center_col + first` (defensive; lands below AIO if ever used) |
+| Baidu | `#container + first` | `#content_left + before + alignTo #content_left` |
+| Bing | `#b_content + before + alignTo #b_content` (single-element cascade; matches searchEngineJump v5.26.11's Bing rule) | — |
+
+**AIO ordering — original measured geometry reaffirmed; cascade priority reversed.** The 2026-07-17 cascade initially tried `#center_col + first` as the Google primary, hoping to skip alignTo rect math by inheriting `#center_col`'s width. Real-device testing initially appeared to show the bar above AI Overview, but **repeat testing confirmed the original 2026-07-14 measurement**: the bar lands **below** AIO. Google's DOM has not changed — AIO is still a sibling of `#center_col` inside `#rcnt`, rendered before it (see Phase 4 / "Google `#search + before`" below for the measured geometry). The cascade is therefore retained with reversed priority: primary is `#rcnt + before + alignTo #center_col` (above AIO), with `#center_col + first` kept only as a defensive fallback for layouts where `#rcnt` is absent. Google ships no `pageStyles` (the shim was paired with the rolled-back primary). **Baidu's cascade (`#container + first` primary) is retained pending similar real-device verification** — the same AIO-style layout risk may apply if Baidu's `#container` first child is not the visual top of results.
+
+**pageStyles baselines — TODO(qa).** Only Baidu ships a `pageStyles` value today; it is inherited from searchEngineJump v5.26.11 and **not yet re-verified** against current Baidu layout:
+
+- Baidu: `.headBlock,.se_common_hint{display:none !important} #wrapper>.result-molecule{z-index:300 !important} #searchTag{position:unset}`
+- Bing / Google: none.
+
+The Baidu value is marked `TODO(qa)` in `lib/engines/baidu.ts`. Real-browser QA must confirm it does not introduce new overlaps and actually clears the intended space.
+
+The original Solution, What Didn't Work, and Prevention sections below remain accurate for the **retained** strategies (Google primary above-AIO, Bing single-anchor) and the `autoMount()` deadlock avoidance; the partial cascade change does not relax any of them. Updated prevention: prefer an ordered cascade only when the primary has been real-device verified to land in the correct visual position; keep cascade helpers in `lib/` (not as content-script named exports); treat `pageStyles` values as unverified until real-browser QA.
 
 ## Problem
 

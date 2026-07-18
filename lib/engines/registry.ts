@@ -1,5 +1,5 @@
 import type { AnchorStrategy, EngineId, SearchEngine } from './types';
-import { DEFAULT_ANCHOR } from './types';
+import { DEFAULT_ANCHORS } from './types';
 import { googleEngine } from './google';
 import { bingEngine } from './bing';
 import { baiduEngine } from './baidu';
@@ -31,7 +31,7 @@ export function extractQuery(url: string): string | null {
   return matchEngineByUrl(url)?.extractQuery(url) ?? null;
 }
 
-/** 解析某 engine（可能为 null/未知）的锚点策略；null 时回退 DEFAULT_ANCHOR（= google 策略）。 */
-export function anchorFor(engine: SearchEngine | null): AnchorStrategy {
-  return engine?.anchor ?? DEFAULT_ANCHOR;
+/** 解析某 engine（可能为 null/未知）的锚点候选列表；null 时回退 DEFAULT_ANCHORS（= google 策略）。 */
+export function anchorsFor(engine: SearchEngine | null): AnchorStrategy[] {
+  return engine?.anchors ?? DEFAULT_ANCHORS;
 }

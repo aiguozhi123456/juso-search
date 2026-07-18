@@ -5,7 +5,7 @@
 // 注入切换栏，以及把 AI provider 与常规引擎投影成同一个快切栏。
 //
 // v3：engine 从纯数据记录升级为带方法的自包含适配器——buildSerpUrl/matches/
-// extractQuery/anchor 各自归属到每个 engine，新增 engine（DuckDuckGo 等）时
+// extractQuery/anchors 各自归属到每个 engine，新增 engine（DuckDuckGo 等）时
 // 不再需要改散落的自由函数。serpUrlTemplate/queryParam 降级为各 engine 模块内的
 // 私有构造细节。
 //
@@ -42,13 +42,24 @@ export interface SearchEngine {
   matches(url: string): boolean;
   /** 从本 engine 的 SERP URL 提取查询词；非本 engine 或无查询参数返回 null。 */
   extractQuery(url: string): string | null;
-  /** 本 engine 的持久 SERP 注入锚点策略。 */
-  readonly anchor: AnchorStrategy;
+  /**
+   * 本 engine 的持久 SERP 注入锚点候选（按优先级降序）。
+   * index 0 是首选锚点；后续元素是当首选选择器在该页面布局下缺失时的递进回退。
+   * content script 启动时按顺序取第一个匹配 `document.querySelector` 的候选；
+   * 全部缺失时落到数组末尾元素并交由 mountWhenAnchorReady 等待其出现。
+   */
+  readonly anchors: AnchorStrategy[];
+  /**
+   * 当 SERP 栏挂载时把这段 CSS 注入宿主页 <head>，卸载时移除。
+   * 用于在栏会与宿主元素重叠时腾出空间。可选。
+   */
+  readonly pageStyles?: string;
 }
 
-/** null / 未知 engine 的兜底锚点（= Google 的 #rcnt 外置、#center_col 对齐策略）。 */
-export const DEFAULT_ANCHOR: AnchorStrategy = {
-  selector: '#rcnt',
-  append: 'before',
-  alignTo: '#center_col',
-};
+/**
+ * null / 未知 engine 的兜底锚点候选（= Google 的 #rcnt 外置、#center_col 对齐策略）。
+ * 单元素数组，保留历史上 null/未知 engine 退回单个锚点的语义。
+ */
+export const DEFAULT_ANCHORS: AnchorStrategy[] = [
+  { selector: '#rcnt', append: 'before', alignTo: '#center_col' },
+];

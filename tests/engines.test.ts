@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorFor } from '@/lib/engines/registry';
-import { DEFAULT_ANCHOR } from '@/lib/engines/types';
+import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorsFor } from '@/lib/engines/registry';
+import { DEFAULT_ANCHORS } from '@/lib/engines/types';
 import { BAIDU_SERP_HOSTS, BING_SERP_HOSTS, GOOGLE_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
@@ -109,41 +109,71 @@ describe('engine scopes', () => {
 });
 
 describe('anchor strategy', () => {
-  it('bing anchors before #b_content with alignTo', () => {
-    expect(anchorFor(getEngine('bing'))).toEqual({
+  it('bing has a single-element cascade: #b_content + before + alignTo', () => {
+    const bing = getEngine('bing');
+    expect(bing.anchors).toHaveLength(1);
+    expect(bing.anchors[0]).toEqual({
       selector: '#b_content',
       append: 'before',
       alignTo: '#b_content',
     });
   });
-  it('google anchors before #rcnt and aligns to #center_col above AIO', () => {
-    expect(anchorFor(getEngine('google'))).toEqual({
+  it('bing does not declare pageStyles', () => {
+    expect(getEngine('bing').pageStyles).toBeUndefined();
+  });
+  it('google cascade: primary #rcnt + before + alignTo #center_col (above AIO), fallback #center_col + first', () => {
+    // #center_col + first lands below AIO (real-device confirmed 2026-07-17), so the above-AIO
+    // strategy is the primary; #center_col + first remains as a defensive fallback for layouts
+    // where #rcnt is absent.
+    const google = getEngine('google');
+    expect(google.anchors).toHaveLength(2);
+    expect(google.anchors[0]).toEqual({
       selector: '#rcnt',
       append: 'before',
       alignTo: '#center_col',
     });
+    expect(google.anchors[1]).toEqual({ selector: '#center_col', append: 'first' });
   });
-  it('baidu anchors before #content_left with alignTo', () => {
-    expect(anchorFor(getEngine('baidu'))).toEqual({
+  it('google does not declare pageStyles', () => {
+    expect(getEngine('google').pageStyles).toBeUndefined();
+  });
+  it('baidu cascade: primary #container + first, fallback #content_left + before + alignTo #content_left', () => {
+    const baidu = getEngine('baidu');
+    expect(baidu.anchors).toHaveLength(2);
+    expect(baidu.anchors[0]).toEqual({ selector: '#container', append: 'first' });
+    expect(baidu.anchors[1]).toEqual({
       selector: '#content_left',
       append: 'before',
       alignTo: '#content_left',
     });
   });
-  it('null engine falls back to DEFAULT_ANCHOR', () => {
-    expect(anchorFor(null)).toEqual(DEFAULT_ANCHOR);
-    expect(anchorFor(null)).toEqual({
-      selector: '#rcnt',
-      append: 'before',
-      alignTo: '#center_col',
-    });
+  it('baidu declares pageStyles targeting the result-molecule z-index shim', () => {
+    // Pin the selector target, not the full CSS — lets QA tune property values freely.
+    expect(getEngine('baidu').pageStyles).toContain('#wrapper>.result-molecule');
   });
-  it('regression: Bing avoids its rebuilt result node', () => {
-    expect(anchorFor(getEngine('bing')).selector).not.toBe('#b_results');
+  it('null engine falls back to DEFAULT_ANCHORS', () => {
+    expect(anchorsFor(null)).toEqual(DEFAULT_ANCHORS);
   });
-  it('no engine anchors to body', () => {
+  it('anchorsFor returns the engine cascade (not the default) for known engines', () => {
+    expect(anchorsFor(getEngine('google'))).toBe(getEngine('google').anchors);
+    expect(anchorsFor(getEngine('bing'))).toBe(getEngine('bing').anchors);
+    expect(anchorsFor(getEngine('baidu'))).toBe(getEngine('baidu').anchors);
+  });
+  it('regression: Bing avoids its rebuilt result node in every candidate', () => {
+    for (const candidate of getEngine('bing').anchors) {
+      expect(candidate.selector).not.toBe('#b_results');
+    }
+  });
+  it('no engine anchors to body in any candidate', () => {
     for (const engine of allEngines()) {
-      expect(anchorFor(engine).selector).not.toBe('body');
+      for (const candidate of engine.anchors) {
+        expect(candidate.selector).not.toBe('body');
+      }
+    }
+  });
+  it('every engine exposes at least one anchor candidate', () => {
+    for (const engine of allEngines()) {
+      expect(engine.anchors.length).toBeGreaterThan(0);
     }
   });
 });

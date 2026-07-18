@@ -6,9 +6,15 @@ import { isGoogleSerpHostname, isSerpUrl } from './scopes';
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
 const QUERY_PARAM = 'q';
-// Google → #rcnt + before + #center_col 对齐：AI Overview 是 #rcnt 内、#center_col 前的
-// 结果模块；host 必须置于 #rcnt 外才能排在 AIO 上方，同时按 #center_col content box 对齐。
-const ANCHOR: AnchorStrategy = { selector: '#rcnt', append: 'before', alignTo: '#center_col' };
+// 锚点候选（按优先级降序）：
+//   首选 `#rcnt + before + alignTo #center_col`：host 在 #rcnt 之外，排在 AI Overview 上方。
+//   回退 `#center_col + first`：当 #rcnt 缺失时使用——会落到 AIO 下方（AIO 与 #center_col
+//   在 #rcnt 内为兄弟节点，AIO 在前），仅作防御性兜底。详见
+//   docs/solutions/ui-bugs/serp-bar-engine-specific-anchors.md 的 Update 段。
+const ANCHORS: AnchorStrategy[] = [
+  { selector: '#rcnt', append: 'before', alignTo: '#center_col' },
+  { selector: '#center_col', append: 'first' },
+];
 
 export const googleEngine: SearchEngine = {
   id: 'google',
@@ -34,5 +40,5 @@ export const googleEngine: SearchEngine = {
       return null;
     }
   },
-  anchor: ANCHOR,
+  anchors: ANCHORS,
 };
