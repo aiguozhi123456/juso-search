@@ -1,50 +1,172 @@
 /* 共享设计令牌：light 默认 + 系统深色首屏兜底 + [data-theme="dark"] 显式深色。
    data-theme 在 React 挂载前由 CSP-safe theme-init module 写入，挂载后由 useTheme 维护。
-   两个入口页 main.tsx 在各自 styles.css 之前 import 本文件。 */
+   两个入口页 main.tsx 在各自 styles.css 之前 import 本文件。
+
+   品牌：聚搜 = 朱砂红 (vermillion) 单一签名色 + 中性灰阶。
+   风格锚点：Takram（圆润功能、柔和氛围）× Experimental Jetset（强字体、几何块）。
+
+   分组：
+     · 颜色          —— --brand / --fg / --bg / …（含暗色覆盖）
+     · 字体与字号    —— --font-sans / --font-display / --text-xs…xl
+     · 间距          —— --space-1 … --space-10
+     · 圆角          —— --radius-sm/md/lg/full（语义化分层）
+     · 阴影/层级     —— --shadow-1/2/3
+     · 焦点环        —— --focus-ring（跟随 brand，亮/暗各一份）
+     · 动效          —— --ease-* / --duration-*
+     · 品牌图形      —— --mark-glyph（data URL，用于伪元素装饰） */
 
 :root {
+  /* ── 品牌 ─────────────────────────────────────────── */
+  --brand: #c8372d;            /* 朱砂 / cinnabar — 签名色 */
+  --brand-on: #ffffff;         /* brand 之上的文字 / 图标 */
+  --brand-soft: #fdf3f1;       /* brand 的极浅 tint，用于 hover 底纹 */
+  --brand-softer: #fbe9e5;     /* 更浅一档，用于卡片底色 */
+
+  /* ── 中性色 ───────────────────────────────────────── */
   --bg: #ffffff;
   --bg-soft: #fafafa;
   --fg: #1a1a1a;
   --muted: #666;
   --border: #e3e3e3;
   --border-soft: #eee;
-  --accent: #1a73e8;
-  --on-accent: #ffffff;
-  --answer-bg: #f0f6ff;
-  --answer-border: #c2d9ff;
+
+  /* ── 语义色（与 brand 区分） ──────────────────────── */
   --success: #1e8e3e;
-  --error: #b00020;
+  --error: #b00020;            /* 深 crimson，与 vermillion brand 区分 */
+  --warning: #b97400;
+
+  /* ── 品牌相关衍生（AI 回答卡片用暖色调和谐 brand） ─ */
+  --answer-bg: #fdf6f4;        /* 极浅 vermillion 暖白 */
+  --answer-border: #f4d7d2;    /* 软 vermillion 边 */
+
+  /* ── alias：保留 --accent / --on-accent 向后兼容 ── */
+  --accent: var(--brand);
+  --on-accent: var(--brand-on);
+
+  /* ── 字体 ─────────────────────────────────────────── */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* display 仅用于 wordmark / 大标题：优先 CJK 字体以拿到更重的字重 */
+  --font-display: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+
+  /* ── 间距（base-4 阶梯） ──────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* ── 圆角（语义分层：sharp data / soft cards / pill CTAs） */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  /* ── 阴影/层级 ────────────────────────────────────── */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.16);
+
+  /* ── 焦点环（跟随 brand） ────────────────────────── */
+  --focus-ring: 0 0 0 3px rgba(200, 55, 45, 0.28);
+
+  /* ── 动效 ─────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.5, 1.6, 0.4, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-slow: 280ms;
+  --duration-slower: 420ms;
+
+  /* ── 品牌图形（data URL，便于伪元素引用） ────────── */
+  --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c8372d'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    --brand: #ff6b5b;
+    --brand-on: #1a0a08;
+    --brand-soft: #2a1816;
+    --brand-softer: #221412;
+
     --bg: #1a1a1a;
     --bg-soft: #141414;
     --fg: #e8e8e8;
     --muted: #9aa0a6;
     --border: #3c4043;
     --border-soft: #2a2a2a;
-    --accent: #8ab4f8;
-    --on-accent: #06223f;
-    --answer-bg: #1b2a3a;
-    --answer-border: #2d4a6b;
+
     --success: #81c995;
     --error: #f28b82;
+    --warning: #fdd663;
+
+    --answer-bg: #28191a;
+    --answer-border: #4a2823;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.36);
+    --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.40);
+    --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.50);
+    --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.36);
+
+    --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff6b5b'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
   }
 }
 
 :root[data-theme="dark"] {
+  --brand: #ff6b5b;
+  --brand-on: #1a0a08;
+  --brand-soft: #2a1816;
+  --brand-softer: #221412;
+
   --bg: #1a1a1a;
   --bg-soft: #141414;
   --fg: #e8e8e8;
   --muted: #9aa0a6;
   --border: #3c4043;
   --border-soft: #2a2a2a;
-  --accent: #8ab4f8;
-  --on-accent: #06223f;
-  --answer-bg: #1b2a3a;
-  --answer-border: #2d4a6b;
+
   --success: #81c995;
   --error: #f28b82;
+  --warning: #fdd663;
+
+  --answer-bg: #28191a;
+  --answer-border: #4a2823;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.36);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.40);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.50);
+  --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.36);
+
+  --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff6b5b'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
+}
+
+/* 全局焦点环：仅在键盘导航时显示，避免点击残留。 */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* 用户偏好「减少动效」时压制非必要动画。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

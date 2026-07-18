@@ -8,6 +8,8 @@ import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
+import { Wordmark } from '@/components/Wordmark';
+import { ChevronDownIcon, ChevronUpIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
 
 export default function App() {
@@ -111,7 +113,9 @@ export default function App() {
   return (
     <div className="options">
       <div className="options-header">
-        <h1>{t(MSG.opts_title)}</h1>
+        <h1 className="options-wordmark">
+          <Wordmark suffix={t(MSG.opts_title).split(' · ').slice(1).join(' · ')} />
+        </h1>
         <div className="options-toggles">
           <ThemeToggle />
         </div>
@@ -160,7 +164,7 @@ export default function App() {
                     disabled={savingSourceOrder || savingSourceHidden || index === 0}
                     onClick={() => moveSource(source.id, -1)}
                   >
-                    ↑
+                    <ChevronUpIcon size={16} />
                   </button>
                   <button
                     type="button"
@@ -169,7 +173,7 @@ export default function App() {
                     disabled={savingSourceOrder || savingSourceHidden || index === configuredSources.length - 1}
                     onClick={() => moveSource(source.id, 1)}
                   >
-                    ↓
+                    <ChevronDownIcon size={16} />
                   </button>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { t, MSG } from '@/lib/i18n';
+import { SearchIcon, StopIcon } from './icons';
 
 interface Props {
   value: string;
@@ -29,11 +30,13 @@ export function SearchBox({ value, onChange, onSearch, onInterrupt, loading, dis
         aria-label={t(MSG.search_aria)}
       />
       <button type="submit" disabled={loading || disabled}>
-        {loading ? t(MSG.btn_searching) : t(MSG.btn_search)}
+        <SearchIcon size={16} />
+        <span>{loading ? t(MSG.btn_searching) : t(MSG.btn_search)}</span>
       </button>
       {loading && onInterrupt && (
         <button type="button" className="interrupt-button" onClick={onInterrupt}>
-          {t(MSG.btn_interrupt)}
+          <StopIcon size={14} />
+          <span>{t(MSG.btn_interrupt)}</span>
         </button>
       )}
     </form>

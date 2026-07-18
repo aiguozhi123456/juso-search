@@ -1,4 +1,5 @@
 import { t, MSG } from '@/lib/i18n';
+import { HistoryIcon } from './icons';
 
 export function HistoryButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
   const label = t(MSG.history_button);
@@ -11,7 +12,7 @@ export function HistoryButton({ onClick, disabled }: { onClick: () => void; disa
       title={label}
       aria-label={label}
     >
-      H
+      <HistoryIcon size={18} />
     </button>
   );
 }

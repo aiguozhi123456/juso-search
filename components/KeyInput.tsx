@@ -2,6 +2,7 @@ import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
 import { useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
+import { TrashIcon } from './icons';
 
 type Status = { kind: 'idle' | 'saving' | 'testing' | 'deleting' | 'ok' | 'fail'; message: string };
 
@@ -84,7 +85,8 @@ export function KeyInput({
       </button>
       {configured && (
         <button onClick={del} disabled={busy}>
-          {t(MSG.btn_delete)}
+          <TrashIcon size={14} />
+          <span>{t(MSG.btn_delete)}</span>
         </button>
       )}
       {busy && (

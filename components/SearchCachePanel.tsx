@@ -4,6 +4,7 @@ import type { SearchCacheEntry, SearchCacheSummary } from '@/lib/search-cache';
 import { allProviders } from '@/lib/providers/registry';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import { useSearchCache } from '@/lib/useSearchCache';
+import { CloseIcon, TrashIcon } from './icons';
 
 interface Props {
   open: boolean;
@@ -73,7 +74,9 @@ export function SearchCachePanel({ open, onClose, onSelect }: Props) {
       <aside ref={panelRef} className="history-panel" role="dialog" aria-modal="true" aria-label={t(MSG.history_title)} onMouseDown={(event) => event.stopPropagation()} onKeyDown={handleKeyDown}>
         <header className="history-panel-head">
           <h2>{t(MSG.history_title)}</h2>
-          <button ref={closeRef} type="button" className="history-close" onClick={closePanel} aria-label={t(MSG.history_close)}>x</button>
+          <button ref={closeRef} type="button" className="history-close" onClick={closePanel} aria-label={t(MSG.history_close)}>
+            <CloseIcon size={16} />
+          </button>
         </header>
         {summaries.length > 0 && (
           <button type="button" className="history-clear" onClick={() => void clear()}>
@@ -97,7 +100,8 @@ export function SearchCachePanel({ open, onClose, onSelect }: Props) {
                   )}
                 </button>
                 <button type="button" className="history-delete" onClick={() => void deleteEntry(summary.id)} aria-label={t(MSG.history_delete_item, summary.query)}>
-                  {t(MSG.history_delete)}
+                  <TrashIcon size={14} />
+                  <span>{t(MSG.history_delete)}</span>
                 </button>
               </article>
             ))}

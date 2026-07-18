@@ -1,10 +1,11 @@
 import { useTheme, type ThemePref } from '@/lib/useTheme';
 import { t, MSG } from '@/lib/i18n';
+import { MonitorIcon, SunIcon, MoonIcon } from './icons';
 
-const OPTIONS: { value: ThemePref; icon: string; labelKey: keyof typeof MSG }[] = [
-  { value: 'auto', icon: '🌓', labelKey: 'theme_auto' },
-  { value: 'light', icon: '☀️', labelKey: 'theme_light' },
-  { value: 'dark', icon: '🌙', labelKey: 'theme_dark' },
+const OPTIONS: { value: ThemePref; Icon: typeof MonitorIcon; labelKey: keyof typeof MSG }[] = [
+  { value: 'auto', Icon: MonitorIcon, labelKey: 'theme_auto' },
+  { value: 'light', Icon: SunIcon, labelKey: 'theme_light' },
+  { value: 'dark', Icon: MoonIcon, labelKey: 'theme_dark' },
 ];
 
 // 三态主题切换：自动（跟随系统）/ 浅色 / 深色。
@@ -14,6 +15,7 @@ export function ThemeToggle() {
     <div className="theme-toggle" role="group" aria-label={t(MSG.theme_group)}>
       {OPTIONS.map((opt) => {
         const label = t(MSG[opt.labelKey]);
+        const { Icon } = opt;
         return (
           <button
             key={opt.value}
@@ -24,7 +26,7 @@ export function ThemeToggle() {
             aria-label={label}
             aria-pressed={pref === opt.value}
           >
-            {opt.icon}
+            <Icon size={16} />
           </button>
         );
       })}

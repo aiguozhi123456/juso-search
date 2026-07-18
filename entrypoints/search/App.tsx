@@ -9,6 +9,7 @@ import { HistoryButton } from '@/components/HistoryButton';
 import { SearchCachePanel } from '@/components/SearchCachePanel';
 import { SettingsButton } from '@/components/SettingsButton';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Wordmark } from '@/components/Wordmark';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
@@ -193,7 +194,7 @@ export default function App() {
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
-        <h1>{t(MSG.search_page_title)}</h1>
+        <h1 className="topbar-wordmark"><Wordmark /></h1>
         <SourceSwitcher sources={sources} activeId={active} onSelect={handleSelectSource} disabled={loading || switching} />
         <div className="topbar-actions">
           <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />

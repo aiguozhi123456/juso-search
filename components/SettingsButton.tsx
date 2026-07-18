@@ -1,4 +1,5 @@
 import { t, MSG } from '@/lib/i18n';
+import { SettingsIcon } from './icons';
 
 interface SettingsButtonProps {
   onClick: () => void;
@@ -15,7 +16,7 @@ export function SettingsButton({ onClick }: SettingsButtonProps) {
       title={label}
       aria-label={label}
     >
-      ⚙
+      <SettingsIcon size={18} />
     </button>
   );
 }
