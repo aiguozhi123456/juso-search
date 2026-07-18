@@ -121,8 +121,10 @@ export default function App() {
       const engine = getEngine(source.id);
       setActive(source.id);
       await sendMessage('setActiveSource', source.id).catch(() => undefined);
-      // 空查询跳 engine 首页；有查询带 q 跳 SERP。始终当前 tab 跳转。
-      location.assign(nextQuery ? engine.buildSerpUrl(nextQuery) : engine.buildHomeUrl());
+      // 主页面：仅在有查询时跳该 engine SERP；空查询只切换激活源、不离开扩展页
+      // （避免把「选中引擎」误读成「打开引擎首页」）。下次提交搜索时由 handleSearch
+      // 的 engine 分支带 q 跳 SERP。SERP 注入栏（serp-handoff.ts）仍保留空查询跳首页语义。
+      if (nextQuery) location.assign(engine.buildSerpUrl(nextQuery));
       return;
     }
     if (!isProviderId(source.id)) return;

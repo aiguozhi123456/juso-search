@@ -554,13 +554,14 @@ describe('search page', () => {
     }
   });
 
-  it('clicking an engine chip with empty query navigates to the engine home', async () => {
+  it('clicking an engine chip with empty query only selects it without navigating away', async () => {
     const { spy, restore } = stubLocation();
     try {
       render(<App />);
       fireEvent.click(await screen.findByRole('button', { name: /Bing/ }));
       await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'bing'));
-      expect(spy).toHaveBeenCalledWith('https://www.bing.com/');
+      expect(spy).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /Bing/ })).toHaveClass('active');
     } finally {
       restore();
     }
