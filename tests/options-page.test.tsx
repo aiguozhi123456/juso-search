@@ -6,12 +6,15 @@ import type { ProviderId } from '@/lib/providers/types';
 import type { SourceId } from '@/lib/sources';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
-// 主题/locale 逻辑由 useTheme/useLocale 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
+// 主题/locale/style 逻辑由各自单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
 vi.mock('@/lib/useLocale', () => ({
   useLocale: () => ({ pref: 'auto', setPref: vi.fn() }),
+}));
+vi.mock('@/lib/useStyle', () => ({
+  useStyle: () => ({ pref: 'classic', setPref: vi.fn() }),
 }));
 
 const mockedSend = vi.mocked(sendMessage);

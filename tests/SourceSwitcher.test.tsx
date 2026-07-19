@@ -34,6 +34,13 @@ describe('SourceSwitcher', () => {
     expect(tavily).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('exposes stable source ids for categorical styling', () => {
+    render(<SourceSwitcher sources={sources} activeId="google" onSelect={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Google/ })).toHaveAttribute('data-source', 'google');
+    expect(screen.getByRole('button', { name: /Tavily/ })).toHaveAttribute('data-source', 'tavily');
+    expect(screen.getByRole('group', { name: '切换搜索来源' })).toHaveAttribute('data-active-source', 'google');
+  });
+
   it('renders favicons for engine sources', () => {
     const { container } = render(<SourceSwitcher sources={sources} activeId={null} onSelect={vi.fn()} />);
     // 三个 engine 各一个 favicon（alt="" 为装饰图，不以 img role 暴露，直接查 DOM）

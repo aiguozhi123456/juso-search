@@ -220,12 +220,15 @@ export const MSG = {
   opts_config_import_report_keys: 'opts_config_import_report_keys',
   opts_config_import_report_prefs: 'opts_config_import_report_prefs',
   opts_config_export_failed: 'opts_config_export_failed',
-  // 设置入口 / 主题 / 语言
+  // 设置入口 / 主题 / 语言 / 风格
   open_settings: 'open_settings',
   theme_group: 'theme_group',
   theme_auto: 'theme_auto',
   theme_light: 'theme_light',
   theme_dark: 'theme_dark',
+  style_group: 'style_group',
+  style_classic: 'style_classic',
+  style_colorful: 'style_colorful',
   locale_group: 'locale_group',
   locale_auto: 'locale_auto',
   locale_zh: 'locale_zh',

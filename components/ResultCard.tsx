@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { NormalizedResult } from '@/lib/providers/types';
+import type { SourceId } from '@/lib/sources';
 import { t, MSG } from '@/lib/i18n';
 
-export function ResultCard({ result }: { result: NormalizedResult }) {
+export function ResultCard({ result, sourceId }: { result: NormalizedResult; sourceId?: SourceId }) {
   const [open, setOpen] = useState(false);
   return (
-    <article className="result-card">
+    <article className="result-card" data-source={sourceId}>
       <div className="result-head">
         {result.favicon && (
           <img

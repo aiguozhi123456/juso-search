@@ -37,6 +37,54 @@
   color: var(--brand-on);
 }
 
+/* 风格切换器（经典 / 彩色）：2 态滑动指示器。 */
+.style-toggle {
+  position: relative;
+  display: inline-flex;
+  padding: var(--space-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-full);
+  background: var(--bg-soft);
+}
+.style-toggle-indicator {
+  position: absolute;
+  left: var(--indicator-x, 0);
+  top: var(--indicator-y, 0);
+  width: var(--indicator-w, 0);
+  height: var(--indicator-h, 0);
+  background: var(--brand);
+  border-radius: var(--radius-full);
+  transition: left var(--duration-normal) var(--ease-out),
+              top var(--duration-normal) var(--ease-out),
+              width var(--duration-normal) var(--ease-out),
+              height var(--duration-normal) var(--ease-out);
+  z-index: 0;
+  pointer-events: none;
+}
+.style-toggle button {
+  position: relative;
+  z-index: 1;
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.style-toggle button:hover:not([data-active="true"]) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.style-toggle button[data-active="true"] { color: var(--brand-on); font-weight: 700; }
+.style-toggle button.active { background: var(--brand); color: var(--brand-on); }
+.style-toggle[style*="--indicator-w"] button.active { background: transparent; }
+
 /* 设置页语言切换：正文里的长条形分段控件 */
 .locale-toggle {
   display: grid;
@@ -71,4 +119,36 @@
   background: var(--brand);
   color: var(--brand-on);
   font-weight: 600;
+}
+
+/* 彩色风格：偏好控件按功能拥有单一稳定色。 */
+[data-style="colorful"] .theme-toggle button.active {
+  background: var(--color-blue);
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .theme-toggle button:hover:not(.active) {
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+}
+[data-style="colorful"] .locale-toggle button.active {
+  background: var(--color-orange);
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .locale-toggle button:hover:not(.active) {
+  background: var(--color-orange-soft);
+  color: var(--color-orange);
+}
+[data-style="colorful"] .style-toggle-indicator,
+[data-style="colorful"] .style-toggle button.active {
+  background: var(--color-violet);
+}
+[data-style="colorful"] .style-toggle[style*="--indicator-w"] button.active {
+  background: transparent;
+}
+[data-style="colorful"] .style-toggle button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .style-toggle button:hover:not([data-active="true"]) {
+  background: var(--color-violet-soft);
+  color: var(--color-violet);
 }

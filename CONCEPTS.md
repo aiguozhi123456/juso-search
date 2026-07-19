@@ -78,6 +78,11 @@ Changing the Active Provider is a stateful worker-side write, not just a UI high
 ### UI Language Preference
 The user's chosen language mode for extension UI text. `Auto` follows the browser UI language when the preference is applied; explicit language choices pin the app UI to that language even if the browser language differs. This preference is distinct from the resolved render language, because different preferences can produce the same visible language.
 
+### UI Style Preference
+The user's chosen visual language for extension surfaces, independent of the resolved light/dark theme.
+
+It propagates to every participating UI surface; embedded surfaces follow it without owning a separate preference.
+
 ### Answer Capability Degradation (R5)
 When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun (both REST and MCP surfaces) does not.
 

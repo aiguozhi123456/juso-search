@@ -9,6 +9,7 @@ import { HistoryButton } from '@/components/HistoryButton';
 import { SearchCachePanel } from '@/components/SearchCachePanel';
 import { SettingsButton } from '@/components/SettingsButton';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { StyleToggle } from '@/components/StyleToggle';
 import { Wordmark } from '@/components/Wordmark';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
@@ -198,6 +199,7 @@ export default function App() {
         <SourceSwitcher sources={sources} activeId={active} onSelect={handleSelectSource} disabled={loading || switching} />
         <div className="topbar-actions">
           <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />
+          <StyleToggle />
           <ThemeToggle />
           <SettingsButton onClick={openSettings} />
         </div>
@@ -222,7 +224,7 @@ export default function App() {
               </div>
             )}
             {response.answer && <AnswerCard answer={response.answer} />}
-            <ResultList results={response.results} />
+            <ResultList results={response.results} sourceId={response.provider} />
           </>
         )}
       </main>

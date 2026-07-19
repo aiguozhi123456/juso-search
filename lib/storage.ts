@@ -29,11 +29,13 @@ export const ACTIVE_KEY = 'activeProvider'; // ProviderId | null
 export const ACTIVE_SOURCE_KEY = 'activeSource'; // SourceId | null
 export const THEME_KEY = 'themePref'; // ThemePref
 export const LOCALE_KEY = 'localePref'; // LocalePref
+export const STYLE_KEY = 'stylePref'; // StylePref (UI 风格维度：经典 / 彩色)
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
+export type StylePref = 'classic' | 'colorful';
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 // providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
@@ -156,6 +158,18 @@ export async function getLocalePref(): Promise<LocalePref> {
 
 export async function setLocalePref(pref: LocalePref): Promise<void> {
   await browser.storage.local.set({ [LOCALE_KEY]: pref });
+}
+
+/** UI 风格偏好：classic（朱砂经典，默认）/ colorful（分布式多色）。
+ *  与 themePref 同样的 key 卫生：仅读自身键，不 get(null)。 */
+export async function getStylePref(): Promise<StylePref> {
+  const got = await browser.storage.local.get(STYLE_KEY);
+  const stored = got[STYLE_KEY];
+  return stored === 'colorful' ? 'colorful' : 'classic';
+}
+
+export async function setStylePref(pref: StylePref): Promise<void> {
+  await browser.storage.local.set({ [STYLE_KEY]: pref });
 }
 
 /** 快切来源完整顺序；仅读自身键，非法值回退到完整默认顺序。 */

@@ -18,7 +18,7 @@ import {
   handleSetSourceOrder,
   handleTestKey,
 } from '@/lib/gateway';
-import { isLocalePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
+import { isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
@@ -83,6 +83,10 @@ export default defineBackground(() => {
     const localePref = changes.localePref?.newValue;
     if (isLocalePref(localePref)) {
       void broadcastUiPref({ type: 'uiPrefChanged', key: 'localePref', value: localePref });
+    }
+    const stylePref = changes.stylePref?.newValue;
+    if (isStylePref(stylePref)) {
+      void broadcastUiPref({ type: 'uiPrefChanged', key: 'stylePref', value: stylePref });
     }
   });
 });

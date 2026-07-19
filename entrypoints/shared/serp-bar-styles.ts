@@ -25,6 +25,29 @@ export const serpBarStyles = `
   --radius-full: 999px;
 }
 
+:host([data-style="colorful"][data-theme="light"]) {
+  --color-red: #d94841; --color-red-soft: #fff1f0;
+  --color-orange: #e87524; --color-orange-soft: #fff4e8;
+  --color-green: #238636; --color-green-soft: #edf8ef;
+  --color-teal: #0f7f81; --color-teal-soft: #eaf8f7;
+  --color-cyan: #087ea4; --color-cyan-soft: #e8f7fb;
+  --color-blue: #2563eb; --color-blue-soft: #edf3ff;
+  --color-violet: #7040d8; --color-violet-soft: #f3efff;
+  --color-on-fill: #ffffff;
+  --brand: var(--color-blue); --brand-on: var(--color-on-fill); --brand-soft: var(--color-blue-soft);
+}
+:host([data-style="colorful"][data-theme="dark"]) {
+  --color-red: #ff7b72; --color-red-soft: #32191a;
+  --color-orange: #ffa657; --color-orange-soft: #2f2116;
+  --color-green: #56d364; --color-green-soft: #172a1b;
+  --color-teal: #39c5bb; --color-teal-soft: #122a29;
+  --color-cyan: #67d4ea; --color-cyan-soft: #122930;
+  --color-blue: #79a8ff; --color-blue-soft: #18243a;
+  --color-violet: #b794f6; --color-violet-soft: #281f3b;
+  --color-on-fill: #121722;
+  --brand: var(--color-blue); --brand-on: var(--color-on-fill); --brand-soft: var(--color-blue-soft);
+}
+
 :host {
   display: block !important;
   position: relative !important;
@@ -100,4 +123,41 @@ export const serpBarStyles = `
 }
 .source-switcher .source-icon { border-radius: var(--radius-sm); display: inline-block; }
 .source-switcher .no-answer { font-size: 11px; opacity: 0.78; font-weight: 500; }
+
+/* 彩色风格：来源 ID 拥有稳定实色；容器与阴影保持经典的克制处理。 */
+:host([data-style="colorful"]) .source-switcher button {
+  --source-color: var(--color-blue);
+  --source-soft: var(--color-blue-soft);
+}
+:host([data-style="colorful"]) .source-switcher button[data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="bing"] { --source-color: var(--color-cyan); --source-soft: var(--color-cyan-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="baidu"] { --source-color: var(--color-red); --source-soft: var(--color-red-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="tavily"] { --source-color: var(--color-violet); --source-soft: var(--color-violet-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+:host([data-style="colorful"]) .source-switcher button:hover:not(:disabled):not([data-active="true"]) {
+  color: var(--source-color);
+  background: var(--source-soft);
+}
+:host([data-style="colorful"]) .source-switcher button.active {
+  background: var(--source-color);
+  border-color: var(--source-color);
+  color: var(--color-on-fill);
+}
+:host([data-style="colorful"]) .source-switcher[style*="--indicator-w"] button.active {
+  background: transparent;
+  border-color: transparent;
+}
+:host([data-style="colorful"]) .source-switcher button[data-active="true"] { color: var(--color-on-fill); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="google"] .switcher-indicator { background: var(--color-blue); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="bing"] .switcher-indicator { background: var(--color-cyan); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="baidu"] .switcher-indicator { background: var(--color-red); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="tavily"] .switcher-indicator { background: var(--color-violet); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="exa"] .switcher-indicator { background: var(--color-teal); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="stepfun"] .switcher-indicator { background: var(--color-orange); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="stepfun-plan"] .switcher-indicator { background: var(--color-green); }
+:host([data-style="colorful"]) .source-switcher button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--source-color) 30%, transparent);
+}
 `;

@@ -201,3 +201,64 @@ body {
   .options { padding-inline: var(--space-3); }
   .source-order-row { min-height: 42px; }
 }
+
+/* ── 彩色风格：设置区块按功能拥有稳定实色 ────────────────────────── */
+[data-style="colorful"] .options-wordmark .wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+[data-style="colorful"] .options-wordmark .wordmark-mark { color: var(--color-red); }
+[data-style="colorful"] .options-wordmark .wordmark-mark rect:nth-child(1) { fill: var(--color-red); }
+[data-style="colorful"] .options-wordmark .wordmark-mark rect:nth-child(2) { fill: var(--color-orange); }
+[data-style="colorful"] .options-wordmark .wordmark-mark rect:nth-child(3) { fill: var(--color-blue); }
+[data-style="colorful"] .options-wordmark .wordmark-text {
+  display: inline-flex;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+[data-style="colorful"] .options-wordmark .wordmark-head { color: var(--color-orange); }
+[data-style="colorful"] .options-wordmark .wordmark-tail { color: var(--color-blue); }
+[data-style="colorful"] .options-wordmark .wordmark-sep,
+[data-style="colorful"] .options-wordmark .wordmark-suffix { color: var(--muted); }
+
+[data-style="colorful"] .options section { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
+[data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
+[data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
+[data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
+[data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
+[data-style="colorful"] .options section[data-section="config"] { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
+[data-style="colorful"] .options section h2 { color: var(--section-color); }
+[data-style="colorful"] .options section h2::before { background: var(--section-color); }
+
+[data-style="colorful"] .options select:focus {
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-blue) 18%, transparent);
+}
+[data-style="colorful"] .source-order-row:hover { background: var(--color-teal-soft); }
+[data-style="colorful"] .source-order-actions button:hover:not(:disabled) {
+  color: var(--color-teal);
+  border-color: var(--color-teal);
+  background: var(--color-teal-soft);
+}
+
+[data-style="colorful"] .key-row input:focus {
+  border-color: var(--color-yellow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-yellow) 18%, transparent);
+}
+[data-style="colorful"] .key-row button:hover:not(:disabled) {
+  color: var(--color-yellow);
+  border-color: var(--color-yellow);
+  background: var(--color-yellow-soft);
+}
+[data-style="colorful"] .key-row .configured { color: var(--color-green); }
+
+[data-style="colorful"] .config-io-actions button:hover:not(:disabled) {
+  color: var(--color-violet);
+  border-color: var(--color-violet);
+  background: var(--color-violet-soft);
+}
+[data-style="colorful"] .config-confirm {
+  border-left-color: var(--color-violet);
+  background: var(--color-violet-soft);
+}

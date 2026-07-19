@@ -12,12 +12,15 @@ function deferred<T>() {
 }
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
-// 主题/locale 逻辑由 useTheme/useLocale 单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
+// 主题/locale/style 逻辑由各自单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
 vi.mock('@/lib/useTheme', () => ({
   useTheme: () => ({ pref: 'auto', resolved: 'light', setPref: vi.fn() }),
 }));
 vi.mock('@/lib/useLocale', () => ({
   useLocale: () => ({ pref: 'auto', setPref: vi.fn() }),
+}));
+vi.mock('@/lib/useStyle', () => ({
+  useStyle: () => ({ pref: 'classic', setPref: vi.fn() }),
 }));
 // i18n 用真实查表（import.meta.glob 打包，默认 zh_CN），不再 mock —— 断言直接用真实中文文案。
 const openOptionsPage = vi.fn();

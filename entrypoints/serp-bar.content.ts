@@ -9,7 +9,8 @@ import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl, anchorsFor } from '@/lib/engines/registry';
 import type { AnchorStrategy } from '@/lib/engines/types';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
-import { getThemePref } from '@/lib/storage';
+import { getStylePref, getThemePref } from '@/lib/storage';
+import type { StylePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
 import { pickAnchor, injectPageStyles, removePageStyles } from '@/lib/serp-bar-mount';
@@ -71,6 +72,7 @@ export default defineContentScript({
       onMount(uiContainer, _shadow, shadowHost) {
         shadowHost.dataset.engine = state.engine.id;
         shadowHost.dataset.theme = state.resolvedTheme;
+        shadowHost.dataset.style = state.stylePref;
         mountedHost = shadowHost;
         syncAlignedHost(shadowHost, strategy);
         injectPageStyles(state.engine);
@@ -143,18 +145,21 @@ interface BarState {
   query: string;
   sources: SearchSource[];
   resolvedTheme: 'light' | 'dark';
+  stylePref: StylePref;
 }
 
-/** 读 config/theme/sources/query 并 resolve theme，产出 onMount 渲染所需全部值。 */
+/** 读 config/theme/style/sources/query 并 resolve theme，产出 onMount 渲染所需全部值。 */
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
   const config = await sendMessage('getProviderConfig', undefined);
   const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden);
   const themePref = await getThemePref();
+  const stylePref = await getStylePref();
   return {
     engine,
     query: readQuery(engine, url),
     sources,
     resolvedTheme: resolveTheme(themePref),
+    stylePref,
   };
 }
 

@@ -12,6 +12,8 @@ import {
   setThemePref,
   getLocalePref,
   setLocalePref,
+  getStylePref,
+  setStylePref,
   getSourceOrder,
   setSourceOrder,
   getSourceHidden,
@@ -219,6 +221,19 @@ describe('storage: locale pref', () => {
   it('rejects unknown stored values, falling back to auto', async () => {
     await browser.storage.local.set({ localePref: 'fr' });
     expect(await getLocalePref()).toBe('auto');
+  });
+});
+
+describe('storage: style pref', () => {
+  it('defaults to classic', async () => {
+    expect(await getStylePref()).toBe('classic');
+  });
+
+  it('round-trips colorful and rejects unknown stored values', async () => {
+    await setStylePref('colorful');
+    expect(await getStylePref()).toBe('colorful');
+    await browser.storage.local.set({ stylePref: 'decorative' });
+    expect(await getStylePref()).toBe('classic');
   });
 });
 

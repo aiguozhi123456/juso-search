@@ -153,6 +153,108 @@
   --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff6b5b'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
 }
 
+/* 彩色风格：中性画布不变，功能与来源通过稳定实色区分。 */
+:root[data-style="colorful"] {
+  --color-red: #d94841;
+  --color-red-soft: #fff1f0;
+  --color-orange: #e87524;
+  --color-orange-soft: #fff4e8;
+  --color-yellow: #9a7200;
+  --color-yellow-soft: #fff8dd;
+  --color-green: #238636;
+  --color-green-soft: #edf8ef;
+  --color-teal: #0f7f81;
+  --color-teal-soft: #eaf8f7;
+  --color-cyan: #087ea4;
+  --color-cyan-soft: #e8f7fb;
+  --color-blue: #2563eb;
+  --color-blue-soft: #edf3ff;
+  --color-violet: #7040d8;
+  --color-violet-soft: #f3efff;
+  --color-rose: #b82f63;
+  --color-rose-soft: #fff0f5;
+  --color-on-fill: #ffffff;
+
+  --brand: var(--color-blue);
+  --brand-on: var(--color-on-fill);
+  --brand-soft: var(--color-blue-soft);
+  --brand-softer: #e3edff;
+  --answer-bg: var(--color-teal-soft);
+  --answer-border: #b9e3e1;
+  --success: var(--color-green);
+  --error: var(--color-red);
+  --warning: var(--color-yellow);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-style="colorful"] {
+    --color-red: #ff7b72;
+    --color-red-soft: #32191a;
+    --color-orange: #ffa657;
+    --color-orange-soft: #2f2116;
+    --color-yellow: #e3b341;
+    --color-yellow-soft: #2b2515;
+    --color-green: #56d364;
+    --color-green-soft: #172a1b;
+    --color-teal: #39c5bb;
+    --color-teal-soft: #122a29;
+    --color-cyan: #67d4ea;
+    --color-cyan-soft: #122930;
+    --color-blue: #79a8ff;
+    --color-blue-soft: #18243a;
+    --color-violet: #b794f6;
+    --color-violet-soft: #281f3b;
+    --color-rose: #f472b6;
+    --color-rose-soft: #321d29;
+    --color-on-fill: #121722;
+
+    --brand: var(--color-blue);
+    --brand-on: var(--color-on-fill);
+    --brand-soft: var(--color-blue-soft);
+    --brand-softer: #1d2a43;
+    --answer-bg: var(--color-teal-soft);
+    --answer-border: #28514e;
+    --success: var(--color-green);
+    --error: var(--color-red);
+    --warning: var(--color-yellow);
+    --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.32);
+  }
+}
+
+:root[data-theme="dark"][data-style="colorful"] {
+  --color-red: #ff7b72;
+  --color-red-soft: #32191a;
+  --color-orange: #ffa657;
+  --color-orange-soft: #2f2116;
+  --color-yellow: #e3b341;
+  --color-yellow-soft: #2b2515;
+  --color-green: #56d364;
+  --color-green-soft: #172a1b;
+  --color-teal: #39c5bb;
+  --color-teal-soft: #122a29;
+  --color-cyan: #67d4ea;
+  --color-cyan-soft: #122930;
+  --color-blue: #79a8ff;
+  --color-blue-soft: #18243a;
+  --color-violet: #b794f6;
+  --color-violet-soft: #281f3b;
+  --color-rose: #f472b6;
+  --color-rose-soft: #321d29;
+  --color-on-fill: #121722;
+
+  --brand: var(--color-blue);
+  --brand-on: var(--color-on-fill);
+  --brand-soft: var(--color-blue-soft);
+  --brand-softer: #1d2a43;
+  --answer-bg: var(--color-teal-soft);
+  --answer-border: #28514e;
+  --success: var(--color-green);
+  --error: var(--color-red);
+  --warning: var(--color-yellow);
+  --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.32);
+}
+
 /* 全局焦点环：仅在键盘导航时显示，避免点击残留。 */
 :focus-visible {
   outline: none;

@@ -8,6 +8,7 @@ body {
   font-size: var(--text-md);
   background: var(--bg);
   color: var(--fg);
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -22,11 +23,10 @@ body {
   justify-content: center;
   padding-top: 0;
   padding-bottom: 0;
-  overflow: hidden;
 }
 .app--start::before {
   content: '';
-  position: absolute;
+  position: fixed;
   top: -120px;
   right: -160px;
   width: 520px;
@@ -40,7 +40,7 @@ body {
 }
 .app--start::after {
   content: '';
-  position: absolute;
+  position: fixed;
   bottom: -180px;
   left: -120px;
   width: 380px;
@@ -537,3 +537,191 @@ body {
   from { transform: translateY(6px); opacity: 0; }
   to   { transform: translateY(0);   opacity: 1; }
 }
+
+/* ── 彩色风格：全视口、低对比度的类别色氛围 ─────────────────────── */
+[data-style="colorful"] .app--start::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  filter: none;
+  opacity: 1;
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--color-red) 10%, transparent) 0%,
+    color-mix(in srgb, var(--color-orange) 10%, transparent) 15%,
+    color-mix(in srgb, var(--color-yellow) 8%, transparent) 29%,
+    color-mix(in srgb, var(--color-green) 9%, transparent) 44%,
+    color-mix(in srgb, var(--color-cyan) 9%, transparent) 59%,
+    color-mix(in srgb, var(--color-blue) 10%, transparent) 75%,
+    color-mix(in srgb, var(--color-violet) 9%, transparent) 91%,
+    transparent 100%
+  );
+}
+[data-style="colorful"] .app--start::after { content: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-style="colorful"] .app--start::before {
+    background: linear-gradient(
+      to bottom left,
+      color-mix(in srgb, var(--color-red) 7%, transparent) 0%,
+      color-mix(in srgb, var(--color-orange) 7%, transparent) 15%,
+      color-mix(in srgb, var(--color-yellow) 5%, transparent) 29%,
+      color-mix(in srgb, var(--color-green) 6%, transparent) 44%,
+      color-mix(in srgb, var(--color-cyan) 6%, transparent) 59%,
+      color-mix(in srgb, var(--color-blue) 7%, transparent) 75%,
+      color-mix(in srgb, var(--color-violet) 6%, transparent) 91%,
+      transparent 100%
+    );
+  }
+}
+:root[data-theme="dark"][data-style="colorful"] .app--start::before {
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--color-red) 7%, transparent) 0%,
+    color-mix(in srgb, var(--color-orange) 7%, transparent) 15%,
+    color-mix(in srgb, var(--color-yellow) 5%, transparent) 29%,
+    color-mix(in srgb, var(--color-green) 6%, transparent) 44%,
+    color-mix(in srgb, var(--color-cyan) 6%, transparent) 59%,
+    color-mix(in srgb, var(--color-blue) 7%, transparent) 75%,
+    color-mix(in srgb, var(--color-violet) 6%, transparent) 91%,
+    transparent 100%
+  );
+}
+
+/* ── 彩色风格：功能所有权与来源分类色 ─────────────────────────────── */
+
+/* 品牌标记：三个漏斗层级分别承担红、橙、蓝；字标保持两个实色。 */
+[data-style="colorful"] .wordmark-mark { color: var(--color-red); filter: none; }
+[data-style="colorful"] .wordmark-mark rect:nth-child(1) { fill: var(--color-red); }
+[data-style="colorful"] .wordmark-mark rect:nth-child(2) { fill: var(--color-orange); }
+[data-style="colorful"] .wordmark-mark rect:nth-child(3) { fill: var(--color-blue); }
+[data-style="colorful"] .wordmark-head { color: var(--color-orange); }
+[data-style="colorful"] .wordmark-tail { color: var(--color-blue); }
+
+/* 来源分类色：按钮与结果卡共享同一 data-source 映射。 */
+[data-style="colorful"] [data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
+[data-style="colorful"] [data-source="bing"] { --source-color: var(--color-cyan); --source-soft: var(--color-cyan-soft); }
+[data-style="colorful"] [data-source="baidu"] { --source-color: var(--color-red); --source-soft: var(--color-red-soft); }
+[data-style="colorful"] [data-source="tavily"] { --source-color: var(--color-violet); --source-soft: var(--color-violet-soft); }
+[data-style="colorful"] [data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+[data-style="colorful"] [data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
+[data-style="colorful"] [data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+
+[data-style="colorful"] .source-switcher button {
+  --source-color: var(--color-blue);
+  --source-soft: var(--color-blue-soft);
+}
+[data-style="colorful"] .source-switcher button:hover:not(:disabled):not([data-active="true"]) {
+  color: var(--source-color);
+  background: var(--source-soft);
+}
+[data-style="colorful"] .source-switcher button.active {
+  background: var(--source-color);
+  border-color: var(--source-color);
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .source-switcher[style*="--indicator-w"] button.active {
+  background: transparent;
+  border-color: transparent;
+}
+[data-style="colorful"] .source-switcher button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .source-switcher[data-active-source="google"] .switcher-indicator { background: var(--color-blue); }
+[data-style="colorful"] .source-switcher[data-active-source="bing"] .switcher-indicator { background: var(--color-cyan); }
+[data-style="colorful"] .source-switcher[data-active-source="baidu"] .switcher-indicator { background: var(--color-red); }
+[data-style="colorful"] .source-switcher[data-active-source="tavily"] .switcher-indicator { background: var(--color-violet); }
+[data-style="colorful"] .source-switcher[data-active-source="exa"] .switcher-indicator { background: var(--color-teal); }
+[data-style="colorful"] .source-switcher[data-active-source="stepfun"] .switcher-indicator { background: var(--color-orange); }
+[data-style="colorful"] .source-switcher[data-active-source="stepfun-plan"] .switcher-indicator { background: var(--color-green); }
+
+/* Query = blue. */
+[data-style="colorful"] .search-box input:focus {
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-blue) 18%, transparent);
+}
+[data-style="colorful"] .search-box button[type="submit"] {
+  background: var(--color-blue);
+  border-color: var(--color-blue);
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .search-box button[type="submit"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-blue) 88%, #000 12%);
+  border-color: color-mix(in srgb, var(--color-blue) 88%, #000 12%);
+}
+[data-style="colorful"] .search-box .interrupt-button,
+[data-style="colorful"] .state.error button {
+  background: var(--bg);
+  border-color: var(--color-red);
+  color: var(--color-red);
+}
+[data-style="colorful"] .search-box .interrupt-button:hover:not(:disabled),
+[data-style="colorful"] .state.error button:hover {
+  background: var(--color-red-soft);
+}
+
+/* Synthesis = teal. */
+[data-style="colorful"] .answer-card {
+  background: var(--color-teal-soft);
+  border-color: color-mix(in srgb, var(--color-teal) 34%, var(--border));
+}
+[data-style="colorful"] .answer-card::before { background: var(--color-teal); }
+[data-style="colorful"] .answer-card h3,
+[data-style="colorful"] .answer-card-mark,
+[data-style="colorful"] .citations a { color: var(--color-teal); }
+[data-style="colorful"] .citations { border-color: color-mix(in srgb, var(--color-teal) 24%, var(--border)); }
+
+/* Results = readable blue links plus a provider-derived narrow rail. */
+[data-style="colorful"] .result-card {
+  --source-color: var(--color-blue);
+  position: relative;
+  border-color: color-mix(in srgb, var(--source-color) 22%, var(--border-soft));
+  background: var(--bg);
+}
+[data-style="colorful"] .result-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-3);
+  bottom: var(--space-3);
+  width: 3px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--source-color);
+}
+[data-style="colorful"] .result-card:hover {
+  border-color: color-mix(in srgb, var(--source-color) 42%, var(--border));
+  background: var(--source-soft, var(--color-blue-soft));
+}
+[data-style="colorful"] .result-title,
+[data-style="colorful"] .toggle { color: var(--color-blue); }
+[data-style="colorful"] .result-title:visited { color: color-mix(in srgb, var(--color-blue) 70%, var(--muted)); }
+
+/* History and cache = gold. */
+[data-style="colorful"] .history-button:hover:not(:disabled) {
+  color: var(--color-yellow);
+  border-color: var(--color-yellow);
+  background: var(--color-yellow-soft);
+}
+[data-style="colorful"] .cache-notice {
+  background: var(--color-yellow-soft);
+  border-color: color-mix(in srgb, var(--color-yellow) 34%, var(--border));
+}
+[data-style="colorful"] .cache-notice button {
+  border-color: var(--color-yellow);
+  color: var(--color-yellow);
+}
+[data-style="colorful"] .cache-notice button:hover { background: color-mix(in srgb, var(--color-yellow) 12%, var(--bg)); }
+[data-style="colorful"] .history-panel-head h2 { color: var(--color-yellow); }
+[data-style="colorful"] .history-item:hover { border-color: var(--color-yellow); }
+[data-style="colorful"] .history-item-main:hover .history-query { color: var(--color-yellow); }
+
+/* Configuration = violet. */
+[data-style="colorful"] .settings-button:hover:not(:disabled) {
+  color: var(--color-violet);
+  border-color: var(--color-violet);
+  background: var(--color-violet-soft);
+}
+
+/* States remain neutral; one blue marker indicates activity/emptiness. */
+[data-style="colorful"] .state-mark { color: var(--color-blue); opacity: 0.48; }

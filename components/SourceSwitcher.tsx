@@ -70,6 +70,7 @@ export function SourceSwitcher({ sources, activeId, onSelect, disabled }: Props)
       className="source-switcher"
       role="group"
       aria-label={t(MSG.source_switcher_aria)}
+      data-active-source={activeId ?? undefined}
       style={style}
     >
       {isReady && <span className="switcher-indicator" aria-hidden="true" />}
@@ -84,6 +85,7 @@ export function SourceSwitcher({ sources, activeId, onSelect, disabled }: Props)
             type="button"
             className={active ? 'active' : ''}
             data-active={active ? 'true' : 'false'}
+            data-source={s.id}
             aria-pressed={active}
             disabled={disabled}
             onClick={() => onSelect(s)}

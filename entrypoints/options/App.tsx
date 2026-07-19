@@ -6,6 +6,7 @@ import { allSources, normalizeSourceOrder } from '@/lib/sources';
 import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { StyleToggle } from '@/components/StyleToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { Wordmark } from '@/components/Wordmark';
@@ -117,11 +118,12 @@ export default function App() {
           <Wordmark suffix={t(MSG.opts_title).split(' · ').slice(1).join(' · ')} />
         </h1>
         <div className="options-toggles">
+          <StyleToggle />
           <ThemeToggle />
         </div>
       </div>
 
-      <section>
+      <section data-section="search-source">
         <h2>{t(MSG.opts_active_engine)}</h2>
         <select value={active ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
           <option value="" disabled>
@@ -136,7 +138,7 @@ export default function App() {
         </select>
       </section>
 
-      <section>
+      <section data-section="quickbar">
         <h2>{t(MSG.opts_quickbar_heading)}</h2>
         <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
         <div className="source-order-list">
@@ -183,7 +185,7 @@ export default function App() {
         {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
       </section>
 
-      <section>
+      <section data-section="api-keys">
         <h2>{t(MSG.opts_apikey_heading)}</h2>
         <p className="hint">{t(MSG.opts_apikey_hint)}</p>
         {providers.map((p) => (
@@ -197,12 +199,12 @@ export default function App() {
         ))}
       </section>
 
-      <section>
+      <section data-section="locale">
         <h2>{t(MSG.locale_group)}</h2>
         <LocaleToggle />
       </section>
 
-      <section>
+      <section data-section="config">
         <h2>{t(MSG.opts_config_io_heading)}</h2>
         <ConfigExportImport onImported={syncConfig} />
       </section>

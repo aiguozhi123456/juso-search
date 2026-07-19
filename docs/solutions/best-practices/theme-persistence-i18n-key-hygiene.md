@@ -1,20 +1,19 @@
 ---
 title: "Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension"
 date: 2026-07-04
-last_updated: 2026-07-09
-category: docs/solutions/best-practices
+last_updated: 2026-07-19
+category: best-practices
 module: "theme / i18n / storage layer / provider config messaging"
 problem_type: best_practice
 component: tooling
 severity: medium
 applies_when:
   - "Building a WXT + React Chrome MV3 extension with persisted UI state"
-  - "Storing secrets (BYOK API keys) in chrome.storage.local accessed from page code"
-  - "Showing provider configuration status without exposing stored API keys to page code"
-  - "Distinguishing provider-only active state from a source-level default that can include keyless engines"
+  - "Keeping stored BYOK secrets out of page code while accepting newly entered keys"
+  - "Showing provider configuration status without exposing stored API keys"
   - "Localizing with Chrome native browser.i18n alongside JS message constants"
-  - "Implementing cross-tab state sync via storage.onChanged"
-tags: [wxt, mv3, dark-theme, fouc, i18n, browser-i18n, chrome-storage, byok, worker-message, react-hooks, matchmedia]
+  - "Implementing cross-tab preference sync through worker-owned storage.onChanged and sanitized runtime messages"
+tags: [wxt, mv3, theme-persistence, fouc, i18n, chrome-storage, byok, worker-message]
 ---
 
 # Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension
@@ -23,7 +22,7 @@ tags: [wxt, mv3, dark-theme, fouc, i18n, browser-i18n, chrome-storage, byok, wor
 
 A multi-reviewer code review (ce-code-review) on a freshly built dark-theme + bilingual-i18n feature surfaced 10 findings spanning correctness, security, reliability, and testability. None were P0/P1, but several partially broke the feature's core UX contract or breached the project's own documented security invariant. The fixes — committed across two review-labelled commits — encode a set of durable practices for any WXT/React MV3 extension that persists UI state, holds secrets, or localizes via Chrome's native i18n. This doc captures those practices so the next feature in this area gets them right on the first pass.
 
-The repo conventions (AGENTS.md): use the typed `browser` global, not `chrome`; BYOK API keys live only in `chrome.storage.local` and are read **only** by the background service worker; the UI never holds or sends plaintext keys.
+The repo conventions (AGENTS.md): use the typed `browser` global, not `chrome`; persisted BYOK API keys live only in `chrome.storage.local` and are read **only** by the background service worker. The options UI may temporarily hold and send the newly entered key, but it never reads stored plaintext keys or the `providerKeys` map.
 
 ## Guidance
 
@@ -59,7 +58,7 @@ void browser.storage.local.get('themePref').then((got) => {
 }
 ```
 
-The module script is served from the extension package (`script-src 'self'`), so it satisfies MV3 CSP. It should read only `themePref`, never `get(null)`, to avoid materializing BYOK `providerKeys` in page memory. The CSS fallback gives dark-OS users a correct first paint before the module or React hook writes `data-theme`; the React hook then takes over `data-theme` maintenance after mount.
+The module script is served from the extension package (`script-src 'self'`), so it satisfies MV3 CSP. It should read only `themePref`, never `get(null)`, to avoid materializing BYOK `providerKeys` in page memory. The CSS fallback gives dark-OS users a correct system-theme first paint. Because the storage read is asynchronous, applying an explicit stored preference before React is best-effort rather than a deterministic paint barrier; the React hook then takes over `data-theme` maintenance after mount.
 
 ### 2. Scope storage reads from page code (BYOK key hygiene)
 
@@ -75,7 +74,7 @@ const got = await browser.storage.local.get(THEME_KEY);
 return got[THEME_KEY];
 ```
 
-Rule: any storage accessor reachable from page/entrypoint code should scope its `get()` to the specific keys it needs — never `get(null)`. Reserve full-store reads for the worker.
+Rule: every storage accessor should scope its `get()` to the specific key or key set it needs. Page code must never use `get(null)`, and worker code should not use it as a convenience when a precise key set expresses the real dependency.
 
 ### 3. Put provider configuration status and key writes behind worker messages
 
@@ -89,6 +88,8 @@ export type ProviderConfigReply = {
   configuredProviderIds: ProviderId[];
   activeProviderId: ProviderId | null;
   activeSourceId: SourceId;
+  sourceOrder: SourceId[];
+  sourceHidden: SourceId[];
 };
 
 export type ProtocolMap = {
@@ -103,12 +104,15 @@ Then implement the storage reads and writes only in the background gateway:
 ```ts
 // lib/gateway.ts
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
-  const [configuredProviderIds, activeProviderId, activeSourceId] = await Promise.all([
+  await getSchemaReady();
+  const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden] = await Promise.all([
     getConfiguredProviderIds(),
     getActiveProviderId(),
     getActiveSourceId(),
+    getSourceOrder(),
+    getSourceHidden(),
   ]);
-  return { configuredProviderIds, activeProviderId, activeSourceId };
+  return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden };
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
@@ -141,9 +145,9 @@ The storage-side active-provider fallback should match the provider-only contrac
 
 ```ts
 export async function getActiveProviderId(): Promise<ProviderId | null> {
-  const all = await readAll();
-  const stored = all[ACTIVE_KEY];
-  const keys = await readKeys();
+  const got = await browser.storage.local.get([ACTIVE_KEY, KEYS_KEY]);
+  const stored = got[ACTIVE_KEY];
+  const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   if (isKnownProvider(stored) && keys[stored]) return stored;
   return allProviders().find((p) => keys[p.id])?.id ?? null;
 }
@@ -209,22 +213,31 @@ it('no locale has an empty message value', () => { /* truthy check */ });
 
 Also: in page/component tests, load the **real** `messages.json` for the i18n mock instead of hand-copying a subset string map — a subset map with a `?? name` fallback masks forgotten keys.
 
-### 9. Capture event listeners in tests; don't stub them inert
+### 9. Test worker broadcasts and runtime subscribers; do not add page-side storage listeners
 
-An `onChanged`/`addEventListener` stub of `addListener: vi.fn()` is a no-op: the listener callback is never captured, so the entire branch is dead from a test's standpoint and a regression there passes CI. Capture the listener instead, then fire it:
+Only the background worker should receive the complete `StorageChange` record. It selects named preference keys, validates each scalar, and broadcasts a sanitized discriminated message. Page hooks subscribe to `browser.runtime.onMessage`; they do not observe `browser.storage.onChanged`, because an unrelated `providerKeys` change would otherwise enter page memory.
 
 ```ts
-function mockOnChanged() {
-  const listeners = new Set<(c: unknown) => void>();
-  vi.stubGlobal('browser', {
-    storage: { onChanged: {
-      addListener: (l: (c: unknown) => void) => listeners.add(l),
-      removeListener: (l: (c: unknown) => void) => listeners.delete(l),
-    } },
-  });
-  return listeners;  // test fires: act(() => listeners.forEach(l => l({ themePref: { newValue: 'dark' } })))
-}
+// background.ts: validate selected scalar changes, then broadcast only that value.
+browser.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  const themePref = changes.themePref?.newValue;
+  if (isThemePref(themePref)) {
+    void broadcastUiPref({ type: 'uiPrefChanged', key: 'themePref', value: themePref });
+  }
+});
+
+// useTheme.ts: page code receives only the typed preference message.
+const listener = (message: unknown) => {
+  if (isUiPrefChangedMessage(message) && message.key === 'themePref') {
+    setPrefState(message.value);
+  }
+};
+browser.runtime.onMessage.addListener(listener);
+return () => browser.runtime.onMessage.removeListener(listener);
 ```
+
+Tests should capture the worker's storage listener separately from each hook's runtime listener. Fire typed `uiPrefChanged` messages to verify valid updates, invalid-value rejection, and cleanup; worker tests should also prove that unrelated storage changes are not broadcast.
 
 ## Why This Matters
 
@@ -235,7 +248,7 @@ Each class has a concrete observable consequence, not a theoretical one:
 - **Raw-key UI rendering** (missing i18n key) is a silent production failure — no test fails, the user just sees `error_service_unavailable` instead of localized text.
 - **Unguarded `matchMedia`** blanks the entire page in any matchMedia-less context, with no recovery affordance (no ErrorBoundary).
 - **Optimistic state without rollback** produces silent state/storage divergence that reverts on reload with no signal.
-- **Inert listener stubs** leave cross-tab sync — a shipped, user-visible feature — with zero effective coverage.
+- **Untested worker broadcasts or runtime subscribers** leave cross-tab sync — a shipped, user-visible feature — with zero effective coverage and can accidentally weaken the page/secret boundary.
 
 ## When to Apply
 
@@ -243,7 +256,7 @@ Each class has a concrete observable consequence, not a theoretical one:
 - Any **secret held in `chrome.storage.local`** where page code also accesses storage (BYOK, tokens).
 - Any UI that needs a sanitized "configured / not configured" status for secrets stored outside the page context.
 - Any **Chrome-native i18n** (`browser.i18n` + `_locales`) used alongside JS message constants or `__MSG_` manifest substitution.
-- Any **cross-tab state sync** via `storage.onChanged`, or any feature wired through event listeners you intend to test.
+- Any **cross-tab state sync** where the worker owns `storage.onChanged` and pages consume sanitized runtime messages, or any feature wired through event listeners you intend to test.
 - Any **derived React state** computed from multiple asynchronous inputs.
 
 ## Examples
@@ -301,6 +314,9 @@ describe('i18n locale parity', () => {
 
 ## Related
 
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md` — provider adapter normalization and worker-side gateway shape; related security boundary.
-- `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md` — explains why `activeSource` can include keyless engines while `activeProvider` stays provider-only.
-- `CONCEPTS.md` — `BYOK`, `ProviderAdapter`, and `Provider Configuration Status` entries define the trust invariant and adapter contract referenced above.
+- [Provider API integration patterns](../architecture-patterns/provider-api-integration-patterns.md) - provider adapter normalization and worker-side gateway shape; related security boundary.
+- [Separate active search source from active BYOK provider](../architecture-patterns/separate-active-search-source-from-active-byok-provider.md) - why `activeSource` can include keyless engines while `activeProvider` stays provider-only.
+- [Local search cache in MV3](../architecture-patterns/local-search-cache-mv3.md) - current worker-owned storage observation and sanitized UI-preference broadcast pattern.
+- [Configuration preference pipeline](../architecture-patterns/config-preference-pipeline.md) - end-to-end checklist for durable preferences across storage and UI hosts.
+- [Orthogonal UI style axes and distributed semantic color ownership](../design-patterns/orthogonal-style-axis-and-semantic-color-ownership.md) - extends the same lifecycle to an independent visual-language preference and categorical color system.
+- [Project concepts](../../../CONCEPTS.md) - `BYOK`, `ProviderAdapter`, and `Provider Configuration Status` define the trust invariant and adapter contract referenced above.
