@@ -5,6 +5,7 @@ dist/
 
 # 编辑器 / 工具状态
 .zcode/
+.opencode/
 
 # env / secrets — 永不提交
 .env
