@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   BAIDU_SERP_HOSTS,
   BING_SERP_HOSTS,
+  DOUYIN_SERP_HOSTS,
   ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
   GOOGLE_SERP_HOSTS,
   SERP_CONTENT_MATCH_PATTERNS,
   SERP_HOST_MATCH_PATTERNS,
   SERP_HOSTS,
+  XIAOHONGSHU_SERP_HOSTS,
 } from '@/lib/engines/scopes';
 
 describe('SERP scopes', () => {
@@ -17,13 +19,15 @@ describe('SERP scopes', () => {
       ...GOOGLE_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...BING_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...BAIDU_SERP_HOSTS.map((host) => `https://${host}/s*`),
+      ...DOUYIN_SERP_HOSTS.map((host) => `https://${host}/search*`),
+      ...XIAOHONGSHU_SERP_HOSTS.map((host) => `https://${host}/search_result*`),
     ]);
     expect(new Set(SERP_HOST_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
     expect(new Set(SERP_CONTENT_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
     expect(ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS).toEqual(SERP_HOST_MATCH_PATTERNS);
   });
 
-  it('uses only the approved Google, Bing and Baidu hosts', () => {
+  it('uses only the approved Google, Bing, Baidu, Douyin and Xiaohongshu hosts', () => {
     expect(GOOGLE_SERP_HOSTS).toEqual([
       'www.google.com',
       'www.google.com.hk',
@@ -33,5 +37,7 @@ describe('SERP scopes', () => {
     ]);
     expect(BING_SERP_HOSTS).toEqual(['www.bing.com', 'cn.bing.com']);
     expect(BAIDU_SERP_HOSTS).toEqual(['www.baidu.com']);
+    expect(DOUYIN_SERP_HOSTS).toEqual(['www.douyin.com']);
+    expect(XIAOHONGSHU_SERP_HOSTS).toEqual(['www.xiaohongshu.com']);
   });
 });

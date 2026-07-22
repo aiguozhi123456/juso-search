@@ -102,6 +102,8 @@
   "engine_google": { "message": "Google" },
   "engine_bing": { "message": "Bing" },
   "engine_baidu": { "message": "Baidu" },
+  "engine_douyin": { "message": "Douyin" },
+  "engine_xiaohongshu": { "message": "Xiaohongshu" },
   "source_switcher_aria": { "message": "Switch search source" },
   "error_no_provider_key": { "message": "No API key configured for any provider" },
   "error_key_missing_provider": { "message": "$1: no API key configured", "placeholders": { "1": { "content": "$1" } } },

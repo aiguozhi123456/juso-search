@@ -13,7 +13,7 @@
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
@@ -25,9 +25,25 @@ export type Migration = {
   migrate: (config: Record<string, unknown>) => Record<string, unknown>;
 };
 
-// 迁移注册表：按 version 升序。首版为空（CURRENT_SCHEMA_VERSION === 1，无历史版本）。
-// 未来加版本两步：(1) 向此数组 append 一条 Migration；(2) bump CURRENT_SCHEMA_VERSION。
-export const migrations: Migration[] = [];
+// v2：抖音 / 小红书引擎加入快切栏——两者默认隐藏。把这两个 id 并入既有 sourceHidden
+// （去重、保留首现顺序）。幂等：已含其中任一 id 时不重复追加；用户在设置页点「显示」
+// 即从 sourceHidden 移除该 id，此后迁移不再回填（因 v2→v2 不会重跑，且用户已 v2 戳）。
+const DEFAULT_HIDDEN_ENGINE_IDS: readonly string[] = ['douyin', 'xiaohongshu'];
+
+function mergeDefaultHidden(config: Record<string, unknown>): Record<string, unknown> {
+  const current = Array.isArray(config.sourceHidden) ? config.sourceHidden as unknown[] : [];
+  const seen = new Set(current.filter((id): id is string => typeof id === 'string'));
+  const merged = [...current.filter((id): id is string => typeof id === 'string')];
+  for (const id of DEFAULT_HIDDEN_ENGINE_IDS) {
+    if (!seen.has(id)) merged.push(id);
+  }
+  return { ...config, sourceHidden: merged };
+}
+
+// 迁移注册表：按 version 升序。未来加版本两步：(1) 向此数组 append 一条 Migration；(2) bump CURRENT_SCHEMA_VERSION。
+export const migrations: Migration[] = [
+  { version: 1, migrate: mergeDefaultHidden },
+];
 
 /**
  * 纯函数：对 config 应用从 fromVersion 到 toVersion 的迁移链。
@@ -76,11 +92,12 @@ export async function ensureSchema(): Promise<void> {
     { ...configGot, [SCHEMA_VERSION_KEY]: stored || undefined },
     { ...migrated, [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION },
   );
-  if (removeKeys.length > 0) {
-    await browser.storage.local.remove(removeKeys);
-  }
+  // 先 set（含 schemaVersion）再 remove：避免 remove 成功、set 失败时丢键且版本戳未推进。
   if (Object.keys(setDiff).length > 0) {
     await browser.storage.local.set(setDiff);
+  }
+  if (removeKeys.length > 0) {
+    await browser.storage.local.remove(removeKeys);
   }
 }
 

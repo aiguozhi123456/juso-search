@@ -42,7 +42,7 @@ related_components:
 
 ## Update 2026-07-17 — Anchor cascade + pageStyles + Baidu (Google priority reversed)
 
-The single-anchor-per-engine design below has been **partially superseded by an ordered anchor cascade** (`engine.anchors: AnchorStrategy[]`) plus a per-engine host-page CSS shim (`engine.pageStyles?: string`). New runtime helpers live in `lib/serp-bar-mount.ts` (`pickAnchor` / `injectPageStyles` / `removePageStyles`); they are imported by `serp-bar.content.ts` and **must not** be re-exported as content-script named members (WXT build-break trap — see `docs/solutions/runtime-errors/serp-to-extension-page-blocked-by-client.md`; testability extraction pattern — see `docs/solutions/architecture-patterns/testable-content-script-helpers-via-lib-extraction.md`).
+The single-anchor-per-engine design below has been **partially superseded by an ordered anchor cascade** (`engine.anchors: AnchorStrategy[]`) plus a per-engine host-page CSS shim (`engine.pageStyles?: string`). New runtime helpers live in `lib/serp-bar-mount.ts` (`pickAnchor` / `injectPageStyles` / `removePageStyles`, plus remount-budget and last-resort-only upgrade policy); they are imported by `serp-bar.content.ts` and **must not** be re-exported as content-script named members (WXT build-break trap — see `docs/solutions/runtime-errors/serp-to-extension-page-blocked-by-client.md`; testability extraction pattern — see `docs/solutions/architecture-patterns/testable-content-script-helpers-via-lib-extraction.md`). SPA detach remount and Xiaohongshu/Douyin cases: see `docs/solutions/ui-bugs/serp-bar-spa-remount-and-last-resort-upgrade.md`.
 
 Per-engine cascade (priority order, primary first):
 

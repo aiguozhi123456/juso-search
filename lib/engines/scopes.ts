@@ -11,13 +11,23 @@ export const GOOGLE_SERP_HOSTS = [
 
 export const BING_SERP_HOSTS = ['www.bing.com', 'cn.bing.com'] as const;
 export const BAIDU_SERP_HOSTS = ['www.baidu.com'] as const;
-export const SERP_HOSTS = [...GOOGLE_SERP_HOSTS, ...BING_SERP_HOSTS, ...BAIDU_SERP_HOSTS];
+export const DOUYIN_SERP_HOSTS = ['www.douyin.com'] as const;
+export const XIAOHONGSHU_SERP_HOSTS = ['www.xiaohongshu.com'] as const;
+export const SERP_HOSTS = [
+  ...GOOGLE_SERP_HOSTS,
+  ...BING_SERP_HOSTS,
+  ...BAIDU_SERP_HOSTS,
+  ...DOUYIN_SERP_HOSTS,
+  ...XIAOHONGSHU_SERP_HOSTS,
+];
 
 export const SERP_HOST_MATCH_PATTERNS = SERP_HOSTS.map(hostMatchPattern);
 export const SERP_CONTENT_MATCH_PATTERNS = [
   ...GOOGLE_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BING_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BAIDU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/s')),
+  ...DOUYIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
+  ...XIAOHONGSHU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search_result')),
 ];
 // 结果抽取需要在引擎站内的 challenge / consent 重定向页接收消息；注入搜索栏仍只匹配
 // canonical SERP 路径，避免在这些页面渲染 UI。
@@ -26,6 +36,8 @@ export const ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS = SERP_HOST_MATCH_PATTERNS;
 const googleSerpHosts = new Set<string>(GOOGLE_SERP_HOSTS);
 const bingSerpHosts = new Set<string>(BING_SERP_HOSTS);
 const baiduSerpHosts = new Set<string>(BAIDU_SERP_HOSTS);
+const douyinSerpHosts = new Set<string>(DOUYIN_SERP_HOSTS);
+const xiaohongshuSerpHosts = new Set<string>(XIAOHONGSHU_SERP_HOSTS);
 
 export function isGoogleSerpHostname(hostname: string): boolean {
   return googleSerpHosts.has(hostname);
@@ -37,6 +49,14 @@ export function isBingSerpHostname(hostname: string): boolean {
 
 export function isBaiduSerpHostname(hostname: string): boolean {
   return baiduSerpHosts.has(hostname);
+}
+
+export function isDouyinSerpHostname(hostname: string): boolean {
+  return douyinSerpHosts.has(hostname);
+}
+
+export function isXiaohongshuSerpHostname(hostname: string): boolean {
+  return xiaohongshuSerpHosts.has(hostname);
 }
 
 export function isEngineChallengeOrConsentUrl(url: URL): boolean {
@@ -52,11 +72,12 @@ export function isSerpUrl(
   url: URL,
   isSerpHostname: (hostname: string) => boolean,
   pathname: string = '/search',
+  match: 'exact' | 'prefix' = 'exact',
 ): boolean {
   return url.protocol === 'https:'
     && url.port === ''
-    && url.pathname === pathname
-    && isSerpHostname(url.hostname);
+    && isSerpHostname(url.hostname)
+    && (match === 'prefix' ? url.pathname.startsWith(pathname) : url.pathname === pathname);
 }
 
 function hostMatchPattern(host: string): HttpsHostMatchPattern {

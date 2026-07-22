@@ -85,14 +85,14 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
-    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu']);
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu/);
+    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu']);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书/);
   });
 
   it('disables moving the first source up and the last source down', async () => {
     render(<App />);
     expect(await screen.findByRole('button', { name: 'Exa 上移' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Baidu 下移' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '小红书 下移' })).toBeDisabled();
   });
 
   it('moves adjacent visible sources in the complete stored order', async () => {
@@ -110,7 +110,7 @@ describe('options page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', [
-      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu',
+      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'douyin', 'xiaohongshu',
     ]));
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
     expect(screen.getByRole('button', { name: 'Google 下移' })).toBeDisabled();

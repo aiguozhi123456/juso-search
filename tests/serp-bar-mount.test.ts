@@ -7,6 +7,14 @@ import {
   injectPageStyles,
   pickAnchor,
   removePageStyles,
+  preferredAnchorCandidates,
+  preferredAnchorsPresent,
+  anyAnchorPresent,
+  canAttemptMount,
+  shouldUpgradeFromLastResort,
+  isLastResortAnchorIndex,
+  consumeRemountBudget,
+  DEFAULT_REMOUNT_BUDGET,
 } from '@/lib/serp-bar-mount';
 
 const A: AnchorStrategy = { selector: '#a', append: 'first' };
@@ -50,6 +58,86 @@ describe('pickAnchor', () => {
   it('uses document.querySelector as the default dependency', () => {
     // 默认参数路径：jsdom 下没有 #a/#b/#c，应落入末位候选 C。
     expect(pickAnchor([A, B, C])).toBe(C);
+  });
+});
+
+describe('remount / upgrade policy (pure)', () => {
+  const present = (ids: string[]) => (selector: string) =>
+    ids.includes(selector) ? document.createElement('div') : null;
+
+  it('preferredAnchorCandidates drops last-resort when multi-candidate', () => {
+    expect(preferredAnchorCandidates([A, B, C])).toEqual([A, B]);
+    expect(preferredAnchorCandidates([A])).toEqual([A]);
+  });
+
+  it('isLastResortAnchorIndex is true only for last of multi-candidate list', () => {
+    expect(isLastResortAnchorIndex([A, B, C], 2)).toBe(true);
+    expect(isLastResortAnchorIndex([A, B, C], 1)).toBe(false);
+    expect(isLastResortAnchorIndex([A], 0)).toBe(false);
+  });
+
+  it('preferredAnchorsPresent ignores last-resort #app-style fallback', () => {
+    expect(preferredAnchorsPresent([A, B, C], present(['#c']))).toBe(false);
+    expect(preferredAnchorsPresent([A, B, C], present(['#b']))).toBe(true);
+  });
+
+  it('anyAnchorPresent includes last-resort', () => {
+    expect(anyAnchorPresent([A, B, C], present(['#c']))).toBe(true);
+    expect(anyAnchorPresent([A, B, C], present([]))).toBe(false);
+  });
+
+  it('canAttemptMount waits for preferred unless budget is last chance', () => {
+    // 仅兜底存在、预算充足 → 不挂（继续等 #search-input / .feeds-container）
+    expect(canAttemptMount({
+      candidates: [A, B, C],
+      remountBudget: DEFAULT_REMOUNT_BUDGET,
+      querySelectorFn: present(['#c']),
+    })).toBe(false);
+    // 仅兜底 + 预算=1 → 允许最后一次挂兜底
+    expect(canAttemptMount({
+      candidates: [A, B, C],
+      remountBudget: 1,
+      querySelectorFn: present(['#c']),
+    })).toBe(true);
+    // 非兜底出现 → 可挂
+    expect(canAttemptMount({
+      candidates: [A, B, C],
+      remountBudget: 3,
+      querySelectorFn: present(['#a']),
+    })).toBe(true);
+    // 预算耗尽
+    expect(canAttemptMount({
+      candidates: [A, B, C],
+      remountBudget: 0,
+      querySelectorFn: present(['#a']),
+    })).toBe(false);
+  });
+
+  it('shouldUpgradeFromLastResort only upgrades from last-resort index', () => {
+    // 挂在 #search-input(index=1) 时，即使 .feeds-container 出现也不升级（防抖动）
+    expect(shouldUpgradeFromLastResort({
+      candidates: [A, B, C],
+      mountedAnchorIndex: 1,
+      querySelectorFn: present(['#a']),
+    })).toBe(false);
+    // 挂在 #app(index=2) 且 #search-input 出现 → 升级
+    expect(shouldUpgradeFromLastResort({
+      candidates: [A, B, C],
+      mountedAnchorIndex: 2,
+      querySelectorFn: present(['#b']),
+    })).toBe(true);
+    // 挂在首选 → 不升级
+    expect(shouldUpgradeFromLastResort({
+      candidates: [A, B, C],
+      mountedAnchorIndex: 0,
+      querySelectorFn: present(['#a']),
+    })).toBe(false);
+  });
+
+  it('consumeRemountBudget decrements and floors at 0', () => {
+    expect(consumeRemountBudget(3)).toBe(2);
+    expect(consumeRemountBudget(1)).toBe(0);
+    expect(consumeRemountBudget(0)).toBe(0);
   });
 });
 

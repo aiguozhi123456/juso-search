@@ -13,9 +13,9 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 ## Search Source (v2)
 
 ### Search Engine
-A conventional web search engine (Google, Bing, Baidu) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and may expose ordinary rendered SERP results through a separate browser-extraction path; it remains parallel to providers rather than joining their execution contract.
+A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, …) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and may expose ordinary rendered SERP results through a separate browser-extraction path; it remains parallel to providers rather than joining their execution contract.
 
-Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata.
+Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata. Some engines may ship default-hidden in Source Visibility via a one-shot schema migration so they appear in management UI but not in the quick-switch bar until the user shows them.
 
 ### Search Source
 The unified user-facing representation of a configured AI provider or a conventional Search Engine, allowing the same source controls to present both despite their different execution contracts.
@@ -39,6 +39,8 @@ An Active Source does not replace the Active Provider: provider sources keep bot
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 
 It appears before the engine's complete result experience while aligning with that engine's main content column. Its integration rules keep the control outside replaceable or overlapping result internals without covering native page interactions. Engine choices navigate directly; provider choices hand off through a Deep Link.
+
+On slow SPA SERPs, the bar re-resolves ordered placement anchors on each mount, remounts with a budget when the host is detached by the page, and upgrades placement only from a last-resort fallback—not between intermediate anchors—so the control does not jump vertically as optional shells appear later.
 
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.

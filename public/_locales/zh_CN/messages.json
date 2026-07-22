@@ -102,6 +102,8 @@
   "engine_google": { "message": "Google" },
   "engine_bing": { "message": "Bing" },
   "engine_baidu": { "message": "Baidu" },
+  "engine_douyin": { "message": "抖音" },
+  "engine_xiaohongshu": { "message": "小红书" },
   "source_switcher_aria": { "message": "切换搜索来源" },
   "error_no_provider_key": { "message": "尚未配置任何 provider 的 API key" },
   "error_key_missing_provider": { "message": "$1：尚未配置 API key", "placeholders": { "1": { "content": "$1" } } },

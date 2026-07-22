@@ -242,6 +242,8 @@ export const MSG = {
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',
   engine_baidu: 'engine_baidu',
+  engine_douyin: 'engine_douyin',
+  engine_xiaohongshu: 'engine_xiaohongshu',
   // 统一快切栏
   source_switcher_aria: 'source_switcher_aria',
   // 后台 / provider 错误（部分带插值 $1=provider/$2=status）

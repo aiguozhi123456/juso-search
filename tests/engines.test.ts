@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorsFor } from '@/lib/engines/registry';
 import { DEFAULT_ANCHORS } from '@/lib/engines/types';
-import { BAIDU_SERP_HOSTS, BING_SERP_HOSTS, GOOGLE_SERP_HOSTS } from '@/lib/engines/scopes';
+import { BAIDU_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
-  it('registers google + bing + baidu', () => {
-    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu']);
+  it('registers google + bing + baidu + douyin + xiaohongshu', () => {
+    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu']);
   });
 
   it('getEngine throws on unknown id', () => {
@@ -27,6 +27,16 @@ describe('buildSerpUrl', () => {
       'https://www.baidu.com/s?wd=%E4%B8%AD%E6%96%87%20%26%20space',
     );
   });
+  it('douyin encodes the query into the path segment', () => {
+    expect(getEngine('douyin').buildSerpUrl('hello 世界')).toBe(
+      'https://www.douyin.com/search/hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
+  it('xiaohongshu encodes the query into the keyword param', () => {
+    expect(getEngine('xiaohongshu').buildSerpUrl('hello 世界')).toBe(
+      'https://www.xiaohongshu.com/search_result?keyword=hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
 });
 
 describe('matchEngineByUrl', () => {
@@ -46,11 +56,26 @@ describe('matchEngineByUrl', () => {
   it('matches Baidu SERP host', () => {
     expect(matchEngineByUrl('https://www.baidu.com/s?wd=x')?.id).toBe('baidu');
   });
+  it('matches Douyin SERP host (query in path segment)', () => {
+    expect(matchEngineByUrl('https://www.douyin.com/search/hello')?.id).toBe('douyin');
+    expect(matchEngineByUrl('https://www.douyin.com/search/hello/')?.id).toBe('douyin');
+  });
+  it('rejects Douyin nested paths beyond a single search segment', () => {
+    expect(matchEngineByUrl('https://www.douyin.com/search/hello/user')).toBeNull();
+    expect(matchEngineByUrl('https://www.douyin.com/search/hello/video/123')).toBeNull();
+  });
+  it('matches Xiaohongshu SERP host (keyword param)', () => {
+    expect(matchEngineByUrl('https://www.xiaohongshu.com/search_result?keyword=hello')?.id).toBe('xiaohongshu');
+  });
+  it('matches Xiaohongshu SERP host with trailing slash (/search_result/?keyword=)', () => {
+    expect(matchEngineByUrl('https://www.xiaohongshu.com/search_result/?keyword=hello&source=web')?.id).toBe('xiaohongshu');
+  });
   it('rejects forged and unsupported hosts', () => {
     expect(matchEngineByUrl('https://www.google.co.jp.example.com/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.google.fr/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.bing.co.uk/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.baidu.com.example.com/s?wd=x')).toBeNull();
+    expect(matchEngineByUrl('https://www.douyin.com.example.com/search/x')).toBeNull();
   });
   it.each([
     'http://www.google.com/search?q=x',
@@ -65,6 +90,14 @@ describe('matchEngineByUrl', () => {
     'https://www.baidu.com:8443/s?wd=x',
     'https://www.baidu.com/search?wd=x',
     'https://www.baidu.com/something?wd=x',
+    // 抖音 query 在 path 段：以下非 canonical 形式应被拒
+    'http://www.douyin.com/search/x',
+    'https://www.douyin.com:8443/search/x',
+    'https://www.douyin.com/searching/x',
+    // 小红书 query 在 keyword 参数：非 canonical 路径应被拒
+    'http://www.xiaohongshu.com/search_result?keyword=x',
+    'https://www.xiaohongshu.com:8443/search_result?keyword=x',
+    'https://www.xiaohongshu.com/searching?keyword=x',
   ])('rejects non-canonical SERP URL %s', (url) => {
     expect(matchEngineByUrl(url)).toBeNull();
   });
@@ -86,6 +119,15 @@ describe('extractQuery', () => {
   it('returns Baidu query', () => {
     expect(extractQuery('https://www.baidu.com/s?wd=react+hooks')).toBe('react hooks');
   });
+  it('decodes Douyin query from the path segment', () => {
+    expect(extractQuery('https://www.douyin.com/search/react%20hooks')).toBe('react hooks');
+  });
+  it('decodes Xiaohongshu query from the keyword param', () => {
+    expect(extractQuery('https://www.xiaohongshu.com/search_result?keyword=react+hooks')).toBe('react hooks');
+  });
+  it('decodes Xiaohongshu query from the keyword param (trailing-slash path)', () => {
+    expect(extractQuery('https://www.xiaohongshu.com/search_result/?keyword=react+hooks&source=web')).toBe('react hooks');
+  });
   it('returns null when no query param', () => {
     expect(extractQuery('https://www.google.com/search')).toBeNull();
   });
@@ -104,6 +146,12 @@ describe('engine scopes', () => {
     }
     for (const host of BAIDU_SERP_HOSTS) {
       expect(matchEngineByUrl(`https://${host}/s?wd=x`)?.id).toBe('baidu');
+    }
+    for (const host of DOUYIN_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/search/x`)?.id).toBe('douyin');
+    }
+    for (const host of XIAOHONGSHU_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/search_result?keyword=x`)?.id).toBe('xiaohongshu');
     }
   });
 });

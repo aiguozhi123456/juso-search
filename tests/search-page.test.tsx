@@ -482,6 +482,7 @@ describe('search page', () => {
         return Promise.resolve({
           configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
           sourceOrder: ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'],
+          sourceHidden: ['douyin', 'xiaohongshu'],
         });
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);

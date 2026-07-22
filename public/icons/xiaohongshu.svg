@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img" aria-label="Xiaohongshu">
+  <rect width="16" height="16" rx="3.5" fill="#FF2442"/>
+  <!-- 笔记本图标：小红书以图文笔记为核心形态 -->
+  <rect x="4.4" y="3.6" width="7.2" height="8.8" rx="1.1" fill="#fff"/>
+  <rect x="5.6" y="5.3" width="4.8" height="0.85" rx="0.42" fill="#FF2442"/>
+  <rect x="5.6" y="7" width="4.8" height="0.85" rx="0.42" fill="#FF2442"/>
+  <rect x="5.6" y="8.7" width="3" height="0.85" rx="0.42" fill="#FF2442"/>
+</svg>

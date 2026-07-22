@@ -5,6 +5,7 @@ import {
   migrateConfig,
   CURRENT_SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
+  migrations,
   type Migration,
 } from '@/lib/schema';
 
@@ -86,14 +87,45 @@ describe('ensureSchema: downgrade tolerance', () => {
 });
 
 describe('ensureSchema: migration chain (forward compatibility)', () => {
-  // 用一个虚拟的 ensureSchemaWith 注入未来迁移链与目标版本，验证机制本身可用。
-  // 不污染真实 migrations / CURRENT_SCHEMA_VERSION（首版应为空）。
-  it('real migrations array is empty in v1 (no historical migrations)', () => {
-    // 动态导入避免被本文件的 import 缓存干扰
+  it('real migrations array contains the v1->v2 default-hidden engines migration', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toEqual([]);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(1);
+      expect(mod.migrations).toHaveLength(1);
+      expect(mod.migrations[0].version).toBe(1);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(2);
     });
+  });
+
+  it('v1->v2 migration merges default-hidden engine ids into sourceHidden (idempotent)', () => {
+    const once = migrateConfig({ sourceHidden: ['bing'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
+    const twice = migrateConfig(once, 1, CURRENT_SCHEMA_VERSION, migrations);
+    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu']);
+    expect(twice).toEqual(once);
+  });
+
+  it('v1->v2 migration initializes sourceHidden when absent', () => {
+    const out = migrateConfig({ providerKeys: {} }, 1, CURRENT_SCHEMA_VERSION, migrations);
+    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu']);
+  });
+
+  it('v1->v2 migration does not duplicate ids already hidden', () => {
+    const out = migrateConfig({ sourceHidden: ['douyin', 'baidu'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
+    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu']);
+  });
+
+  it('ensureSchema set-then-remove: stamps version even when only version key changes', async () => {
+    // 首装：缺戳 → 应写 CURRENT；顺序上 set 先于 remove（remove 通常为空）。
+    const { store } = installStorage({ themePref: 'dark' });
+    const setSpy = vi.spyOn(browser.storage.local, 'set');
+    const removeSpy = vi.spyOn(browser.storage.local, 'remove');
+    await ensureSchema();
+    expect(store.get(SCHEMA_VERSION_KEY)).toBe(CURRENT_SCHEMA_VERSION);
+    // set 必须被调用（至少写 schemaVersion）；若有 remove，set 的 call 应不晚于 remove。
+    expect(setSpy).toHaveBeenCalled();
+    if (removeSpy.mock.calls.length > 0) {
+      const setOrder = setSpy.mock.invocationCallOrder[0]!;
+      const removeOrder = removeSpy.mock.invocationCallOrder[0]!;
+      expect(setOrder).toBeLessThan(removeOrder);
+    }
   });
 });
 

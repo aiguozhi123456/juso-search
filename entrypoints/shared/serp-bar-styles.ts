@@ -65,6 +65,23 @@ export const serpBarStyles = `
   z-index: 1 !important;
 }
 
+/* 抖音：fixed 贴在搜索框(#douyin-header, h=56)正下方；筛选区(综合/视频/用户…)
+ * 在 #search-toolbar-container 内，由 pageStyles 把该工具栏整体下移腾出栏位。
+ * left/width 用视口绝对坐标（--juso-serp-left），对齐搜索内容列（#search-content-area），
+ * 不能用相对父元素的 --juso-serp-offset-left（fixed 的 containing block 是 viewport）。 */
+:host([data-engine="douyin"]) {
+  position: fixed !important;
+  top: 56px !important;
+  left: var(--juso-serp-left, 72px) !important;
+  margin-top: 0 !important;
+  margin-left: 0 !important;
+  width: var(--juso-serp-width, 801px) !important;
+  max-width: calc(100vw - 24px) !important;
+  z-index: 600 !important;
+  background: var(--bg) !important;
+  box-sizing: border-box !important;
+}
+
 /* 签名滑动指示器 segmented control（与搜索页同款） */
 .source-switcher {
   position: relative;

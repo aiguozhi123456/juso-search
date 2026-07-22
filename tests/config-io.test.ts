@@ -113,7 +113,7 @@ describe('buildExportPayload', () => {
   it('exports a normalized complete source order', async () => {
     installStorage({ sourceOrder: ['bing', 'exa', 'ghost', 'bing'] });
     await expect(buildExportPayload()).resolves.toMatchObject({
-      sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'google', 'baidu'],
+      sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu'],
     });
   });
 
@@ -198,7 +198,7 @@ describe('parseImportPayload', () => {
   it('normalizes a valid partial sourceOrder by appending missing sources', () => {
     const result = parseImportPayload(validPayload({ sourceOrder: ['bing', 'tavily'] }));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu']);
+    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu']);
   });
 
   it.each([
@@ -331,7 +331,7 @@ describe('mergeImport', () => {
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
-    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu'] });
+    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu'] });
     await mergeImport(payload);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toBeUndefined();
 
@@ -381,8 +381,8 @@ describe('mergeImport', () => {
     let signalImportSet!: () => void;
     const importSet = new Promise<void>((resolve) => { releaseImportSet = resolve; });
     const importSetStarted = new Promise<void>((resolve) => { signalImportSet = resolve; });
-    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
-    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
+    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu'];
+    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu'];
     const { store } = installStorage({}, {
       beforeSet: async (items) => {
         if (items.providerKeys && items.sourceOrder) {
@@ -454,8 +454,8 @@ describe('previewImport (dry-run)', () => {
     }));
     expect(preview.prefDiffs).toEqual([{
       key: 'sourceOrder',
-      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu',
-      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu',
+      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > douyin > xiaohongshu',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > douyin > xiaohongshu',
     }]);
   });
 

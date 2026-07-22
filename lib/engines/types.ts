@@ -13,7 +13,7 @@
 // 而常规引擎两者都没有——把它们塞进同一联合会污染 gateway / storage 的
 // key 读路径。详见 docs/solutions architecture-patterns v2 learning。
 
-export type EngineId = 'google' | 'bing' | 'baidu';
+export type EngineId = 'google' | 'bing' | 'baidu' | 'douyin' | 'xiaohongshu';
 
 /** WXT append 模式的本地镜像（与 wxt 的 ContentScriptAppendMode 字面量一致，避免在纯数据模块里 import wxt 类型）。 */
 export type AppendMode = 'last' | 'first' | 'replace' | 'before' | 'after';

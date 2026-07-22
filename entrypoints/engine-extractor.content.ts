@@ -3,8 +3,10 @@ import { getEngine } from '@/lib/engines/registry';
 import {
   BAIDU_SERP_HOSTS,
   BING_SERP_HOSTS,
+  DOUYIN_SERP_HOSTS,
   ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
   GOOGLE_SERP_HOSTS,
+  XIAOHONGSHU_SERP_HOSTS,
   isEngineChallengeOrConsentUrlForHost,
 } from '@/lib/engines/scopes';
 import type { EngineId } from '@/lib/engines/types';
@@ -29,7 +31,13 @@ function matchesRequestUrl(request: Request): boolean {
 }
 
 function hostsForEngine(engineId: EngineId): readonly string[] {
-  return engineId === 'google' ? GOOGLE_SERP_HOSTS : engineId === 'bing' ? BING_SERP_HOSTS : BAIDU_SERP_HOSTS;
+  switch (engineId) {
+    case 'google': return GOOGLE_SERP_HOSTS;
+    case 'bing': return BING_SERP_HOSTS;
+    case 'baidu': return BAIDU_SERP_HOSTS;
+    case 'douyin': return DOUYIN_SERP_HOSTS;
+    case 'xiaohongshu': return XIAOHONGSHU_SERP_HOSTS;
+  }
 }
 
 async function waitAndExtract(request: Request) {
@@ -44,5 +52,5 @@ async function waitAndExtract(request: Request) {
 function isRequest(value: unknown): value is Request {
   return typeof value === 'object' && value !== null && (value as Request).type === 'juso:extract-engine-results'
     && typeof (value as Request).requestId === 'string' && typeof (value as Request).query === 'string'
-    && ['google', 'bing', 'baidu'].includes((value as Request).engineId) && ((value as Request).maxResults === undefined || (Number.isInteger((value as Request).maxResults) && (value as Request).maxResults! >= 1 && (value as Request).maxResults! <= 20));
+    && ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu'].includes((value as Request).engineId) && ((value as Request).maxResults === undefined || (Number.isInteger((value as Request).maxResults) && (value as Request).maxResults! >= 1 && (value as Request).maxResults! <= 20));
 }
