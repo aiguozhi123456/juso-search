@@ -37,5 +37,5 @@ export default defineConfig({
         matches: SERP_HOST_MATCH_PATTERNS,
       },
     ],
-  } as any,
+  },
 });

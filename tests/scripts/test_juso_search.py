@@ -1,3 +1,4 @@
+import argparse
 import http.client
 import importlib.util
 import json
@@ -149,6 +150,35 @@ class PureFunctionTests(unittest.TestCase):
         # 显式传 --extension-id 时仍以其为准
         args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
         self.assertEqual(args.extension_id, "a" * 32)
+
+    def test_extension_id_env_and_cli_precedence(self):
+        """JUSO_EXTENSION_ID 覆盖默认值；CLI --extension-id 优先于环境变量。"""
+        env_id = "b" * 32
+        cli_id = "c" * 32
+        with patch.dict(os.environ, {"JUSO_EXTENSION_ID": env_id}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.extension_id, env_id)
+            args = juso_search.parser().parse_args(["--extension-id", cli_id, "list-providers"])
+            self.assertEqual(args.extension_id, cli_id)
+        # 空字符串环境变量经 `or` 回退到 DEFAULT_EXTENSION_ID
+        with patch.dict(os.environ, {"JUSO_EXTENSION_ID": ""}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.extension_id, juso_search.DEFAULT_EXTENSION_ID)
+        # argparse 会对 default 跑 type=extension_id，非法 env 在 parse 阶段失败
+        with patch.dict(os.environ, {"JUSO_EXTENSION_ID": "not-a-valid-id"}, clear=True):
+            with self.assertRaises(SystemExit):
+                juso_search.parser().parse_args(["list-providers"])
+        # run() 仍校验非法 ID（Namespace 直传等旁路）
+        bad = argparse.Namespace(
+            extension_id="not-a-valid-id",
+            command="list-providers",
+            chrome=None,
+            profile=None,
+            timeout=1.0,
+        )
+        status, payload = juso_search.run(bad)
+        self.assertEqual(status, 2)
+        self.assertEqual(payload["error"]["kind"], "invalid_extension_id")
 
     def test_reply_validation_status_and_path_lookup(self):
         error_reply = {"ok": False, "error": {"kind": "unknown", "message": "safe"}}

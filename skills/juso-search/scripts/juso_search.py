@@ -308,7 +308,7 @@ def parser() -> argparse.ArgumentParser:
 
 def run(args: argparse.Namespace) -> tuple[int, Any]:
     if not args.extension_id or not EXTENSION_ID_RE.fullmatch(args.extension_id):
-        return 2, {"ok": False, "error": {"kind": "invalid_extension_id", "message": "set --extension-id or JUSO_EXTENSION_ID"}}
+        return 2, {"ok": False, "error": {"kind": "invalid_extension_id", "message": "extension ID must be 32 lowercase letters a-p; override with --extension-id or JUSO_EXTENSION_ID"}}
     chrome = find_chrome(args.chrome)
     if not chrome:
         return 2, {"ok": False, "error": {"kind": "chrome_not_found", "message": "set --chrome or JUSO_CHROME_PATH"}}
