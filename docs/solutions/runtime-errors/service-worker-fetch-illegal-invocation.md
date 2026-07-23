@@ -86,3 +86,4 @@ Equivalent alternatives: `fetch.bind(globalThis)` or an explicit wrapper that ca
 
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — intended bridge architecture
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — separate post-bridge extractor bug found in the same E2E pass
+- `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — SERP `timeout` / `tab-closed` / `aborted` are tab orchestration kinds; do not conflate with SW `fetch` Illegal invocation timeouts

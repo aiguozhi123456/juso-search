@@ -88,3 +88,4 @@ Google SERP class names and nesting change frequently. Organic identity is more 
 
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — bridge had to work first
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — engine-search is a bridge action over real browser tabs
+- `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — later engine-search reliability: orchestration error kinds vs page-state, Baidu local URL fallbacks

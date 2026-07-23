@@ -170,6 +170,10 @@ The verified checks included the full Vitest suite, Python bridge tests, `npm ru
 - `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`
 - `docs/solutions/runtime-errors/serp-to-extension-page-blocked-by-client.md`
+- `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — orchestration vs page-state errors; Baidu local URL chain
+- `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — Google organic extraction under nested wrappers
+- `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — fire-and-forget bridge tab close
+- `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — SW `fetch` this-binding vs SERP tab timeout
 - `skills/juso-search/SKILL.md`
 - `lib/agent-bridge.ts`
 - `lib/engine-search.ts`

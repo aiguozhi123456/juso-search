@@ -60,3 +60,4 @@ Call `closeTab()` after `setStatus(...)` on all exit paths. The 300ms delay lets
 
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md`
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md`
+- `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — bridge and SERP tabs should stay inactive / not steal focus; orchestration failures are not page-state
