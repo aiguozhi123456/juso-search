@@ -43,6 +43,8 @@ export interface ProviderAdapter {
   label: string;
   /** Tavily/Exa 支持；Stepfun 两面均不支持 */
   supportsAnswer: boolean;
+  /** provider 品牌图标：扩展内相对路径（与 engine favicon 同语义），渲染处用 resolveIconUrl 解析。 */
+  favicon: string;
   search(query: string, opts: SearchOptions, apiKey: string): Promise<NormalizedSearchResponse>;
 }
 

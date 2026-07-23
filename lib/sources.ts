@@ -19,7 +19,7 @@ export interface SearchSource {
   label: string;
   /** provider 是否支持 AI 答案（engine 恒为 false）。 */
   supportsAnswer: boolean;
-  /** engine 的 favicon 扩展内相对路径（provider 为 undefined）。 */
+  /** 来源品牌图标：扩展内相对路径（engine 与 provider 均提供），渲染处用 resolveIconUrl 解析。 */
   favicon?: string;
 }
 
@@ -91,6 +91,7 @@ export function allSources(
         kind: 'provider',
         label: provider.label,
         supportsAnswer: provider.supportsAnswer,
+        favicon: provider.favicon,
       }] : [];
     }
     const engine = enginesById.get(id as EngineId)!;

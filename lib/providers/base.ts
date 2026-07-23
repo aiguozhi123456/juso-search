@@ -19,6 +19,8 @@ export interface ProviderDefinition<TRaw> {
   /** 显示标签的 i18n 消息名（渲染处用 t() 解析）。 */
   readonly label: string;
   readonly supportsAnswer: boolean;
+  /** provider 品牌图标：扩展内相对路径（与 engine favicon 同语义），渲染处用 resolveIconUrl 解析。 */
+  readonly favicon: string;
   readonly transport: ProviderTransport<TRaw>;
   /** 把原始响应归一化为 {answer?, results}；query/provider 由工厂注入。
    *  允许抛 ProviderError（如 JSON 解析失败映射为 parse）。 */
@@ -31,6 +33,7 @@ export function defineProvider<TRaw>(def: ProviderDefinition<TRaw>): ProviderAda
     id: def.id,
     label: def.label,
     supportsAnswer: def.supportsAnswer,
+    favicon: def.favicon,
     async search(query, opts, apiKey) {
       const raw = await def.transport.send(query, opts, apiKey);
       const body = def.normalize(query, raw);

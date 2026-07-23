@@ -17,6 +17,16 @@ describe('provider registry', () => {
     expect(getAdapter(id).supportsAnswer).toBe(expected);
   });
 
+  it.each([
+    ['tavily', '/icons/tavily.svg'],
+    ['exa', '/icons/exa.svg'],
+    ['stepfun', '/icons/stepfun.svg'],
+    // stepfun-plan 与 stepfun 同公司，共享同一品牌图标。
+    ['stepfun-plan', '/icons/stepfun.svg'],
+  ] as Array<[ProviderId, string]>)('declares favicon=%s for %s', (id, expected) => {
+    expect(getAdapter(id).favicon).toBe(expected);
+  });
+
   it('throws on unknown id', () => {
     expect(() => getAdapter('nope' as ProviderId)).toThrow(/Unknown provider/);
   });

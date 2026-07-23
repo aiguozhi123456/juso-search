@@ -36,6 +36,7 @@ export const exaAdapter = defineProvider<ExaResponse>({
   id: 'exa',
   label: LABEL,
   supportsAnswer: true,
+  favicon: '/icons/exa.svg',
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,

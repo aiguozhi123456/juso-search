@@ -20,10 +20,19 @@ export default defineConfig({
       'https://api.exa.ai/*',
       'https://api.stepfun.com/*',
     ],
-    // 静态 content script 不需要额外 host permission；engine favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
+    // 静态 content script 不需要额外 host permission；engine 与 provider 的 favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
     web_accessible_resources: [
       {
-        resources: ['icons/google.svg', 'icons/bing.svg', 'icons/baidu.svg', 'icons/douyin.svg', 'icons/xiaohongshu.svg'],
+        resources: [
+          'icons/google.svg',
+          'icons/bing.svg',
+          'icons/baidu.svg',
+          'icons/douyin.svg',
+          'icons/xiaohongshu.svg',
+          'icons/tavily.svg',
+          'icons/exa.svg',
+          'icons/stepfun.svg',
+        ],
         matches: SERP_HOST_MATCH_PATTERNS,
       },
     ],

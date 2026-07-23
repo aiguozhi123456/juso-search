@@ -25,6 +25,7 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
   id: 'tavily',
   label: LABEL,
   supportsAnswer: true,
+  favicon: '/icons/tavily.svg',
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,

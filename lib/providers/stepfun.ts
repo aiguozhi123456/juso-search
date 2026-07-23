@@ -24,6 +24,7 @@ export const stepfunAdapter = defineProvider<StepfunResponse>({
   id: 'stepfun',
   label: LABEL,
   supportsAnswer: false,
+  favicon: '/icons/stepfun.svg',
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,

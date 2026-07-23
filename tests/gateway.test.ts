@@ -117,6 +117,7 @@ function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter 
     id: 'tavily',
     label: 'provider_tavily', // i18n 消息名（不再是显示串）
     supportsAnswer: true,
+    favicon: '/icons/tavily.svg',
     search: vi.fn().mockResolvedValue({ query: 'q', provider: 'tavily', results: [] }),
     ...overrides,
   };

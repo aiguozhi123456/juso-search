@@ -49,6 +49,16 @@ describe('allSources', () => {
     expect(byId.stepfun.supportsAnswer).toBe(false);
   });
 
+  it('providers carry a favicon from the adapter', () => {
+    const sources = allSources(['tavily', 'exa', 'stepfun', 'stepfun-plan']);
+    const byId = Object.fromEntries(sources.map((s) => [s.id, s]));
+    expect(byId.tavily.favicon).toBe('/icons/tavily.svg');
+    expect(byId.exa.favicon).toBe('/icons/exa.svg');
+    expect(byId.stepfun.favicon).toBe('/icons/stepfun.svg');
+    // stepfun-plan 与 stepfun 同公司，共享同一品牌图标。
+    expect(byId['stepfun-plan'].favicon).toBe('/icons/stepfun.svg');
+  });
+
   it('projects configured providers and engines in a custom mixed order', () => {
     expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu'])
       .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu']);

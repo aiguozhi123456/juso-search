@@ -26,6 +26,7 @@ export const stepfunPlanAdapter = defineProvider<string>({
   id: 'stepfun-plan',
   label: LABEL,
   supportsAnswer: false,
+  favicon: '/icons/stepfun.svg',
   transport: mcpTransport({ endpoint: ENDPOINT }),
   normalize(query, text): NormalizedBody {
     let payload: StepfunPayload;
