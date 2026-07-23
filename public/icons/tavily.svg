@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="Tavily">
-  <rect width="16" height="16" rx="3.5" fill="#0E1E32"/>
-  <text x="8" y="11.8" fill="#2EA8F0" font-family="Arial,Helvetica,sans-serif" font-size="9.5" font-weight="700" text-anchor="middle">T</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img" aria-label="Tavily">
+  <defs>
+    <path id="tv-arm" fill="#2EA8F0" d="M7.4 6.5L7.4 3.2L6.4 3.2L8 1.4L9.6 3.2L8.6 3.2L8.6 6.5Z"/>
+  </defs>
+  <use href="#tv-arm"/>
+  <use href="#tv-arm" transform="rotate(120 8 8)"/>
+  <use href="#tv-arm" transform="rotate(240 8 8)"/>
+  <circle cx="8" cy="8" r="1.7" fill="#2EA8F0"/>
 </svg>
