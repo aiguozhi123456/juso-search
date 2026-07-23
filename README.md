@@ -17,7 +17,7 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 
 Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索引擎**，也可以是已配置的 AI 搜索服务；两者的执行方式不同。
 
-- 传统搜索引擎：Google、Bing、Baidu、抖音、小红书。它们不使用 API 密钥；Juso 通过浏览器导航，供人直接使用，或为智能体提取普通搜索结果。
+- 传统搜索引擎：Google、Bing、Baidu、抖音、小红书。它们不使用 API 密钥；Juso 通过浏览器导航，供人直接使用；其中 Google、Bing、Baidu 还支持智能体提取普通搜索结果。
 - AI 搜索服务：Tavily、Exa、Stepfun 按量 API、Stepfun Step Plan。服务经由统一的适配器接口访问，但各自的鉴权与计费由相应服务决定。
 - 答案能力：Tavily 和 Exa 可返回综合答案及结果列表；两个 Stepfun 来源当前仅返回结果列表。
 
@@ -69,7 +69,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 也可以临时覆盖：`python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`。
 
-完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索，或通过浏览器检索 Google、Bing、Baidu、抖音、小红书，而不会取得已存储的密钥。
+完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索，或通过浏览器检索 Google、Bing、Baidu，而不会取得已存储的密钥。
 
 ## 安装与更新
 

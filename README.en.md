@@ -17,7 +17,7 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine** or a configured AI search service; those two types use different execution paths.
 
-- Conventional Search Engines: Google, Bing, Baidu, Douyin, and Xiaohongshu. They use no API key; Juso navigates a browser for people to use directly or for agents to extract ordinary search results.
+- Conventional Search Engines: Google, Bing, Baidu, Douyin, and Xiaohongshu. They use no API key; Juso navigates a browser for people to use directly; Google, Bing, and Baidu also let agents extract ordinary search results.
 - AI search services: Tavily, Exa, Stepfun pay-as-you-go API, and Stepfun Step Plan. They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
 - Answer capability: Tavily and Exa can return a synthesized answer with a result list. Both Stepfun sources currently return result lists only.
 
@@ -69,7 +69,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 To override temporarily: `python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`.
 
-The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, Baidu, Douyin, and Xiaohongshu through the browser—without receiving stored credentials.
+The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, and Baidu through the browser—without receiving stored credentials.
 
 ## Installation and Updates
 
