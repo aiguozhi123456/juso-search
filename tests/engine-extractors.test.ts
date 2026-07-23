@@ -51,6 +51,21 @@ describe('engine natural-result extractors', () => {
     });
   });
 
+  it('resolves Baidu real URLs from local DOM fields without follow-redirect', () => {
+    expect(extract('baidu', 'baidu-url-fallbacks.html')).toEqual({
+      engine: 'baidu',
+      query: 'test query',
+      results: [
+        { title: 'Mdurl title', url: 'https://example.cn/from-mdurl', snippet: 'From data-mdurl' },
+        { title: 'Log title', url: 'https://example.cn/from-log', snippet: 'From data-log mu' },
+        { title: 'Log quotes title', url: 'https://example.cn/from-log-single-quotes', snippet: 'Mobile log with single-quoted JSON' },
+        { title: 'Scholar title', url: 'https://example.cn/scholar', snippet: 'From sc_vurl' },
+        { title: 'Direct title', url: 'https://example.cn/direct', snippet: 'Bare external href' },
+        { title: 'Prefer mu', url: 'https://example.cn/preferred', snippet: 'mu wins over mdurl and href' },
+      ],
+    });
+  });
+
   it('clamps the requested maximum result count', () => {
     expect((extract('google', 'google-basic.html', 1) as { results: unknown[] }).results).toHaveLength(1);
     expect((extract('google', 'google-basic.html', 0) as { results: unknown[] }).results).toHaveLength(1);

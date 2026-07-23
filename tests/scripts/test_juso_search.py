@@ -208,6 +208,11 @@ class PureFunctionTests(unittest.TestCase):
         self.assertFalse(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "other", "error": "challenge"}))
         self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "challenge"}), 1)
         self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "no-results"}), 1)
+        self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "tab-closed"}))
+        self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "tab-closed"}), 1)
+        self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "timeout"}))
+        self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "aborted"}))
+        self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "extract-failed"}))
         with patch.object(juso_search.shutil, "which", side_effect=lambda name: "/bin/chromium" if name == "chromium" else None):
             self.assertEqual(juso_search.find_chrome(None), "/bin/chromium")
 

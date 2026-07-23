@@ -16,7 +16,15 @@ export type EngineExtractionErrorKind =
   | 'challenge'
   | 'consent'
   | 'unsupported-layout'
-  | 'no-results';
+  | 'no-results'
+  /** Temporary SERP tab was closed before extraction finished. */
+  | 'tab-closed'
+  /** Tab load, content-script handshake, or extraction wait timed out. */
+  | 'timeout'
+  /** Request aborted (bridge deadline / cancellation). */
+  | 'aborted'
+  /** Tab create/message/orchestration failure not classifiable above. */
+  | 'extract-failed';
 
 export interface EngineExtractionError {
   engine: EngineId;

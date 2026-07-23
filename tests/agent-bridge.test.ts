@@ -91,6 +91,6 @@ describe('agent bridge protocol', () => {
     const handleEngineSearch = vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError'));
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
     expect(fetchMock.mock.calls[1][1].signal).not.toBe(handleEngineSearch.mock.calls[0][1]);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { engine: 'google', query: 'hello', error: 'unsupported-layout' } });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { engine: 'google', query: 'hello', error: 'aborted' } });
   });
 });

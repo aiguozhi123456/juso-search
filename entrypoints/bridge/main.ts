@@ -5,6 +5,11 @@ const root = document.getElementById('root');
 const fragment = window.location.hash;
 history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
 
+// External process opens bridge.html as a focused tab; drop focus immediately so the user stays on their current page.
+void browser.tabs.getCurrent().then((tab) => {
+  if (tab?.id !== undefined) return browser.tabs.update(tab.id, { active: false });
+}).catch(() => undefined);
+
 void connect();
 
 async function connect(): Promise<void> {

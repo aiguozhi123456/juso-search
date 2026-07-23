@@ -130,7 +130,16 @@ def is_engine_search_reply(reply: Any) -> bool:
             isinstance(result, dict) and set(result) == {"title", "url", "snippet"}
             and all(isinstance(result[key], str) for key in result) for result in reply["results"]
         )
-    return reply.get("error") in {"challenge", "consent", "unsupported-layout", "no-results"}
+    return reply.get("error") in {
+        "challenge",
+        "consent",
+        "unsupported-layout",
+        "no-results",
+        "tab-closed",
+        "timeout",
+        "aborted",
+        "extract-failed",
+    }
 
 
 def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:

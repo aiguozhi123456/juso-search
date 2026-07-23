@@ -1,0 +1,34 @@
+<div id="content_left">
+  <div class="result c-container">
+    <h3><a href="https://www.baidu.com/link?url=opaque" data-mdurl="https://example.cn/from-mdurl">Mdurl title</a></h3>
+    <div class="c-abstract">From data-mdurl</div>
+  </div>
+  <div class="result c-container" data-log="{&quot;mu&quot;:&quot;https://example.cn/from-log&quot;}">
+    <h3><a href="https://www.baidu.com/link?url=opaque2">Log title</a></h3>
+    <div class="c-abstract">From data-log mu</div>
+  </div>
+  <div class="result c-container" data-log="{'mu':'https://example.cn/from-log-single-quotes'}">
+    <h3><a href="https://m.baidu.com/from/123">Log quotes title</a></h3>
+    <div class="c-abstract">Mobile log with single-quoted JSON</div>
+  </div>
+  <div class="result c-container">
+    <h3><a href="https://xueshu.baidu.com/s?sc_vurl=https%3A%2F%2Fexample.cn%2Fscholar">Scholar title</a></h3>
+    <div class="c-abstract">From sc_vurl</div>
+  </div>
+  <div class="result c-container">
+    <h3><a href="https://example.cn/direct">Direct title</a></h3>
+    <div class="c-abstract">Bare external href</div>
+  </div>
+  <div class="result c-container" mu="nourl">
+    <h3><a href="https://www.baidu.com/link?url=shell">Nourl shell</a></h3>
+    <div class="c-abstract">Should drop: nourl mu + link shell</div>
+  </div>
+  <div class="result c-container">
+    <h3><a href="https://www.baidu.com/link?url=only-shell">Shell only</a></h3>
+    <div class="c-abstract">Should drop: unresolved baidu link</div>
+  </div>
+  <div class="result c-container" mu="https://example.cn/preferred">
+    <h3><a href="https://www.baidu.com/link?url=x" data-mdurl="https://example.cn/secondary">Prefer mu</a></h3>
+    <div class="c-abstract">mu wins over mdurl and href</div>
+  </div>
+</div>

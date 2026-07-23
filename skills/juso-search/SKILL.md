@@ -65,7 +65,7 @@ Skill lifecycle errors use `{"ok":false,"error":{"kind":"...","message":"..."}}`
 | `invalid_extension_id` | Extension id is not 32 lowercase letters a–p |
 | `wait_failed` | Unexpected wait failure |
 
-Do not retry by exposing API keys. Fix path, profile, extension id, and that Juso is enabled in the opened browser, then retry. For `engine-search`, `challenge`, `consent`, `unsupported-layout`, and `no-results` also return nonzero because no usable engine results were obtained.
+Do not retry by exposing API keys. Fix path, profile, extension id, and that Juso is enabled in the opened browser, then retry. For `engine-search`, page-state errors (`challenge`, `consent`, `unsupported-layout`, `no-results`) and orchestration errors (`tab-closed`, `timeout`, `aborted`, `extract-failed`) also return nonzero because no usable engine results were obtained.
 
 ## Verification
 

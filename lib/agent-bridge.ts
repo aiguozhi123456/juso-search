@@ -95,9 +95,13 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
       reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.value.request, actionController.signal)
         : claim.value.request.action === 'engine-search' ? await deps.handleEngineSearch(claim.value.request, actionController.signal)
           : await deps.listProviders();
-    } catch {
+    } catch (error) {
       reply = claim.value.request.action === 'engine-search'
-        ? { engine: claim.value.request.engineId, query: claim.value.request.query, error: 'unsupported-layout' }
+        ? {
+            engine: claim.value.request.engineId,
+            query: claim.value.request.query,
+            error: error instanceof DOMException && error.name === 'AbortError' ? 'aborted' : 'extract-failed',
+          }
         : { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } };
     }
     clearTimeout(actionTimeout);
