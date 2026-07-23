@@ -31,7 +31,7 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.0.0 is available for adopters comfortable with manual installation and configuration. Install the extension through Installation and Updates first, then continue with how you intend to use it.
+Juso v1.1.0 is available for adopters comfortable with manual installation and configuration. Install the extension through Installation and Updates first, then continue with how you intend to use it.
 
 ### People
 
