@@ -83,6 +83,26 @@ describe('search page', () => {
     expect(within(switcher).getByText('Bing')).toBeInTheDocument();
   });
 
+  it('reselects the first visible source when the active source is hidden', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['tavily', 'exa'],
+          activeProviderId: 'google',
+          activeSourceId: 'google',
+          sourceHidden: ['google'],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    const switcher = await screen.findByRole('group', { name: '切换搜索来源' });
+    // google 被隐藏，激活态重选到首个可见源（registry 默认顺序：tavily,exa,...）。
+    const activeBtn = switcher.querySelector<HTMLButtonElement>('[data-active="true"]');
+    expect(activeBtn?.getAttribute('data-source')).toBe('tavily');
+  });
+
   it('renders the answer card when the reply has an answer', async () => {
     await doSearch({
       ok: true,

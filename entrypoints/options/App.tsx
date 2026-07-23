@@ -60,6 +60,16 @@ export default function App() {
   }
 
   const configuredSources = allSources(configuredProviderIds, sourceOrder);
+  // 激活态下拉框只列可见来源（已隐藏项不出现在下拉框）。
+  // 注意：快切栏管理列表仍用 configuredSources（不过滤），否则隐藏项无法再「显示」。
+  const visibleSources = allSources(configuredProviderIds, sourceOrder, sourceHidden);
+  // active 被隐藏时，下拉框渲染回退到首个可见源；active 本身在 toggleHidden
+  // 隐藏当前激活项时已被持久化重选（见 toggleHidden），这里只兜底初次加载的不一致。
+  const activeVisible = active == null
+    ? null
+    : visibleSources.some((s) => s.id === active)
+      ? active
+      : visibleSources[0]?.id ?? null;
 
   async function choose(id: SourceId) {
     await sendMessage('setActiveSource', id);
@@ -97,14 +107,23 @@ export default function App() {
     const isHidden = sourceHidden.includes(sourceId);
     const next = isHidden ? sourceHidden.filter((id) => id !== sourceId) : [...sourceHidden, sourceId];
 
+    // 隐藏当前激活项：把激活态重选到首个仍可见来源并持久化，避免下拉框落到
+    // 已隐藏的值上。仅隐藏分支需要；显示分支恢复原激活项由渲染兜底。
+    const reselectTo = !isHidden && active === sourceId
+      ? allSources(configuredProviderIds, sourceOrder, next).find((s) => s.id !== sourceId)?.id
+      : undefined;
+
     sourceHiddenRevision.current += 1;
     setSourceHiddenState(next);
+    if (reselectTo) setActive(reselectTo);
     setSavingSourceHidden(true);
     try {
       await sendMessage('setSourceHidden', next);
+      if (reselectTo) await sendMessage('setActiveSource', reselectTo);
     } catch {
       sourceHiddenRevision.current += 1;
       setSourceHiddenState(previous);
+      if (reselectTo) setActive(sourceId);
     } finally {
       sourceHiddenRevision.current += 1;
       setSavingSourceHidden(false);
@@ -125,11 +144,11 @@ export default function App() {
 
       <section data-section="search-source">
         <h2>{t(MSG.opts_active_engine)}</h2>
-        <select value={active ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
+        <select value={activeVisible ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
           <option value="" disabled>
             {t(MSG.opts_choose_placeholder)}
           </option>
-          {configuredSources.map((s) => (
+          {visibleSources.map((s) => (
             <option key={s.id} value={s.id}>
               {t(s.label)}
               {s.kind === 'provider' && !s.supportsAnswer ? t(MSG.opts_no_ai_answer) : ''}

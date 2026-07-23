@@ -14,6 +14,7 @@ import {
   shouldUpgradeFromLastResort,
   isLastResortAnchorIndex,
   consumeRemountBudget,
+  shouldMountForEngine,
   DEFAULT_REMOUNT_BUDGET,
 } from '@/lib/serp-bar-mount';
 
@@ -198,5 +199,21 @@ describe('removePageStyles', () => {
     expect(() => removePageStyles(document)).not.toThrow();
 
     expect(countPageStyleEls()).toBe(0);
+  });
+});
+
+describe('shouldMountForEngine (hidden engine gate)', () => {
+  it('mounts when the engine is not in the hidden list', () => {
+    expect(shouldMountForEngine('google', ['bing', 'baidu'])).toBe(true);
+  });
+
+  it('does not mount when the engine is hidden', () => {
+    expect(shouldMountForEngine('douyin', ['douyin', 'xiaohongshu'])).toBe(false);
+    expect(shouldMountForEngine('xiaohongshu', ['douyin', 'xiaohongshu'])).toBe(false);
+  });
+
+  it('mounts when the hidden list is undefined or empty', () => {
+    expect(shouldMountForEngine('google', undefined)).toBe(true);
+    expect(shouldMountForEngine('google', [])).toBe(true);
   });
 });

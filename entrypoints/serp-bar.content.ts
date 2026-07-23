@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
 import { allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
-import type { SearchSource } from '@/lib/sources';
+import type { SearchSource, SourceId } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl, anchorsFor } from '@/lib/engines/registry';
 import type { AnchorStrategy } from '@/lib/engines/types';
@@ -19,6 +19,7 @@ import {
   removePageStyles,
   canAttemptMount,
   shouldUpgradeFromLastResort,
+  shouldMountForEngine,
   consumeRemountBudget,
   DEFAULT_REMOUNT_BUDGET,
 } from '@/lib/serp-bar-mount';
@@ -51,6 +52,9 @@ export default defineContentScript({
     if (!engine) return;
 
     const state = await loadBarState(engine, initialUrl);
+    // 当前 engine 被用户隐藏时不在快切栏投影中——在其结果页注入栏只会得到
+    // 无激活目标的残栏，故不挂载（重载亦然，因判定每次 mount 都做）。
+    if (!shouldMountForEngine(engine.id, state.sourceHidden)) return;
 
     // 当前选用的锚点策略；每次 pick 后更新，供 append 回调与对齐布局使用。
     let strategy = pickAnchor(anchorsFor(state.engine));
@@ -267,6 +271,12 @@ export default defineContentScript({
         safeRemove();
         return;
       }
+      // SPA 导航到被隐藏 engine 的结果页：移除栏且不再重挂。
+      // 反向（从隐藏 engine 导航回可见 engine）由后续正常挂载路径恢复。
+      if (!shouldMountForEngine(nextEngine.id, state.sourceHidden)) {
+        safeRemove();
+        return;
+      }
       state.engine = nextEngine;
       state.query = readQuery(nextEngine, url);
       strategy = pickAnchor(anchorsFor(nextEngine));
@@ -302,6 +312,7 @@ interface BarState {
   engine: SearchEngine;
   query: string;
   sources: SearchSource[];
+  sourceHidden: SourceId[];
   resolvedTheme: 'light' | 'dark';
   stylePref: StylePref;
 }
@@ -315,6 +326,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     engine,
     query: readQuery(engine, url),
     sources,
+    sourceHidden: config.sourceHidden,
     resolvedTheme: resolveTheme(themePref),
     stylePref,
   };

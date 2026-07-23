@@ -30,6 +30,8 @@ The user's explicit choice of which Search Sources appear in the quick-switch ba
 
 Visibility has two independent axes. The implicit axis hides a source automatically while it lacks a configured key, and restores it when configured. The explicit axis is this user-chosen hide, which can remove any configured provider or engine regardless of key state. Only the explicit axis is a stored preference; both are applied as a final projection at render time, never persisted as the rendered list itself. A hidden source remains a valid Active Source and remains listed on configuration management surfaces so it can be shown again; the hide set is sparse, so normalization never re-adds sources the user removed.
 
+Hiding is orthogonal to the Active Source at the **storage** layer — hiding never mutates the persisted Active Source, so unhiding restores the user's original choice. But at the **display and execution** layer a hidden Active Source must be reselected: the active highlight, the search target, the active-source selector, and the decision to mount the SERP Switch Bar on a hidden engine's own page must all fall back to a visible source. The reselect is a derived view, never a persisted write, so storage orthogonality composes cleanly with a coherent display.
+
 ### Active Source
 The user's default search source preference. It may point to a configured AI provider or to a keyless conventional engine, so it belongs to the source/UI layer rather than the provider/key layer.
 

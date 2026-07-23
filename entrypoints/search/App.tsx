@@ -72,7 +72,7 @@ export default function App() {
     if (!query) return;
     let source: SourceId | null;
     try {
-      source = opts.providerId ?? opts.sourceId ?? active ?? await loadSourceSnapshot();
+      source = opts.providerId ?? opts.sourceId ?? visibleActive ?? active ?? await loadSourceSnapshot();
     } catch {
       setError({ message: t(MSG.search_failed_retry), needKey: false });
       return;
@@ -190,12 +190,21 @@ export default function App() {
 
   const isStart = !loading && !error && !response;
   const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden);
+  // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
+  // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
+  // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，
+  // 否则保持 null 让 handleSearch 走 loadSourceSnapshot 兜底（首次渲染未拿到配置）。
+  const visibleActive = active == null
+    ? null
+    : sources.some((s) => s.id === active)
+      ? active
+      : sources[0]?.id ?? null;
 
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1 className="topbar-wordmark"><Wordmark /></h1>
-        <SourceSwitcher sources={sources} activeId={active} onSelect={handleSelectSource} disabled={loading || switching} />
+        <SourceSwitcher sources={sources} activeId={visibleActive} onSelect={handleSelectSource} disabled={loading || switching} />
         <div className="topbar-actions">
           <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />
           <ThemeToggle />

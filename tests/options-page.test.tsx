@@ -151,6 +151,46 @@ describe('options page', () => {
     save.resolve();
   });
 
+  it('excludes hidden sources from the active-source dropdown', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          sourceHidden: ['google'],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    const select = await screen.findByRole('combobox');
+    // google 被隐藏，不出现在激活态下拉框；管理列表仍保留（由其它测试覆盖）。
+    expect(select).not.toHaveTextContent('Google');
+    expect(select).toHaveTextContent('Exa');
+    expect(select).toHaveTextContent('Bing');
+  });
+
+  it('reselects and persists the first visible source when the active source is hidden', async () => {
+    const save = deferred<void>();
+    const calls: Array<[string, unknown]> = [];
+    mockedSend.mockImplementation(((type: string, data?: unknown) => {
+      calls.push([type, data]);
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      if (type === 'setSourceHidden') return save.promise;
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '在快切栏隐藏 Google' }));
+    // 隐藏当前激活的 google：先存 sourceHidden，再把激活态重选到首个可见源（registry 顺序：exa）
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceHidden', ['google']));
+    save.resolve();
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
+    // 下拉框值落到 exa
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('exa');
+  });
+
   it('rolls back the hidden state when saving fails', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {

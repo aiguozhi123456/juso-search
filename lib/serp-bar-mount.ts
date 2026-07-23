@@ -5,6 +5,7 @@
 // 关于 content script 不得有 named export 的说明）。镜像 lib/serp-bar-layout.ts
 // 与 lib/serp-handoff.ts 的「纯函数 + 注入依赖」模式。
 import type { AnchorStrategy, SearchEngine } from '@/lib/engines/types';
+import type { SourceId } from '@/lib/sources';
 
 /** 各 engine 注入宿主页 <head> 的 <style> 共享 id。 */
 export const PAGE_STYLES_ID = 'juso-serp-page-styles';
@@ -113,4 +114,15 @@ export function injectPageStyles(engine: SearchEngine, doc: Document = document)
 /** 移除宿主页 CSS shim；不存在时为 no-op。doc 可注入便于单测。 */
 export function removePageStyles(doc: Document = document): void {
   doc.head.querySelector(`style#${PAGE_STYLES_ID}`)?.remove();
+}
+
+/**
+ * 当前 engine 是否应在 SERP 上挂载快切栏。
+ * engine 被 `sourceHidden` 收录时不在快切栏投影里（allSources 已剔除），
+ * 在其自身结果页注入栏只会得到无激活目标的残栏——故直接不挂载。
+ * 纯函数：判定仅依赖入参，便于无 DOM 环境下的单测。
+ */
+export function shouldMountForEngine(engineId: string, sourceHidden?: readonly SourceId[]): boolean {
+  if (!sourceHidden || sourceHidden.length === 0) return true;
+  return !sourceHidden.includes(engineId as SourceId);
 }
