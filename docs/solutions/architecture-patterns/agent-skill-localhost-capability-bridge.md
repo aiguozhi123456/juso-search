@@ -94,9 +94,9 @@ Cancellation propagates through `lib/gateway.ts`, `lib/providers/http.ts`, and `
 
 Provider APIs are appropriate for worker `fetch`. Search-engine SERPs are not: their content depends on the real Chrome profile, locale, cookies, challenge state, navigation, and rendered DOM.
 
-`lib/engine-search.ts` therefore creates an inactive temporary tab from a registered engine's URL builder. It waits for the created tab—not any tab—to finish loading, retries briefly until the dedicated content script is ready, validates the response's request ID, engine, query, and shape, and makes a best-effort removal of only that temporary tab in `finally`.
+`lib/engine-search.ts` therefore creates an inactive temporary tab from a registered engine's URL builder (with a best-effort `tabs.update({ active: false })` on hosts that still focus background creates). It waits for the created tab—not any tab—to finish loading, retries briefly until the dedicated content script is ready, validates the response's request ID, engine, query, and shape, and makes a best-effort removal of only that temporary tab in `finally` (unless the user already closed it).
 
-The load wait registers `tabs.onUpdated` and then rechecks `tabs.get` to avoid missing a completion event that fires between tab creation and listener registration.
+The load wait registers `tabs.onUpdated` and then rechecks `tabs.get` to avoid missing a completion event that fires between tab creation and listener registration. Tab removal, load timeout, abort, and generic extract failures are **orchestration** error kinds (`tab-closed`, `timeout`, `aborted`, `extract-failed`), separate from page-state kinds—do not collapse them into `unsupported-layout`.
 
 `entrypoints/engine-extractor.content.ts` is separate from the SERP switch-bar UI. It runs only on approved engine hosts, accepts the internal extraction message, verifies the expected engine and query, waits briefly for results or a challenge state, and calls the engine-specific pure extractor.
 
@@ -120,11 +120,11 @@ Each engine owns its natural-result DOM contract:
 
 - Google limits candidates to natural-result blocks under `#rso` and excludes AI, knowledge, answer, PAA, and advertisement blocks. Scanning every `h3` under the whole search page incorrectly captures special cards.
 - Bing accepts natural `#b_results li.b_algo` blocks and excludes answer, advertisement, pagination, and message modules.
-- Baidu accepts ordinary result containers under `#content_left`, excludes `.result-op` and advertisements, and prefers the block's `mu` target when available.
+- Baidu accepts ordinary result containers under `#content_left`, excludes `.result-op` and advertisements, and resolves destinations from local DOM only (`mu` → `data-mdurl` → `data-log` mu → `sc_vurl` → bare external href), skipping `/link` and `/from/` shells and `nourl` placeholders without network follow-redirect.
 
 Redirect decoding requires both the expected path and engine hostname. An external site may legitimately have `/url?q=...` or `/ck/a?u=...`; path-only decoding would silently rewrite its URL.
 
-Challenge, consent, unsupported-layout, and no-results are explicit errors with nonzero CLI exit status. They are not successful empty result sets.
+Page-state errors (`challenge`, `consent`, `unsupported-layout`, `no-results`) and orchestration errors (`tab-closed`, `timeout`, `aborted`, `extract-failed`) are explicit failures with nonzero CLI exit status. They are not successful empty result sets. See `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md`.
 
 ## Why This Matters
 

@@ -59,7 +59,15 @@ A short-lived, loopback-only capability channel that lets a local Agent invoke s
 
 Each invocation uses a new local port, token, and request identity. The bridge grants one bounded request, validates both request and response against that action, and disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
 
-The temporary `bridge.html` page is fire-and-forget: after claim success or failure it closes itself. Worker-side host APIs such as `fetch` must be injected with a bound/wrapped call form when stored on a deps object, because bare method extraction from `WorkerGlobalScope` throws Illegal invocation.
+The temporary `bridge.html` page is fire-and-forget: after claim success or failure it closes itself. It should not remain the focused tab: the page deactivates itself immediately after open, and Agent SERP tabs are created inactive (with a best-effort re-assert) so skill invocations do not steal the user’s current page. Worker-side host APIs such as `fetch` must be injected with a bound/wrapped call form when stored on a deps object, because bare method extraction from `WorkerGlobalScope` throws Illegal invocation.
+
+### Engine Extraction Error
+A structured failure returned by browser-powered Search Engine search when no usable natural results are obtained. Kinds split into two groups Agents must branch on separately:
+
+- **Page-state** — the SERP (or interstitial) itself: `challenge`, `consent`, `unsupported-layout`, `no-results`.
+- **Orchestration** — temporary-tab lifecycle around extraction: `tab-closed`, `timeout`, `aborted`, `extract-failed`.
+
+Page-state kinds mean “do not trust this page’s organic list as empty success.” Orchestration kinds mean “the tab or handshake failed before a trustworthy page-state decision.” Collapsing orchestration into `unsupported-layout` misroutes recovery (for example treating a user-closed tab as a DOM-layout bug).
 
 ### BYOK
 Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
