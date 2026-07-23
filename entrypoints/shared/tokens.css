@@ -2,7 +2,7 @@
    data-theme 在 React 挂载前由 CSP-safe theme-init module 写入，挂载后由 useTheme 维护。
    两个入口页 main.tsx 在各自 styles.css 之前 import 本文件。
 
-   品牌：聚搜 = 朱砂红 (vermillion) 单一签名色 + 中性灰阶。
+    品牌：双面搜 = 朱砂红 (vermillion) 单一签名色 + 中性灰阶。
    风格锚点：Takram（圆润功能、柔和氛围）× Experimental Jetset（强字体、几何块）。
 
    分组：

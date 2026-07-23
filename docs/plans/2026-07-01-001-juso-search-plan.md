@@ -3,12 +3,12 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-brainstorm
 execution: code
-title: "聚搜 / Juso - Plan"
+title: "双面搜 / Juso - Plan"
 type: feat
 date: 2026-07-01
 ---
 
-# 聚搜 / Juso - Plan
+# 双面搜 / Juso - Plan
 
 ## Goal Capsule
 

@@ -65,7 +65,7 @@ The original Solution, What Didn't Work, and Prevention sections below remain ac
 
 ## Problem
 
-The "聚搜" Chrome extension injects a `SourceSwitcher` UI bar into Google and Bing SERP pages via WXT's `createShadowRootUi` (shadow DOM). The bar must stay outside fragile result internals, appear before the complete result experience, and remain horizontally aligned to each engine's main content box. Bing and Google violate those requirements in different ways: Bing combines a Shadow DOM cascade boundary with legacy overlapping layout, while Google can place AI Overview before the ordinary result column.
+The "双面搜" Chrome extension injects a `SourceSwitcher` UI bar into Google and Bing SERP pages via WXT's `createShadowRootUi` (shadow DOM). The bar must stay outside fragile result internals, appear before the complete result experience, and remain horizontally aligned to each engine's main content box. Bing and Google violate those requirements in different ways: Bing combines a Shadow DOM cascade boundary with legacy overlapping layout, while Google can place AI Overview before the ordinary result column.
 
 ## Symptoms
 

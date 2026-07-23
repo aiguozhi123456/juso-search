@@ -123,6 +123,14 @@ npm run lint
 
 This is not a roadmap or a promise. Based on demand, interface availability, and service stability, Juso may adapt more AI search services and conventional search engines. It may also explore optional parallel retrieval from multiple sources, deduplication, ranking, and provenance-preserving result fusion. Any such capability should give users explicit control of cost, scope, and latency.
 
+## Naming History
+
+The project’s original Chinese name was 聚搜, with the English name Juso. As of 2026-07-23 (after the v1.0.0 release), the Chinese name changed to 双面搜 while the English name remains Juso; the brand is written 双面搜 / Juso.
+
+Why: 双面搜 directly reflects the product’s two-sided positioning—one side for people, one for agents—and is more distinctive in Chinese. The English name Juso is kept because it is short, memorable, and owns its brand queries (for example, “Juso extension”).
+
+Code identifiers (package name `juso-search`, `JUSO_*` environment variables, `--juso-*` CSS variables, and the `juso-search` agent skill) keep Juso and are unaffected by the Chinese name change.
+
 ## Acknowledgements
 
 The approach of inserting the switch bar as the first child of the result container to inherit its width and simplify alignment, and the approach of injecting a CSS shim into the host page to make room for the bar, on Google / Bing / Baidu result pages are informed by [searchEngineJump 搜索引擎快捷跳转](https://greasyfork.org/zh-CN/scripts/27752-searchenginejump) (authors: NLF, 锐经, [qxin i](https://github.com/qxinGitHub/searchEngineJump), MIT licensed). This extension's implementation is independently written and shares no code with the original script.

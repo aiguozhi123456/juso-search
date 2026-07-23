@@ -62,7 +62,7 @@ body {
 .topbar-wordmark { margin: 0; font-size: inherit; }
 .options-wordmark { margin: 0; font-size: inherit; }
 
-/* Wordmark 锁up（聚搜 品牌）—— mark + 字符分色 */
+/* Wordmark 锁up（双面搜 品牌）—— mark + 字符分色 */
 .wordmark {
   display: inline-flex;
   align-items: center;
