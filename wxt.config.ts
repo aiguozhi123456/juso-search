@@ -6,6 +6,7 @@ import { SERP_HOST_MATCH_PATTERNS } from './lib/engines/scopes';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
+    key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvAxEFF0Up3XvOn0VyQAFrTZgGU+fkXo6gkV54gRSDeU9ATUcKJyhRMix2wpRS73XsZifseTLKIstNJAgYylA4lKgxnAKfE5jlFijZvJm5EZ9wxgH1ZWlpLB/d0tcg6J5yz7zdMFkzjyB29FnqLSoexP98l9XtckIyDosHaHRlSyhkWKHIxHSqHzhUFQU2+599svz4WX2C/jv+UTy+BDDYduTShjPd89QUBBqBqhKVKvsKS+Y+xE4HX9JQNTkQdCHbgwwEq05eHemhKJH4tbmJb1YT4uC4QaaW4TNmLz93DaXn9ENvQ73wPufXcC7m7BEXtG4Puks/Q8zlWie7bgecQIDAQAB',
     default_locale: 'zh_CN',
     name: '__MSG_ext_name__',
     description: '__MSG_ext_description__',
@@ -36,5 +37,5 @@ export default defineConfig({
         matches: SERP_HOST_MATCH_PATTERNS,
       },
     ],
-  },
+  } as any,
 });

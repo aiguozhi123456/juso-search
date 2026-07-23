@@ -1,6 +1,7 @@
 import http.client
 import importlib.util
 import json
+import os
 import socket
 import threading
 import time
@@ -136,6 +137,18 @@ class PureFunctionTests(unittest.TestCase):
         for query in ("", " " * 2, "x" * 8193):
             with self.assertRaises(SystemExit):
                 juso_search.parser().parse_args(["--extension-id", "a" * 32, "engine-search", query, "--engine", "google"])
+
+    def test_default_extension_id_is_used_when_none_provided(self):
+        """--extension-id 默认值回退到 DEFAULT_EXTENSION_ID，无需手动传参。"""
+        self.assertEqual(juso_search.DEFAULT_EXTENSION_ID, "pdklefhommhabbhkglgkgomeibeibmcl")
+        self.assertTrue(juso_search.EXTENSION_ID_RE.fullmatch(juso_search.DEFAULT_EXTENSION_ID))
+        # 不传 --extension-id（且不设 JUSO_EXTENSION_ID 环境变量）时默认值应为 DEFAULT_EXTENSION_ID
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.extension_id, "pdklefhommhabbhkglgkgomeibeibmcl")
+        # 显式传 --extension-id 时仍以其为准
+        args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
+        self.assertEqual(args.extension_id, "a" * 32)
 
     def test_reply_validation_status_and_path_lookup(self):
         error_reply = {"ok": False, "error": {"kind": "unknown", "message": "safe"}}

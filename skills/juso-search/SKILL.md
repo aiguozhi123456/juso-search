@@ -14,7 +14,7 @@ Use this skill when a task needs web search through the user's locally configure
 ## Prerequisites
 
 - Install and enable the Juso Chrome extension.
-- Set its extension ID with `JUSO_EXTENSION_ID`, or pass `--extension-id`.
+- 扩展 ID 已内置默认值，无需手动配置。仅在自行签名打包时才需设置 `JUSO_EXTENSION_ID` 或传 `--extension-id` 覆盖。
 - Configure at least one provider in the extension before `search`.
 - Run the script from this skill directory, or use its path relative to the skill root: `scripts/juso_search.py`.
 
