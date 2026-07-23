@@ -1,7 +1,7 @@
 // 小红书网页版常规搜索引擎适配器：纯导航目标，无 key / 无 answer / 无 search()。
 // SERP URL 形如 https://www.xiaohongshu.com/search_result?keyword={关键词}。
 import type { AnchorStrategy, SearchEngine } from './types';
-import { isSerpUrl, isXiaohongshuSerpHostname } from './scopes';
+import { isXiaohongshuSerpHostname } from './scopes';
 
 const SERP_URL_TEMPLATE = 'https://www.xiaohongshu.com/search_result?keyword={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
