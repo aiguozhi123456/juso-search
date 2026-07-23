@@ -1,7 +1,7 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-last_updated: 2026-07-14
+last_updated: 2026-07-23
 category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
@@ -27,8 +27,12 @@ related_components:
   - lib/engines/google.ts
   - lib/engines/bing.ts
   - lib/engines/baidu.ts
+  - lib/engines/douyin.ts
+  - lib/engines/xiaohongshu.ts
   - lib/engines/registry.ts
+  - lib/engines/extractors/registry.ts
   - lib/engines/scopes.ts
+  - skills/juso-search/scripts/juso_search.py
   - lib/sources.ts
   - entrypoints/serp-bar.content.ts
   - wxt.config.ts
@@ -287,6 +291,8 @@ const engines: Record<EngineId, SearchEngine> = {
   google: googleEngine,
   bing: bingEngine,
   baidu: baiduEngine,
+  douyin: douyinEngine,
+  xiaohongshu: xiaohongshuEngine,
 };
 
 export function allEngines(): SearchEngine[] { return Object.values(engines); }
@@ -491,6 +497,19 @@ checklist below.
 8. On the live SERP, use DevTools to confirm the anchor exists, layout aligns,
    controls remain clickable, and navigation does not leave duplicate or stale mounts.
 
+Registration only covers the navigation layer. Engine capability is layered per
+registry (see `engine-capability-is-per-registry-not-per-id-union.md`), so a new
+engine also needs an explicit decision at each remaining layer:
+
+- Extractor registry: register a real extractor, or map the engine to
+  `UNSUPPORTED_EXTRACTOR` when its results render through async interfaces behind
+  login walls. The full `Record<EngineId, EngineExtractor>` mapping satisfies
+  exhaustiveness; it does not declare capability.
+- Agent skill CLI: add the engine to the skill script's engine whitelist and its
+  SKILL.md documentation only when extraction is supported.
+- Default visibility: decide whether the engine ships default-hidden via
+  `DEFAULT_HIDDEN_ENGINE_IDS` until the user shows it.
+
 The final browser check matters for Baidu's `#content_left`: contract tests prove
 what the adapter requests, not that the external page still exposes a stable node.
 
@@ -521,6 +540,10 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
 - `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`
   — explains why Baidu can persist as an active source without entering provider
   key storage or provider search execution.
+- `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md`
+  — engine capability is layered per registry (navigation vs extraction vs skill
+  CLI whitelist vs default visibility); the checklist above covers the navigation
+  layer, this learning covers the remaining layer decisions.
 
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor

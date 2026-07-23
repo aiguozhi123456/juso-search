@@ -13,7 +13,9 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 ## Search Source (v2)
 
 ### Search Engine
-A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, …) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and may expose ordinary rendered SERP results through a separate browser-extraction path; it remains parallel to providers rather than joining their execution contract.
+A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, …) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and remains parallel to providers rather than joining their execution contract.
+
+Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Engines whose results render through async interfaces behind login walls ship a placeholder extraction path that reports an unsupported layout instead of results, and the Agent-facing search surface exposes only the extraction-capable subset. Adding an engine is therefore several independent decisions — navigation registration, extraction support or deliberate non-support, Agent-surface inclusion, and default visibility — not one.
 
 Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata. Some engines may ship default-hidden in Source Visibility via a one-shot schema migration so they appear in management UI but not in the quick-switch bar until the user shows them.
 
