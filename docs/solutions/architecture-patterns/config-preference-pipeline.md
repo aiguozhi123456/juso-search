@@ -1,6 +1,7 @@
 ---
 title: "Adding a persisted config preference: the end-to-end pipeline"
 date: 2026-07-17
+last_updated: 2026-07-23
 category: architecture-patterns
 module: config-preferences
 problem_type: architecture_pattern
@@ -87,9 +88,9 @@ tags:
    }
    ```
 
-2. **筛选只作用于投影，不作用于管理列表。** 隐藏参数只传给快切栏消费端（搜索页 + SERP 栏）的 `allSources`。设置页**不能**传该参数——否则被隐藏的来源在管理列表里也消失，用户无法再取消隐藏。`allSources` 的 doc 注释明确标注了这一不变量。
+2. **筛选只作用于「展示/选择」投影，不作用于管理列表。** 隐藏参数传给所有需要展示或选择可见来源的消费端的 `allSources`：搜索页快切栏、SERP 栏、**以及设置页的「激活来源」下拉框**。设置页的**管理列表**（带隐藏/显示按钮的那一个）**不能**传该参数——否则被隐藏的来源在管理列表里也消失，用户无法再取消隐藏。当同一个页面既渲染管理列表又渲染选择控件时，必须为两者各算一份投影（如 `configuredSources` 不过滤 vs `visibleSources` 过滤）。`allSources` 的 doc 注释明确标注了这一不变量。
 
-3. **隐藏与「激活来源」正交。** 不要阻止用户隐藏当前激活/默认来源；隐藏是显示层选择，选择是执行层状态，二者独立。空栏（全部隐藏）是用户自选的合法边界态。
+3. **隐藏与「激活来源」在存储层正交，但在显示/执行层须重选。** 不要阻止用户隐藏当前激活/默认来源；隐藏是显示层选择，选择是执行层状态，二者独立——这条在**存储层**成立（隐藏绝不改写持久化的 `activeSource`，取消隐藏即恢复用户原选择，最小惊讶）。但**显示与执行层不能照搬正交**：激活来源被隐藏时，快切栏高亮、搜索执行目标、激活态下拉框、以及「是否在被隐藏 engine 自身结果页挂载栏」都必须回退到一个仍可见的来源。该重选是派生视图（`visibleActive`/`activeVisible`/`reselectTo`）或挂载门控（`shouldMountForEngine`），**绝不持久化写**，因此存储正交性与显示一致性可共存。空栏（全部隐藏）是用户自选的合法边界态。漏掉任一重选点会复现「栏残留 / 无高亮 / 搜索跳隐藏 engine / 隐藏项可被选为激活」的症状（见 *hidden-source-still-active-across-hosts*）。
 
 4. **默认安全则不 bump 版本，但必须进白名单。** 新键有空数组默认、getter 把缺失规范化为默认时，无需 schema 迁移；但 `CONFIG_KEYS` 仍必须列入新键，config 域才会感知它（见 *dual-domain-storage-schema-versioning*）。
 
@@ -122,3 +123,4 @@ tags:
 - [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — `CONFIG_KEYS` 白名单、默认安全则不 bump 版本、mutation queue 嵌套模式。
 - [serp-switch-bar-and-unified-source-model](./serp-switch-bar-and-unified-source-model.md) — `allSources` 投影与两个快切栏宿主的基础设计。
 - [theme-persistence-i18n-key-hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) — worker 脱敏配置与 i18n 三方一致性守卫。
+- [hidden-source-still-active-across-hosts](../ui-bugs/hidden-source-still-active-across-hosts.md) — 当本文「存储正交、显示重选」nuance 被遗漏时复现的三个 bug 与修复；上文规则 2、3 的澄清即源于此。
