@@ -73,9 +73,9 @@ The local agent can now list configured services, perform API searches with an *
 
 ## Installation and Updates
 
-### Install v1.0.0
+### Install v1.1.0
 
-1. Download `juso-search-1.0.0-chrome.zip` from the [GitHub Release v1.0.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.0.0).
+1. Download `juso-search-1.1.0-chrome.zip` from the [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0).
 2. Extract the ZIP.
 3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
 

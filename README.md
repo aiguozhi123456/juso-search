@@ -73,9 +73,9 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 ## 安装与更新
 
-### 安装 v1.0.0
+### 安装 v1.1.0
 
-1. 从 [GitHub Release v1.0.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.0.0) 下载 `juso-search-1.0.0-chrome.zip`。
+1. 从 [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0) 下载 `juso-search-1.1.0-chrome.zip`。
 2. 解压 ZIP。
 3. 打开 Chromium 的 `chrome://extensions`，开启“开发者模式”，选择“加载已解压的扩展程序”，并选择解压后直接包含 `manifest.json` 的目录。
 
