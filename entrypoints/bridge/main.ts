@@ -9,7 +9,10 @@ void connect();
 
 async function connect(): Promise<void> {
   const credentials = parseBridgeFragment(fragment);
-  if (!credentials.ok) return setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+  if (!credentials.ok) {
+    setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+    return closeTab();
+  }
   try {
     const result = await sendMessage('agentBridgeClaim', credentials.value);
     setStatus(
@@ -19,8 +22,13 @@ async function connect(): Promise<void> {
   } catch {
     setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
   }
+  closeTab();
 }
 
 function setStatus(chinese: string, english: string): void {
   if (root) root.innerHTML = `${chinese}<br />${english}`;
+}
+
+function closeTab(): void {
+  setTimeout(() => window.close(), 300);
 }

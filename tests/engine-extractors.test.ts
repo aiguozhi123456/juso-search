@@ -64,6 +64,22 @@ describe('engine natural-result extractors', () => {
     expect(extract(engine, name)).toEqual({ engine, query: 'test query', error });
   });
 
+  it('extracts Google results nested inside wrapper containers', () => {
+    expect(extract('google', 'google-nested-wrapper.html')).toEqual({
+      engine: 'google', query: 'test query', results: [
+        { title: 'First nested result', url: 'https://example.com/result1', snippet: 'First snippet' },
+        { title: 'Second nested result', url: 'https://example.com/result2', snippet: 'Second snippet' },
+        { title: 'Third nested result', url: 'https://example.com/result3', snippet: 'Third snippet' },
+      ],
+    });
+  });
+
+  it('filters special blocks nested inside wrappers without blocking organic siblings', () => {
+    expect(extract('google', 'google-nested-special.html')).toEqual({
+      engine: 'google', query: 'test query', results: [{ title: 'Natural result', url: 'https://example.com/natural', snippet: 'Natural snippet' }],
+    });
+  });
+
   it('reports unsupported layout when a result root is absent', () => {
     const document = new DOMParser().parseFromString('<main><article>special card</article></main>', 'text/html');
     expect(extractEngineSearch({ document, engine: 'google', query: 'test', pageUrl: 'https://www.google.com/search?q=test' })).toEqual({

@@ -59,6 +59,8 @@ A short-lived, loopback-only capability channel that lets a local Agent invoke s
 
 Each invocation uses a new local port, token, and request identity. The bridge grants one bounded request, validates both request and response against that action, and disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
 
+The temporary `bridge.html` page is fire-and-forget: after claim success or failure it closes itself. Worker-side host APIs such as `fetch` must be injected with a bound/wrapped call form when stored on a deps object, because bare method extraction from `WorkerGlobalScope` throws Illegal invocation.
+
 ### BYOK
 Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
 

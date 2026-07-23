@@ -14,13 +14,12 @@ function googleUrl(anchor: HTMLAnchorElement, pageUrl: string): string | null {
   return isGoogleHostname(resolvedUrl.hostname) ? null : resolved;
 }
 
-const GOOGLE_RESULT_BLOCKS = '#rso > .g, #rso > .MjjYud, #rso > div[data-hveid]';
+const GOOGLE_RESULT_BLOCK_SELECTOR = '.g, .MjjYud, div[data-hveid], .tF2Cxc';
 const GOOGLE_SPECIAL_BLOCKS = [
   '[data-attrid]',
   '[data-async-context*="knowledge" i]',
   '.kp-wholepage',
   '.related-question-pair',
-  '.ULSxyf',
   '.xpdopen',
   '[jsname="N760b"]',
   '[data-text-ad]',
@@ -36,11 +35,14 @@ export const googleExtractor: EngineExtractor = {
   },
   hasNaturalResultsArea: (document) => document.querySelector('#rso, #search, #center_col') !== null,
   extract(document, pageUrl): EngineResult[] {
-    if (!document.querySelector('#rso, #search, #center_col')) return [];
-    return [...document.querySelectorAll(GOOGLE_RESULT_BLOCKS)].flatMap((block) => {
-      if (block.matches(GOOGLE_SPECIAL_BLOCKS) || block.querySelector(GOOGLE_SPECIAL_BLOCKS)) return [];
-      const heading = block.querySelector('h3');
-      if (!heading) return [];
+    const root = document.querySelector('#rso, #search, #center_col');
+    if (!root) return [];
+    const seen = new Set<Element>();
+    return [...root.querySelectorAll('h3')].flatMap((heading) => {
+      const block = heading.closest(GOOGLE_RESULT_BLOCK_SELECTOR);
+      if (!(block instanceof HTMLElement) || seen.has(block)) return [];
+      seen.add(block);
+      if (block.matches(GOOGLE_SPECIAL_BLOCKS)) return [];
       const anchor = heading.closest('a') ?? heading.parentElement?.closest('a') ?? block.querySelector('a:has(h3)');
       if (!(anchor instanceof HTMLAnchorElement)) return [];
       const url = googleUrl(anchor, pageUrl);

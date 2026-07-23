@@ -71,7 +71,7 @@ export default defineBackground(() => {
   onMessage('importConfig', ({ data }) => handleImportConfig(data));
   onMessage('agentBridgeClaim', async ({ data, sender }) => {
     if (!isTrustedBridgeSender(sender, browser.runtime.id)) return { ok: false };
-    return runAgentBridge(data, { fetch, handleSearch, listProviders: handleListAgentProviders, handleEngineSearch: (request, signal) => runEngineSearch(request, signal, { tabs: browser.tabs }) });
+    return runAgentBridge(data, { fetch: (...args) => fetch(...args), handleSearch, listProviders: handleListAgentProviders, handleEngineSearch: (request, signal) => runEngineSearch(request, signal, { tabs: browser.tabs }) });
   });
 
   browser.storage.onChanged.addListener((changes, areaName) => {
