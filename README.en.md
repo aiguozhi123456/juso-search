@@ -42,19 +42,24 @@ You can now search and switch among Google, Bing, Baidu, and your configured AI 
 
 ### Local AI Agents
 
-1. Install and enable the extension as above. `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
+1. Install and enable the extension in the **Chromium-family browser that will run Agent calls** (Chrome, Edge, Chromium, etc.). `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
 2. Install or copy `skills/juso-search/` into your agent’s skills directory, for example `.agents/skills/juso-search/`.
-3. The extension ID is built in by default—no setup needed in the common case. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default):
+3. The extension ID is built in by default—no setup needed in the common case. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default).
+4. If auto-discovery cannot find a browser, or Juso is installed only in Edge (or another non-default binary), point the skill at **the executable whose profile has Juso** (optionally set a profile directory name):
 
 ```powershell
-$env:JUSO_EXTENSION_ID = "YOUR_EXTENSION_ID"
+$env:JUSO_CHROME_PATH = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+# optional: $env:JUSO_CHROME_PROFILE = "Default"
+# optional: $env:JUSO_EXTENSION_ID = "YOUR_EXTENSION_ID"
 ```
 
 ```bash
-export JUSO_EXTENSION_ID="YOUR_EXTENSION_ID"
+export JUSO_CHROME_PATH="/path/to/msedge-or-chrome"
+# optional: export JUSO_CHROME_PROFILE="Default"
+# optional: export JUSO_EXTENSION_ID="YOUR_EXTENSION_ID"
 ```
 
-4. Run commands from the skill directory, for example:
+5. Run commands from the skill directory, for example:
 
 ```bash
 python scripts/juso_search.py list-providers
@@ -62,7 +67,7 @@ python scripts/juso_search.py search "latest AI research" --provider tavily
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
 ```
 
-To override temporarily: `python scripts/juso_search.py --extension-id YOUR_EXTENSION_ID list-providers`.
+To override temporarily: `python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`.
 
 The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, and Baidu through the browser—without receiving stored credentials.
 
@@ -93,7 +98,7 @@ Developer-mode installation triggers browser warnings. Until browser-store distr
 
 Agents invoke bounded extension-worker actions through the Agent Bridge: a short-lived, loopback-only capability channel, not a persistent local API. Every invocation uses a new local port, token, and request identity, and expires on completion or timeout.
 
-`search` requires `--provider`; it never silently follows the extension’s current provider. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Commands fail when Chrome cannot launch, the extension cannot connect, a timeout occurs, or the protocol is rejected; engine searches also fail on challenges, consent pages, unsupported layouts, and no results. Check the extension ID, browser setup, and provider configuration—do not retry by exposing keys.
+`search` requires `--provider`; it never silently follows the extension’s current provider. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Launch and bridge failures return structured `error.kind` values on stdout (for example `chrome_not_found`, `chrome_launch_failed`, `extension_did_not_claim`, `extension_did_not_complete`). Fix browser path, profile, extension id, and confirm Juso is enabled in the opened browser—do not retry by exposing keys. Engine searches also fail on challenges, consent pages, unsupported layouts, and no results. See `skills/juso-search/SKILL.md` for the full kind table.
 
 ## Development and Current Architecture
 

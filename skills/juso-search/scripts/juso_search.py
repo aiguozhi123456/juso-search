@@ -162,11 +162,44 @@ class BridgeState:
         self.request_id = request_id
         self.claim: dict[str, Any] | None = None
         self.reply: Any = None
+        self.claimed = threading.Event()
         self.completed = threading.Event()
         self.lock = threading.Lock()
 
     def valid_token(self, value: str | None) -> bool:
         return value is not None and hmac.compare_digest(value, f"Bearer {self.token}")
+
+
+RECOVERY_HINT = (
+    "confirm Juso is installed and enabled in the opened browser profile; "
+    "override with --chrome or JUSO_CHROME_PATH, --profile or JUSO_CHROME_PROFILE, "
+    "and --extension-id or JUSO_EXTENSION_ID"
+)
+
+
+def wait_failure(state: BridgeState) -> dict[str, Any]:
+    """Classify a failed completed.wait using skill-local claim observation only."""
+    if state.claimed.is_set():
+        return {
+            "ok": False,
+            "error": {
+                "kind": "extension_did_not_complete",
+                "message": (
+                    "extension claimed the request but did not complete it; "
+                    f"{RECOVERY_HINT}; if path/profile/id are correct, reload the extension"
+                ),
+            },
+        }
+    return {
+        "ok": False,
+        "error": {
+            "kind": "extension_did_not_claim",
+            "message": (
+                "extension did not claim the request; "
+                f"{RECOVERY_HINT}"
+            ),
+        },
+    }
 
 
 class BridgeHTTPServer(ThreadingHTTPServer):
@@ -236,6 +269,8 @@ def make_handler(state: BridgeState):
             if state.claim is None:
                 self._error(HTTPStatus.CONFLICT, "claim_not_ready")
                 return
+            with state.lock:
+                state.claimed.set()
             self._json(HTTPStatus.OK, state.claim)
 
         def _complete(self, payload: dict[str, Any]) -> None:
@@ -311,7 +346,17 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
         return 2, {"ok": False, "error": {"kind": "invalid_extension_id", "message": "extension ID must be 32 lowercase letters a-p; override with --extension-id or JUSO_EXTENSION_ID"}}
     chrome = find_chrome(args.chrome)
     if not chrome:
-        return 2, {"ok": False, "error": {"kind": "chrome_not_found", "message": "set --chrome or JUSO_CHROME_PATH"}}
+        return 2, {
+            "ok": False,
+            "error": {
+                "kind": "chrome_not_found",
+                "message": (
+                    "no Chromium-family browser found; set --chrome or JUSO_CHROME_PATH "
+                    "to the executable that has Juso installed "
+                    f"(also check --profile or JUSO_CHROME_PROFILE and --extension-id or JUSO_EXTENSION_ID)"
+                ),
+            },
+        }
     token, request_id = secrets.token_urlsafe(32), str(uuid.uuid4())
     state = BridgeState(token, request_id)
     state.claim = make_claim(args.command, getattr(args, "query", None), getattr(args, "provider", None), getattr(args, "force_refresh", False), request_id, getattr(args, "engine", None), getattr(args, "max_results", None))
@@ -329,10 +374,16 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
         except Exception as error:
             return 1, {"ok": False, "error": {"kind": "wait_failed", "message": str(error)}}
         if not completed:
-            return 1, {"ok": False, "error": {"kind": "timeout", "message": "extension did not complete the request"}}
+            return 1, wait_failure(state)
         return result_status(state.reply), state.reply
     except OSError as error:
-        return 1, {"ok": False, "error": {"kind": "chrome_launch_failed", "message": str(error)}}
+        return 1, {
+            "ok": False,
+            "error": {
+                "kind": "chrome_launch_failed",
+                "message": f"{error}; {RECOVERY_HINT}",
+            },
+        }
     finally:
         server.shutdown()
         server.server_close()

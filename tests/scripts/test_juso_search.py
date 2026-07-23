@@ -44,12 +44,28 @@ class BridgeServerTests(unittest.TestCase):
             connection.close()
 
     def test_claim_is_idempotent_and_complete_once(self):
+        self.assertFalse(self.state.claimed.is_set())
         self.assertEqual(self.request("/v1/claim", content_type=False)[0], 200)
+        self.assertTrue(self.state.claimed.is_set())
         self.assertEqual(self.request("/v1/claim", content_type=False)[0], 200)
+        self.assertTrue(self.state.claimed.is_set())
         complete = {"protocol": 1, "requestId": "request-1", "reply": {"ok": False, "error": {"kind": "unknown", "message": "safe"}}}
         self.assertEqual(self.request("/v1/complete", complete)[0], 204)
         self.assertTrue(self.state.completed.is_set())
         self.assertEqual(self.request("/v1/complete", complete)[0], 409)
+
+    def test_failed_auth_does_not_mark_claimed(self):
+        self.assertEqual(self.request("/v1/claim", token="wrong", content_type=False)[0], 401)
+        self.assertFalse(self.state.claimed.is_set())
+        self.assertEqual(self.request("/v1/claim", host="localhost:1", content_type=False)[0], 400)
+        self.assertFalse(self.state.claimed.is_set())
+
+    def test_claim_not_ready_does_not_mark_claimed(self):
+        self.state.claim = None
+        status, payload = self.request("/v1/claim", content_type=False)
+        self.assertEqual(status, 409)
+        self.assertEqual(payload["error"]["kind"], "claim_not_ready")
+        self.assertFalse(self.state.claimed.is_set())
 
     def test_rejects_bad_token_host_request_id_and_path(self):
         self.assertEqual(self.request("/v1/claim", token="wrong", content_type=False)[0], 401)
@@ -194,6 +210,146 @@ class PureFunctionTests(unittest.TestCase):
         self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "no-results"}), 1)
         with patch.object(juso_search.shutil, "which", side_effect=lambda name: "/bin/chromium" if name == "chromium" else None):
             self.assertEqual(juso_search.find_chrome(None), "/bin/chromium")
+
+    def test_wait_failure_classifies_claim_observation(self):
+        unclaimed = juso_search.BridgeState("token", "request-1")
+        payload = juso_search.wait_failure(unclaimed)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
+        self.assertIn("--chrome", payload["error"]["message"])
+        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+        self.assertIn("--profile", payload["error"]["message"])
+        self.assertIn("--extension-id", payload["error"]["message"])
+
+        claimed = juso_search.BridgeState("token", "request-1")
+        claimed.claimed.set()
+        payload = juso_search.wait_failure(claimed)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_complete")
+        self.assertIn("reload the extension", payload["error"]["message"])
+
+
+class RunLifecycleTests(unittest.TestCase):
+    def _namespace(self, **overrides):
+        args = argparse.Namespace(
+            extension_id="a" * 32,
+            command="list-providers",
+            chrome="/fake/chrome",
+            profile=None,
+            timeout=0.3,
+            query=None,
+            provider=None,
+            force_refresh=False,
+            engine=None,
+            max_results=None,
+        )
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        return args
+
+    def test_chrome_not_found_names_custom_path(self):
+        with patch.object(juso_search, "find_chrome", return_value=None):
+            status, payload = juso_search.run(self._namespace(chrome=None))
+        self.assertEqual(status, 2)
+        self.assertEqual(payload["error"]["kind"], "chrome_not_found")
+        self.assertIn("--chrome", payload["error"]["message"])
+        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+
+    def test_chrome_launch_failed_includes_os_reason(self):
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", side_effect=OSError("permission denied")),
+        ):
+            status, payload = juso_search.run(self._namespace())
+        self.assertEqual(status, 1)
+        self.assertEqual(payload["error"]["kind"], "chrome_launch_failed")
+        self.assertIn("permission denied", payload["error"]["message"])
+        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+
+    def test_run_timeout_without_claim(self):
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", return_value=None),
+        ):
+            status, payload = juso_search.run(self._namespace(timeout=0.15))
+        self.assertEqual(status, 1)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
+        self.assertIn("--profile", payload["error"]["message"])
+        self.assertIn("--extension-id", payload["error"]["message"])
+
+    def test_run_timeout_after_claim_without_complete(self):
+        def claim_only(command, **_kwargs):
+            # Popen receives [chrome, optional --profile-directory, url]
+            url = command[-1]
+            fragment = url.split("#", 1)[1]
+            parts = dict(item.split("=", 1) for item in fragment.split("&"))
+            port, token = int(parts["p"]), parts["t"]
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            try:
+                connection.request(
+                    "POST",
+                    "/v1/claim",
+                    headers={
+                        "Host": f"127.0.0.1:{port}",
+                        "Authorization": f"Bearer {token}",
+                    },
+                )
+                response = connection.getresponse()
+                self.assertEqual(response.status, 200)
+                response.read()
+            finally:
+                connection.close()
+            return None
+
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", side_effect=claim_only),
+        ):
+            status, payload = juso_search.run(self._namespace(timeout=0.4))
+        self.assertEqual(status, 1)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_complete")
+
+    def test_run_success_after_claim_and_complete(self):
+        reply = {
+            "providers": [
+                {"id": "tavily", "supportsAnswer": True, "configured": True},
+            ]
+        }
+
+        def claim_and_complete(command, **_kwargs):
+            url = command[-1]
+            fragment = url.split("#", 1)[1]
+            parts = dict(item.split("=", 1) for item in fragment.split("&"))
+            port, token = int(parts["p"]), parts["t"]
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            try:
+                headers = {
+                    "Host": f"127.0.0.1:{port}",
+                    "Authorization": f"Bearer {token}",
+                }
+                connection.request("POST", "/v1/claim", headers=headers)
+                response = connection.getresponse()
+                self.assertEqual(response.status, 200)
+                claim = json.loads(response.read())
+                complete = {
+                    "protocol": claim["protocol"],
+                    "requestId": claim["requestId"],
+                    "reply": reply,
+                }
+                headers["Content-Type"] = "application/json"
+                connection.request("POST", "/v1/complete", json.dumps(complete), headers)
+                response = connection.getresponse()
+                self.assertEqual(response.status, 204)
+                response.read()
+            finally:
+                connection.close()
+            return None
+
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", side_effect=claim_and_complete),
+        ):
+            status, payload = juso_search.run(self._namespace(timeout=2.0))
+        self.assertEqual(status, 0)
+        self.assertEqual(payload, reply)
 
 
 if __name__ == "__main__":
