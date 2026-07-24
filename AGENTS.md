@@ -7,6 +7,7 @@
 - `npm run lint` — `eslint .`（必须通过）
 - `npm test` — `vitest run`（单元 + 组件测试，必须通过）
 - `npm run build` — `wxt build` → `.output/chrome-mv3/`（在 `chrome://extensions` 以"已解包"加载）
+- `npm run build:dev` — `wxt build --mode development` → `.output/chrome-mv3-dev/`（内嵌签名 key、无 dev server 依赖，扩展 ID 稳定）
 - `npm run dev` — WXT 开发（HMR）
 
 ## 技术栈
