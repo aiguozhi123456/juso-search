@@ -1,10 +1,16 @@
 # Juso
 
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
+[![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
+
 [中文](README.md)
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, and Xiaohongshu work with zero AI service configuration.
 
 | For | What it does today |
 | --- | --- |
@@ -12,6 +18,20 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 | People | Turns AI search APIs into a search experience that can fast-switch with conventional engines |
 | Local AI agents | Provides one access path to configured AI search APIs |
 | Local AI agents | Searches conventional engines through a real browser |
+
+## Screenshots and Demo
+
+**AI search: synthesized answer and results side by side**
+
+![Juso search page showing an AI answer with citations above the result list](docs/assets/screenshot-search.png)
+
+**SERP Switch Bar: switch engines from any result page**
+
+![Juso switch bar at the top of a Bing result page](docs/assets/screenshot-serp.png)
+
+**Full flow demo**
+
+![Switching between the Juso search page and engine result pages](docs/assets/demo.gif)
 
 ## Current Capabilities and Sources
 
@@ -111,6 +131,8 @@ npm test
 npm run test:python
 npm run lint
 ```
+
+![Juso Architecture](docs/assets/architecture.svg)
 
 - `entrypoints/search/`: independent human search page, source switching, cache, and history.
 - `entrypoints/options/`: local credentials and Search Source preferences.

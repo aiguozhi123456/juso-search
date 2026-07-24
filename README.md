@@ -1,10 +1,16 @@
 # 双面搜 / Juso
 
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
+[![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
+
 [English](README.en.md)
 
 > **一面为人，一面为智能体。**
 
-Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。
+Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。即使只使用人类这一面，它也是一个功能完整、开箱即用的搜索聚合与切换工具——无需配置任何 AI 服务即可使用 Google、Bing、Baidu、抖音和小红书。
 
 | 面向谁 | 现在能做什么 |
 | --- | --- |
@@ -12,6 +18,20 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 | 人类用户 | 把 AI 搜索 API 变成可直接使用、可与传统引擎快切的搜索体验 |
 | 本地 AI 智能体 | 通过统一入口调用已配置的 AI 搜索 API |
 | 本地 AI 智能体 | 借助真实浏览器检索传统搜索引擎 |
+
+## 截图与演示
+
+**AI 搜索：综合答案与结果列表同屏**
+
+![Juso 搜索页，AI 服务返回带引用的综合答案，下方为结果列表](docs/assets/screenshot-search.png)
+
+**SERP 切换栏：在搜索引擎结果页内一键切换**
+
+![Bing 结果页顶部的 Juso 切换栏，可切到其他引擎或 AI 搜索](docs/assets/screenshot-serp.png)
+
+**完整流程演示**
+
+![在 Juso 搜索页与搜索引擎结果页之间切换的演示](docs/assets/demo.gif)
 
 ## 当前能力与来源
 
@@ -111,6 +131,8 @@ npm test
 npm run test:python
 npm run lint
 ```
+
+![双面搜架构](docs/assets/architecture.svg)
 
 - `entrypoints/search/`：独立人类搜索页、搜索来源切换、缓存与历史。
 - `entrypoints/options/`：本地密钥与来源偏好配置。
