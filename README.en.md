@@ -132,7 +132,7 @@ npm run test:python
 npm run lint
 ```
 
-![Juso Architecture](docs/assets/architecture.svg)
+![Juso Architecture](docs/assets/architecture-en.svg)
 
 - `entrypoints/search/`: independent human search page, source switching, cache, and history.
 - `entrypoints/options/`: local credentials and Search Source preferences.
