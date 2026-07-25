@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
+    "build:dev": "wxt build --mode development",
     "zip": "wxt zip",
     "prepare": "wxt prepare",
     "typecheck": "tsc --noEmit",

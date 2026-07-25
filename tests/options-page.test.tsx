@@ -16,6 +16,13 @@ vi.mock('@/lib/useLocale', () => ({
 vi.mock('@/lib/useStyle', () => ({
   useStyle: () => ({ pref: 'classic', setPref: vi.fn() }),
 }));
+// AgentBridgeSettings 直接读 storage；页面测试隔离掉，避免依赖 browser.storage.local
+vi.mock('@/lib/storage', () => ({
+  getAgentBridgeEnabled: vi.fn().mockResolvedValue(false),
+  setAgentBridgeEnabled: vi.fn().mockResolvedValue(undefined),
+  getEngineSearchEnabled: vi.fn().mockResolvedValue(false),
+  setEngineSearchEnabled: vi.fn().mockResolvedValue(undefined),
+}));
 
 const mockedSend = vi.mocked(sendMessage);
 

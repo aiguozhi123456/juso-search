@@ -220,6 +220,12 @@ export const MSG = {
   opts_config_import_report_keys: 'opts_config_import_report_keys',
   opts_config_import_report_prefs: 'opts_config_import_report_prefs',
   opts_config_export_failed: 'opts_config_export_failed',
+  // Agent Bridge 门控（默认关闭，上架合规）
+  opts_agent_bridge_heading: 'opts_agent_bridge_heading',
+  opts_agent_bridge_hint: 'opts_agent_bridge_hint',
+  opts_agent_bridge_enable: 'opts_agent_bridge_enable',
+  opts_agent_bridge_engine_search: 'opts_agent_bridge_engine_search',
+  opts_agent_bridge_engine_search_hint: 'opts_agent_bridge_engine_search_hint',
   // 设置入口 / 主题 / 语言 / 风格
   open_settings: 'open_settings',
   theme_group: 'theme_group',

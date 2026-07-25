@@ -44,7 +44,6 @@ import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
  */
 export default defineContentScript({
   matches: SERP_CONTENT_MATCH_PATTERNS,
-  cssInjectionMode: 'ui',
   runAt: 'document_idle',
   async main(ctx) {
     const initialUrl = window.location.href;
