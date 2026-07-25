@@ -32,6 +32,10 @@ export const LOCALE_KEY = 'localePref'; // LocalePref
 export const STYLE_KEY = 'stylePref'; // StylePref (UI 风格维度：经典 / 彩色)
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
+// Agent Bridge 门控（默认 false）：上架合规——engine-search 抓 Google/Bing/Baidu 属 scraping 风险，
+// 必须用户显式开启。仅读各自键，不 get(null)（与 theme/locale 同样的 key 卫生）。
+export const AGENT_BRIDGE_ENABLED_KEY = 'agentBridgeEnabled'; // boolean（stored === true 才 true）
+export const ENGINE_SEARCH_ENABLED_KEY = 'engineSearchEnabled'; // boolean
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
@@ -170,6 +174,28 @@ export async function getStylePref(): Promise<StylePref> {
 
 export async function setStylePref(pref: StylePref): Promise<void> {
   await browser.storage.local.set({ [STYLE_KEY]: pref });
+}
+
+/** Agent Bridge 总开关：默认 false，stored === true 才 true。
+ *  控制整个 Agent Bridge（search / list-providers / engine-search 三 action）。 */
+export async function getAgentBridgeEnabled(): Promise<boolean> {
+  const got = await browser.storage.local.get(AGENT_BRIDGE_ENABLED_KEY);
+  return got[AGENT_BRIDGE_ENABLED_KEY] === true;
+}
+
+export async function setAgentBridgeEnabled(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [AGENT_BRIDGE_ENABLED_KEY]: v });
+}
+
+/** engine-search 子开关：默认 false，stored === true 才 true。
+ *  仅控制 engine-search action；UI 上仅当总开关 on 时可点。 */
+export async function getEngineSearchEnabled(): Promise<boolean> {
+  const got = await browser.storage.local.get(ENGINE_SEARCH_ENABLED_KEY);
+  return got[ENGINE_SEARCH_ENABLED_KEY] === true;
+}
+
+export async function setEngineSearchEnabled(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [ENGINE_SEARCH_ENABLED_KEY]: v });
 }
 
 /** 快切来源完整顺序；仅读自身键，非法值回退到完整默认顺序。 */

@@ -9,6 +9,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { StyleToggle } from '@/components/StyleToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
+import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
 import { Wordmark } from '@/components/Wordmark';
 import { ChevronDownIcon, ChevronUpIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
@@ -221,6 +222,12 @@ export default function App() {
       <section data-section="locale">
         <h2>{t(MSG.locale_group)}</h2>
         <LocaleToggle />
+      </section>
+
+      <section data-section="agent-bridge">
+        <h2>{t(MSG.opts_agent_bridge_heading)}</h2>
+        <p className="hint">{t(MSG.opts_agent_bridge_hint)}</p>
+        <AgentBridgeSettings />
       </section>
 
       <section data-section="config">

@@ -23,6 +23,7 @@ import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
 import { runEngineSearch } from '@/lib/engine-search';
+import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
 
 export default defineBackground(() => {
   // 预热 schema 迁移：worker 启动即触发 ensureSchema+ensureCacheSchema（懒加载 memoized），
@@ -71,7 +72,21 @@ export default defineBackground(() => {
   onMessage('importConfig', ({ data }) => handleImportConfig(data));
   onMessage('agentBridgeClaim', async ({ data, sender }) => {
     if (!isTrustedBridgeSender(sender, browser.runtime.id)) return { ok: false };
-    return runAgentBridge(data, { fetch: (...args) => fetch(...args), handleSearch, listProviders: handleListAgentProviders, handleEngineSearch: (request, signal) => runEngineSearch(request, signal, { tabs: browser.tabs }) });
+    // 双层门控（默认 false，上架合规）：
+    //   - 总开关 off → 整个 Agent Bridge 拒绝（search / list-providers / engine-search 全不响应）。
+    //   - engine-search 子开关 off → engine-search 落 extract-failed；其余 action 不受影响。
+    if (!(await getAgentBridgeEnabled())) return { ok: false };
+    return runAgentBridge(data, {
+      fetch: (...args) => fetch(...args),
+      handleSearch,
+      listProviders: handleListAgentProviders,
+      handleEngineSearch: async (request, signal) => {
+        if (!(await getEngineSearchEnabled())) {
+          return { engine: request.engineId, query: request.query, error: 'extract-failed' };
+        }
+        return runEngineSearch(request, signal, { tabs: browser.tabs });
+      },
+    });
   });
 
   browser.storage.onChanged.addListener((changes, areaName) => {

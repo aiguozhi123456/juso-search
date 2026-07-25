@@ -154,6 +154,21 @@ body {
 .key-row .status.ok { color: var(--success); }
 .key-row .status.fail { color: var(--error); }
 
+/* ── Agent Bridge 门控 ──────────────────────────────── */
+.agent-bridge-settings { display: flex; flex-direction: column; gap: var(--space-2); }
+.agent-bridge-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: var(--text-md); cursor: pointer;
+}
+.agent-bridge-row input[type="checkbox"] {
+  width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand);
+}
+.agent-bridge-row--disabled { opacity: 0.5; cursor: not-allowed; }
+.agent-bridge-row--disabled input[type="checkbox"],
+.agent-bridge-row--disabled span { cursor: not-allowed; }
+.agent-bridge-disabled-note { color: var(--muted); font-size: var(--text-xs); }
+.agent-bridge-settings .hint { margin-top: var(--space-1); }
+
 /* ── 导入/导出 ───────────────────────────────────── */
 .config-io .hint.warning { color: var(--error); }
 .config-io-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }

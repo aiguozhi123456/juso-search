@@ -24,6 +24,10 @@ import {
   saveCachedSearch,
   deleteCachedSearch,
   clearSearchCache,
+  getAgentBridgeEnabled,
+  setAgentBridgeEnabled,
+  getEngineSearchEnabled,
+  setEngineSearchEnabled,
 } from '@/lib/storage';
 import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
@@ -234,6 +238,44 @@ describe('storage: style pref', () => {
     expect(await getStylePref()).toBe('colorful');
     await browser.storage.local.set({ stylePref: 'decorative' });
     expect(await getStylePref()).toBe('classic');
+  });
+});
+
+describe('storage: agentBridgeEnabled', () => {
+  it('defaults to false when unset', async () => {
+    expect(await getAgentBridgeEnabled()).toBe(false);
+  });
+
+  it('round-trips true and false', async () => {
+    await setAgentBridgeEnabled(true);
+    expect(await getAgentBridgeEnabled()).toBe(true);
+    await setAgentBridgeEnabled(false);
+    expect(await getAgentBridgeEnabled()).toBe(false);
+  });
+
+  it('rejects truthy-but-not-true stored values', async () => {
+    await browser.storage.local.set({ agentBridgeEnabled: 1 });
+    expect(await getAgentBridgeEnabled()).toBe(false);
+    await browser.storage.local.set({ agentBridgeEnabled: 'true' });
+    expect(await getAgentBridgeEnabled()).toBe(false);
+  });
+});
+
+describe('storage: engineSearchEnabled', () => {
+  it('defaults to false when unset', async () => {
+    expect(await getEngineSearchEnabled()).toBe(false);
+  });
+
+  it('round-trips true and false', async () => {
+    await setEngineSearchEnabled(true);
+    expect(await getEngineSearchEnabled()).toBe(true);
+    await setEngineSearchEnabled(false);
+    expect(await getEngineSearchEnabled()).toBe(false);
+  });
+
+  it('rejects truthy-but-not-true stored values', async () => {
+    await browser.storage.local.set({ engineSearchEnabled: 1 });
+    expect(await getEngineSearchEnabled()).toBe(false);
   });
 });
 
