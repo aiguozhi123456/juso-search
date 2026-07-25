@@ -61,6 +61,8 @@ A short-lived, loopback-only capability channel that lets a local Agent invoke s
 
 Each invocation uses a new local port, token, and request identity. The bridge grants one bounded request, validates both request and response against that action, and disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
 
+The bridge ships disabled by default behind a two-layer opt-in: a total switch gates the entire bridge, and a separate sub-switch gates only the engine-search action, which can drive the browser to load third-party search-engine pages and extract their public results. A capability that silently loads third-party pages on an external process's behalf must be opt-in, not default-on.
+
 The temporary `bridge.html` page is fire-and-forget: after claim success or failure it closes itself. It should not remain the focused tab: the page deactivates itself immediately after open, and Agent SERP tabs are created inactive (with a best-effort re-assert) so skill invocations do not steal the user’s current page. Worker-side host APIs such as `fetch` must be injected with a bound/wrapped call form when stored on a deps object, because bare method extraction from `WorkerGlobalScope` throws Illegal invocation.
 
 ### Engine Extraction Error
