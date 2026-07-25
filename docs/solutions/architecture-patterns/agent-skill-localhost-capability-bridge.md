@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-07-23
+last_updated: 2026-07-25
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -72,7 +72,7 @@ The token is passed in the extension-page fragment rather than the query string.
 
 `bridge.html` only parses bridge credentials and calls the typed `agentBridgeClaim` message. It does not read storage, execute searches, or post results.
 
-Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then injects the existing provider gateway, a declassified provider-list handler, and the engine-search executor into `lib/agent-bridge.ts`.
+Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then checks a total capability switch (`agentBridgeEnabled`, default off) and returns `{ ok: false }` without proceeding if the user has not opted in. Only then does it inject the existing provider gateway, a declassified provider-list handler, and a wrapped engine-search executor into `lib/agent-bridge.ts` — the wrapper checks a second sub-switch (`engineSearchEnabled`, default off) so engine-search can be denied independently of provider search and list-providers. See `default-off-capability-gating-for-cws-compliance.md` for why both gates must ship off by default.
 
 `list-providers` returns only provider IDs, answer capability, and configured status. Provider search still flows through `lib/gateway.ts`, so key access, normalization, caching, and error mapping remain identical to extension UI searches.
 
@@ -145,7 +145,7 @@ The strict action and reply schemas also prevent a valid response from one actio
 - Chrome being installed, running when invoked, and having the extension enabled in the selected profile is acceptable.
 - The action can finish within a bounded request lifetime.
 
-Do not use this pattern for a long-lived multi-client local service, CAPTCHA bypass, arbitrary page scraping, or workloads requiring strong protection from another malicious process running as the same OS user. Those cases need a managed daemon, OS IPC controls, or Native Messaging.
+Do not use this pattern for a long-lived multi-client local service, CAPTCHA bypass, arbitrary page scraping, or workloads requiring strong protection from another malicious process running as the same OS user. Those cases need a managed daemon, OS IPC controls, or Native Messaging. When the bridge does expose a scraping-adjacent capability like engine-search, that capability must ship off by default behind an explicit opt-in — a default-on silent page-loading capability will be read as undeclared scraping by Chrome Web Store review (see `default-off-capability-gating-for-cws-compliance.md`).
 
 ## Examples
 
@@ -158,6 +158,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 The implementation is guarded by:
 
 - `tests/agent-bridge.test.ts` and `tests/scripts/test_juso_search.py` for both sides of claim/complete;
+- `tests/agent-bridge-gating.test.ts` for the default-off total and sub-switch gates;
 - `tests/engine-search.test.ts` for temporary-tab orchestration, races, cancellation, validation, and cleanup;
 - `tests/engine-extractors.test.ts` plus minimal fixtures for natural-result extraction, special-card exclusion, URL decoding, deduplication, and page states;
 - `tests/http.test.ts` and `tests/mcp-client.test.ts` for abort propagation;
@@ -176,6 +177,7 @@ The verified checks included the full Vitest suite, Python bridge tests, `npm ru
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — Google organic extraction under nested wrappers
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — fire-and-forget bridge tab close
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — SW `fetch` this-binding vs SERP tab timeout
+- `docs/solutions/architecture-patterns/default-off-capability-gating-for-cws-compliance.md` — why both capability switches must ship off by default for Chrome Web Store compliance
 - `skills/juso-search/SKILL.md`
 - `lib/agent-bridge.ts`
 - `lib/engine-search.ts`
