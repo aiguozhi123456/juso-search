@@ -82,6 +82,14 @@ export const serpBarStyles = `
   box-sizing: border-box !important;
 }
 
+/* 哔哩哔哩：栏宽 = 居中搜索框宽（480px，由 alignTo=.search-input-wrap 计算），
+ * chips 默认 inline-flex 左对齐会让可见 chip 块偏左；改为填满栏宽并水平居中，
+ * 使 chip 块中心对齐搜索框中心。 */
+:host([data-engine="bilibili"]) .source-switcher {
+  display: flex !important;
+  justify-content: center !important;
+}
+
 /* 签名滑动指示器 segmented control（与搜索页同款） */
 .source-switcher {
   position: relative;

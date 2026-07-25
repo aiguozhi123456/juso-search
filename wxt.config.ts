@@ -48,6 +48,7 @@ export default defineConfig({
           'icons/baidu.svg',
           'icons/douyin.svg',
           'icons/xiaohongshu.svg',
+          'icons/bilibili.svg',
           'icons/tavily.svg',
           'icons/exa.svg',
           'icons/stepfun.svg',

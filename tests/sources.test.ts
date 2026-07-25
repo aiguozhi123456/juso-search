@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { allSources, isEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder } from '@/lib/sources';
 
 // sourceOrder 默认补尾顺序：provider(registry) → engine(registry)。
-// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu。
-// 注：默认隐藏（douyin / xiaohongshu）是 schema v2 迁移写入 sourceHidden 的结果，
+// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili。
+// 注：默认隐藏（douyin / xiaohongshu / bilibili）是 schema v2/v3 迁移写入 sourceHidden 的结果，
 //     不由 allSources 投影层决定——本文件测的是投影函数本身。
-const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu'] as const;
+const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'] as const;
 
 describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
@@ -60,19 +60,19 @@ describe('allSources', () => {
   });
 
   it('projects configured providers and engines in a custom mixed order', () => {
-    expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu'])
-      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu']);
+    expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili'])
+      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 
   it('normalizes unknown, duplicate, and omitted source ids', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
-      'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu',
+      'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
     ]);
   });
 
   it('filters out hidden providers and engines', () => {
     const sources = allSources(['tavily', 'exa'], undefined, ['tavily', 'baidu']);
-    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu']);
+    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 
   it('ignores an empty hidden list', () => {

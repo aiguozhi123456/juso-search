@@ -5,14 +5,16 @@ import { bingEngine } from './bing';
 import { baiduEngine } from './baidu';
 import { douyinEngine } from './douyin';
 import { xiaohongshuEngine } from './xiaohongshu';
+import { bilibiliEngine } from './bilibili';
 
-// 注册 Google、Bing、Baidu、抖音、小红书；各自支持的 SERP 主机由 scopes.ts 集中定义。
+// 注册 Google、Bing、Baidu、抖音、小红书、哔哩哔哩；各自支持的 SERP 主机由 scopes.ts 集中定义。
 const engines: Record<EngineId, SearchEngine> = {
   google: googleEngine,
   bing: bingEngine,
   baidu: baiduEngine,
   douyin: douyinEngine,
   xiaohongshu: xiaohongshuEngine,
+  bilibili: bilibiliEngine,
 };
 
 export function getEngine(id: EngineId): SearchEngine {

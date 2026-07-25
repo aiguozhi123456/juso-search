@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img" aria-label="Bilibili">
+  <!-- 圆角底色取哔哩哔哩品牌蓝 #00A1D6；图形为示意性「带天线的小电视 + 播放键」，非官方 logo 复刻 -->
+  <rect width="16" height="16" rx="3.5" fill="#00A1D6"/>
+  <!-- 两根天线 -->
+  <rect x="4.7" y="2.3" width="0.8" height="2.4" rx="0.4" fill="#fff" transform="rotate(-22 5.1 3.5)"/>
+  <rect x="10.5" y="2.3" width="0.8" height="2.4" rx="0.4" fill="#fff" transform="rotate(22 10.9 3.5)"/>
+  <!-- 电视机身 -->
+  <rect x="2.8" y="5.2" width="10.4" height="7.6" rx="1.6" fill="#fff"/>
+  <!-- 左侧两枚「眼睛」凹槽，呼应哔哩哔哩吉祥物 -->
+  <circle cx="6" cy="8.6" r="0.85" fill="#00A1D6"/>
+  <circle cx="10" cy="8.6" r="0.85" fill="#00A1D6"/>
+</svg>

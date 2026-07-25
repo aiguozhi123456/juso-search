@@ -13,7 +13,7 @@
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
@@ -26,24 +26,30 @@ export type Migration = {
   migrate: (config: Record<string, unknown>) => Record<string, unknown>;
 };
 
-// v2：抖音 / 小红书引擎加入快切栏——两者默认隐藏。把这两个 id 并入既有 sourceHidden
-// （去重、保留首现顺序）。幂等：已含其中任一 id 时不重复追加；用户在设置页点「显示」
-// 即从 sourceHidden 移除该 id，此后迁移不再回填（因 v2→v2 不会重跑，且用户已 v2 戳）。
-const DEFAULT_HIDDEN_ENGINE_IDS: readonly string[] = ['douyin', 'xiaohongshu'];
-
-function mergeDefaultHidden(config: Record<string, unknown>): Record<string, unknown> {
-  const current = Array.isArray(config.sourceHidden) ? config.sourceHidden as unknown[] : [];
-  const seen = new Set(current.filter((id): id is string => typeof id === 'string'));
-  const merged = [...current.filter((id): id is string => typeof id === 'string')];
-  for (const id of DEFAULT_HIDDEN_ENGINE_IDS) {
-    if (!seen.has(id)) merged.push(id);
-  }
-  return { ...config, sourceHidden: merged };
+// 把给定默认隐藏 engine id 并入既有 sourceHidden（去重、保留首现顺序）。
+// 幂等：已含其中任一 id 时不重复追加；用户在设置页点「显示」即从 sourceHidden 移除该 id，
+// 此后迁移不再回填（因版本已戳，迁移链不会重跑）。
+function mergeHiddenFactory(ids: readonly string[]) {
+  return function mergeDefaultHidden(config: Record<string, unknown>): Record<string, unknown> {
+    const current = Array.isArray(config.sourceHidden) ? config.sourceHidden as unknown[] : [];
+    const seen = new Set(current.filter((id): id is string => typeof id === 'string'));
+    const merged = [...current.filter((id): id is string => typeof id === 'string')];
+    for (const id of ids) {
+      if (!seen.has(id)) merged.push(id);
+    }
+    return { ...config, sourceHidden: merged };
+  };
 }
+
+// v1→v2：抖音 / 小红书引擎加入快切栏——两者默认隐藏。
+const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'];
+// v2→v3：哔哩哔哩引擎加入快切栏——默认隐藏（同抖音 / 小红书，登录态 SPA、二线定位）。
+const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 
 // 迁移注册表：按 version 升序。未来加版本两步：(1) 向此数组 append 一条 Migration；(2) bump CURRENT_SCHEMA_VERSION。
 export const migrations: Migration[] = [
-  { version: 1, migrate: mergeDefaultHidden },
+  { version: 1, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V2) },
+  { version: 2, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V3) },
 ];
 
 /**

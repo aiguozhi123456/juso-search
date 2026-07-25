@@ -13,12 +13,14 @@ export const BING_SERP_HOSTS = ['www.bing.com', 'cn.bing.com'] as const;
 export const BAIDU_SERP_HOSTS = ['www.baidu.com'] as const;
 export const DOUYIN_SERP_HOSTS = ['www.douyin.com'] as const;
 export const XIAOHONGSHU_SERP_HOSTS = ['www.xiaohongshu.com'] as const;
+export const BILIBILI_SERP_HOSTS = ['search.bilibili.com'] as const;
 export const SERP_HOSTS = [
   ...GOOGLE_SERP_HOSTS,
   ...BING_SERP_HOSTS,
   ...BAIDU_SERP_HOSTS,
   ...DOUYIN_SERP_HOSTS,
   ...XIAOHONGSHU_SERP_HOSTS,
+  ...BILIBILI_SERP_HOSTS,
 ];
 
 export const SERP_HOST_MATCH_PATTERNS = SERP_HOSTS.map(hostMatchPattern);
@@ -28,6 +30,7 @@ export const SERP_CONTENT_MATCH_PATTERNS = [
   ...BAIDU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/s')),
   ...DOUYIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...XIAOHONGSHU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search_result')),
+  ...BILIBILI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/all')),
 ];
 // 结果抽取需要在引擎站内的 challenge / consent 重定向页接收消息；注入搜索栏仍只匹配
 // canonical SERP 路径，避免在这些页面渲染 UI。
@@ -38,6 +41,7 @@ const bingSerpHosts = new Set<string>(BING_SERP_HOSTS);
 const baiduSerpHosts = new Set<string>(BAIDU_SERP_HOSTS);
 const douyinSerpHosts = new Set<string>(DOUYIN_SERP_HOSTS);
 const xiaohongshuSerpHosts = new Set<string>(XIAOHONGSHU_SERP_HOSTS);
+const bilibiliSerpHosts = new Set<string>(BILIBILI_SERP_HOSTS);
 
 export function isGoogleSerpHostname(hostname: string): boolean {
   return googleSerpHosts.has(hostname);
@@ -57,6 +61,10 @@ export function isDouyinSerpHostname(hostname: string): boolean {
 
 export function isXiaohongshuSerpHostname(hostname: string): boolean {
   return xiaohongshuSerpHosts.has(hostname);
+}
+
+export function isBilibiliSerpHostname(hostname: string): boolean {
+  return bilibiliSerpHosts.has(hostname);
 }
 
 export function isEngineChallengeOrConsentUrl(url: URL): boolean {

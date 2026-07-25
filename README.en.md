@@ -10,7 +10,7 @@
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, and Xiaohongshu work with zero AI service configuration.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili work with zero AI service configuration.
 
 | For | What it does today |
 | --- | --- |
@@ -37,7 +37,7 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine** or a configured AI search service; those two types use different execution paths.
 
-- Conventional Search Engines: Google, Bing, Baidu, Douyin, and Xiaohongshu. They use no API key; Juso navigates a browser for people to use directly; Google, Bing, and Baidu also let agents extract ordinary search results.
+- Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili. They use no API key; Juso navigates a browser for people to use directly; Google, Bing, and Baidu also let agents extract ordinary search results.
 - AI search services: Tavily, Exa, Stepfun pay-as-you-go API, and Stepfun Step Plan. They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
 - Answer capability: Tavily and Exa can return a synthesized answer with a result list. Both Stepfun sources currently return result lists only.
 
@@ -45,7 +45,7 @@ In the current release, “aggregation” means unified access, selection, and f
 
 ## For People
 
-The independent search page lets you choose and switch Search Sources. On supported Google, Bing, Baidu, Douyin, and Xiaohongshu result pages, the SERP Switch Bar can move the current query to another search engine or hand it off to Juso’s AI search page.
+The independent search page lets you choose and switch Search Sources. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili result pages, the SERP Switch Bar can move the current query to another search engine or hand it off to Juso’s AI search page.
 
 Successful AI searches are cached on the current device and appear in local search history that can be reviewed and replayed. Cache entries are scoped to a service plus normalized query, and are not shared across services. Use explicit refresh when you need fresh results; it bypasses the cache and may incur charges from the selected AI service.
 
@@ -56,9 +56,9 @@ Juso v1.1.0 is available for adopters comfortable with manual installation and c
 ### People
 
 1. Install and enable the extension through Installation and Updates.
-2. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, and Xiaohongshu need no configuration; configure the corresponding key in extension settings only when using an AI search service.
+2. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings); configure the corresponding key in extension settings only when using an AI search service.
 
-You can now search and switch among Google, Bing, Baidu, Douyin, Xiaohongshu, and your configured AI search services from one entry point.
+You can now search and switch among Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, and your configured AI search services from one entry point.
 
 ### Local AI Agents
 
@@ -155,7 +155,7 @@ Code identifiers (package name `juso-search`, `JUSO_*` environment variables, `-
 
 ## Acknowledgements
 
-The approach of inserting the switch bar as the first child of the result container to inherit its width and simplify alignment, and the approach of injecting a CSS shim into the host page to make room for the bar, on Google / Bing / Baidu result pages are informed by [searchEngineJump 搜索引擎快捷跳转](https://greasyfork.org/zh-CN/scripts/27752-searchenginejump) (authors: NLF, 锐经, [qxin i](https://github.com/qxinGitHub/searchEngineJump), MIT licensed). This extension's implementation is independently written and shares no code with the original script.
+The approach of inserting the switch bar as the first child of the result container to inherit its width and simplify alignment, and the approach of injecting a CSS shim into the host page to make room for the bar, on Google / Bing / Baidu result pages, as well as the choice of injection anchors (`.head-contain` / `.search-input`) on the Bilibili result page, are informed by [searchEngineJump 搜索引擎快捷跳转](https://greasyfork.org/zh-CN/scripts/27752-searchenginejump) (authors: NLF, 锐经, [qxin i](https://github.com/qxinGitHub/searchEngineJump), MIT licensed). This extension's implementation is independently written and shares no code with the original script.
 
 ## License
 

@@ -87,29 +87,48 @@ describe('ensureSchema: downgrade tolerance', () => {
 });
 
 describe('ensureSchema: migration chain (forward compatibility)', () => {
-  it('real migrations array contains the v1->v2 default-hidden engines migration', () => {
+  it('real migrations array contains the v1->v2 and v2->v3 default-hidden engines migrations', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(1);
+      expect(mod.migrations).toHaveLength(2);
       expect(mod.migrations[0].version).toBe(1);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(2);
+      expect(mod.migrations[1].version).toBe(2);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(3);
     });
   });
 
-  it('v1->v2 migration merges default-hidden engine ids into sourceHidden (idempotent)', () => {
+  it('full chain v1->current merges both douyin/xiaohongshu (v2) and bilibili (v3) into sourceHidden (idempotent)', () => {
     const once = migrateConfig({ sourceHidden: ['bing'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
     const twice = migrateConfig(once, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu']);
+    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu', 'bilibili']);
     expect(twice).toEqual(once);
   });
 
-  it('v1->v2 migration initializes sourceHidden when absent', () => {
+  it('full chain v1->current initializes sourceHidden when absent', () => {
     const out = migrateConfig({ providerKeys: {} }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu']);
+    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili']);
   });
 
-  it('v1->v2 migration does not duplicate ids already hidden', () => {
+  it('full chain v1->current does not duplicate ids already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['douyin', 'baidu'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu']);
+    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu', 'bilibili']);
+  });
+
+  it('v1->v2 alone (target v2) adds douyin/xiaohongshu but NOT bilibili', () => {
+    const out = migrateConfig({ sourceHidden: ['baidu'] }, 1, 2, migrations);
+    expect(out.sourceHidden).toEqual(['baidu', 'douyin', 'xiaohongshu']);
+    expect(out.sourceHidden).not.toContain('bilibili');
+  });
+
+  it('v2->v3 migration merges bilibili into sourceHidden (idempotent)', () => {
+    const once = migrateConfig({ sourceHidden: ['douyin', 'xiaohongshu'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
+    const twice = migrateConfig(once, 2, CURRENT_SCHEMA_VERSION, migrations);
+    expect(once.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili']);
+    expect(twice).toEqual(once);
+  });
+
+  it('v2->v3 migration does not duplicate bilibili if already hidden', () => {
+    const out = migrateConfig({ sourceHidden: ['bilibili', 'douyin'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
+    expect(out.sourceHidden).toEqual(['bilibili', 'douyin']);
   });
 
   it('ensureSchema set-then-remove: stamps version even when only version key changes', async () => {

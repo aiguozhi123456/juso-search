@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorsFor } from '@/lib/engines/registry';
 import { DEFAULT_ANCHORS } from '@/lib/engines/types';
-import { BAIDU_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS } from '@/lib/engines/scopes';
+import { BAIDU_SERP_HOSTS, BILIBILI_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
-  it('registers google + bing + baidu + douyin + xiaohongshu', () => {
-    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu']);
+  it('registers google + bing + baidu + douyin + xiaohongshu + bilibili', () => {
+    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 
   it('getEngine throws on unknown id', () => {
@@ -35,6 +35,11 @@ describe('buildSerpUrl', () => {
   it('xiaohongshu encodes the query into the keyword param', () => {
     expect(getEngine('xiaohongshu').buildSerpUrl('hello 世界')).toBe(
       'https://www.xiaohongshu.com/search_result?keyword=hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
+  it('bilibili encodes the query into the keyword param on search.bilibili.com/all', () => {
+    expect(getEngine('bilibili').buildSerpUrl('hello 世界')).toBe(
+      'https://search.bilibili.com/all?keyword=hello%20%E4%B8%96%E7%95%8C',
     );
   });
 });
@@ -70,12 +75,17 @@ describe('matchEngineByUrl', () => {
   it('matches Xiaohongshu SERP host with trailing slash (/search_result/?keyword=)', () => {
     expect(matchEngineByUrl('https://www.xiaohongshu.com/search_result/?keyword=hello&source=web')?.id).toBe('xiaohongshu');
   });
+  it('matches Bilibili SERP host (keyword param on search.bilibili.com/all)', () => {
+    expect(matchEngineByUrl('https://search.bilibili.com/all?keyword=hello')?.id).toBe('bilibili');
+    expect(matchEngineByUrl('https://search.bilibili.com/all/?keyword=hello&from_source=web')?.id).toBe('bilibili');
+  });
   it('rejects forged and unsupported hosts', () => {
     expect(matchEngineByUrl('https://www.google.co.jp.example.com/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.google.fr/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.bing.co.uk/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.baidu.com.example.com/s?wd=x')).toBeNull();
     expect(matchEngineByUrl('https://www.douyin.com.example.com/search/x')).toBeNull();
+    expect(matchEngineByUrl('https://search.bilibili.com.example.com/all?keyword=x')).toBeNull();
   });
   it.each([
     'http://www.google.com/search?q=x',
@@ -98,6 +108,10 @@ describe('matchEngineByUrl', () => {
     'http://www.xiaohongshu.com/search_result?keyword=x',
     'https://www.xiaohongshu.com:8443/search_result?keyword=x',
     'https://www.xiaohongshu.com/searching?keyword=x',
+    // 哔哩哔哩 query 在 keyword 参数、canonical 路径 /all：以下非 canonical 形式应被拒
+    'http://search.bilibili.com/all?keyword=x',
+    'https://search.bilibili.com:8443/all?keyword=x',
+    'https://search.bilibili.com/alling?keyword=x',
   ])('rejects non-canonical SERP URL %s', (url) => {
     expect(matchEngineByUrl(url)).toBeNull();
   });
@@ -128,6 +142,10 @@ describe('extractQuery', () => {
   it('decodes Xiaohongshu query from the keyword param (trailing-slash path)', () => {
     expect(extractQuery('https://www.xiaohongshu.com/search_result/?keyword=react+hooks&source=web')).toBe('react hooks');
   });
+  it('decodes Bilibili query from the keyword param', () => {
+    expect(extractQuery('https://search.bilibili.com/all?keyword=react+hooks')).toBe('react hooks');
+    expect(extractQuery('https://search.bilibili.com/all/?keyword=react+hooks&from_source=web')).toBe('react hooks');
+  });
   it('returns null when no query param', () => {
     expect(extractQuery('https://www.google.com/search')).toBeNull();
   });
@@ -152,6 +170,9 @@ describe('engine scopes', () => {
     }
     for (const host of XIAOHONGSHU_SERP_HOSTS) {
       expect(matchEngineByUrl(`https://${host}/search_result?keyword=x`)?.id).toBe('xiaohongshu');
+    }
+    for (const host of BILIBILI_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/all?keyword=x`)?.id).toBe('bilibili');
     }
   });
 });
