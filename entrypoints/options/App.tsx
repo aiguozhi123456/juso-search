@@ -13,8 +13,30 @@ import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
 import { SiteEngineManager } from '@/components/SiteEngineManager';
 import { Wordmark } from '@/components/Wordmark';
-import { ChevronDownIcon, ChevronUpIcon } from '@/components/icons';
+import { ChevronDownIcon, ChevronUpIcon, SearchIcon, SettingsIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
+
+function KeyIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="8" cy="14" r="3.5" />
+      <line x1="11" y1="11" x2="19" y2="3" />
+      <line x1="16" y1="6" x2="19" y2="3" />
+      <line x1="19" y1="6" x2="16" y2="3" />
+    </svg>
+  );
+}
 
 export default function App() {
   const providers = allProviders();
@@ -32,11 +54,11 @@ export default function App() {
   const activeSourceRevision = useRef(0);
   const [activeGroup, setActiveGroup] = useState('search');
 
-  const navGroups = [
-    { id: 'search', label: '搜索' },
-    { id: 'keys', label: '密钥' },
-    { id: 'general', label: '通用' }
-  ];
+   const navGroups = [
+     { id: 'search', label: '搜索', icon: <SearchIcon size={16} /> },
+     { id: 'keys', label: '密钥', icon: <KeyIcon size={16} /> },
+     { id: 'general', label: '通用', icon: <SettingsIcon size={16} /> }
+   ];
 
   useEffect(() => {
     syncConfig();
@@ -191,6 +213,10 @@ export default function App() {
 
       <div className="options-layout">
         <aside className="options-sidebar">
+          <div className="options-sidebar-brand">
+            <span className="options-sidebar-dot" aria-hidden="true" />
+            <span className="options-sidebar-label">{t(MSG.opts_title).split(' · ').slice(1).join(' · ')}</span>
+          </div>
           <nav className="options-nav">
             {navGroups.map((group) => (
               <button
@@ -200,7 +226,8 @@ export default function App() {
                 onClick={() => setActiveGroup(group.id)}
                 data-group={group.id}
               >
-                {group.label}
+                <span className="options-nav-icon" aria-hidden="true">{group.icon}</span>
+                <span className="options-nav-label">{group.label}</span>
               </button>
             ))}
           </nav>

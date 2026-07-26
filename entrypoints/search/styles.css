@@ -74,10 +74,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand);
-  /* 微弱阴影让 mark 在密集 topbar 中保持重量感；color-mix 跟随 brand 主题化 */
-  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--brand) 35%, transparent));
+  color: var(--fg);
 }
+.wordmark-mark rect:nth-child(3) { fill: var(--brand); }
 .wordmark-text {
   font-family: var(--font-display);
   font-size: var(--text-xl);
