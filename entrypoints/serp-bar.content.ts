@@ -2,13 +2,20 @@ import { createElement } from 'react';
 import type { Root } from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
+import type { ProviderConfigReply } from '@/lib/messaging';
 import { allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource, SourceId } from '@/lib/sources';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl, anchorsFor } from '@/lib/engines/registry';
 import type { AnchorStrategy } from '@/lib/engines/types';
-import { resolveSerpHandoff } from '@/lib/serp-handoff';
+import {
+  decidePostWriteSiteEngineNavigation,
+  nextQueryAfterSerpContext,
+  resolveCurrentSiteEngineHandoff,
+  resolveSerpContext,
+  resolveSerpHandoff,
+} from '@/lib/serp-handoff';
 import { getStylePref, getThemePref } from '@/lib/storage';
 import type { StylePref } from '@/lib/storage';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
@@ -53,7 +60,7 @@ export default defineContentScript({
     const state = await loadBarState(engine, initialUrl);
     // 当前 engine 被用户隐藏时不在快切栏投影中——在其结果页注入栏只会得到
     // 无激活目标的残栏，故不挂载（重载亦然，因判定每次 mount 都做）。
-    if (!shouldMountForEngine(engine.id, state.sourceHidden)) return;
+    if (!shouldMountForEngine(engine.id, state.sourceHidden, state.activeSiteId)) return;
 
     // 当前选用的锚点策略；每次 pick 后更新，供 append 回调与对齐布局使用。
     let strategy = pickAnchor(anchorsFor(state.engine));
@@ -62,6 +69,63 @@ export default defineContentScript({
     let mountedHost: HTMLElement | null = null;
     // 当前挂载所用候选在 engine.anchors 中的 index（0=首选）；用于升级判断。
     let mountedAnchorIndex = -1;
+
+    // Serialize chip selects like the search page (switchReqIdRef): a late
+    // applyConfigSnapshot / setActiveSource / location.assign from an older
+    // click must not race a newer selection.
+    let selectGen = 0;
+    let selecting = false;
+
+    /** Apply a fresh provider config onto local bar state and re-render chips. */
+    const applyConfigSnapshot = (config: ProviderConfigReply) => {
+      const sources = allSources(
+        config.configuredProviderIds,
+        config.sourceOrder,
+        config.sourceHidden,
+        config.siteEngines ?? [],
+      );
+      const rawQuery = readQuery(state.engine, window.location.href);
+      const context = resolveSerpContext(
+        state.engine.id,
+        rawQuery,
+        config.siteEngines ?? [],
+        config.activeSourceId,
+        config.sourceOrder,
+        config.sourceHidden,
+      );
+      state.sources = sources;
+      state.sourceHidden = config.sourceHidden;
+      // Unresolved/deleted Site Engines no longer strip scope; keep the in-memory
+      // base query rather than adopting the raw site-scoped SERP query.
+      state.query = nextQueryAfterSerpContext(context, rawQuery, state.query);
+      state.activeSiteId = context.matchingSiteId;
+      state.activeId = context.activeId;
+      // Hidden backing engine with no visible matching site: tear the bar down.
+      if (!shouldMountForEngine(state.engine.id, state.sourceHidden, state.activeSiteId)) {
+        safeRemove();
+        return;
+      }
+      if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+    };
+
+    const selectSource = (source: SearchSource) => {
+      // Mirror search-page: ignore clicks while a select is already in flight
+      // (SourceSwitcher is also disabled during selecting).
+      if (selecting) return;
+      const gen = ++selectGen;
+      selecting = true;
+      if (mountedRoot) render(mountedRoot, state, selectSource, true);
+      void (async () => {
+        try {
+          await onSelect(source, state.query, applyConfigSnapshot, () => gen === selectGen);
+        } finally {
+          if (gen === selectGen) {
+            selecting = false;
+            if (mountedRoot) render(mountedRoot, state, selectSource, false);
+          }
+        }
+      })();
+    };
 
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-serp-bar',
@@ -113,7 +177,7 @@ export default defineContentScript({
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
         mountedRoot = root;
-        render(root, state, state.engine);
+        render(root, state, selectSource, selecting);
         return { root };
       },
       onRemove(mounted) {
@@ -258,7 +322,7 @@ export default defineContentScript({
       detachObserver.observe(document.documentElement, { childList: true, subtree: true });
     };
 
-    const syncLocation = (url: string) => {
+    const syncLocation = async (url: string) => {
       const revision = ++locationRevision;
       remountBudget = DEFAULT_REMOUNT_BUDGET;
       stopWaitingForAnchor();
@@ -270,14 +334,22 @@ export default defineContentScript({
         safeRemove();
         return;
       }
+      // Refresh config on SPA navigation: site definitions, order and persisted
+      // active source can change without a full document reload.
+      const refreshed = await loadBarState(nextEngine, url);
+      if (revision !== locationRevision) return;
+      state.sources = refreshed.sources;
+      state.sourceHidden = refreshed.sourceHidden;
+      state.query = refreshed.query;
+      state.activeId = refreshed.activeId;
+      state.activeSiteId = refreshed.activeSiteId;
       // SPA 导航到被隐藏 engine 的结果页：移除栏且不再重挂。
       // 反向（从隐藏 engine 导航回可见 engine）由后续正常挂载路径恢复。
-      if (!shouldMountForEngine(nextEngine.id, state.sourceHidden)) {
+      if (!shouldMountForEngine(nextEngine.id, state.sourceHidden, state.activeSiteId)) {
         safeRemove();
         return;
       }
       state.engine = nextEngine;
-      state.query = readQuery(nextEngine, url);
       strategy = pickAnchor(anchorsFor(nextEngine));
       const hostOrphaned = Boolean(mountedHost && !document.contains(mountedHost));
       if (!ui.mounted || hostOrphaned || !mountedHost) {
@@ -286,7 +358,7 @@ export default defineContentScript({
         return;
       }
       if (mountedHost) syncAlignedHost(mountedHost, strategy);
-      if (mountedRoot) render(mountedRoot, state, nextEngine);
+      if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
       watchHostDetachment(revision);
       watchLastResortUpgrade(revision);
     };
@@ -298,8 +370,13 @@ export default defineContentScript({
       clearDetachRemountTimer();
       safeRemove();
     });
-    ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => syncLocation(newUrl.href));
-    syncLocation(window.location.href);
+    ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => { void syncLocation(newUrl.href); });
+    if (window.location.href === initialUrl) {
+      remountBudget = DEFAULT_REMOUNT_BUDGET;
+      mountWhenAnchorReady(locationRevision);
+    } else {
+      void syncLocation(window.location.href);
+    }
 
     ctx.addEventListener(window, 'resize', () => {
       if (mountedHost && document.contains(mountedHost)) syncAlignedHost(mountedHost, strategy);
@@ -312,20 +389,37 @@ interface BarState {
   query: string;
   sources: SearchSource[];
   sourceHidden: SourceId[];
+  /** Visible matching site source, if this backing-engine query was generated by one. */
+  activeSiteId: SourceId | null;
+  /** Chip to highlight: visible Site Engine first, otherwise the backing engine. */
+  activeId: SourceId;
   resolvedTheme: 'light' | 'dark';
   stylePref: StylePref;
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
-  const config = await sendMessage('getProviderConfig', undefined);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden);
-  const themePref = await getThemePref();
-  const stylePref = await getStylePref();
+  const [config, themePref, stylePref] = await Promise.all([
+    sendMessage('getProviderConfig', undefined),
+    getThemePref(),
+    getStylePref(),
+  ]);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? []);
+  const rawQuery = readQuery(engine, url);
+  const context = resolveSerpContext(
+    engine.id,
+    rawQuery,
+    config.siteEngines ?? [],
+    config.activeSourceId,
+    config.sourceOrder,
+    config.sourceHidden,
+  );
   return {
     engine,
-    query: readQuery(engine, url),
+    query: context.baseQuery,
     sources,
     sourceHidden: config.sourceHidden,
+    activeSiteId: context.matchingSiteId,
+    activeId: context.activeId,
     resolvedTheme: resolveTheme(themePref),
     stylePref,
   };
@@ -335,12 +429,18 @@ function readQuery(engine: SearchEngine, url: string): string {
   return engine.extractQuery(url) ?? '';
 }
 
-function render(root: Root, state: BarState, engine: SearchEngine): void {
+function render(
+  root: Root,
+  state: BarState,
+  onSelectSource: (source: SearchSource) => void,
+  disabled = false,
+): void {
   root.render(
     createElement(SourceSwitcher, {
       sources: state.sources,
-      activeId: engine.id,
-      onSelect: (source: SearchSource) => onSelect(source, state.query),
+      activeId: state.activeId,
+      onSelect: onSelectSource,
+      disabled,
     }),
   );
 }
@@ -379,7 +479,67 @@ function parsePx(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function onSelect(source: SearchSource, query: string): void {
+/**
+ * SERP chip select. `isCurrent` is the generation guard from the content-script
+ * main scope: after every await, bail if a newer select has superseded this one
+ * so we never applyConfigSnapshot / setActiveSource / navigate for a stale gen.
+ */
+async function onSelect(
+  source: SearchSource,
+  query: string,
+  onUnresolvedSiteEngine?: (config: ProviderConfigReply) => void,
+  isCurrent: () => boolean = () => true,
+): Promise<void> {
+  if (source.kind === 'site-engine') {
+    let config: ProviderConfigReply;
+    try {
+      // A Site Engine chip contains a render-time snapshot. Re-resolve it so
+      // Options edits/deletions cannot navigate with stale scoped metadata.
+      config = await sendMessage('getProviderConfig', undefined);
+    } catch {
+      return;
+    }
+    if (!isCurrent()) return;
+    const handoff = resolveCurrentSiteEngineHandoff(source.id, query, config.siteEngines ?? []);
+    if (!handoff || handoff.kind !== 'navigate') {
+      // Deleted / unresolved: drop the stale chip from local bar state; no navigation.
+      onUnresolvedSiteEngine?.(config);
+      return;
+    }
+    // Persist active source before navigating so a failed write does not leave
+    // storage out of sync while the tab has already left the SERP.
+    try {
+      await sendMessage('setActiveSource', source.id);
+    } catch {
+      return;
+    }
+    if (!isCurrent()) return;
+    // Prefer one post-write read so definitions match storage (Options may have
+    // edited/deleted the same Site Engine between the pre-write and post-write reads).
+    try {
+      config = await sendMessage('getProviderConfig', undefined);
+    } catch {
+      // Write succeeded; keep navigating with the pre-write handoff URL.
+      if (!isCurrent()) return;
+      location.assign(handoff.url);
+      return;
+    }
+    if (!isCurrent()) return;
+    const decision = decidePostWriteSiteEngineNavigation(
+      source.id,
+      query,
+      config.siteEngines ?? [],
+      handoff.url,
+    );
+    if (decision.kind === 'navigate') {
+      location.assign(decision.url);
+      return;
+    }
+    // Deleted between write and re-read: refresh local bar chips; do not navigate.
+    onUnresolvedSiteEngine?.(config);
+    return;
+  }
+  if (!isCurrent()) return;
   const handoff = resolveSerpHandoff(source, query);
   if (!handoff) return;
   if (handoff.kind === 'navigate') {

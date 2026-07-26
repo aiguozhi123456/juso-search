@@ -547,6 +547,127 @@ describe('search page', () => {
     }
   });
 
+  it('submits an active Site Engine through its backing engine without worker search', async () => {
+    const { spy, restore } = stubLocation();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
+          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    try {
+      render(<App />);
+      await screen.findByRole('button', { name: /Docs/ });
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Adocs.example.com%2Fguide%20install'));
+      expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+      expect(screen.getByLabelText('搜索词')).toHaveValue('install');
+    } finally {
+      restore();
+    }
+  });
+
+  it('manual submit resolves an edited active Site Engine from a fresh config snapshot', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
+          siteEngines: [{
+            id: 'site:docs', name: 'Docs',
+            target: configReads === 1 ? 'https://stale.example.com' : 'https://fresh.example.com',
+            engineId: 'google',
+          }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    try {
+      render(<App />);
+      await screen.findByRole('button', { name: /Docs/ });
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Afresh.example.com%20install'));
+      expect(configReads).toBe(2);
+      expect(spy).not.toHaveBeenCalledWith('https://www.google.com/search?q=site%3Astale.example.com%20install');
+      expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+    } finally {
+      restore();
+    }
+  });
+
+  it('manual submit falls back after its active Site Engine was deleted without persisting it', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve(configReads === 1
+          ? {
+              configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
+              siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://stale.example.com', engineId: 'google' }],
+            }
+          : { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs', siteEngines: [] });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'install', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      await screen.findByRole('button', { name: /Docs/ });
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'install', forceRefresh: undefined, providerId: 'tavily',
+      }));
+      expect(configReads).toBe(2);
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', expect.anything());
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it('selecting a Site Engine saves it before navigating with the base query', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        // Post-write snapshot reflects the newly active Site Engine.
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'],
+          activeProviderId: 'tavily',
+          activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
+          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs'));
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Adocs.example.com%2Fguide%20install'));
+      expect(configReads).toBeGreaterThanOrEqual(3);
+      expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+    } finally {
+      restore();
+    }
+  });
+
   it('bare mount with an active engine does not auto-navigate', async () => {
     const { spy, restore } = stubLocation();
     mockedSend.mockImplementation(((type: string) => {
@@ -637,4 +758,325 @@ describe('search page', () => {
       restore();
     }
   });
+
+  it('uses the initial config snapshot for a deep-linked active Site Engine', async () => {
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
+          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true });
+    }) as never);
+    const { spy, restore } = stubLocation('?query=deep%20link');
+    try {
+      render(<App />);
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Adocs.example.com%20deep%20link'));
+      expect(configReads).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it('refreshes a stale deep-linked Site Engine source before searching', async () => {
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve(configReads === 1
+          ? { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:deleted' }
+          : { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'stale source', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?query=stale%20source');
+    try {
+      render(<App />);
+      await waitFor(() =>
+        expect(mockedSend).toHaveBeenCalledWith('search', { query: 'stale source', forceRefresh: undefined, providerId: 'tavily' }),
+      );
+      expect(configReads).toBe(2);
+    } finally {
+      restore();
+    }
+  });
+
+
+  it('query-only deep link executes the first visible provider when the active engine is hidden', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') return Promise.resolve({
+        configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'google', sourceHidden: ['google'],
+      });
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'hidden engine', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?query=hidden+engine');
+    try {
+      render(<App />);
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'hidden engine', forceRefresh: undefined, providerId: 'tavily',
+      }));
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', expect.anything());
+    } finally {
+      restore();
+    }
+  });
+
+  it('query-only deep link executes the first visible provider when the active Site Engine is hidden', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') return Promise.resolve({
+        configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs', sourceHidden: ['site:docs'],
+        siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+      });
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'hidden site', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?query=hidden+site');
+    try {
+      render(<App />);
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'hidden site', forceRefresh: undefined, providerId: 'tavily',
+      }));
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', expect.anything());
+    } finally {
+      restore();
+    }
+  });
+
+  it('uses a freshly edited Site Engine definition before persisting and navigating', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'],
+          activeProviderId: 'tavily',
+          // Post-write (3rd read) applies the newly active site source.
+          activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
+          siteEngines: [{
+            id: 'site:docs',
+            name: 'Docs',
+            target: configReads === 1 ? 'https://old.example.com' : 'https://new.example.com',
+            engineId: 'google',
+          }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs'));
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Anew.example.com%20install'));
+      expect(configReads).toBeGreaterThanOrEqual(3);
+    } finally {
+      restore();
+    }
+  });
+
+  it('navigates the post-write handoff URL when the Site Engine is edited between config reads', async () => {
+    // Pre-write resolve uses old target; post-write snapshot has an edited target.
+    // Navigation must use the refreshed definition, not the pre-write handoff URL.
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        const target = configReads <= 2
+          ? 'https://old.example.com/guide'
+          : 'https://new.example.com/guide';
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'],
+          activeProviderId: 'tavily',
+          activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
+          siteEngines: [{
+            id: 'site:docs',
+            name: configReads <= 2 ? 'Docs' : 'Docs (edited)',
+            target,
+            engineId: 'google' as const,
+          }],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs'));
+      await waitFor(() => expect(spy).toHaveBeenCalledWith(
+        'https://www.google.com/search?q=site%3Anew.example.com%2Fguide%20install',
+      ));
+      expect(spy).not.toHaveBeenCalledWith(
+        'https://www.google.com/search?q=site%3Aold.example.com%2Fguide%20install',
+      );
+      expect(configReads).toBeGreaterThanOrEqual(3);
+    } finally {
+      restore();
+    }
+  });
+
+  it('falls back after post-write when the selected Site Engine was deleted between reads', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        // Mount + pre-write still have the site; post-write snapshot deleted it.
+        if (configReads <= 2) {
+          return Promise.resolve({
+            configuredProviderIds: ['tavily'],
+            activeProviderId: 'tavily',
+            activeSourceId: 'tavily',
+            siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+          });
+        }
+        return Promise.resolve({
+          configuredProviderIds: ['tavily'],
+          activeProviderId: 'tavily',
+          activeSourceId: 'site:docs',
+          siteEngines: [],
+        });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'install', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs'));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'install', forceRefresh: undefined, providerId: 'tavily',
+      }));
+      expect(spy).not.toHaveBeenCalled();
+      expect(configReads).toBeGreaterThanOrEqual(3);
+    } finally {
+      restore();
+    }
+  });
+
+  it('falls back to the first visible source when the selected Site Engine was deleted', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve(configReads === 1
+          ? { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] }
+          : { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [] });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'install', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      // Stale chip is dropped; first visible projected source (tavily) executes.
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'install', forceRefresh: undefined, providerId: 'tavily',
+      }));
+      expect(configReads).toBe(2);
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'site:docs');
+      expect(spy).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Docs/ })).not.toBeInTheDocument());
+    } finally {
+      restore();
+    }
+  });
+
+  it('refreshes local chips without navigating when a deleted Site Engine is selected with an empty query', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve(configReads === 1
+          ? { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] }
+          : { configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [] });
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(configReads).toBe(2));
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'site:docs');
+      expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+      expect(spy).not.toHaveBeenCalled();
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Docs/ })).not.toBeInTheDocument());
+    } finally {
+      restore();
+    }
+  });
+
+  it('does not navigate when persisting a fresh Site Engine selection fails', async () => {
+    const { spy, restore } = stubLocation();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') return Promise.resolve({
+        configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+        siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+      });
+      if (type === 'setActiveSource') return Promise.reject(new Error('write failed'));
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs'));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
+  it('disables concurrent source switching while a Site Engine selection is pending', async () => {
+    const { spy, restore } = stubLocation();
+    const siteWrite = deferred<void>();
+    mockedSend.mockImplementation(((type: string, data: unknown) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['tavily', 'exa'],
+          activeProviderId: 'tavily',
+          activeSourceId: 'tavily',
+          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+        });
+      }
+      if (type === 'setActiveSource' && data === 'site:docs') return siteWrite.promise;
+      if (type === 'setActiveSource') return Promise.resolve(undefined);
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'install', provider: 'exa', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      const exaBtn = await screen.findByRole('button', { name: /Exa/ });
+      await waitFor(() => expect(exaBtn).toBeDisabled());
+      fireEvent.click(exaBtn);
+      expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'site:docs');
+      expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'exa');
+      await act(async () => {
+        siteWrite.resolve(undefined);
+        await siteWrite.promise;
+      });
+      await waitFor(() => expect(spy).toHaveBeenCalledWith('https://www.google.com/search?q=site%3Adocs.example.com%20install'));
+    } finally {
+      restore();
+    }
+  });
+
 });

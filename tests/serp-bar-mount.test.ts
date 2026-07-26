@@ -212,6 +212,11 @@ describe('shouldMountForEngine (hidden engine gate)', () => {
     expect(shouldMountForEngine('xiaohongshu', ['douyin', 'xiaohongshu'])).toBe(false);
   });
 
+  it('mounts on a hidden backing engine when its matching Site Engine is visible', () => {
+    expect(shouldMountForEngine('google', ['google'], 'site:docs')).toBe(true);
+    expect(shouldMountForEngine('google', ['google', 'site:docs'], null)).toBe(false);
+  });
+
   it('mounts when the hidden list is undefined or empty', () => {
     expect(shouldMountForEngine('google', undefined)).toBe(true);
     expect(shouldMountForEngine('google', [])).toBe(true);

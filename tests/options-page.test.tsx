@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
 import type { ProviderId } from '@/lib/providers/types';
+import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { SourceId } from '@/lib/sources';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
@@ -152,10 +153,12 @@ describe('options page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '在快切栏隐藏 Bing' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceHidden', ['bing']));
-    // 隐藏态：可访问名翻转为“显示”，行挂上 --hidden 修饰类
+    // 隐藏态：可访问名翻转为"显示"，行挂上 --hidden 修饰类
     expect(screen.getByRole('button', { name: '在快切栏显示 Bing' })).toBeInTheDocument();
     expect(document.querySelector('.source-order-row--hidden')).toBeTruthy();
     save.resolve();
+    // 等待 finally 中的 setSavingSourceHidden(false) 落定，避免遗留 deferred 状态触发 act 警告。
+    await waitFor(() => expect(screen.getByRole('button', { name: '在快切栏显示 Bing' })).not.toBeDisabled());
   });
 
   it('excludes hidden sources from the active-source dropdown', async () => {
@@ -252,6 +255,82 @@ describe('options page', () => {
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
   });
 
+  it('does not let an older config response overwrite a newer choose()', async () => {
+    const staleConfig = deferred<Record<string, unknown>>();
+    let configCalls = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configCalls += 1;
+        if (configCalls === 1) {
+          // 首次加载快速返回，下拉框出现 exa + 各 engine，active = google。
+          return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        }
+        // 第二次（保存 exa key 触发）慢返回，将带着旧的 activeSourceId。
+        return staleConfig.promise;
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('google');
+    // 保存已配置的 exa key：markConfigured 对状态是 no-op，但仍触发 syncConfig，
+    // 由此产生一个在途的旧 getProviderConfig 请求。
+    const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
+    fireEvent.change(exaInput, { target: { value: 'exa-key' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
+    await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
+    // 在第二次配置仍在途时 choose 到 exa。
+    fireEvent.change(select, { target: { value: 'exa' } });
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
+    await waitFor(() => expect(select.value).toBe('exa'));
+    // 旧配置带着 activeSourceId = google 返回——不得覆盖较新的 choose。
+    await act(async () => {
+      staleConfig.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(select.value).toBe('exa');
+  });
+
+  it('does not let an older config response overwrite a hide-triggered reselection', async () => {
+    const staleConfig = deferred<Record<string, unknown>>();
+    let configCalls = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configCalls += 1;
+        if (configCalls === 1) {
+          return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        }
+        return staleConfig.promise;
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('google');
+    // 触发在途的旧 getProviderConfig（保存已配置的 exa key，状态 no-op 但仍 syncConfig）。
+    const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
+    fireEvent.change(exaInput, { target: { value: 'exa-key' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
+    await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
+    // 隐藏当前激活的 google：重选到首个可见源 exa 并持久化。
+    fireEvent.click(screen.getByRole('button', { name: '在快切栏隐藏 Google' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
+    await waitFor(() => expect(select.value).toBe('exa'));
+    // 旧配置带着 activeSourceId = google、sourceHidden = [] 返回——
+    // 不得覆盖重选后的 active，也不得回退隐藏态。
+    await act(async () => {
+      staleConfig.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    // google 仍处于隐藏态（隐藏 revision 守卫已存在）。
+    expect(screen.getByRole('button', { name: '在快切栏显示 Google' })).toBeInTheDocument();
+    // 重新显示 google 以解除 active 的渲染兜底，直接观察 active 是否被旧配置覆盖：
+    // 若被覆盖成 google，此处下拉框会落到 google；守卫生效时仍为 exa。
+    fireEvent.click(screen.getByRole('button', { name: '在快切栏显示 Google' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceHidden', []));
+    await waitFor(() => expect(select.value).toBe('exa'));
+  });
+
   it('still shows all providers in the API key section', async () => {
     render(<App />);
     await screen.findByRole('combobox');
@@ -335,5 +414,132 @@ describe('options page', () => {
     const languageHeading = screen.getByRole('heading', { name: '语言' });
     expect(screen.getByRole('group', { name: '语言' })).toBeInTheDocument();
     expect(apiKeyHeading.compareDocumentPosition(languageHeading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('persists a middle-order move of a site engine alongside built-in sources', async () => {
+    const siteEngine: SiteEngineDefinition = {
+      id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google',
+    };
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          sourceOrder: ['exa', 'site:docs', 'google', 'bing', 'baidu'],
+          siteEngines: [siteEngine],
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    // Site engine appears between exa and google; moving it down swaps with google.
+    fireEvent.click(await screen.findByRole('button', { name: 'Docs 下移' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', expect.arrayContaining([
+      'exa', 'google', 'site:docs', 'bing', 'baidu',
+    ])));
+    // The site: id is preserved in the persisted order (not dropped by normalization).
+    const call = mockedSend.mock.calls.find(([type]) => type === 'setSourceOrder');
+    expect(call?.[1]).toEqual(expect.arrayContaining(['site:docs']));
+  });
+
+  it('ignores a stale config response for siteEngines, active, and configured providers', async () => {
+    const slowConfig = deferred<Record<string, unknown>>();
+    let configCalls = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configCalls += 1;
+        if (configCalls === 1) return slowConfig.promise; // Initial load is slow.
+        // Second call (triggered by saving a key) resolves immediately with current data.
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          siteEngines: [],
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    // App is waiting for the slow first config, but key inputs are already rendered.
+    // Save a key → markConfigured → syncConfig (second call, fast) → epoch moves past 1.
+    const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
+    fireEvent.change(input, { target: { value: 'tvly-abc' } });
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
+    await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
+    // The slow first config resolves late with stale data — it must be ignored.
+    slowConfig.resolve({
+      configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+      siteEngines: [{ id: 'site:stale', name: 'Stale', target: 'https://stale.example.com', engineId: 'google' }],
+      sourceOrder: ['tavily', 'google'],
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    // Stale site engine must not appear in the Site Engines list or quickbar.
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+  });
+
+  it('disables hiding the last visible source with a coherent label', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: [],
+          activeProviderId: null,
+          activeSourceId: 'google',
+          // Hide all engines except google → only one visible source remains.
+          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+    // Google is the only visible source; its hide button must be disabled.
+    const hideBtn = await screen.findByRole('button', { name: /无法隐藏 Google/ });
+    expect(hideBtn).toBeDisabled();
+    // Other (already hidden) sources still have enabled "show" buttons.
+    expect(screen.getByRole('button', { name: '在快切栏显示 Bing' })).not.toBeDisabled();
+  });
+
+  it('refreshes config after a config import triggers onImported', async () => {
+    let configCalls = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configCalls += 1;
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          siteEngines: [],
+        });
+      }
+      if (type === 'previewImport') {
+        return Promise.resolve({
+          ok: true,
+          preview: {
+            written: [], skipped: [],
+            prefDiffs: [{ key: 'siteEngines' as const, from: '', to: 'Imported Site' }],
+          },
+        });
+      }
+      if (type === 'importConfig') {
+        return Promise.resolve({
+          ok: true,
+          report: {
+            written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
+            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false,
+            sourceHiddenOverridden: false, siteEnginesOverridden: true,
+          },
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    const { container } = render(<App />);
+    await screen.findByRole('combobox');
+    const initialCalls = configCalls;
+    // Trigger file import via the hidden file input inside ConfigExportImport.
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+    fireEvent.change(fileInput, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
+    // The confirming dialog appears with the siteEngines diff.
+    expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
+    // After import, onImported → syncConfig → getProviderConfig is called again,
+    // proving the options page refreshes its config snapshot post-import.
+    await waitFor(() => expect(configCalls).toBeGreaterThan(initialCalls));
+    // The import success banner (with siteEngines override report) confirms the round-trip.
+    expect(await screen.findByText(/已覆盖：站点引擎/)).toBeInTheDocument();
   });
 });

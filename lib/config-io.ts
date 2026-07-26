@@ -16,23 +16,24 @@ import {
   LOCALE_KEY,
   SOURCE_HIDDEN_KEY,
   SOURCE_ORDER_KEY,
+  SITE_ENGINES_KEY,
   THEME_KEY,
   withProviderKeysMutation,
-  withSourceHiddenMutation,
-  withSourceOrderMutation,
+  withSourceMutation,
 } from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { allEngines } from './engines/registry';
-import { normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
+import { isEngineId, isKnownSiteEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
 import { CURRENT_SCHEMA_VERSION } from './schema';
+import type { SiteEngineDefinition } from './site-engines';
+import { isBoundedSiteEngineCollection, isSiteEngineId, normalizeSiteEngineDefinitions } from './site-engines';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
-const KNOWN_ENGINE_IDS = new Set<EngineId>(allEngines().map((e) => e.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
 const LOCALE_VALUES = new Set<LocalePref>(['auto', 'zh_CN', 'en']);
 const DEFAULT_ENGINE_ID: EngineId = 'google';
+const MAX_IMPORT_BYTES = 256 * 1024;
 
 /** 导出文件结构。schemaVersion 用 number（非字面量），避免版本升级后类型过度约束。 */
 export interface ConfigExport {
@@ -46,16 +47,19 @@ export interface ConfigExport {
   localePref: LocalePref;
   sourceOrder?: SourceId[];
   sourceHidden?: SourceId[];
+  /** Absent in legacy v3 exports; absence preserves local Site Engines. */
+  siteEngines?: SiteEngineDefinition[];
 }
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+  const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
   const active = KNOWN_PROVIDER_IDS.has(activeRaw as ProviderId) ? (activeRaw as ProviderId) : null;
-  const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys);
+  const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys, siteEngines);
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   return {
@@ -67,8 +71,9 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     activeSource,
     themePref: theme,
     localePref: locale,
-    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY]),
-    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]),
+    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines),
+    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines),
+    siteEngines,
   };
 }
 
@@ -93,7 +98,8 @@ export function parseImportPayload(raw: unknown): ParseResult {
     return { ok: false, error: 'invalid_format' };
   }
   const obj = raw as Record<string, unknown>;
-  if (obj.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  if (serializedSize(raw) > MAX_IMPORT_BYTES) return { ok: false, error: 'import_too_large' };
+  if (obj.schemaVersion !== 3 && obj.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     return { ok: false, error: 'schema_version_mismatch' };
   }
   const pk = obj.providerKeys;
@@ -110,10 +116,12 @@ export function parseImportPayload(raw: unknown): ParseResult {
   if (active !== null && !KNOWN_PROVIDER_IDS.has(active as ProviderId)) {
     return { ok: false, error: 'invalid_active_provider' };
   }
+  const isLegacyV3 = obj.schemaVersion === 3;
+  if (!isLegacyV3 && !isBoundedSiteEngineCollection(obj.siteEngines)) return { ok: false, error: 'invalid_site_engines' };
+  const siteEngines = isLegacyV3 ? undefined : normalizeSiteEngineDefinitions(obj.siteEngines);
+  if (!isLegacyV3 && (!siteEngines || !Array.isArray(obj.siteEngines) || siteEngines.length !== obj.siteEngines.length)) return { ok: false, error: 'invalid_site_engines' };
   const activeSource = obj.activeSource;
-  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource)) {
-    return { ok: false, error: 'invalid_active_source' };
-  }
+  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteEngines, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
   const theme = obj.themePref;
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
@@ -124,7 +132,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceOrder)) return { ok: false, error: 'invalid_source_order' };
     const seen = new Set<SourceId>();
     for (const sourceId of sourceOrder) {
-      if (!isKnownSource(sourceId) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
+      if (!isKnownSource(sourceId, siteEngines, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
       seen.add(sourceId);
     }
   }
@@ -134,14 +142,14 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceHidden)) return { ok: false, error: 'invalid_source_hidden' };
     const seenHidden = new Set<SourceId>();
     for (const sourceId of sourceHidden) {
-      if (!isKnownSource(sourceId) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
+      if (!isKnownSource(sourceId, siteEngines, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
       seenHidden.add(sourceId);
     }
   }
   return {
     ok: true,
     value: {
-      schemaVersion: CURRENT_SCHEMA_VERSION,
+      schemaVersion: obj.schemaVersion,
       exportedAt: typeof obj.exportedAt === 'number' ? obj.exportedAt : 0,
       appVersion: typeof obj.appVersion === 'string' ? obj.appVersion : 'unknown',
       providerKeys,
@@ -149,8 +157,9 @@ export function parseImportPayload(raw: unknown): ParseResult {
       activeSource: activeSource === undefined ? active as ProviderId | null : activeSource as SourceId | null,
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
-      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder) : undefined,
-      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden) : undefined,
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines) : undefined,
+      siteEngines,
     },
   };
 }
@@ -174,11 +183,13 @@ export interface ImportReport {
   sourceOrderOverridden: boolean;
   /** 是否覆盖了 sourceHidden。 */
   sourceHiddenOverridden: boolean;
+  /** 是否覆盖了 Site Engine definitions。 */
+  siteEnginesOverridden: boolean;
 }
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines';
   from: string | null;
   to: string | null;
 }
@@ -199,7 +210,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -216,9 +227,15 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (curActive !== newActive) {
     prefDiffs.push({ key: 'activeProvider', from: curActive, to: newActive });
   }
-  const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], curActive, normalizeProviderKeys(current));
-  if (curActiveSource !== payload.activeSource) {
-    prefDiffs.push({ key: 'activeSource', from: curActiveSource, to: payload.activeSource });
+  const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, payload.siteEngines)) {
+    prefDiffs.push({ key: 'siteEngines', from: siteEnginesSummary(currentSites), to: siteEnginesSummary(payload.siteEngines) });
+  }
+  const currentKeys = normalizeProviderKeys(current);
+  const mergedKeys = mergeProviderKeys(currentKeys, payload.providerKeys);
+  const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentKeys, mergedKeys, curActive);
+  if (sourcePreferences.curActiveSource !== sourcePreferences.newActiveSource) {
+    prefDiffs.push({ key: 'activeSource', from: sourcePreferences.curActiveSource, to: sourcePreferences.newActiveSource });
   }
   const curTheme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   if (curTheme !== payload.themePref) {
@@ -228,19 +245,11 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (curLocale !== payload.localePref) {
     prefDiffs.push({ key: 'localePref', from: curLocale, to: payload.localePref });
   }
-  if (payload.sourceOrder !== undefined) {
-    const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
-    const newSourceOrder = normalizeSourceOrder(payload.sourceOrder);
-    if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
-      prefDiffs.push({ key: 'sourceOrder', from: curSourceOrder.join(' > '), to: newSourceOrder.join(' > ') });
-    }
+  if (!sameSourceOrder(sourcePreferences.curSourceOrder, sourcePreferences.newSourceOrder)) {
+    prefDiffs.push({ key: 'sourceOrder', from: sourcePreferences.curSourceOrder.join(' > '), to: sourcePreferences.newSourceOrder.join(' > ') });
   }
-  if (payload.sourceHidden !== undefined) {
-    const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]);
-    const newSourceHidden = normalizeSourceHidden(payload.sourceHidden);
-    if (!sameSourceOrder(curSourceHidden, newSourceHidden)) {
-      prefDiffs.push({ key: 'sourceHidden', from: curSourceHidden.join(' > '), to: newSourceHidden.join(' > ') });
-    }
+  if (!sameSourceOrder(sourcePreferences.curSourceHidden, sourcePreferences.newSourceHidden)) {
+    prefDiffs.push({ key: 'sourceHidden', from: sourcePreferences.curSourceHidden.join(' > '), to: sourcePreferences.newSourceHidden.join(' > ') });
   }
   return { written, skipped, prefDiffs };
 }
@@ -260,8 +269,8 @@ export async function mergeImport(
 ): Promise<ImportReport> {
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
-  return withSourceHiddenMutation(() => withSourceOrderMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY]);
+  return withSourceMutation(() => withProviderKeysMutation(async () => {
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -292,15 +301,19 @@ export async function mergeImport(
     let localeOverridden = false;
     let sourceOrderOverridden = false;
     let sourceHiddenOverridden = false;
+    let siteEnginesOverridden = false;
     if (applyPrefs) {
+      const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
+      const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, normalizeProviderKeys(current), mergedKeys, curActive);
+      const { importedSites, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden } = sourcePreferences;
+      if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, importedSites)) { setObj[SITE_ENGINES_KEY] = importedSites; siteEnginesOverridden = true; }
       if (curActive !== payload.activeProvider) {
         setObj[ACTIVE_KEY] = payload.activeProvider;
         activeOverridden = true;
       }
-      const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], curActive, normalizeProviderKeys(current));
-      if (curActiveSource !== payload.activeSource) {
-        setObj[ACTIVE_SOURCE_KEY] = payload.activeSource;
+      if (curActiveSource !== newActiveSource) {
+        setObj[ACTIVE_SOURCE_KEY] = newActiveSource;
         activeSourceOverridden = true;
       }
       const curTheme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
@@ -313,21 +326,13 @@ export async function mergeImport(
         setObj[LOCALE_KEY] = payload.localePref;
         localeOverridden = true;
       }
-      if (payload.sourceOrder !== undefined) {
-        const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
-        const newSourceOrder = normalizeSourceOrder(payload.sourceOrder);
-        if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
-          setObj[SOURCE_ORDER_KEY] = newSourceOrder;
-          sourceOrderOverridden = true;
-        }
+      if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
+        setObj[SOURCE_ORDER_KEY] = newSourceOrder;
+        sourceOrderOverridden = true;
       }
-      if (payload.sourceHidden !== undefined) {
-        const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY]);
-        const newSourceHidden = normalizeSourceHidden(payload.sourceHidden);
-        if (!sameSourceOrder(curSourceHidden, newSourceHidden)) {
-          setObj[SOURCE_HIDDEN_KEY] = newSourceHidden;
-          sourceHiddenOverridden = true;
-        }
+      if (!sameSourceOrder(curSourceHidden, newSourceHidden)) {
+        setObj[SOURCE_HIDDEN_KEY] = newSourceHidden;
+        sourceHiddenOverridden = true;
       }
     }
     await browser.storage.local.set(setObj);
@@ -341,8 +346,9 @@ export async function mergeImport(
       localePrefOverridden: localeOverridden,
       sourceOrderOverridden,
       sourceHiddenOverridden,
+      siteEnginesOverridden,
     };
-  })));
+  }));
 }
 
 function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {
@@ -355,24 +361,83 @@ function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, st
   return providerKeys;
 }
 
-function isKnownSource(value: unknown): value is SourceId {
+function mergeProviderKeys(current: Record<string, string>, imported: Record<string, string>): Record<string, string> {
+  const merged = { ...current };
+  for (const [id, key] of Object.entries(imported)) if (!merged[id]) merged[id] = key;
+  return merged;
+}
+
+/** Calculates the source graph exactly as an apply-preferences import will. */
+function resolveImportedSourcePreferences(
+  payload: ConfigExport,
+  got: Record<string, unknown>,
+  currentSites: SiteEngineDefinition[],
+  currentKeys: Record<string, string>,
+  mergedKeys: Record<string, string>,
+  currentActive: ProviderId | null,
+) {
+  // A missing collection is the v3 sentinel; unlike v4's explicit [], it
+  // preserves local Site Engines and all dependent preferences.
+  const importedSites = payload.siteEngines ?? currentSites;
+  const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], currentActive, currentKeys, currentSites);
+  const preferredActiveSource = payload.siteEngines === undefined && isKnownSiteEngineId(curActiveSource, currentSites)
+    ? curActiveSource : payload.activeSource;
+  const newActiveSource = effectiveActiveSource(preferredActiveSource, payload.activeProvider, mergedKeys, importedSites);
+  const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], currentSites);
+  const newSourceOrder = normalizeSourceOrder(payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder, importedSites);
+  const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites);
+  const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
+  const hiddenInput = payload.siteEngines === undefined
+    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter(isSiteEngineId)]
+    : importedHidden;
+  const newSourceHidden = ensureVisibleUsable(normalizeSourceHidden(hiddenInput, importedSites), newSourceOrder, mergedKeys, importedSites);
+  return { importedSites, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden };
+}
+
+function isKnownSource(value: unknown, siteEngines: readonly SiteEngineDefinition[] = [], allowUnresolvedSite = false): value is SourceId {
   return typeof value === 'string'
-    && (KNOWN_PROVIDER_IDS.has(value as ProviderId) || KNOWN_ENGINE_IDS.has(value as EngineId));
+    && (isProviderId(value) || isEngineId(value) || isKnownSiteEngineId(value, siteEngines) || (allowUnresolvedSite && isSiteEngineId(value)));
 }
 
 function effectiveActiveSource(
   storedSource: unknown,
   activeProvider: ProviderId | null,
   providerKeys: Record<string, string>,
+  siteEngines: readonly SiteEngineDefinition[] = [],
 ): SourceId {
   if (typeof storedSource === 'string') {
-    if (KNOWN_ENGINE_IDS.has(storedSource as EngineId)) return storedSource as EngineId;
-    if (KNOWN_PROVIDER_IDS.has(storedSource as ProviderId) && providerKeys[storedSource]) return storedSource as ProviderId;
+    if (isEngineId(storedSource)) return storedSource;
+    if (isKnownSiteEngineId(storedSource, siteEngines)) return storedSource;
+    if (isProviderId(storedSource) && providerKeys[storedSource]) return storedSource;
   }
   if (activeProvider && providerKeys[activeProvider]) return activeProvider;
   return allProviders().find((p) => providerKeys[p.id])?.id ?? DEFAULT_ENGINE_ID;
 }
 
+function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly SiteEngineDefinition[]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function sameSourceOrder(left: SourceId[], right: SourceId[]): boolean {
   return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+/** Deterministic compact diff value; preserves enough detail to distinguish same-sized lists. */
+function siteEnginesSummary(definitions: readonly SiteEngineDefinition[]): string {
+  return definitions.map((definition) => `${definition.id}:${definition.engineId}:${definition.target}:${definition.name}`).join(' | ');
+}
+
+function visibleUsableSource(order: readonly SourceId[], hidden: readonly SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[]): SourceId | undefined {
+  const hiddenSet = new Set(hidden);
+  return order.find((id) => !hiddenSet.has(id) && (isEngineId(id) || isKnownSiteEngineId(id, sites) || (isProviderId(id) && !!providerKeys[id])));
+}
+
+function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[]): SourceId[] {
+  if (visibleUsableSource(order, hidden, providerKeys, sites)) return hidden;
+  const fallback = visibleUsableSource(order, [], providerKeys, sites);
+  return fallback ? hidden.filter((id) => id !== fallback) : hidden;
+}
+
+function serializedSize(value: unknown): number {
+  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
 }

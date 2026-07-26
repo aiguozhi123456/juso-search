@@ -125,4 +125,42 @@ describe('ConfigExportImport', () => {
     expect(await screen.findByText(/导入失败：文件格式无效/)).toBeInTheDocument();
     expect(mockedSend).not.toHaveBeenCalled();
   });
+
+  it('confirms and reports when site engines are the only preference diff', async () => {
+    const onImported = vi.fn();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'previewImport') {
+        return Promise.resolve({
+          ok: true,
+          preview: {
+            written: [], skipped: [],
+            prefDiffs: [{ key: 'siteEngines', from: '(none)', to: 'Docs, Guide' }],
+          },
+        });
+      }
+      if (type === 'importConfig') {
+        return Promise.resolve({
+          ok: true,
+          report: {
+            written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
+            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false,
+            sourceHiddenOverridden: false, siteEnginesOverridden: true,
+          },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<ConfigExportImport onImported={onImported} />);
+    const input = screen.getByDisplayValue('') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
+    // Confirmation dialog appears with the siteEngines diff.
+    expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
+    expect(screen.getByText(/站点引擎/, { selector: '.pref-diffs li' })).toBeInTheDocument();
+    // Confirm with prefs.
+    fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('importConfig', expect.objectContaining({ applyPrefs: true })));
+    // The report mentions site engines were overridden, and onImported was called.
+    expect(await screen.findByText(/已覆盖：站点引擎/)).toBeInTheDocument();
+    expect(onImported).toHaveBeenCalled();
+  });
 });

@@ -20,7 +20,12 @@ Engine capability is layered, and membership in the engine identity set declares
 Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata. Some engines may ship default-hidden in Source Visibility via a one-shot schema migration so they appear in management UI but not in the quick-switch bar until the user shows them.
 
 ### Search Source
-The unified user-facing representation of a configured AI provider or a conventional Search Engine, allowing the same source controls to present both despite their different execution contracts.
+The unified user-facing representation of a configured AI provider, a conventional Search Engine, or a Site Engine, allowing the same source controls to present all three despite their different execution contracts.
+
+### Site Engine
+A user-saved Search Source that searches a chosen public site by navigating a fixed conventional Search Engine (Google, Bing, or Baidu) with a `site:` scope. It is not a BYOK provider and not a first-class engine registry entry: each definition stores a display name, a create-time-fixed underlying engine, and a normalized public hostname target (path depth allowed depends on that engine). Dynamic source ids use the `site:<uuid>` form so Source Order, Source Visibility, Active Source, and the SERP Switch Bar treat them like other sources.
+
+Trusted local reads normalize Site Engine collections item-by-item and must not empty the collection solely because a size or count budget is exceeded; untrusted imports use a strict bound check; mutations reject writes that would exceed the serialized budget. Selecting a Site Engine on the search page or SERP bar re-resolves the definition after the active-source write so concurrent Options edits or deletes cannot navigate with a stale or deleted scope.
 
 ### Source Order
 The user's preferred ordering of the complete known Search Source set, independent of which provider-backed sources are currently visible.

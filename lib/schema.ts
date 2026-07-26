@@ -13,12 +13,12 @@
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled 默认 false 且 getter 兜底，不 bump 版本（无需迁移）。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'agentBridgeEnabled', 'engineSearchEnabled'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'agentBridgeEnabled', 'engineSearchEnabled'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {
@@ -50,6 +50,8 @@ const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 export const migrations: Migration[] = [
   { version: 1, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V2) },
   { version: 2, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V3) },
+  // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.
+  { version: 3, migrate: (config) => ({ ...config, siteEngines: Array.isArray(config.siteEngines) ? config.siteEngines : [] }) },
 ];
 
 /**
@@ -95,17 +97,16 @@ export async function ensureSchema(): Promise<void> {
   if (stored > CURRENT_SCHEMA_VERSION) return; // 降级：向前兼容，不破坏
   const configGot = await browser.storage.local.get([...CONFIG_KEYS]);
   const migrated = migrateConfig(configGot, stored, CURRENT_SCHEMA_VERSION);
-  const { set: setDiff, remove: removeKeys } = diffKeys(
-    { ...configGot, [SCHEMA_VERSION_KEY]: stored || undefined },
-    { ...migrated, [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION },
-  );
-  // 先 set（含 schemaVersion）再 remove：避免 remove 成功、set 失败时丢键且版本戳未推进。
+  const { set: setDiff, remove: removeKeys } = diffKeys(configGot, migrated);
+  // Schema version is the commit point: all migrated values and removals must
+  // succeed before stamping. A failure leaves an older version so retrying is safe.
   if (Object.keys(setDiff).length > 0) {
     await browser.storage.local.set(setDiff);
   }
   if (removeKeys.length > 0) {
     await browser.storage.local.remove(removeKeys);
   }
+  await browser.storage.local.set({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
 }
 
 /**

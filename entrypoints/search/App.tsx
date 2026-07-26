@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { NormalizedSearchResponse, ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import { sendMessage } from '@/lib/messaging';
-import type { SearchReply } from '@/lib/messaging';
+import type { ProviderConfigReply, SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { HistoryButton } from '@/components/HistoryButton';
@@ -15,10 +15,12 @@ import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import type { SearchCacheEntry } from '@/lib/search-cache';
-import { allSources, isEngineId, isProviderId } from '@/lib/sources';
+import { allSources, isProviderId } from '@/lib/sources';
 import type { SearchSource, SourceId } from '@/lib/sources';
-import { getEngine } from '@/lib/engines/registry';
 import { parseSearchDeepLink } from '@/lib/deep-link';
+import { isSiteEngineId } from '@/lib/site-engines';
+import type { SiteEngineDefinition } from '@/lib/site-engines';
+import { resolveCurrentSiteEngineHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
 
@@ -28,6 +30,7 @@ export default function App() {
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>([]);
   const [sourceHidden, setSourceHidden] = useState<SourceId[]>([]);
+  const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -49,16 +52,32 @@ export default function App() {
       setConfiguredProviderIds(config.configuredProviderIds);
       setSourceOrder(config.sourceOrder ?? []);
       setSourceHidden(config.sourceHidden ?? []);
+      setSiteEngines(config.siteEngines ?? []);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
       const linkProvider = link.provider && config.configuredProviderIds.includes(link.provider) ? link.provider : null;
       const initialSource = linkProvider ?? config.activeSourceId;
+      const initialSources = allSources(
+        config.configuredProviderIds,
+        config.sourceOrder ?? [],
+        config.sourceHidden ?? [],
+        config.siteEngines ?? [],
+      );
+      // Query-only links honor the persisted source unless it is hidden from
+      // the current projection. This executes a visible fallback without
+      // overwriting the user's persisted hidden selection.
+      const initialExecutionSource = !linkProvider && config.sourceHidden?.includes(initialSource)
+        ? initialSources[0]?.id ?? initialSource
+        : initialSource;
+      const initialSelectedSource = initialSources.find((source) => source.id === initialExecutionSource);
       setActive(initialSource);
       if (link.query) {
         setQuery(link.query);
         if (ignore) return;
-        await handleSearch(link.query, linkProvider ? { providerId: linkProvider } : { sourceId: initialSource });
+        await handleSearch(link.query, linkProvider
+          ? { providerId: linkProvider, selectedSource: initialSelectedSource }
+          : { sourceId: initialExecutionSource, selectedSource: initialSelectedSource });
       }
     })();
     return () => {
@@ -67,21 +86,67 @@ export default function App() {
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
-  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId; sourceId?: SourceId } = {}) {
+  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
     const query = rawQuery.trim();
     if (!query) return;
     let source: SourceId | null;
     try {
-      source = opts.providerId ?? opts.sourceId ?? visibleActive ?? active ?? await loadSourceSnapshot();
+      source = opts.providerId ?? opts.sourceId ?? visibleActive ?? active;
+      if (!source) source = (await loadSourceSnapshot()).activeSourceId;
     } catch {
       setError({ message: t(MSG.search_failed_retry), needKey: false });
       return;
     }
-    if (source && isEngineId(source)) {
-      location.assign(getEngine(source).buildSerpUrl(query));
+    let selectedSource = opts.selectedSource ?? (source ? sources.find((candidate) => candidate.id === source) : undefined);
+    // A manual submit must not navigate using the Site Engine definition embedded
+    // in a chip: Options may have edited or deleted it since this page rendered.
+    // Do this inline rather than re-entering handleSearch, so there is precisely
+    // one fresh read and a deleted source can execute its fresh visible fallback.
+    const isManualSiteEngineSubmit = !opts.forceRefresh
+      && !opts.providerId
+      && !opts.sourceId
+      && !opts.selectedSource
+      && Boolean(source && (selectedSource?.kind === 'site-engine' || isSiteEngineId(source)));
+    if (isManualSiteEngineSubmit) {
+      try {
+        const refreshed = await loadSourceSnapshot();
+        const refreshedSources = allSources(
+          refreshed.configuredProviderIds,
+          refreshed.sourceOrder ?? [],
+          refreshed.sourceHidden ?? [],
+          refreshed.siteEngines ?? [],
+        );
+        const freshSelectedSource = refreshedSources.find((candidate) => candidate.id === source);
+        // If the selected Site Engine disappeared (or is no longer visible), run
+        // the first source from the fresh projection. This is execution-only:
+        // never overwrite the persisted active preference on the user's behalf.
+        selectedSource = freshSelectedSource ?? refreshedSources[0];
+        source = selectedSource?.id ?? null;
+      } catch {
+        setError({ message: t(MSG.search_failed_retry), needKey: false });
+        return;
+      }
+    }
+    // A stale dynamic source id must not fall through as an undefined provider.
+    // Reload once so edits made in Options while this page was open are honored.
+    if (source && !selectedSource && !isProviderId(source)) {
+      const refreshed = await loadSourceSnapshot();
+      const refreshedSources = allSources(
+        refreshed.configuredProviderIds,
+        refreshed.sourceOrder ?? [],
+        refreshed.sourceHidden ?? [],
+        refreshed.siteEngines ?? [],
+      );
+      selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
+      source = selectedSource?.id ?? null;
+    }
+    const handoff = selectedSource && resolveSerpHandoff(selectedSource, query);
+    if (handoff?.kind === 'navigate') {
+      location.assign(handoff.url);
       return;
     }
-    const providerId = source && isProviderId(source) ? source : undefined;
+    if (!source || !isProviderId(source)) return;
+    const providerId = source;
     const isRefresh = opts.forceRefresh === true;
     const hadResponse = response !== null;
     const reqId = ++reqIdRef.current;
@@ -117,15 +182,133 @@ export default function App() {
 
   /** 统一快切：选 provider → 序列化写 + 重搜（沿用 v1）；选 engine → 当前 tab 跳转 SERP。 */
   async function handleSelectSource(source: SearchSource) {
-    if (source.kind === 'engine' && isEngineId(source.id)) {
-      const nextQuery = query.trim();
-      const engine = getEngine(source.id);
-      setActive(source.id);
-      await sendMessage('setActiveSource', source.id).catch(() => undefined);
-      // 主页面：仅在有查询时跳该 engine SERP；空查询只切换激活源、不离开扩展页
-      // （避免把「选中引擎」误读成「打开引擎首页」）。下次提交搜索时由 handleSearch
-      // 的 engine 分支带 q 跳 SERP。SERP 注入栏（serp-handoff.ts）仍保留空查询跳首页语义。
-      if (nextQuery) location.assign(engine.buildSerpUrl(nextQuery));
+    if (source.kind === 'site-engine') {
+      // Mirror provider path: serialize concurrent source switches so a late
+      // applySourceSnapshot cannot overwrite a newer selection.
+      if (loading || switching) return;
+      const switchReqId = ++switchReqIdRef.current;
+      setSwitching(true);
+      try {
+        const nextQuery = query.trim();
+        let config: ProviderConfigReply;
+        try {
+          config = await sendMessage('getProviderConfig', undefined);
+        } catch {
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Resolve the clicked id from the fresh snapshot. The chip's embedded
+        // definition may have been edited or deleted in Options.
+        const handoff = resolveCurrentSiteEngineHandoff(source.id, nextQuery, config.siteEngines ?? []);
+        if (!handoff || handoff.kind !== 'navigate') {
+          // Drop the stale chip from local UI. Execution-only fallback: do not
+          // persist a new active source on the user's behalf.
+          applySourceSnapshot(config);
+          if (!nextQuery) return;
+          const fallbackSources = allSources(
+            config.configuredProviderIds,
+            config.sourceOrder ?? [],
+            config.sourceHidden ?? [],
+            config.siteEngines ?? [],
+          );
+          const fallback = fallbackSources[0];
+          if (!fallback) {
+            setError({ message: t(MSG.search_failed_retry), needKey: false });
+            return;
+          }
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          if (fallbackHandoff?.kind === 'navigate') {
+            if (switchReqId !== switchReqIdRef.current) return;
+            location.assign(fallbackHandoff.url);
+            return;
+          }
+          if (isProviderId(fallback.id)) {
+            if (switchReqId !== switchReqIdRef.current) return;
+            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
+            return;
+          }
+          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          return;
+        }
+        try {
+          await sendMessage('setActiveSource', source.id);
+        } catch {
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Prefer one post-write read so definitions/order/hidden/active match storage.
+        try {
+          config = await sendMessage('getProviderConfig', undefined);
+        } catch {
+          // Write succeeded; keep navigating with the pre-write handoff URL.
+          if (switchReqId !== switchReqIdRef.current) return;
+          setActive(source.id);
+          if (nextQuery) location.assign(handoff.url);
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Re-resolve from the post-write snapshot: Options may have edited the
+        // same Site Engine between the pre-write and post-write reads.
+        const postWriteHandoff = resolveCurrentSiteEngineHandoff(
+          source.id,
+          nextQuery,
+          config.siteEngines ?? [],
+        );
+        if (!postWriteHandoff || postWriteHandoff.kind !== 'navigate') {
+          // Deleted between write and re-read: apply snapshot + execution-only fallback.
+          applySourceSnapshot(config);
+          if (!nextQuery) return;
+          const fallbackSources = allSources(
+            config.configuredProviderIds,
+            config.sourceOrder ?? [],
+            config.sourceHidden ?? [],
+            config.siteEngines ?? [],
+          );
+          const fallback = fallbackSources[0];
+          if (!fallback) {
+            setError({ message: t(MSG.search_failed_retry), needKey: false });
+            return;
+          }
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          if (fallbackHandoff?.kind === 'navigate') {
+            if (switchReqId !== switchReqIdRef.current) return;
+            location.assign(fallbackHandoff.url);
+            return;
+          }
+          if (isProviderId(fallback.id)) {
+            if (switchReqId !== switchReqIdRef.current) return;
+            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
+            return;
+          }
+          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          return;
+        }
+        applySourceSnapshot(config);
+        // The search surface only navigates an engine after a query is present.
+        if (nextQuery) location.assign(postWriteHandoff.url);
+        return;
+      } finally {
+        if (switchReqId === switchReqIdRef.current) setSwitching(false);
+      }
+    }
+    if (source.kind === 'engine') {
+      // Same generation guard as provider/site-engine so concurrent switches
+      // cannot race navigations; write failures still select optimistically.
+      if (loading || switching) return;
+      const switchReqId = ++switchReqIdRef.current;
+      setSwitching(true);
+      try {
+        const nextQuery = query.trim();
+        setActive(source.id);
+        await sendMessage('setActiveSource', source.id).catch(() => undefined);
+        if (switchReqId !== switchReqIdRef.current) return;
+        if (nextQuery) {
+          const handoff = resolveSerpHandoff(source, nextQuery);
+          if (handoff?.kind === 'navigate') location.assign(handoff.url);
+        }
+      } finally {
+        if (switchReqId === switchReqIdRef.current) setSwitching(false);
+      }
       return;
     }
     if (!isProviderId(source.id)) return;
@@ -175,13 +358,18 @@ export default function App() {
     await handleSearch(response?.query ?? query, { forceRefresh: true, providerId: response?.provider });
   }
 
-  async function loadSourceSnapshot(): Promise<SourceId | null> {
+  async function loadSourceSnapshot() {
     const config = await sendMessage('getProviderConfig', undefined);
+    applySourceSnapshot(config);
+    return config;
+  }
+
+  function applySourceSnapshot(config: ProviderConfigReply) {
     setConfiguredProviderIds(config.configuredProviderIds);
     setSourceOrder(config.sourceOrder ?? []);
     setSourceHidden(config.sourceHidden ?? []);
+    setSiteEngines(config.siteEngines ?? []);
     setActive(config.activeSourceId);
-    return config.activeSourceId;
   }
 
   function openSettings() {
@@ -189,7 +377,7 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden);
+  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines);
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，

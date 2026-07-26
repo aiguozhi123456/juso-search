@@ -13,6 +13,13 @@ const sources: SearchSource[] = [
   { id: 'baidu' as EngineId, kind: 'engine', label: 'engine_baidu', supportsAnswer: false, favicon: '/icons/baidu.svg' },
 ];
 
+const siteSources: SearchSource[] = [
+  {
+    id: 'site:docs' as const, kind: 'site-engine', label: 'Docs Site', supportsAnswer: false, favicon: '/icons/site.svg',
+    labelDescriptor: { kind: 'literal', value: 'Docs Site' },
+  },
+];
+
 describe('SourceSwitcher', () => {
   it('renders one button per source with resolved labels', () => {
     render(<SourceSwitcher sources={sources} activeId="tavily" onSelect={vi.fn()} />);
@@ -79,5 +86,34 @@ describe('SourceSwitcher', () => {
     render(<SourceSwitcher sources={sources} activeId={null} onSelect={vi.fn()} />);
     // aria-label → source_switcher_aria → "切换搜索来源"
     expect(screen.getByRole('group', { name: '切换搜索来源' })).toBeInTheDocument();
+  });
+
+  it('renders a literal site-engine name without i18n resolution', () => {
+    render(<SourceSwitcher sources={siteSources} activeId="site:docs" onSelect={vi.fn()} />);
+    // The literal label "Docs Site" should appear as the button's accessible name,
+    // not the raw label field which happens to match in this case but is never
+    // passed through t().
+    expect(screen.getByRole('button', { name: 'Docs Site' })).toHaveAttribute('data-source', 'site:docs');
+  });
+
+  it('uses the site-engine tooltip for site-engine sources', () => {
+    render(<SourceSwitcher sources={siteSources} activeId={null} onSelect={vi.fn()} />);
+    const btn = screen.getByRole('button', { name: 'Docs Site' });
+    // tooltip_site_engine → "站点范围搜索（无 AI 综合答案）"
+    expect(btn).toHaveAttribute('title', '站点范围搜索（无 AI 综合答案）');
+  });
+
+  it('renders the site favicon for site-engine sources', () => {
+    const { container } = render(<SourceSwitcher sources={siteSources} activeId={null} onSelect={vi.fn()} />);
+    const imgs = container.querySelectorAll('img.source-icon');
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]).toHaveAttribute('src', '/icons/site.svg');
+  });
+
+  it('calls onSelect with a clicked site-engine source', () => {
+    const onSelect = vi.fn();
+    render(<SourceSwitcher sources={siteSources} activeId={null} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Docs Site' }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'site:docs', kind: 'site-engine' }));
   });
 });

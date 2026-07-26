@@ -10,7 +10,7 @@ import {
 } from '@/lib/schema';
 
 // 内存版 chrome.storage.local，支持 get(string | string[] | null) + set + remove。
-function installStorage(seed: Record<string, unknown> = {}): { store: Map<string, unknown> } {
+function installStorage(seed: Record<string, unknown> = {}, hooks: { beforeSet?: (items: Record<string, unknown>) => void } = {}): { store: Map<string, unknown> } {
   const store = new Map<string, unknown>(Object.entries(seed));
   vi.stubGlobal('browser', {
     storage: {
@@ -28,6 +28,7 @@ function installStorage(seed: Record<string, unknown> = {}): { store: Map<string
           return {};
         },
         async set(items: Record<string, unknown>) {
+          hooks.beforeSet?.(items);
           for (const [k, v] of Object.entries(items)) store.set(k, v);
         },
         async remove(keys: string | string[]) {
@@ -87,12 +88,13 @@ describe('ensureSchema: downgrade tolerance', () => {
 });
 
 describe('ensureSchema: migration chain (forward compatibility)', () => {
-  it('real migrations array contains the v1->v2 and v2->v3 default-hidden engines migrations', () => {
+  it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(2);
+      expect(mod.migrations).toHaveLength(3);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(3);
+      expect(mod.migrations[2].version).toBe(3);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(4);
     });
   });
 
@@ -131,20 +133,37 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     expect(out.sourceHidden).toEqual(['bilibili', 'douyin']);
   });
 
-  it('ensureSchema set-then-remove: stamps version even when only version key changes', async () => {
-    // 首装：缺戳 → 应写 CURRENT；顺序上 set 先于 remove（remove 通常为空）。
+  it('v3->v4 adds explicit empty Site Engine definitions', () => {
+    expect(migrateConfig({}, 3, 4, migrations).siteEngines).toEqual([]);
+  });
+
+  it('stamps version as the final commit after data migration', async () => {
     const { store } = installStorage({ themePref: 'dark' });
     const setSpy = vi.spyOn(browser.storage.local, 'set');
     const removeSpy = vi.spyOn(browser.storage.local, 'remove');
     await ensureSchema();
     expect(store.get(SCHEMA_VERSION_KEY)).toBe(CURRENT_SCHEMA_VERSION);
-    // set 必须被调用（至少写 schemaVersion）；若有 remove，set 的 call 应不晚于 remove。
-    expect(setSpy).toHaveBeenCalled();
-    if (removeSpy.mock.calls.length > 0) {
-      const setOrder = setSpy.mock.invocationCallOrder[0]!;
-      const removeOrder = removeSpy.mock.invocationCallOrder[0]!;
-      expect(setOrder).toBeLessThan(removeOrder);
-    }
+    expect(setSpy).toHaveBeenCalledWith({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
+    expect(removeSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not stamp v4 when the final commit fails and safely retries migrated data', async () => {
+    let failFinalStamp = true;
+    const { store } = installStorage({ [SCHEMA_VERSION_KEY]: 3 }, {
+      beforeSet: (items) => {
+        if (items[SCHEMA_VERSION_KEY] === CURRENT_SCHEMA_VERSION && failFinalStamp) {
+          failFinalStamp = false;
+          throw new Error('final stamp failed');
+        }
+      },
+    });
+    await expect(ensureSchema()).rejects.toThrow('final stamp failed');
+    expect(store.get(SCHEMA_VERSION_KEY)).toBe(3);
+    expect(store.get('siteEngines')).toEqual([]);
+
+    await ensureSchema();
+    expect(store.get(SCHEMA_VERSION_KEY)).toBe(CURRENT_SCHEMA_VERSION);
+    expect(store.get('siteEngines')).toEqual([]);
   });
 });
 

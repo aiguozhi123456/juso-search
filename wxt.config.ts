@@ -52,6 +52,7 @@ export default defineConfig({
           'icons/tavily.svg',
           'icons/exa.svg',
           'icons/stepfun.svg',
+          'icons/site.svg',
         ],
         matches: SERP_HOST_MATCH_PATTERNS,
       },

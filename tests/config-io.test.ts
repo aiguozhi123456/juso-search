@@ -53,6 +53,7 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
     activeSource: 'tavily',
     themePref: 'auto',
     localePref: 'auto',
+    siteEngines: [],
     ...overrides,
   };
 }
@@ -128,12 +129,42 @@ describe('buildExportPayload', () => {
     const payload = await buildExportPayload();
     expect(payload.sourceHidden).toEqual([]);
   });
+
+  it('exports populated canonical Site Engine definitions and their dependent sources', async () => {
+    const site = { id: 'site:docs', name: ' Docs ', target: 'docs.example.com/guide?ignored=1', engineId: 'google' as const };
+    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    await expect(buildExportPayload()).resolves.toMatchObject({
+      siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
+      activeSource: site.id,
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceHidden: [site.id],
+    });
+  });
 });
 
 describe('parseImportPayload', () => {
   it('accepts a valid payload', () => {
     const result = parseImportPayload(validPayload());
     expect(result.ok).toBe(true);
+  });
+
+  it('requires valid unique Site Engines before validating dependent source ids', () => {
+    expect(parseImportPayload(validPayload({ siteEngines: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }], activeSource: 'site:one', sourceOrder: ['site:one'] }))).toMatchObject({ ok: true });
+    expect(parseImportPayload(validPayload({ siteEngines: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }, { id: 'site:two', name: 'Two', target: 'example.com', engineId: 'google' }] }))).toEqual({ ok: false, error: 'invalid_site_engines' });
+  });
+
+  it('requires the v4 Site Engine collection', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.siteEngines;
+    expect(parseImportPayload(payload)).toEqual({ ok: false, error: 'invalid_site_engines' });
+  });
+
+  it('accepts a v3 export without Site Engines', () => {
+    const payload = validPayload({ schemaVersion: 3 }) as unknown as Record<string, unknown>;
+    delete payload.siteEngines;
+    const parsed = parseImportPayload(payload);
+    expect(parsed).toMatchObject({ ok: true });
+    if (parsed.ok) expect(parsed.value.siteEngines).toBeUndefined();
   });
 
   it('rejects non-object', () => {
@@ -349,6 +380,22 @@ describe('mergeImport', () => {
     expect((await browser.storage.local.get('sourceHidden')).sourceHidden).toEqual(['baidu', 'tavily']);
   });
 
+  it('treats Site Engines and dependent source graph as apply-preferences data', async () => {
+    const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
+    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    const payload = validPayload({ siteEngines: [], activeSource: 'google', sourceOrder: [], sourceHidden: [] });
+    const skipped = await mergeImport(payload, { applyPrefs: false });
+    expect(skipped.siteEnginesOverridden).toBe(false);
+    expect((await browser.storage.local.get('siteEngines')).siteEngines).toEqual([site]);
+
+    const report = await mergeImport(payload, { applyPrefs: true });
+    expect(report).toMatchObject({ siteEnginesOverridden: true, sourceOrderOverridden: true, sourceHiddenOverridden: true });
+    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    expect(got.siteEngines).toEqual([]);
+    expect(got.sourceHidden).toEqual([]); // explicit [] clears hidden preferences
+    expect(got.sourceOrder).not.toContain(site.id);
+  });
+
   it('preserves the current source order for a legacy payload throughout parse, preview, and merge', async () => {
     const currentOrder = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'];
     installStorage({ sourceOrder: currentOrder });
@@ -366,6 +413,36 @@ describe('mergeImport', () => {
     const report = await mergeImport(parsed.value, { applyPrefs: true });
     expect(report.sourceOrderOverridden).toBe(false);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toEqual(currentOrder);
+  });
+
+  it('preserves Site Engine definitions and their graph references for a v3 preference restore', async () => {
+    const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
+    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    const raw = validPayload({ schemaVersion: 3, activeSource: 'google', sourceOrder: ['bing'], sourceHidden: ['baidu'] }) as unknown as Record<string, unknown>;
+    delete raw.siteEngines;
+    const parsed = parseImportPayload(raw);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    await mergeImport(parsed.value, { applyPrefs: true });
+    const got = await browser.storage.local.get(['siteEngines', 'activeSource', 'sourceOrder', 'sourceHidden']);
+    expect(got.siteEngines).toEqual([site]);
+    expect(got.activeSource).toBe(site.id);
+    expect(got.sourceOrder).toContain(site.id);
+    expect(got.sourceHidden).toContain(site.id);
+  });
+
+  it('does not preview v3 changes that would replace an active or hidden local Site Engine', async () => {
+    const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: site.id, siteEngines: [site], sourceOrder: [site.id], sourceHidden: [site.id] });
+    const raw = validPayload({ schemaVersion: 3, activeSource: 'google' }) as unknown as Record<string, unknown>;
+    delete raw.siteEngines;
+    delete raw.sourceOrder;
+    delete raw.sourceHidden;
+    const parsed = parseImportPayload(raw);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(await previewImport(parsed.value)).toMatchObject({ prefDiffs: [] });
+    expect(await mergeImport(parsed.value, { applyPrefs: true })).toMatchObject({ activeSourceOverridden: false, sourceOrderOverridden: false, sourceHiddenOverridden: false });
   });
 
   it('preserves existing unknown keys in storage (does not strip)', async () => {
@@ -438,6 +515,19 @@ describe('previewImport (dry-run)', () => {
       activeProvider: 'tavily', activeSource: 'tavily', themePref: 'auto', localePref: 'auto',
     }));
     expect(preview.prefDiffs).toEqual([]);
+  });
+
+  it('includes Site Engine-only changes in the same preference confirmation diff', async () => {
+    const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', siteEngines: [site] });
+    const preview = await previewImport(validPayload());
+    expect(preview.prefDiffs).toEqual(expect.arrayContaining([{
+      key: 'siteEngines', from: 'site:docs:google:https://docs.example.com/:Docs', to: '',
+    }, {
+      key: 'sourceOrder',
+      from: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > douyin > xiaohongshu > bilibili > site:docs',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > douyin > xiaohongshu > bilibili',
+    }]));
   });
 
   it('reports a preference diff when only the normalized source order differs', async () => {

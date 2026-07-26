@@ -81,6 +81,187 @@ body {
 .source-order-list {
   border-top: 1px solid var(--border-soft);
 }
+
+/* ── Site Engines 管理 ──────────────────────────────── */
+.site-engines { display: flex; flex-direction: column; gap: var(--space-2); }
+.site-engines > .hint { margin: 0; }
+.site-engines .site-engines-quickbar-note { margin-top: var(--space-1); }
+
+.site-engine-add-btn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm); font-family: inherit; font-weight: 500;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent; color: var(--fg); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.site-engine-add-btn:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand); background: var(--brand-soft);
+}
+
+.site-engines-list {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border-soft);
+}
+.site-engines-empty {
+  margin: 0; padding: var(--space-3) 0;
+  color: var(--muted); font-size: var(--text-sm);
+}
+.site-engine-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); min-height: 38px;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0;
+  font-size: var(--text-md);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.site-engine-row:hover { background: var(--bg); }
+.site-engine-row--editing { background: var(--brand-soft); }
+.site-engine-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.site-engine-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-engine-scope {
+  font-size: var(--text-xs); color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.site-engine-scope code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: var(--text-xs);
+}
+.site-engine-row-actions { display: flex; gap: var(--space-2); align-items: center; }
+.site-engine-row-actions button {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: var(--space-1) var(--space-2);
+  min-height: 28px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg); cursor: pointer;
+  font-size: var(--text-sm); font-family: inherit;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.site-engine-row-actions button:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand);
+}
+.site-engine-row-actions button.danger:hover:not(:disabled) {
+  color: var(--error); border-color: var(--error);
+}
+.site-engine-row-actions button:disabled { opacity: 0.5; cursor: default; }
+.site-engine-confirm-text {
+  font-size: var(--text-xs); color: var(--error);
+}
+
+/* 表单 */
+.site-engine-form {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border); border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+}
+.site-engine-form-row {
+  display: grid; grid-template-columns: 96px 1fr auto;
+  gap: var(--space-2); align-items: center;
+}
+.site-engine-form-row label,
+.site-engine-form-row .site-engine-form-label {
+  font-size: var(--text-sm); color: var(--muted); font-weight: 500;
+}
+.site-engine-field-count {
+  font-size: var(--text-xs); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 64px; text-align: right;
+}
+.site-engine-form input[type="text"],
+.site-engine-form input[type="url"] {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-md); font-family: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+.site-engine-form input:hover:not(:disabled) { border-color: var(--muted); }
+.site-engine-form input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  outline: none;
+}
+
+.engine-segmented {
+  display: inline-flex;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg);
+}
+.engine-segmented button {
+  padding: var(--space-2) var(--space-3);
+  border: none; border-right: 1px solid var(--border-soft);
+  background: transparent; color: var(--fg);
+  font-size: var(--text-sm); font-family: inherit; cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.engine-segmented button:last-child { border-right: none; }
+.engine-segmented button:hover:not(.active) { background: var(--brand-soft); }
+.engine-segmented button.active {
+  background: var(--brand); color: var(--brand-on); font-weight: 600;
+}
+
+.site-engine-preview {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: var(--text-xs);
+}
+.site-engine-preview .preview-label {
+  color: var(--muted); font-size: var(--text-xs);
+}
+.site-engine-preview .preview-prefix {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  background: var(--bg-soft);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.site-engine-preview .preview-note {
+  color: var(--warning); font-size: var(--text-xs);
+  flex-basis: 100%;
+}
+
+.site-engine-field-error {
+  margin: 0; padding-left: calc(96px + var(--space-2));
+  font-size: var(--text-xs); color: var(--error);
+}
+
+.site-engine-form-actions { display: flex; gap: var(--space-2); }
+.site-engine-form-actions button {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm); font-family: inherit; font-weight: 500;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.site-engine-form-actions button:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand);
+}
+.site-engine-form-actions button.primary {
+  background: var(--brand); color: var(--brand-on); border-color: var(--brand);
+}
+.site-engine-form-actions button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 88%, black);
+  border-color: color-mix(in srgb, var(--brand) 88%, black);
+  color: var(--brand-on);
+}
+.site-engine-form-actions button:disabled { opacity: 0.5; cursor: default; }
+
 .source-order-row {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3); min-height: 38px;
@@ -239,6 +420,7 @@ body {
 
 [data-style="colorful"] .options section { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
+[data-style="colorful"] .options section[data-section="site-engines"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }

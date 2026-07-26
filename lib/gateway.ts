@@ -2,7 +2,7 @@ import type { ProviderId } from './providers/types';
 import { ProviderError } from './providers/types';
 import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
 import type { SourceId } from './sources';
-import { isProviderId } from './sources';
+import { isSiteEngineId, type SiteEngineDefinition, type SiteEngineEngineId, type SiteEngineId } from './site-engines';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
 import type { AgentListProvidersReply } from './agent-bridge';
@@ -11,20 +11,21 @@ import {
   clearSearchCache,
   deleteCachedSearch,
   getActiveProviderId,
-  getActiveSourceId,
   getCachedSearch,
   getCachedSearchEntry,
   getConfiguredProviderIds,
   getKey,
   getSearchCacheSummaries,
-  getSourceHidden,
-  getSourceOrder,
+  getProviderConfigSnapshot,
   saveCachedSearch,
-  setActiveProviderId,
-  setActiveSourceId,
+  setActiveProviderAndSourceId,
+  selectActiveSourceId,
   setKey,
   setSourceHidden,
   setSourceOrder,
+  createSiteEngineDefinition,
+  updateSiteEngineDefinition,
+  deleteSiteEngineDefinition,
 } from './storage';
 import { t, MSG } from './i18n';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
@@ -118,14 +119,7 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
 
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
-  const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden] = await Promise.all([
-    getConfiguredProviderIds(),
-    getActiveProviderId(),
-    getActiveSourceId(),
-    getSourceOrder(),
-    getSourceHidden(),
-  ]);
-  return { configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden };
+  return getProviderConfigSnapshot();
 }
 
 /** Agent bridge 的脱敏 provider 清单：只公开能力和是否已配置，绝不返回 key。 */
@@ -152,16 +146,28 @@ export async function handleDeleteProviderKey(providerId: ProviderId): Promise<v
 
 export async function handleSetActiveProvider(providerId: ProviderId): Promise<void> {
   await getSchemaReady();
-  await Promise.all([setActiveProviderId(providerId), setActiveSourceId(providerId)]);
+  await setActiveProviderAndSourceId(providerId);
 }
 
 export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
   await getSchemaReady();
-  if (isProviderId(sourceId)) {
-    await Promise.all([setActiveSourceId(sourceId), setActiveProviderId(sourceId)]);
-    return;
-  }
-  await setActiveSourceId(sourceId);
+  await selectActiveSourceId(sourceId);
+}
+
+export async function handleCreateSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition> {
+  await getSchemaReady();
+  return createSiteEngineDefinition({ ...data, id: `site:${crypto.randomUUID()}` });
+}
+
+export async function handleUpdateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition> {
+  await getSchemaReady();
+  return updateSiteEngineDefinition(data.id, data);
+}
+
+export async function handleDeleteSiteEngine(siteId: SiteEngineId): Promise<void> {
+  await getSchemaReady();
+  if (!isSiteEngineId(siteId)) throw new Error('invalid_site_engine');
+  await deleteSiteEngineDefinition(siteId);
 }
 
 export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {

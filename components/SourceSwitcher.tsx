@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { SearchSource, SourceId } from '@/lib/sources';
-import { resolveIconUrl } from '@/lib/sources';
+import { resolveIconUrl, sourceLabel } from '@/lib/sources';
 import { t, MSG } from '@/lib/i18n';
 
 interface Props {
@@ -76,9 +76,14 @@ export function SourceSwitcher({ sources, activeId, onSelect, disabled }: Props)
       {isReady && <span className="switcher-indicator" aria-hidden="true" />}
       {sources.map((s) => {
         const active = s.id === activeId;
-        const tooltip = s.supportsAnswer
-          ? t(MSG.tooltip_supports_answer)
-          : t(MSG.tooltip_no_answer);
+        // tooltip：provider/engine 走原有 supportsAnswer 文案；site-engine 用专门的
+        // 「站点范围搜索」提示。用户站点的名称是字面量（不走 i18n）。
+        const tooltip = s.kind === 'site-engine'
+          ? t(MSG.tooltip_site_engine)
+          : s.supportsAnswer
+            ? t(MSG.tooltip_supports_answer)
+            : t(MSG.tooltip_no_answer);
+        const label = sourceLabel(s, t);
         return (
           <button
             key={s.id}
@@ -103,7 +108,7 @@ export function SourceSwitcher({ sources, activeId, onSelect, disabled }: Props)
                 }}
               />
             )}
-            <span className="source-label">{t(s.label)}</span>
+            <span className="source-label">{label}</span>
             {s.kind === 'provider' && !s.supportsAnswer && (
               <span className="no-answer">{t(MSG.provider_no_answer_badge)}</span>
             )}

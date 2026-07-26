@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { allSources, isEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder } from '@/lib/sources';
+import { allSources, isEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
+import type { SiteEngineDefinition } from '@/lib/site-engines';
 
 // sourceOrder 默认补尾顺序：provider(registry) → engine(registry)。
 // registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili。
@@ -87,6 +88,39 @@ describe('normalizeSourceHidden', () => {
   it('returns empty for non-array', () => {
     expect(normalizeSourceHidden(undefined)).toEqual([]);
     expect(normalizeSourceHidden('tavily')).toEqual([]);
+  });
+});
+
+describe('Site Engine source projection', () => {
+  const sites: SiteEngineDefinition[] = [
+    { id: 'site:zeta', name: 'Literal Name', target: 'https://z.example/', engineId: 'google' },
+    { id: 'site:alpha', name: 'engine_google', target: 'https://a.example/', engineId: 'bing' },
+  ];
+
+  it('normalizes dynamic ids, appending missing definitions deterministically', () => {
+    const order = normalizeSourceOrder(['site:zeta', 'site:unknown'], sites);
+    expect(order.indexOf('site:zeta')).toBeLessThan(order.indexOf('site:alpha'));
+    expect(order).toContain('site:alpha');
+    expect(normalizeSourceHidden(['site:unknown', 'site:alpha', 'site:alpha'], sites)).toEqual(['site:alpha']);
+  });
+
+  it('projects known sites in saved order and omits unknown dynamic ids', () => {
+    const sources = allSources([], ['site:zeta', 'site:unknown', 'site:alpha'], ['site:alpha'], sites);
+    expect(sources.filter((source) => source.kind === 'site-engine').map((source) => source.id)).toEqual(['site:zeta']);
+    expect(sources.find((source) => source.id === 'site:zeta')).toMatchObject({
+      label: 'Literal Name', favicon: '/icons/site.svg', supportsAnswer: false,
+      labelDescriptor: { kind: 'literal', value: 'Literal Name' },
+    });
+  });
+
+  it('keeps user-defined labels literal even when they look like an i18n key', () => {
+    const source = allSources([], undefined, undefined, sites).find((item) => item.id === 'site:alpha');
+    expect(source && sourceLabel(source, (key) => `translated:${key}`)).toBe('engine_google');
+  });
+
+  it('translates registry labels through the supplied resolver', () => {
+    const source = allSources([]).find((item) => item.id === 'google');
+    expect(source && sourceLabel(source, (key) => `translated:${key}`)).toBe('translated:engine_google');
   });
 });
 

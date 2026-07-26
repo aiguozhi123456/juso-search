@@ -122,7 +122,11 @@ export function removePageStyles(doc: Document = document): void {
  * 在其自身结果页注入栏只会得到无激活目标的残栏——故直接不挂载。
  * 纯函数：判定仅依赖入参，便于无 DOM 环境下的单测。
  */
-export function shouldMountForEngine(engineId: string, sourceHidden?: readonly SourceId[]): boolean {
+export function shouldMountForEngine(
+  engineId: string,
+  sourceHidden?: readonly SourceId[],
+  matchingVisibleSiteId?: SourceId | null,
+): boolean {
   if (!sourceHidden || sourceHidden.length === 0) return true;
-  return !sourceHidden.includes(engineId as SourceId);
+  return !sourceHidden.includes(engineId as SourceId) || matchingVisibleSiteId != null;
 }

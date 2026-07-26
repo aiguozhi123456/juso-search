@@ -8,19 +8,30 @@ import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
+import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
+import { isSiteEngineId } from './site-engines';
 
-export type SourceKind = 'provider' | 'engine';
-export type SourceId = ProviderId | EngineId;
+export type SourceKind = 'provider' | 'engine' | 'site-engine';
+export type SourceId = ProviderId | EngineId | SiteEngineId;
+
+/** A label which is either an i18n message key or a user-supplied literal. */
+export type SourceLabel =
+  | { kind: 'i18n'; key: string }
+  | { kind: 'literal'; value: string };
 
 export interface SearchSource {
   id: SourceId;
   kind: SourceKind;
   /** 显示标签的 i18n 消息名（渲染处用 t() 解析）。 */
   label: string;
+  /** Use this representation in new rendering code so literal site names bypass i18n. */
+  labelDescriptor?: SourceLabel;
   /** provider 是否支持 AI 答案（engine 恒为 false）。 */
   supportsAnswer: boolean;
   /** 来源品牌图标：扩展内相对路径（engine 与 provider 均提供），渲染处用 resolveIconUrl 解析。 */
   favicon?: string;
+  /** Execution descriptor for a dynamic site-scoped engine. */
+  siteEngine?: SiteEngineDefinition;
 }
 
 const ENGINE_IDS: ReadonlySet<string> = new Set(allEngines().map((e) => e.id));
@@ -28,6 +39,14 @@ const DEFAULT_SOURCE_ORDER: SourceId[] = [
   ...allProviders().map((provider) => provider.id),
   ...allEngines().map((engine) => engine.id),
 ];
+
+/** Resolves a source label without sending literal user data through i18n. */
+export function sourceLabel(
+  source: Pick<SearchSource, 'label' | 'labelDescriptor'>,
+  translate: (key: string) => string = (key) => key,
+): string {
+  return source.labelDescriptor?.kind === 'literal' ? source.labelDescriptor.value : translate(source.label);
+}
 
 export function isEngineId(id: string): id is EngineId {
   return ENGINE_IDS.has(id);
@@ -40,32 +59,42 @@ export function isProviderId(id: string): id is ProviderId {
 /**
  * 规范化用户保存的完整来源顺序：保留已知 id 的首次出现，遗漏项按默认 registry 顺序补尾。
  */
-export function normalizeSourceOrder(order: unknown): SourceId[] {
+export function normalizeSourceOrder(order: unknown, siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+  const siteIds = new Set(siteDefinitions.map((site) => site.id));
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id)) || seen.has(id)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id);
     normalized.push(id);
   }
   for (const id of DEFAULT_SOURCE_ORDER) {
     if (!seen.has(id)) normalized.push(id);
   }
+  for (const id of siteDefinitions.map((site) => site.id)) {
+    if (!seen.has(id)) normalized.push(id);
+  }
   return normalized;
 }
 
 /** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。 */
-export function normalizeSourceHidden(ids: unknown): SourceId[] {
+export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+  const siteIds = new Set(siteDefinitions.map((site) => site.id));
   const list = Array.isArray(ids) ? ids : [];
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id)) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
   return normalized;
+}
+
+/** A dynamic Site Engine ID is known only when there is a saved definition for it. */
+export function isKnownSiteEngineId(id: string, siteDefinitions: readonly SiteEngineDefinition[]): id is SiteEngineId {
+  return isSiteEngineId(id) && new Set(siteDefinitions.map((site) => site.id)).has(id);
 }
 
 /**
@@ -78,11 +107,13 @@ export function allSources(
   configuredProviderIds: ProviderId[],
   sourceOrder?: readonly SourceId[],
   hiddenSourceIds?: readonly SourceId[],
+  siteDefinitions: readonly SiteEngineDefinition[] = [],
 ): SearchSource[] {
   const hidden = hiddenSourceIds && hiddenSourceIds.length > 0 ? new Set(hiddenSourceIds) : null;
   const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
   const enginesById = new Map(allEngines().map((engine) => [engine.id, engine]));
-  return normalizeSourceOrder(sourceOrder).flatMap((id): SearchSource[] => {
+  const sitesById = new Map(siteDefinitions.map((site) => [site.id, site]));
+  return normalizeSourceOrder(sourceOrder, siteDefinitions).flatMap((id): SearchSource[] => {
     if (hidden && hidden.has(id)) return [];
     const provider = providersById.get(id as ProviderId);
     if (provider) {
@@ -90,18 +121,22 @@ export function allSources(
         id: provider.id,
         kind: 'provider',
         label: provider.label,
+        labelDescriptor: { kind: 'i18n', key: provider.label },
         supportsAnswer: provider.supportsAnswer,
         favicon: provider.favicon,
       }] : [];
     }
-    const engine = enginesById.get(id as EngineId)!;
-    return [{
-      id: engine.id,
-      kind: 'engine',
-      label: engine.label,
-      supportsAnswer: false,
-      favicon: engine.favicon,
+    const engine = enginesById.get(id as EngineId);
+    if (engine) return [{
+      id: engine.id, kind: 'engine', label: engine.label,
+      labelDescriptor: { kind: 'i18n', key: engine.label }, supportsAnswer: false, favicon: engine.favicon,
     }];
+    const site = sitesById.get(id as SiteEngineId);
+    return site ? [{
+      id: site.id, kind: 'site-engine', label: site.name,
+      labelDescriptor: { kind: 'literal', value: site.name }, supportsAnswer: false, favicon: '/icons/site.svg',
+      siteEngine: site,
+    }] : [];
   });
 }
 

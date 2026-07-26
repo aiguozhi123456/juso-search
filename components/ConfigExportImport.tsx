@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
-import type { ConfigExport, ImportReport, ImportPreview } from '@/lib/config-io';
+import type { ConfigExport, ImportReport, ImportPreview, PrefDiff } from '@/lib/config-io';
 
 type Status =
   | { kind: 'idle' }
@@ -10,15 +10,6 @@ type Status =
   | { kind: 'confirming'; payload: ConfigExport; preview: ImportPreview }
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
-
-const PREF_LABELS: Record<'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden', string> = {
-  activeProvider: 'activeProvider',
-  activeSource: 'activeSource',
-  themePref: 'themePref',
-  localePref: 'localePref',
-  sourceOrder: 'sourceOrder',
-  sourceHidden: 'sourceHidden',
-};
 
 export function ConfigExportImport({ onImported }: { onImported?: () => void } = {}) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
@@ -92,8 +83,8 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     setStatus({ kind: 'idle' });
   }
 
-  function prefLabel(key: keyof typeof PREF_LABELS): string {
-    return t(`opts_pref_${PREF_LABELS[key]}`);
+  function prefLabel(key: PrefDiff['key']): string {
+    return t(`opts_pref_${key}`);
   }
 
   function importReportPrefs(report: ImportReport): string {
@@ -104,6 +95,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
     if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
     if (report.sourceHiddenOverridden) labels.push(prefLabel('sourceHidden'));
+    if (report.siteEnginesOverridden) labels.push(prefLabel('siteEngines'));
     return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';
   }
 
