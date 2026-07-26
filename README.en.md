@@ -53,7 +53,7 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.2.0 is available on GitHub Release (pending Chrome Web Store review, not yet live). Install the extension through Installation and Updates first, then continue with how you intend to use it.
+Juso v1.2.0 is available on GitHub Release (Chrome Web Store currently shows v1.1.0; v1.2.0 pending review). Install the extension through Installation and Updates first, then continue with how you intend to use it.
 
 ### People
 
