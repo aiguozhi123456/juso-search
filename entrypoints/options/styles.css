@@ -6,7 +6,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   font-size: var(--text-md);
-  background: var(--bg-soft);
+  /* background 见 shared/page-bg.css */
   color: var(--fg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

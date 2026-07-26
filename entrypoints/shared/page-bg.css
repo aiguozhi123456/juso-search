@@ -1,0 +1,99 @@
+/* 共享页面氛围背景：经典角落 brand 辉光 + 彩色低对比度渐变。
+   由 body::before / body::after 绘制，两入口页共用。 */
+
+body {
+  position: relative;
+  background: var(--bg);
+}
+
+/* ── 经典：角落柔和品牌色辉光（Takram 式氛围） ── */
+body::before {
+  content: '';
+  position: fixed;
+  top: -120px;
+  right: -160px;
+  width: 520px;
+  height: 520px;
+  background: var(--brand);
+  opacity: 0.07;
+  border-radius: 50%;
+  filter: blur(72px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -180px;
+  left: -120px;
+  width: 380px;
+  height: 380px;
+  background: var(--brand);
+  opacity: 0.04;
+  border-radius: 50%;
+  filter: blur(72px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 内容层压在氛围之上（#root 与入口根容器） */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── 彩色：全视口、低对比度的类别色氛围 ── */
+[data-style="colorful"] body::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  filter: none;
+  opacity: 1;
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--color-red) 10%, transparent) 0%,
+    color-mix(in srgb, var(--color-orange) 10%, transparent) 15%,
+    color-mix(in srgb, var(--color-yellow) 8%, transparent) 29%,
+    color-mix(in srgb, var(--color-green) 9%, transparent) 44%,
+    color-mix(in srgb, var(--color-cyan) 9%, transparent) 59%,
+    color-mix(in srgb, var(--color-blue) 10%, transparent) 75%,
+    color-mix(in srgb, var(--color-violet) 9%, transparent) 91%,
+    transparent 100%
+  );
+}
+
+[data-style="colorful"] body::after {
+  content: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])[data-style="colorful"] body::before {
+    background: linear-gradient(
+      to bottom left,
+      color-mix(in srgb, var(--color-red) 7%, transparent) 0%,
+      color-mix(in srgb, var(--color-orange) 7%, transparent) 15%,
+      color-mix(in srgb, var(--color-yellow) 5%, transparent) 29%,
+      color-mix(in srgb, var(--color-green) 6%, transparent) 44%,
+      color-mix(in srgb, var(--color-cyan) 6%, transparent) 59%,
+      color-mix(in srgb, var(--color-blue) 7%, transparent) 75%,
+      color-mix(in srgb, var(--color-violet) 6%, transparent) 91%,
+      transparent 100%
+    );
+  }
+}
+
+:root[data-theme="dark"][data-style="colorful"] body::before {
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--color-red) 7%, transparent) 0%,
+    color-mix(in srgb, var(--color-orange) 7%, transparent) 15%,
+    color-mix(in srgb, var(--color-yellow) 5%, transparent) 29%,
+    color-mix(in srgb, var(--color-green) 6%, transparent) 44%,
+    color-mix(in srgb, var(--color-cyan) 6%, transparent) 59%,
+    color-mix(in srgb, var(--color-blue) 7%, transparent) 75%,
+    color-mix(in srgb, var(--color-violet) 6%, transparent) 91%,
+    transparent 100%
+  );
+}
