@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local authenticated bridge to the Juso Chrome extension."""
+"""Local authenticated bridge to the Juso Chrome extension (developer build)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 PROTOCOL = 1
-DEFAULT_EXTENSION_ID = "illmhdnglkjfcenboepdgopaeejdgoji"
+DEFAULT_EXTENSION_ID = "pdklefhommhabbhkglgkgomeibeibmcl"
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
 PROVIDERS = ("tavily", "exa", "stepfun", "stepfun-plan")
@@ -332,7 +332,7 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
 
 
 def parser() -> argparse.ArgumentParser:
-    argument_parser = argparse.ArgumentParser(description="Search through the local Juso extension")
+    argument_parser = argparse.ArgumentParser(description="Search through the local Juso extension (developer build)")
     argument_parser.add_argument("--extension-id", type=extension_id, default=os.environ.get("JUSO_EXTENSION_ID") or DEFAULT_EXTENSION_ID)
     argument_parser.add_argument("--chrome", default=os.environ.get("JUSO_CHROME_PATH"))
     argument_parser.add_argument("--profile", default=os.environ.get("JUSO_CHROME_PROFILE"))

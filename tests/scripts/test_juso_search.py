@@ -156,13 +156,13 @@ class PureFunctionTests(unittest.TestCase):
                 juso_search.parser().parse_args(["--extension-id", "a" * 32, "engine-search", query, "--engine", "google"])
 
     def test_default_extension_id_is_used_when_none_provided(self):
-        """--extension-id 默认值回退到 DEFAULT_EXTENSION_ID，无需手动传参。"""
-        self.assertEqual(juso_search.DEFAULT_EXTENSION_ID, "pdklefhommhabbhkglgkgomeibeibmcl")
+        """--extension-id 默认值回退到 DEFAULT_EXTENSION_ID（Chrome Web Store 发布版），无需手动传参。"""
+        self.assertEqual(juso_search.DEFAULT_EXTENSION_ID, "illmhdnglkjfcenboepdgopaeejdgoji")
         self.assertTrue(juso_search.EXTENSION_ID_RE.fullmatch(juso_search.DEFAULT_EXTENSION_ID))
         # 不传 --extension-id（且不设 JUSO_EXTENSION_ID 环境变量）时默认值应为 DEFAULT_EXTENSION_ID
         with patch.dict(os.environ, {}, clear=True):
             args = juso_search.parser().parse_args(["list-providers"])
-            self.assertEqual(args.extension_id, "pdklefhommhabbhkglgkgomeibeibmcl")
+            self.assertEqual(args.extension_id, "illmhdnglkjfcenboepdgopaeejdgoji")
         # 显式传 --extension-id 时仍以其为准
         args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
         self.assertEqual(args.extension_id, "a" * 32)

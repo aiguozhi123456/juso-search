@@ -2,6 +2,7 @@
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/illmhdnglkjfcenboepdgopaeejdgoji?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
 [![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
@@ -52,11 +53,11 @@ Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索
 
 ## 快速开始
 
-Juso 已发布 v1.1.0，适合愿意手动安装和配置的用户。先按“安装与更新”完成扩展安装，再按你的使用方式继续。
+Juso 已发布 v1.1.0，可从 Chrome Web Store 一键安装。先按“安装与更新”完成扩展安装，再按你的使用方式继续。
 
 ### 人类用户
 
-1. 按“安装与更新”安装并启用扩展。
+1. 按"安装与更新"安装并启用扩展（推荐从 Chrome Web Store 安装）。
 2. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩无需配置（默认隐藏的可在设置页点「显示」启用）；若要站外搜索，在扩展设置中添加 Site Engine（站点 + 底层引擎）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
 
 完成后，你可以在一个入口搜索、切换传统引擎、已保存的站外搜索和已配置的 AI 搜索服务。
@@ -64,8 +65,10 @@ Juso 已发布 v1.1.0，适合愿意手动安装和配置的用户。先按“�
 ### 本地 AI 智能体
 
 1. 按上面的步骤在 **装有 Juso 的 Chromium 系浏览器**（Chrome / Edge / Chromium 等）中安装并启用扩展。使用 `engine-search` 检索传统搜索引擎无需配置 AI 搜索服务；只有通过 `search --provider` 调用 AI 搜索 API 时，才需要先配置对应服务。
-2. 将 `skills/juso-search/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search/`。
-3. 扩展 ID 已内置默认值，一般无需配置。仅在自行签名打包（或扩展 ID 与默认不一致）时，才设置 `JUSO_EXTENSION_ID` 或传入 `--extension-id`。
+2. 根据你的 Juso 安装方式选择技能：
+   - **Chrome Web Store 安装**（推荐）：将 `skills/juso-search/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search/`。扩展 ID 已内置默认值，一般无需配置。
+   - **开发版（自行 `npm run build:dev` 构建）**：将 `skills/juso-search-dev/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search-dev/`。两个技能的唯一区别在于扩展 ID 不同，请按需选择。
+3. 仅在自行签名打包（或扩展 ID 与默认不一致）时，才设置 `JUSO_EXTENSION_ID` 或传入 `--extension-id`。
 4. 若自动发现找不到浏览器，或扩展装在 Edge 等非默认二进制上，请把可执行文件路径指到**已安装 Juso 的那一份浏览器**（可同时指定 profile 目录名）：
 
 ```powershell
@@ -94,19 +97,22 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 ## 安装与更新
 
-### 安装 v1.1.0
+### 从 Chrome Web Store 安装（推荐）
+
+1. 访问 [Chrome Web Store 上的双面搜](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)。
+2. 点击「添加至 Chrome」安装并启用扩展。
+
+Chrome Web Store 安装无开发者模式警告，且可自动更新。
+
+### 安装 v1.1.0（GitHub Release）
 
 1. 从 [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0) 下载 `juso-search-1.1.0-chrome.zip`。
 2. 解压 ZIP。
-3. 打开 Chromium 的 `chrome://extensions`，开启“开发者模式”，选择“加载已解压的扩展程序”，并选择解压后直接包含 `manifest.json` 的目录。
+3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
 
 ### 从源码安装
 
-1. 克隆仓库并安装依赖：`npm install`。
-2. 构建生产版本：`npm run build`。
-3. 按上述“加载已解压的扩展程序”流程，选择 `.output/chrome-mv3/`。
-
-开发者模式安装会显示浏览器警告。在浏览器商店分发前，更新需要手动下载新的 ZIP（或重新构建）、替换已加载目录，并在扩展管理页重新加载扩展。
+详见[开发文档](docs/DEVELOPMENT.md)，包含开发命令、构建区别与架构说明。
 
 ## 安全与数据边界
 
@@ -121,26 +127,9 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 `search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
 
-## 开发与当前架构
+## 开发
 
-```bash
-npm install
-npm run dev
-npm run build
-npm run typecheck
-npm test
-npm run test:python
-npm run lint
-```
-
-![双面搜架构](docs/assets/architecture.svg)
-
-- `entrypoints/search/`：独立人类搜索页、搜索来源切换、缓存与历史。
-- `entrypoints/options/`：本地密钥、来源偏好与 Site Engine 管理。
-- `entrypoints/background.ts`、`lib/gateway.ts`：后台服务、消息网关与 Agent Bridge 的受限执行入口。
-- `lib/providers/`：Tavily、Exa、Stepfun 按量与 Step Plan 的适配器及统一响应模型。
-- 搜索引擎、Site Engine 与 SERP Switch Bar：真实浏览器导航、`site:` 站外搜索、结果页切换和普通结果提取；其执行契约不同于 API 服务。
-- `lib/site-engines.ts`、`lib/storage.ts`：站外搜索定义与本地配置、来源偏好、缓存与用户发起的配置导出。
+详见[开发文档](docs/DEVELOPMENT.md)，包含从源码安装、开发命令、架构说明与测试指南。
 
 ## 可能的未来
 

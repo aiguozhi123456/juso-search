@@ -72,12 +72,12 @@ It also uses security language that can be read as a privacy guarantee even thou
 
 **Installation and project status**
 
-- R13. Juso must be described as early but usable for adopters comfortable with manual installation and configuration.
+- R13. Juso must be described as early but usable for adopters comfortable with manual installation and configuration. <!-- 已过时：Chrome Web Store 发布后，README 定位为"可从 Chrome Web Store 一键安装"。 -->
 - R14. Human and Agent quick starts must be presented as parallel paths with distinct completion outcomes.
-- R15. The primary early installation path must use a production ZIP from GitHub Releases, followed by extraction and Chromium developer-mode loading.
+- R15. The primary early installation path must use a production ZIP from GitHub Releases, followed by extraction and Chromium developer-mode loading. <!-- 已过时：Chrome Web Store 发布后，主安装路径为商店一键安装；GitHub Release ZIP 降为备选。 -->
 - R16. A source-build path must remain available for developers, including the existing install, build, typecheck, test, Python test, and lint commands.
 - R17. The documentation must not recommend or document CRX deployment.
-- R18. The release installation path must disclose developer-mode warnings and manual update/reload expectations until browser-store distribution exists.
+- R18. The release installation path must disclose developer-mode warnings and manual update/reload expectations until browser-store distribution exists. <!-- 已过时：Chrome Web Store 已发布，CWS 安装无开发者模式警告且可自动更新。 -->
 
 **Security, data, and openness**
 

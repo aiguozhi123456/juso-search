@@ -2,6 +2,7 @@
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/illmhdnglkjfcenboepdgopaeejdgoji?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
 [![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
@@ -52,7 +53,7 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.1.0 is available for adopters comfortable with manual installation and configuration. Install the extension through Installation and Updates first, then continue with how you intend to use it.
+Juso v1.1.0 is available on the Chrome Web Store for one-click installation. Install the extension through Installation and Updates first, then continue with how you intend to use it.
 
 ### People
 
@@ -64,8 +65,10 @@ You can now search and switch among conventional engines, saved Site Engines, an
 ### Local AI Agents
 
 1. Install and enable the extension in the **Chromium-family browser that will run Agent calls** (Chrome, Edge, Chromium, etc.). `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
-2. Install or copy `skills/juso-search/` into your agent’s skills directory, for example `.agents/skills/juso-search/`.
-3. The extension ID is built in by default—no setup needed in the common case. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default).
+2. Choose the skill that matches your Juso installation:
+   - **Chrome Web Store installation** (recommended): install or copy `skills/juso-search/` into your agent's skills directory, for example `.agents/skills/juso-search/`. The extension ID is built in by default—no setup needed.
+   - **Developer build** (self-built via `npm run build:dev`): install or copy `skills/juso-search-dev/` into your agent's skills directory, for example `.agents/skills/juso-search-dev/`. The only difference between the two skills is the extension ID; choose based on how you installed Juso.
+3. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default).
 4. If auto-discovery cannot find a browser, or Juso is installed only in Edge (or another non-default binary), point the skill at **the executable whose profile has Juso** (optionally set a profile directory name):
 
 ```powershell
@@ -94,7 +97,14 @@ The local agent can now list configured services, perform API searches with an *
 
 ## Installation and Updates
 
-### Install v1.1.0
+### Install from Chrome Web Store (Recommended)
+
+1. Visit [Juso on the Chrome Web Store](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji).
+2. Click **Add to Chrome** to install and enable the extension.
+
+Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
+
+### Install v1.1.0 (GitHub Release)
 
 1. Download `juso-search-1.1.0-chrome.zip` from the [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0).
 2. Extract the ZIP.
@@ -102,11 +112,7 @@ The local agent can now list configured services, perform API searches with an *
 
 ### Install from Source
 
-1. Clone the repository and install dependencies: `npm install`.
-2. Build the production extension: `npm run build`.
-3. Follow the **Load unpacked** flow above and select `.output/chrome-mv3/`.
-
-Developer-mode installation triggers browser warnings. Until browser-store distribution exists, updates require manually downloading the new ZIP (or rebuilding), replacing the loaded directory, and reloading the extension from the extensions page.
+See the [development document](docs/DEVELOPMENT.en.md) for development commands, build differences, and architecture.
 
 ## Security and Data Boundaries
 
@@ -121,26 +127,9 @@ Agents invoke bounded extension-worker actions through the Agent Bridge: a short
 
 `search` requires `--provider`; it never silently follows the extension’s current provider. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Launch and bridge failures return structured `error.kind` values on stdout (for example `chrome_not_found`, `chrome_launch_failed`, `extension_did_not_claim`, `extension_did_not_complete`). Fix browser path, profile, extension id, and confirm Juso is enabled in the opened browser—do not retry by exposing keys. Engine searches also fail on challenges, consent pages, unsupported layouts, and no results. See `skills/juso-search/SKILL.md` for the full kind table.
 
-## Development and Current Architecture
+## Development
 
-```bash
-npm install
-npm run dev
-npm run build
-npm run typecheck
-npm test
-npm run test:python
-npm run lint
-```
-
-![Juso Architecture](docs/assets/architecture-en.svg)
-
-- `entrypoints/search/`: independent human search page, source switching, cache, and history.
-- `entrypoints/options/`: local credentials, Search Source preferences, and Site Engine management.
-- `entrypoints/background.ts` and `lib/gateway.ts`: background service, message gateway, and bounded Agent Bridge actions.
-- `lib/providers/`: adapters and normalized response model for Tavily, Exa, Stepfun pay-as-you-go, and Step Plan.
-- Search Engines, Site Engines, and the SERP Switch Bar: real-browser navigation, `site:` scoped search, result-page switching, and ordinary-result extraction, on an execution path distinct from API services.
-- `lib/site-engines.ts` and `lib/storage.ts`: Site Engine definitions plus local configuration, source preferences, cache, and user-initiated configuration exports.
+See the [development document](docs/DEVELOPMENT.en.md) for source install, development commands, architecture, and testing guide.
 
 ## Possible Future
 
