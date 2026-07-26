@@ -37,7 +37,7 @@ This surfaced while moving language selection out of the search/start page and i
 
 ## Solution
 
-Move `LocaleToggle` out of the search page and the options header. Render it as the final options-page section, after API Key settings:
+将 `LocaleToggle` 从搜索页和 options 头中移出。在标签页设置页的「通用」标签中渲染：
 
 ```tsx
 // entrypoints/options/App.tsx
@@ -118,7 +118,7 @@ Moving the control to the final settings section also matches the product model:
 ## Prevention
 
 - Test preference-store subscriptions with cases where derived output is unchanged but the consumed snapshot changes. The regression test should assert listener notification for `auto -> zh_CN` when `auto` already resolves to `zh_CN`.
-- Page tests should pin placement: options page shows the language section after API Key, search page does not render the language group.
+- Page tests should pin placement: options page shows the language section in the 通用 (General) tab of the tabbed interface, search page does not render the language group.
 - Component tests should assert visible labels and active state via accessible roles, not only implementation classes.
 - When a store exposes both a preference and a resolved value, decide notification based on every value subscribers read, not only the most visible derived value.
 

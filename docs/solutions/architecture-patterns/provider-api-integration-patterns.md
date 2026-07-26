@@ -36,13 +36,16 @@ A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate four AI se
 
 ## Guidance
 
-**Model every external API behind a `ProviderAdapter` interface** that maps to a project-owned `NormalizedSearchResponse`. Each adapter owns its transport (fetch / MCP client), auth header construction, response parsing, and error translation. The caller — typically a background worker — only knows the adapter interface.
+**Model every external API behind a `ProviderAdapter` interface** that maps to a project-owned `NormalizedSearchResponse`. Each adapter owns its transport (fetch / MCP client), auth header construction, response parsing, and error translation. The caller — typically a background worker — only knows the adapter interface。
+
+当前实现使用 `defineProvider` 工厂模式（`lib/providers/base.ts`），适配器声明式配置 transport + normalize：
 
 ```
 interface ProviderAdapter {
   readonly id: ProviderId
   readonly label: string
   readonly supportsAnswer: boolean
+  readonly favicon: string
   search(query: string, opts: SearchOptions, apiKey: string): Promise<NormalizedSearchResponse>
 }
 ```
@@ -174,4 +177,4 @@ await sendMessage('saveProviderKey', { providerId: 'exa', key: typedKey })
 - `lib/providers/` — adapter implementations
 - `lib/gateway.ts` — worker-side dispatch
 - `lib/messaging.ts` — webext-core messaging pattern (ok/error discriminant unions)
-- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` — the later standardization that extracted the duplicated REST error-mapping boilerplate into a `ProviderTransport` layer + `defineProvider` factory (the code shape this doc's examples now reflect)
+- [Standardized provider/engine adapter layers](./standardized-provider-engine-adapter-layers.md) — 使用 `defineProvider` 工厂模式的规范"添加 provider"指南；本文档早于该标准化，保留作为历史上下文（代码示例可能过时）

@@ -293,6 +293,7 @@ const engines: Record<EngineId, SearchEngine> = {
   baidu: baiduEngine,
   douyin: douyinEngine,
   xiaohongshu: xiaohongshuEngine,
+  bilibili: bilibiliEngine,
 };
 
 export function allEngines(): SearchEngine[] { return Object.values(engines); }
@@ -349,7 +350,7 @@ behavior change for zero structural benefit.
 **`ProviderId` and `EngineId` stay un-merged.** This preserves a documented v2
 decision. `ProviderId` is bound to the BYOK key read-path (`storage.getKey`)
 and the `search(query, opts, key)` contract; engines satisfy neither.
-`lib/sources.ts`'s `SourceId = ProviderId | EngineId` is the **only**
+`lib/sources.ts`'s `SourceId = ProviderId | EngineId | SiteEngineId` is the **only**
 composition point. Resist any urge to make `defineProvider` / an
 engine-factory return a common base type "for symmetry."
 

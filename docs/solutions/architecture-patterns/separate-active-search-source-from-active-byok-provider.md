@@ -29,11 +29,11 @@ tags: [byok, search-sources, chrome-extension, configuration, worker-boundary]
 The extension has two kinds of search choices with different runtime contracts:
 
 - **BYOK providers** (`tavily`, `exa`, `stepfun`, `stepfun-plan`) require saved API keys and flow through the background worker, `ProviderAdapter.search()`, normalized responses, and the local provider-keyed cache.
-- **Regular engines** (`google`, `bing`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
+- **Regular engines** (`google`, `bing`, `baidu`, `douyin`, `xiaohongshu`, `bilibili`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
 
 Delete-key support exposed the architecture gap. After removing provider keys, the extension was still legitimately usable through Google or Bing, but the options page selector labeled “激活的搜索引擎” listed only configured BYOK providers. Treating engines as providers would make the selector look right while allowing engine IDs to leak into provider-only code paths such as `resolveSearchProvider()`, `getAdapter()`, key lookup, and cache refresh.
 
-The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as `SourceId = ProviderId | EngineId`. The composition point belongs at the UI/default-source layer, not in the worker provider path.
+The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as `SourceId = ProviderId | EngineId | SiteEngineId`. The composition point belongs at the UI/default-source layer, not in the worker provider path.
 
 ## Guidance
 

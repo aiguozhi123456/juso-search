@@ -24,7 +24,7 @@ tags: [source-hidden, serp-bar, quick-switch-bar, active-source, content-script,
 
 The "quick switch bar" (快切栏) projects its pills from a unified `allSources()` view that removes any id listed in the persisted `sourceHidden: SourceId[]` preference. The architecture doc `docs/solutions/architecture-patterns/config-preference-pipeline.md` deliberately blesses hiding as **orthogonal** to the active source at the *storage* layer: `activeSourceId` and `sourceHidden` are independent keys, so hiding the active source must not mutate the user's saved active preference (least surprise on cancel-hide). That orthogonality is correct *for storage*. But three separate code paths treated visibility as orthogonal to *everything* — the mount decision, the active-source render, and the active-source select — and none of them reconciled a hidden active source at the display/execution layer. The result was a bar that injected itself on the hidden engine's own SERP with no live target, an active pill with no highlight, and an options dropdown that happily let you persist a hidden selection.
 
-All three fixes land on branch `fix/serp-bar-hidden-engine-no-mount`, verified green: typecheck, lint, 456 tests passing, build OK.
+All three fixes land on branch `fix/serp-bar-hidden-engine-no-mount`, verified green: typecheck, lint, 618 tests passing, build OK。
 
 ## Symptoms
 
@@ -58,8 +58,10 @@ A new pure function in `lib/serp-bar-mount.ts` — the same module that already 
 export function shouldMountForEngine(
   engineId: string,
   sourceHidden?: readonly SourceId[],
+  matchingVisibleSiteId?: string,
 ): boolean {
   if (!sourceHidden || sourceHidden.length === 0) return true;
+  if (matchingVisibleSiteId) return true; // 隐藏的 backing engine 在有可见 Site Engine 时仍可挂载
   return !sourceHidden.includes(engineId as SourceId);
 }
 ```

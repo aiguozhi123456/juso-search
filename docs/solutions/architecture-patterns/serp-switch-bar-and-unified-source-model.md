@@ -45,7 +45,7 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 ## Decision
 
-1. **Do not merge engines into `ProviderId`.** Engines are a parallel concept with a parallel registry (`lib/engines/registry.ts`) and their own `EngineId` union. Merging would pollute the BYOK key/configured-status machinery and the `ProviderAdapter.search()` contract with members that satisfy neither. The `id` namespaces are disjoint by construction, so a combined `SourceId = ProviderId | EngineId` is safe without runtime tagging.
+1. **Do not merge engines into `ProviderId`.** Engines are a parallel concept with a parallel registry (`lib/engines/registry.ts`) and their own `EngineId` union. Merging would pollute the BYOK key/configured-status machinery and the `ProviderAdapter.search()` contract with members that satisfy neither. The `id` namespaces are disjoint by construction, so a combined `SourceId = ProviderId | EngineId | SiteEngineId` is safe without runtime tagging.
 
 2. **Introduce a `SearchSource` view layer** (`lib/sources.ts`) that projects configured providers + all engines into one homogeneous `{ id, kind, label, supportsAnswer, favicon? }` shape. This is the single seam a switcher consumes, and the place where "configured providers only" (v1 rule) and "all engines always" meet. `isEngineId`/`isProviderId` guards narrow a `SourceId` back to the typed registry at the call site.
 
@@ -55,7 +55,7 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 5. **Deep link as the SERP→Juso handoff.** `search.html?provider=X&query=Y` (`lib/deep-link.ts`) carries state across the current-tab navigation. The search page mount effect parses it: `provider` is honored only if configured (else falls back to active), and a present `query` pre-fills and auto-fires one search. This avoids needing cross-tab messaging for the handoff.
 
-6. **Manifest surface stays minimal.** `lib/engines/scopes.ts` centralizes five approved Google hosts (`.com`, Hong Kong, Taiwan, Japan, and the UK) plus `www.bing.com` / `cn.bing.com` for static content-script and favicon-resource matches. Search hosts do not enter `host_permissions`; only the provider API hosts require those permissions, and no `scripting`/`activeTab` permission is needed.
+6. **Manifest surface stays minimal.** `lib/engines/scopes.ts` centralizes approved SERP hosts across six engines（Google 5 个区域域名 + `www.bing.com` / `cn.bing.com` + `www.baidu.com` + `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com`）用于静态 content-script 和 favicon-resource 匹配。搜索主机不进 `host_permissions`；只有 provider API 主机需要这些权限，且不需要 `scripting`/`activeTab` 权限。
 
 ## Consequences
 

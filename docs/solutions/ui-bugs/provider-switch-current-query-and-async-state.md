@@ -67,15 +67,20 @@ async function handleSearch(rawQuery: string) {
   }
 }
 
-async function handleSwitch(id: ProviderId) {
+async function handleSelectSource(source: SearchSource) {
   if (loading || switching) return;
-  if (id === active) return;
+  if (source.id === active) return;
   const switchReqId = ++switchReqIdRef.current;
   setSwitching(true);
   try {
-    await sendMessage('setActiveProvider', id);
+    await sendMessage('setActiveSource', source.id); // 统一来源模型：provider/engine/site-engine 均经此消息
     if (switchReqId !== switchReqIdRef.current) return;
-    setActive(id);
+    setActive(source.id);
+    if (source.kind === 'site-engine' || source.kind === 'engine') {
+      // 引擎/站外搜索：当前页导航
+      location.assign(buildSerpUrl(source.id, query.trim()));
+      return;
+    }
     const nextQuery = query.trim();
     if (nextQuery) await handleSearch(nextQuery);
   } finally {

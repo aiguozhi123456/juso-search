@@ -49,12 +49,12 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on six small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on ten small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export const migrations: Migration[] = [
   // { from: 0, to: 1, migrate: (data) => ({ ...data, /* shape change */ }) },
@@ -178,7 +178,7 @@ Merge semantics are deliberately conservative on both axes:
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
 - **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`, `sourceOrder`). Older export files without `sourceOrder` preserve the current quick-switch order.
 
-For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceOrderMutation` boundary with `setSourceOrder`, so an older import cannot overwrite a later quick-switch move.
+For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, activeSource), so an older import cannot overwrite a later quick-switch move.
 
 ### Never use `get(null)` when you know the keys you need
 
@@ -260,7 +260,7 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export async function ensureSchema(): Promise<void> {
   const { schemaVersion: v } = await browser.storage.local.get('schemaVersion');
@@ -329,5 +329,5 @@ async function handleExportConfig() {
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`
 - `lib/gateway.ts` — worker handlers and the readiness gate: `getSchemaReady`, `handleExportConfig`, `handlePreviewImport`, `handleImportConfig`
 - `lib/storage.ts` — `withProviderKeysMutation` and `withSourceOrderMutation` (serialization queues for atomic config mutations)
-- [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only
+- [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only（注意：该文档的刷新候选注释提到"four keys"，实际 config domain 现已为十个键）（注意：该文档的刷新候选注释提到"four keys"，实际 config domain 现已为十个键）
 - `CONCEPTS.md` — project vocabulary for the BYOK trust boundary (R7)

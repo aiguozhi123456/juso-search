@@ -113,7 +113,7 @@ return normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
 
 因此只有“仍是最新请求，且请求期间顺序 revision 未变化”的响应才能更新 `sourceOrder`。响应中的 active source 和 configured providers 仍可同步，陈旧顺序快照则被丢弃。
 
-worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceOrderMutation` 队列。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
+worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines 和 activeSource）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
 
 ### 区分字段缺失与字段值
 

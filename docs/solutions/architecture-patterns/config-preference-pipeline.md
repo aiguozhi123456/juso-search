@@ -96,7 +96,7 @@ tags:
 
 5. **ImportReport 字段追加的连锁反应。** 给 `ImportReport` 加一个**必填**字段（如 `sourceHiddenOverridden`）会迫使所有渲染导入报告的组件（`ConfigExportImport`）及其测试同步更新——这是一处不明显的波及面，TS 会在这些地方报错提醒。
 
-6. **写串行队列嵌套。** `mergeImport` 对新偏好做读-改-写，必须把新队列嵌进去，使直接 setter 与导入不会互相覆盖（沿用 `mergeImport = withSourceOrderMutation(withProviderKeysMutation(...))` 的嵌套模式，现扩展为 `withSourceHiddenMutation(withSourceOrderMutation(withProviderKeysMutation(...)))`）。
+6. **写串行队列嵌套。** `mergeImport` 对新偏好做读-改-写，必须把新队列嵌进去，使直接 setter 与导入不会互相覆盖（沿用 `mergeImport = withSourceMutation(withProviderKeysMutation(...))` 的嵌套模式；`withSourceMutation` 是统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines 和 activeSource 写入）。
 
 ## Why This Matters
 

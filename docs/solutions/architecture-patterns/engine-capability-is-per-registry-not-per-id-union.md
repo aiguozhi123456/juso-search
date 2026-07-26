@@ -33,11 +33,11 @@ During the v1.1.0 README update (commit `628242a`), Douyin and Xiaohongshu were 
 
 1. `wxt.config.ts` injects `engine-extractor.js` on all 5 SERP host groups via `ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` (derived from `SERP_HOST_MATCH_PATTERNS` in `lib/engines/scopes.ts`, which includes `www.douyin.com` and `www.xiaohongshu.com`).
 2. `lib/engines/registry.ts` registers all 5 engines in a `Record<EngineId, SearchEngine>` with no exclusions.
-3. The `EngineId` union in `lib/engines/types.ts` lists all 5 identifiers: `'google' | 'bing' | 'baidu' | 'douyin' | 'xiaohongshu'`.
+3. The `EngineId` union in `lib/engines/types.ts` lists all 6 identifiers: `'google' | 'bing' | 'baidu' | 'douyin' | 'xiaohongshu' | 'bilibili'`.
 
-From these three signals the doc edit concluded: "all 5 engines support agent extraction." The sentence "Juso 通过浏览器导航，供人直接使用，或为智能体提取普通搜索结果" (zh) / "Juso navigates a browser for people to use directly or for agents to extract ordinary search results" (en) was expanded to include Douyin and Xiaohongshu without qualification.
+From these three signals the doc edit concluded: "all 5 engines support agent extraction" (later expanded to 6 with bilibili). The sentence "Juso 通过浏览器导航，供人直接使用，或为智能体提取普通搜索结果" (zh) / "Juso navigates a browser for people to use directly or for agents to extract ordinary search results" (en) was expanded to include Douyin and Xiaohongshu without qualification.
 
-The user caught the error: Douyin and Xiaohongshu are login-walled SPAs whose results render through async APIs, not server-rendered DOM. The extractor registry (`lib/engines/extractors/registry.ts`) explicitly maps them to `UNSUPPORTED_EXTRACTOR`, and the CLI skill whitelist (`juso_search.py` line 30) only exposes `("google", "bing", "baidu")`. The fix commit `8f54fbf` restructured the engine-definition sentence to separate navigation (all 5) from agent extraction (3), and reverted the agent paragraph to list only Google, Bing, Baidu.
+The user caught the error: Douyin and Xiaohongshu are login-walled SPAs whose results render through async APIs, not server-rendered DOM. The extractor registry (`lib/engines/extractors/registry.ts`) explicitly maps them to `UNSUPPORTED_EXTRACTOR`, and the CLI skill whitelist (`juso_search.py` line 30) only exposes `("google", "bing", "baidu")`. The fix commit `8f54fbf` restructured the engine-definition sentence to separate navigation (all 5, later 6 with bilibili) from agent extraction (3), and reverted the agent paragraph to list only Google, Bing, Baidu.
 
 ## Guidance
 
@@ -54,6 +54,7 @@ const engines: Record<EngineId, SearchEngine> = {
   baidu: baiduEngine,
   douyin: douyinEngine,
   xiaohongshu: xiaohongshuEngine,
+  bilibili: bilibiliEngine,
 };
 ```
 
@@ -72,6 +73,8 @@ const extractors: Record<EngineId, EngineExtractor> = {
   // 用占位 extractor 满足全映射，归一为 'unsupported-layout'。
   douyin: UNSUPPORTED_EXTRACTOR,
   xiaohongshu: UNSUPPORTED_EXTRACTOR,
+  // 哔哩哔哩导航-only，不做结果抽取。
+  bilibili: UNSUPPORTED_EXTRACTOR,
 };
 ```
 
@@ -99,13 +102,15 @@ The CLI rejects `--engine douyin` or `--engine xiaohongshu` at argument-parse ti
 
 ### Layer 4 — Default visibility in quick-switch bar
 
-Source of truth: `lib/schema.ts` line 31.
+Source of truth: `lib/schema.ts` versioned migrations.
 
 ```ts
-const DEFAULT_HIDDEN_ENGINE_IDS: readonly string[] = ['douyin', 'xiaohongshu'];
+// 版本化迁移：v2 添加 douyin/xiaohongshu，v3 添加 bilibili
+const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'];
+const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 ```
 
-Douyin and Xiaohongshu are registered but hidden by default in the UI quick-switch bar (schema migration v2 merges them into `sourceHidden`). Users can un-hide them in settings.
+Douyin、Xiaohongshu 和 Bilibili 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v2/v3 合并到 `sourceHidden`）。用户可在设置中取消隐藏。
 
 ### The rule
 

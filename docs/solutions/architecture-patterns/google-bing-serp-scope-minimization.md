@@ -34,7 +34,7 @@ tags:
 
 ## Context
 
-The SERP Switch Bar runs inside conventional Search Engine result pages, so adding regional domains changes the extension's static site-access surface as well as runtime URL recognition. The product currently approves seven hosts: `www.google.com`, `www.google.com.hk`, `www.google.com.tw`, `www.google.co.jp`, `www.google.co.uk`, `www.bing.com`, and `cn.bing.com`. This is a product-specific allowlist based on the current Chinese/English audience and least-privilege policy, not a universal list of Google and Bing domains.
+The SERP Switch Bar runs inside conventional Search Engine result pages, so adding regional domains changes the extension's static site-access surface as well as runtime URL recognition. 产品当前批准 11 个主机：5 个 Google 区域域名（`www.google.com`, `www.google.com.hk`, `www.google.com.tw`, `www.google.co.jp`, `www.google.co.uk`）+ 2 个 Bing（`www.bing.com`, `cn.bing.com`）+ `www.baidu.com` + `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com`。这是基于当前中英受众和最小权限策略的产品特定白名单，并非 Google/Bing 域名的通用列表。
 
 Google announced in 2025 that country-code Search domains would gradually redirect to `google.com`. There was therefore no product evidence for retaining all 187 historical Google domains. Doing so enlarged the injection and Chrome Web Store disclosure surface and produced a roughly 12 KB manifest, while Chrome match patterns cannot express arbitrary TLDs such as `google.*` safely.
 
@@ -44,11 +44,11 @@ Static matching is also broader than the runtime requirement. Chrome's `/search*
 
 1. Keep the approved Search Engine hosts in one scope module. Derive engine recognition, content-script patterns, and favicon `web_accessible_resources` patterns from the same allowlist so those surfaces cannot drift independently.
 2. Model injection, resource visibility, and privileged host access separately. Search hosts belong in static content-script and web-accessible-resource matches, but not in `host_permissions`; only the Tavily, Exa, and Stepfun API hosts need privileged host access.
-3. Treat the static `/search*` pattern as an injection boundary, not the final business predicate. Runtime recognition must require HTTPS, the default port, pathname exactly `/search`, and exact membership in the approved hostname set. Do not use suffix matching, `endsWith`, arbitrary subdomain wildcards, or hostname-only checks.
+3. Treat the static content-script pattern as an injection boundary, not the final business predicate. Runtime recognition must require HTTPS, the default port, the engine's canonical pathname (Google/Bing: `/search`, Baidu: `/s`, Douyin: `/search/<q>`, Xiaohongshu: `/search_result`, Bilibili: `/all`), and exact membership in the approved hostname set. Do not use suffix matching, `endsWith`, arbitrary subdomain wildcards, or hostname-only checks.
 4. Drive SPA state from the `newUrl` carried by `wxt:locationchange`, not from a possibly stale `window.location`. Remove the UI after leaving a canonical SERP and remount it when a supported SERP returns.
 5. Wait for the engine-specific anchor before remounting. Give each navigation a revision, disconnect any prior `MutationObserver`, and allow only the latest revision to mount. Disconnect the observer after a successful mount, a newer navigation, or content-script invalidation.
 6. Do not restore WXT `autoMount()` for Google/Bing anchor disappearance. Both engines may remove the old result subtree and insert a replacement with the same selector in one synchronous task; by the observer callback, only the replacement exists and disappearance detection can stall.
-7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm seven content-script matches, seven resource matches, and only three API `host_permissions`.
+7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm 11 content-script matches, 11 resource matches, and only three API `host_permissions`.
 
 ## Why This Matters
 

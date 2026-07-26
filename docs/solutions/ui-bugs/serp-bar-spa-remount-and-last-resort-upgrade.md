@@ -96,11 +96,11 @@ Upgrade observer only runs when mounted on **last-resort**; never remount solely
 - Bar: `position: fixed; top: 56px` under `#douyin-header`; `pageStyles` push `#search-toolbar-container` (filters live inside) down.
 - Alignment: set `--juso-serp-left` from align target’s **viewport** content left; `alignTo: #search-content-area` (column width), not narrower result shell.
 
-### 5. Default-hidden engines (schema v2)
+### 5. Default-hidden engines（schema v2→v4）
 
-- New engines `douyin` / `xiaohongshu` registered like Google/Bing/Baidu.
-- `CURRENT_SCHEMA_VERSION = 2` migration merges those ids into `sourceHidden` once (idempotent; unhide is sticky because v2→v2 does not re-run).
-- `ensureSchema` **sets** migrated keys (including version) **before** any `remove` of obsolete keys.
+- 新引擎 `douyin` / `xiaohongshu` 注册方式与 Google/Bing/Baidu 相同。
+- `CURRENT_SCHEMA_VERSION = 4`（v2 迁移合并 douyin/xiaohongshu 到 `sourceHidden`，v3 添加 bilibili 默认隐藏，v4 添加 siteEngines 迁移）。每次迁移幂等；取消隐藏后不会重新合并。
+- `ensureSchema` **先设置**迁移后的键（包括版本），**再**移除过时键。
 
 ## Why This Works
 
@@ -115,7 +115,7 @@ Upgrade observer only runs when mounted on **last-resort**; never remount solely
 - Keep remount / upgrade policy in `lib/serp-bar-mount.ts` with unit tests (`tests/serp-bar-mount.test.ts`); do not re-embed policy only inside the content-script IIFE.
 - When adding engines with delayed SPA shells: declare ordered `anchors` with an intentional last-resort; never “upgrade between non-last-resort” for position-sensitive UIs.
 - For `position: fixed` SERP hosts, store viewport coordinates (`--juso-serp-left`), not parent-relative offsets alone.
-- Schema migrations that introduce default-hidden sources must be stamp-gated and must not re-merge hides after the user unhides.
+- Schema 迁移引入默认隐藏来源时必须用版本门控，用户取消隐藏后不得重新合并。当前 schema 版本为 4（v2: douyin/xiaohongshu, v3: bilibili, v4: siteEngines）。
 - Content-script match patterns may be broader than `engine.matches`; keep `matches`/`extractQuery` strict and tested (including negative nested paths).
 
 ## Related Issues
