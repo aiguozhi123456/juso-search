@@ -106,6 +106,16 @@ The user's chosen visual language for extension surfaces, independent of the res
 
 It propagates to every participating UI surface; embedded surfaces follow it without owning a separate preference.
 
+### Page Atmosphere
+The full-viewport brand canvas behind extension HTML pages — classic soft brand glows or a low-contrast colorful categorical gradient — owned by the document rather than a width-constrained content column.
+
+Search start layout and options layout may center or grid content independently; atmosphere stays document-level so both entrypoints share one product shell.
+
+### Options Settings Group
+A top-level partition of the options page that shows only a related subset of settings sections at a time (search setup, credentials, general preferences).
+
+Groups are an information-architecture shell: they do not replace individual preference keys or worker messaging. Switching groups changes which sections mount; it does not scroll a single long form.
+
 ### Answer Capability Degradation (R5)
 When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun (both REST and MCP surfaces) does not.
 

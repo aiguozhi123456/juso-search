@@ -11,9 +11,12 @@ applies_when:
   - Designing a colorful operational UI where color should communicate stable source and action identity
   - Applying one persisted UI preference across extension pages, tabs, and a shadow-DOM content script
   - Rendering viewport atmosphere from inside a width-constrained application root
+last_updated: 2026-07-26
 related_components:
   - entrypoints/shared/tokens.css
+  - entrypoints/shared/page-bg.css
   - entrypoints/search/styles.css
+  - entrypoints/options/styles.css
   - components/SourceSwitcher.tsx
   - lib/useStyle.ts
   - lib/storage.ts
@@ -27,6 +30,7 @@ tags:
   - fouc
   - shadow-dom
   - source-identity
+  - page-atmosphere
 ---
 
 # Orthogonal UI Style Axes and Distributed Semantic Color Ownership
@@ -45,7 +49,7 @@ The resulting model has two orthogonal axes on the root element:
 
 `data-theme` controls luminance and system-theme resolution. `data-style` controls visual language. Neither value is derived from the other, so all theme/style combinations remain possible.
 
-There was also a background-layout issue. The homepage `.app` is constrained to `max-width: 720px`; atmospheric pseudo-elements positioned absolutely inside that container were clipped to the content column. Making those pseudo-elements fixed to the viewport, while clipping only horizontal document overflow, preserves the centered application geometry and lets the atmosphere fill the browser width.
+There was also a background-layout issue. The homepage `.app` is constrained to `max-width: 720px`; atmospheric pseudo-elements positioned absolutely inside that container were clipped to the content column. Making those pseudo-elements fixed to the viewport, while clipping only horizontal document overflow, preserves the centered application geometry and lets the atmosphere fill the browser width. Later, the same atmosphere was extracted from search-only `.app--start::before/::after` into `entrypoints/shared/page-bg.css` on `body`, so the options entrypoint shares the canvas without re-copying start-state pseudo-elements.
 
 ## Guidance
 
@@ -177,16 +181,19 @@ Pass the response provider into every result card so the same data attribute dri
 <article className="result-card" data-source={sourceId}>
 ```
 
-Use multicolor atmosphere only at the page level. The homepage gradient runs from the upper right toward the lower left in the categorical sequence red, orange, yellow, green, cyan, blue, violet. Light mode mixes use 8-10% color; dark mode uses 5-7%. The classic atmosphere and colorful gradient share full-viewport geometry:
+Use multicolor atmosphere only at the page level. The categorical gradient runs from the upper right toward the lower left in the sequence red, orange, yellow, green, cyan, blue, violet. Light mode mixes use 8-10% color; dark mode uses 5-7%. Classic brand glows and the colorful gradient live on the document in the shared substrate (not inside a width-constrained app root):
 
 ```css
-body { overflow-x: clip; }
+/* entrypoints/shared/page-bg.css — imported by search and options after tokens */
+body {
+  position: relative;
+  background: var(--bg);
+}
 
-.app { max-width: 720px; margin: 0 auto; position: relative; }
+body::before { /* classic fixed brand glow */ position: fixed; }
+body::after  { /* secondary classic glow */ position: fixed; }
 
-.app--start::before { position: fixed; }
-
-[data-style="colorful"] .app--start::before {
+[data-style="colorful"] body::before {
   inset: 0;
   width: auto;
   height: auto;
@@ -205,7 +212,10 @@ body { overflow-x: clip; }
     transparent 100%
   );
 }
+[data-style="colorful"] body::after { content: none; }
 ```
+
+Entrypoint CSS keeps content geometry (e.g. `.app { max-width: 720px }`, `.options` grid). Search may still use `.app--start` for vertical centering only — not for atmosphere.
 
 ## Why This Matters
 
@@ -280,6 +290,7 @@ Verification should cover storage defaults and invalid-value fallback, hook init
 
 ## Related
 
+- [Options tabbed sidebar and shared page atmosphere](./options-tabbed-sidebar-and-shared-page-atmosphere.md) - options IA paging and the shared `page-bg` host used by both entrypoints.
 - [Theme persistence, i18n, and storage key hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) - packaged pre-React initialization, precise reads, rollback, and first-paint behavior.
 - [Local search cache in MV3](../architecture-patterns/local-search-cache-mv3.md) - current worker-owned storage observation and sanitized cross-tab preference broadcasts.
 - [Configuration preference pipeline](../architecture-patterns/config-preference-pipeline.md) - end-to-end checklist for durable preferences across storage and UI hosts.
