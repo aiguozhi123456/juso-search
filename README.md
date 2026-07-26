@@ -53,7 +53,7 @@ Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索
 
 ## 快速开始
 
-Juso 已发布 v1.1.0，可从 Chrome Web Store 一键安装。先按“安装与更新”完成扩展安装，再按你的使用方式继续。
+Juso 已发布 v1.2.0，可从 Chrome Web Store 一键安装。先按“安装与更新”完成扩展安装，再按你的使用方式继续。
 
 ### 人类用户
 
@@ -104,9 +104,9 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
-### 安装 v1.1.0（GitHub Release）
+### 安装 v1.2.0（GitHub Release）
 
-1. 从 [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0) 下载 `juso-search-1.1.0-chrome.zip`。
+1. 从 [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0) 下载 `juso-search-1.2.0-chrome-dev.zip`。
 2. 解压 ZIP。
 3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
 

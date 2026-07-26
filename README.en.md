@@ -53,7 +53,7 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.1.0 is available on the Chrome Web Store for one-click installation. Install the extension through Installation and Updates first, then continue with how you intend to use it.
+Juso v1.2.0 is available on the Chrome Web Store for one-click installation. Install the extension through Installation and Updates first, then continue with how you intend to use it.
 
 ### People
 
@@ -104,9 +104,9 @@ The local agent can now list configured services, perform API searches with an *
 
 Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
 
-### Install v1.1.0 (GitHub Release)
+### Install v1.2.0 (GitHub Release)
 
-1. Download `juso-search-1.1.0-chrome.zip` from the [GitHub Release v1.1.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.1.0).
+1. Download `juso-search-1.2.0-chrome-dev.zip` from the [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0).
 2. Extract the ZIP.
 3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
 
