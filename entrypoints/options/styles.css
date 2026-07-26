@@ -12,22 +12,81 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-.options { max-width: 640px; margin: 0 auto; padding: var(--space-6) var(--space-4) var(--space-10); }
+.options { 
+  max-width: 900px; 
+  margin: 0 auto; 
+  padding: var(--space-6) var(--space-4) var(--space-10); 
+}
 .options-header {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3);
   padding-bottom: var(--space-4);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-6);
   border-bottom: 1px solid var(--border-soft);
 }
 .options-toggles { display: flex; align-items: center; gap: var(--space-3); }
 .options h1 { font-size: var(--text-xl); margin: 0; font-weight: 700; }
 
+/* ── Layout ────────────────────────────────────────── */
+.options-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+/* ── Sidebar Navigation ────────────────────────────── */
+.options-sidebar {
+  position: sticky;
+  top: var(--space-6);
+  align-self: start;
+}
+.options-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.options-nav-item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+.options-nav-item:hover {
+  color: var(--fg);
+  background: var(--bg);
+}
+.options-nav-item.active {
+  color: var(--brand);
+  background: var(--brand-soft);
+  font-weight: 600;
+}
+
+/* ── Content ───────────────────────────────────────── */
+.options-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0; /* Prevent grid blowout */
+}
+
 /* 区块 eyebrow： Experimental Jetset 风格 —— 大写字距 + brand 编号 */
+.options section {
+  animation: juso-fade-in var(--duration-slow) var(--ease-out);
+}
 .options h2 {
   position: relative;
   font-size: var(--text-xs);
-  margin: var(--space-7) 0 var(--space-3);
+  margin: 0 0 var(--space-3);
   color: var(--brand); font-weight: 700;
   letter-spacing: 0.12em; text-transform: uppercase;
   padding-left: var(--space-4);
@@ -40,9 +99,6 @@ body {
   width: 8px; height: 8px;
   background: var(--brand);
   border-radius: var(--radius-sm);
-}
-.options section {
-  animation: juso-fade-in var(--duration-slow) var(--ease-out);
 }
 
 /* ── 原生控件定制 ─────────────────────────────────── */
@@ -393,9 +449,40 @@ body {
   to   { opacity: 1; }
 }
 
+@media (max-width: 768px) {
+  .options-layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  .options-sidebar {
+    position: static;
+  }
+  .options-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+  .options-nav::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+  .options-nav-item {
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 480px) {
   .options { padding-inline: var(--space-3); }
   .source-order-row { min-height: 42px; }
+  .key-row {
+    grid-template-columns: 1fr auto;
+  }
+  .key-row label { grid-column: 1 / -1; }
+  .key-row input { grid-column: 1 / -1; }
+  .key-row .status { grid-column: 1 / -1; }
 }
 
 /* ── 彩色风格：设置区块按功能拥有稳定实色 ────────────────────────── */
@@ -417,6 +504,14 @@ body {
 [data-style="colorful"] .options-wordmark .wordmark-tail { color: var(--color-blue); }
 [data-style="colorful"] .options-wordmark .wordmark-sep,
 [data-style="colorful"] .options-wordmark .wordmark-suffix { color: var(--muted); }
+
+[data-style="colorful"] .options-nav-item.active {
+  color: var(--color-blue);
+  background: var(--color-blue-soft);
+}
+[data-style="colorful"] .options-nav-item[data-group="search"].active { color: var(--color-blue); background: var(--color-blue-soft); }
+[data-style="colorful"] .options-nav-item[data-group="keys"].active { color: var(--color-yellow); background: var(--color-yellow-soft); }
+[data-style="colorful"] .options-nav-item[data-group="general"].active { color: var(--color-violet); background: var(--color-violet-soft); }
 
 [data-style="colorful"] .options section { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }

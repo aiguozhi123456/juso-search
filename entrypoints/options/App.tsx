@@ -30,6 +30,13 @@ export default function App() {
   const sourceOrderRevision = useRef(0);
   const sourceHiddenRevision = useRef(0);
   const activeSourceRevision = useRef(0);
+  const [activeGroup, setActiveGroup] = useState('search');
+
+  const navGroups = [
+    { id: 'search', label: '搜索' },
+    { id: 'keys', label: '密钥' },
+    { id: 'general', label: '通用' }
+  ];
 
   useEffect(() => {
     syncConfig();
@@ -182,108 +189,138 @@ export default function App() {
         </div>
       </div>
 
-      <section data-section="search-source">
-        <h2>{t(MSG.opts_active_engine)}</h2>
-        <select value={activeVisible ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
-          <option value="" disabled>
-            {t(MSG.opts_choose_placeholder)}
-          </option>
-          {visibleSources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {sourceLabel(s, t)}
-              {s.kind === 'provider' && !s.supportsAnswer ? t(MSG.opts_no_ai_answer) : ''}
-            </option>
-          ))}
-        </select>
-      </section>
+      <div className="options-layout">
+        <aside className="options-sidebar">
+          <nav className="options-nav">
+            {navGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={`options-nav-item${activeGroup === group.id ? ' active' : ''}`}
+                onClick={() => setActiveGroup(group.id)}
+                data-group={group.id}
+              >
+                {group.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-      <section data-section="site-engines">
-        <h2>{t(MSG.opts_site_engines_heading)}</h2>
-        <SiteEngineManager siteEngines={siteEngines} onChange={syncConfig} />
-      </section>
+        <main className="options-content">
+          {activeGroup === 'search' && (
+          <>
+          <section data-section="search-source">
+            <h2>{t(MSG.opts_active_engine)}</h2>
+            <select value={activeVisible ?? ''} onChange={(e) => choose(e.target.value as SourceId)}>
+              <option value="" disabled>
+                {t(MSG.opts_choose_placeholder)}
+              </option>
+              {visibleSources.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {sourceLabel(s, t)}
+                  {s.kind === 'provider' && !s.supportsAnswer ? t(MSG.opts_no_ai_answer) : ''}
+                </option>
+              ))}
+            </select>
+          </section>
 
-      <section data-section="quickbar">
-        <h2>{t(MSG.opts_quickbar_heading)}</h2>
-        <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
-        <div className="source-order-list">
-          {configuredSources.map((source, index) => {
-            const sourceName = sourceLabel(source, t);
-            const hidden = sourceHidden.includes(source.id);
-            // 不允许隐藏最后一个可见来源：至少保留一个，否则快切栏与下拉框将无可用项。
-            const wouldLeaveEmpty = !hidden && visibleSources.length <= 1;
-            const hideDisabled = savingSourceHidden || wouldLeaveEmpty;
-            const hideLabel = wouldLeaveEmpty
-              ? t(MSG.opts_quickbar_hide_last_visible, sourceName)
-              : t(hidden ? MSG.opts_quickbar_toggle_show : MSG.opts_quickbar_toggle_hide, sourceName);
-            return (
-              <div className={`source-order-row${hidden ? ' source-order-row--hidden' : ''}`} key={source.id}>
-                <span>{sourceName}</span>
-                <div className="source-order-actions">
-                  <button
-                    type="button"
-                    className="hide-toggle"
-                    aria-label={hideLabel}
-                    title={hideLabel}
-                    disabled={hideDisabled}
-                    onClick={() => toggleHidden(source.id)}
-                  >
-                    {hidden ? t(MSG.opts_quickbar_show) : t(MSG.opts_quickbar_hide)}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t(MSG.opts_source_order_move_up, sourceName)}
-                    title={t(MSG.opts_source_order_move_up, sourceName)}
-                    disabled={savingSourceOrder || savingSourceHidden || index === 0}
-                    onClick={() => moveSource(source.id, -1)}
-                  >
-                    <ChevronUpIcon size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t(MSG.opts_source_order_move_down, sourceName)}
-                    title={t(MSG.opts_source_order_move_down, sourceName)}
-                    disabled={savingSourceOrder || savingSourceHidden || index === configuredSources.length - 1}
-                    onClick={() => moveSource(source.id, 1)}
-                  >
-                    <ChevronDownIcon size={16} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
-      </section>
+          <section data-section="site-engines">
+            <h2>{t(MSG.opts_site_engines_heading)}</h2>
+            <SiteEngineManager siteEngines={siteEngines} onChange={syncConfig} />
+          </section>
 
-      <section data-section="api-keys">
-        <h2>{t(MSG.opts_apikey_heading)}</h2>
-        <p className="hint">{t(MSG.opts_apikey_hint)}</p>
-        {providers.map((p) => (
-          <KeyInput
-            key={p.id}
-            provider={p}
-            configured={configuredProviderIds.includes(p.id)}
-            onConfigured={markConfigured}
-            onRemoved={markRemoved}
-          />
-        ))}
-      </section>
+          <section data-section="quickbar">
+            <h2>{t(MSG.opts_quickbar_heading)}</h2>
+            <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
+            <div className="source-order-list">
+              {configuredSources.map((source, index) => {
+                const sourceName = sourceLabel(source, t);
+                const hidden = sourceHidden.includes(source.id);
+                // 不允许隐藏最后一个可见来源：至少保留一个，否则快切栏与下拉框将无可用项。
+                const wouldLeaveEmpty = !hidden && visibleSources.length <= 1;
+                const hideDisabled = savingSourceHidden || wouldLeaveEmpty;
+                const hideLabel = wouldLeaveEmpty
+                  ? t(MSG.opts_quickbar_hide_last_visible, sourceName)
+                  : t(hidden ? MSG.opts_quickbar_toggle_show : MSG.opts_quickbar_toggle_hide, sourceName);
+                return (
+                  <div className={`source-order-row${hidden ? ' source-order-row--hidden' : ''}`} key={source.id}>
+                    <span>{sourceName}</span>
+                    <div className="source-order-actions">
+                      <button
+                        type="button"
+                        className="hide-toggle"
+                        aria-label={hideLabel}
+                        title={hideLabel}
+                        disabled={hideDisabled}
+                        onClick={() => toggleHidden(source.id)}
+                      >
+                        {hidden ? t(MSG.opts_quickbar_show) : t(MSG.opts_quickbar_hide)}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t(MSG.opts_source_order_move_up, sourceName)}
+                        title={t(MSG.opts_source_order_move_up, sourceName)}
+                        disabled={savingSourceOrder || savingSourceHidden || index === 0}
+                        onClick={() => moveSource(source.id, -1)}
+                      >
+                        <ChevronUpIcon size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={t(MSG.opts_source_order_move_down, sourceName)}
+                        title={t(MSG.opts_source_order_move_down, sourceName)}
+                        disabled={savingSourceOrder || savingSourceHidden || index === configuredSources.length - 1}
+                        onClick={() => moveSource(source.id, 1)}
+                      >
+                        <ChevronDownIcon size={16} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
+          </section>
+          </>
+          )}
 
-      <section data-section="locale">
-        <h2>{t(MSG.locale_group)}</h2>
-        <LocaleToggle />
-      </section>
+          {activeGroup === 'keys' && (
+          <section data-section="api-keys">
+            <h2>{t(MSG.opts_apikey_heading)}</h2>
+            <p className="hint">{t(MSG.opts_apikey_hint)}</p>
+            {providers.map((p) => (
+              <KeyInput
+                key={p.id}
+                provider={p}
+                configured={configuredProviderIds.includes(p.id)}
+                onConfigured={markConfigured}
+                onRemoved={markRemoved}
+              />
+            ))}
+          </section>
+          )}
 
-      <section data-section="agent-bridge">
-        <h2>{t(MSG.opts_agent_bridge_heading)}</h2>
-        <p className="hint">{t(MSG.opts_agent_bridge_hint)}</p>
-        <AgentBridgeSettings />
-      </section>
+          {activeGroup === 'general' && (
+          <>
+          <section data-section="locale">
+            <h2>{t(MSG.locale_group)}</h2>
+            <LocaleToggle />
+          </section>
 
-      <section data-section="config">
-        <h2>{t(MSG.opts_config_io_heading)}</h2>
-        <ConfigExportImport onImported={syncConfig} />
-      </section>
+          <section data-section="agent-bridge">
+            <h2>{t(MSG.opts_agent_bridge_heading)}</h2>
+            <p className="hint">{t(MSG.opts_agent_bridge_hint)}</p>
+            <AgentBridgeSettings />
+          </section>
+
+          <section data-section="config">
+            <h2>{t(MSG.opts_config_io_heading)}</h2>
+            <ConfigExportImport onImported={syncConfig} />
+          </section>
+          </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

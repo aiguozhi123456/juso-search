@@ -48,8 +48,14 @@ beforeEach(() => {
 });
 
 describe('options page', () => {
+  // 分页模型：侧栏分组即页签。默认落在「搜索」页；密钥/通用页需先切换。
+  function openTab(name: '搜索' | '密钥' | '通用') {
+    fireEvent.click(screen.getByRole('button', { name }));
+  }
+
   it('saving a key asks the worker to save it and marks configured', async () => {
     render(<App />);
+    openTab('密钥');
     const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
@@ -237,11 +243,13 @@ describe('options page', () => {
     render(<App />);
 
     await screen.findByRole('button', { name: 'Exa 下移' });
+    openTab('密钥');
     const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
     await waitFor(() => expect(mockedSend.mock.calls.filter(([type]) => type === 'getProviderConfig')).toHaveLength(2));
 
+    openTab('搜索');
     fireEvent.click(screen.getByRole('button', { name: 'Exa 下移' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', expect.any(Array)));
 
@@ -275,20 +283,23 @@ describe('options page', () => {
     expect(select.value).toBe('google');
     // 保存已配置的 exa key：markConfigured 对状态是 no-op，但仍触发 syncConfig，
     // 由此产生一个在途的旧 getProviderConfig 请求。
+    openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 在第二次配置仍在途时 choose 到 exa。
-    fireEvent.change(select, { target: { value: 'exa' } });
+    openTab('搜索');
+    const selectFresh = screen.getByRole('combobox') as HTMLSelectElement;
+    fireEvent.change(selectFresh, { target: { value: 'exa' } });
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
-    await waitFor(() => expect(select.value).toBe('exa'));
+    await waitFor(() => expect(selectFresh.value).toBe('exa'));
     // 旧配置带着 activeSourceId = google 返回——不得覆盖较新的 choose。
     await act(async () => {
       staleConfig.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
       await new Promise((r) => setTimeout(r, 50));
     });
-    expect(select.value).toBe('exa');
+    expect(selectFresh.value).toBe('exa');
   });
 
   it('does not let an older config response overwrite a hide-triggered reselection', async () => {
@@ -308,14 +319,17 @@ describe('options page', () => {
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
     expect(select.value).toBe('google');
     // 触发在途的旧 getProviderConfig（保存已配置的 exa key，状态 no-op 但仍 syncConfig）。
+    openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 隐藏当前激活的 google：重选到首个可见源 exa 并持久化。
+    openTab('搜索');
+    const selectFresh = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.click(screen.getByRole('button', { name: '在快切栏隐藏 Google' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
-    await waitFor(() => expect(select.value).toBe('exa'));
+    await waitFor(() => expect(selectFresh.value).toBe('exa'));
     // 旧配置带着 activeSourceId = google、sourceHidden = [] 返回——
     // 不得覆盖重选后的 active，也不得回退隐藏态。
     await act(async () => {
@@ -328,12 +342,12 @@ describe('options page', () => {
     // 若被覆盖成 google，此处下拉框会落到 google；守卫生效时仍为 exa。
     fireEvent.click(screen.getByRole('button', { name: '在快切栏显示 Google' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceHidden', []));
-    await waitFor(() => expect(select.value).toBe('exa'));
+    await waitFor(() => expect(selectFresh.value).toBe('exa'));
   });
 
   it('still shows all providers in the API key section', async () => {
     render(<App />);
-    await screen.findByRole('combobox');
+    openTab('密钥');
     const keySection = screen.getByRole('heading', { name: /API Key/ }).closest('section');
     expect(keySection).not.toBeNull();
     const keyScope = within(keySection as HTMLElement);
@@ -359,10 +373,12 @@ describe('options page', () => {
     render(<App />);
     const select = await screen.findByRole('combobox');
     expect(select).not.toHaveTextContent('Tavily');
+    openTab('密钥');
     const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
-    await waitFor(() => expect(select).toHaveTextContent('Tavily'));
+    openTab('搜索');
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('Tavily'));
   });
 
   it('test success shows 验证通过', async () => {
@@ -373,6 +389,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
+    openTab('密钥');
     await screen.findAllByText(/已配置/);
     fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]);
     expect(await screen.findByText('验证通过')).toBeInTheDocument();
@@ -386,6 +403,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: false, error: { kind: 'providerError', message: '无效 key' } });
     }) as never);
     render(<App />);
+    openTab('密钥');
     await screen.findAllByText(/已配置/);
     fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]);
     expect(await screen.findByText('无效 key')).toBeInTheDocument();
@@ -394,6 +412,7 @@ describe('options page', () => {
   it('deleting a configured key asks the worker to delete it', async () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<App />);
+    openTab('密钥');
     await screen.findAllByText(/已配置/);
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('deleteProviderKey', 'exa'));
@@ -403,17 +422,17 @@ describe('options page', () => {
 
   it('masks the key input', async () => {
     render(<App />);
-    await screen.findByRole('combobox');
+    openTab('密钥');
     expect(screen.getAllByPlaceholderText('粘贴 API key')[0]).toHaveAttribute('type', 'password');
   });
 
   it('shows language settings after API key settings', async () => {
     render(<App />);
-    await screen.findByRole('combobox');
-    const apiKeyHeading = screen.getByRole('heading', { name: /API Key/ });
-    const languageHeading = screen.getByRole('heading', { name: '语言' });
+    openTab('密钥');
+    expect(screen.getByRole('heading', { name: /API Key/ })).toBeInTheDocument();
+    openTab('通用');
+    expect(screen.getByRole('heading', { name: '语言' })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: '语言' })).toBeInTheDocument();
-    expect(apiKeyHeading.compareDocumentPosition(languageHeading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('persists a middle-order move of a site engine alongside built-in sources', async () => {
@@ -457,6 +476,7 @@ describe('options page', () => {
       return Promise.resolve(undefined);
     }) as never);
     render(<App />);
+    openTab('密钥');
     // App is waiting for the slow first config, but key inputs are already rendered.
     // Save a key → markConfigured → syncConfig (second call, fast) → epoch moves past 1.
     const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
@@ -527,7 +547,7 @@ describe('options page', () => {
       return Promise.resolve(undefined);
     }) as never);
     const { container } = render(<App />);
-    await screen.findByRole('combobox');
+    openTab('通用');
     const initialCalls = configCalls;
     // Trigger file import via the hidden file input inside ConfigExportImport.
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
