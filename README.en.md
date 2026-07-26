@@ -53,12 +53,30 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.2.0 is available on GitHub Release (Chrome Web Store currently shows v1.1.0; v1.2.0 pending review). Install the extension through Installation and Updates first, then continue with how you intend to use it.
+Juso v1.2.0 is available on GitHub Release (Chrome Web Store currently shows v1.1.0; v1.2.0 pending review).
+
+### Install the extension
+
+**From Chrome Web Store (recommended)**
+
+1. Visit [Juso on the Chrome Web Store](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji).
+2. Click **Add to Chrome** to install and enable the extension.
+
+Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
+
+**From GitHub Release (v1.2.0)**
+
+1. Download `juso-search-1.2.0-chrome-dev.zip` from the [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0).
+2. Extract the ZIP.
+3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
+
+**From source**
+
+See the [development document](docs/DEVELOPMENT.en.md) for development commands, build differences, and architecture.
 
 ### People
 
-1. Install and enable the extension through Installation and Updates.
-2. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
+1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
 
 You can now search and switch among conventional engines, saved Site Engines, and configured AI search services from one entry point.
 
@@ -94,25 +112,6 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 To override temporarily: `python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`.
 
 The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, and Baidu through the browser—without receiving stored credentials.
-
-## Installation and Updates
-
-### Install from Chrome Web Store (Recommended)
-
-1. Visit [Juso on the Chrome Web Store](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji).
-2. Click **Add to Chrome** to install and enable the extension.
-
-Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
-
-### Install v1.2.0 (GitHub Release)
-
-1. Download `juso-search-1.2.0-chrome-dev.zip` from the [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0).
-2. Extract the ZIP.
-3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
-
-### Install from Source
-
-See the [development document](docs/DEVELOPMENT.en.md) for development commands, build differences, and architecture.
 
 ## Security and Data Boundaries
 

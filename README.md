@@ -53,12 +53,30 @@ Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索
 
 ## 快速开始
 
-Juso v1.2.0 已在 GitHub Release 发布（Chrome Web Store 目前为 v1.1.0，v1.2.0 审核中）。先按“安装与更新”完成扩展安装，再按你的使用方式继续。
+Juso v1.2.0 已在 GitHub Release 发布（Chrome Web Store 目前为 v1.1.0，v1.2.0 审核中）。
+
+### 安装扩展
+
+**从 Chrome Web Store 安装（推荐）**
+
+1. 访问 [Chrome Web Store 上的双面搜](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)。
+2. 点击「添加至 Chrome」安装并启用扩展。
+
+Chrome Web Store 安装无开发者模式警告，且可自动更新。
+
+**从 GitHub Release 安装（v1.2.0）**
+
+1. 从 [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0) 下载 `juso-search-1.2.0-chrome-dev.zip`。
+2. 解压 ZIP。
+3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
+
+**从源码安装**
+
+详见[开发文档](docs/DEVELOPMENT.md)，包含开发命令、构建区别与架构说明。
 
 ### 人类用户
 
-1. 按"安装与更新"安装并启用扩展（推荐从 Chrome Web Store 安装）。
-2. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩无需配置（默认隐藏的可在设置页点「显示」启用）；若要站外搜索，在扩展设置中添加 Site Engine（站点 + 底层引擎）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
+1. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩无需配置（默认隐藏的可在设置页点「显示」启用）；若要站外搜索，在扩展设置中添加 Site Engine（站点 + 底层引擎）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
 
 完成后，你可以在一个入口搜索、切换传统引擎、已保存的站外搜索和已配置的 AI 搜索服务。
 
@@ -94,25 +112,6 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 也可以临时覆盖：`python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`。
 
 完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索，或通过浏览器检索 Google、Bing、Baidu，而不会取得已存储的密钥。
-
-## 安装与更新
-
-### 从 Chrome Web Store 安装（推荐）
-
-1. 访问 [Chrome Web Store 上的双面搜](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)。
-2. 点击「添加至 Chrome」安装并启用扩展。
-
-Chrome Web Store 安装无开发者模式警告，且可自动更新。
-
-### 安装 v1.2.0（GitHub Release）
-
-1. 从 [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0) 下载 `juso-search-1.2.0-chrome-dev.zip`。
-2. 解压 ZIP。
-3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
-
-### 从源码安装
-
-详见[开发文档](docs/DEVELOPMENT.md)，包含开发命令、构建区别与架构说明。
 
 ## 安全与数据边界
 
