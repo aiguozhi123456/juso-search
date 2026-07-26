@@ -180,7 +180,7 @@ export const MSG = {
   opts_quickbar_toggle_hide: 'opts_quickbar_toggle_hide',
   opts_quickbar_toggle_show: 'opts_quickbar_toggle_show',
   opts_pref_sourceHidden: 'opts_pref_sourceHidden',
-  // Site Engines（用户自定义站点作用域源）
+  // Site Engines / 站外搜索（用户自定义 site: 来源）
   opts_site_engines_heading: 'opts_site_engines_heading',
   opts_site_engines_hint: 'opts_site_engines_hint',
   opts_site_engines_add: 'opts_site_engines_add',

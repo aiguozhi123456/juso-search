@@ -155,12 +155,12 @@ describe('ConfigExportImport', () => {
     fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
     // Confirmation dialog appears with the siteEngines diff.
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
-    expect(screen.getByText(/站点引擎/, { selector: '.pref-diffs li' })).toBeInTheDocument();
+    expect(screen.getByText(/站外搜索/, { selector: '.pref-diffs li' })).toBeInTheDocument();
     // Confirm with prefs.
     fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('importConfig', expect.objectContaining({ applyPrefs: true })));
     // The report mentions site engines were overridden, and onImported was called.
-    expect(await screen.findByText(/已覆盖：站点引擎/)).toBeInTheDocument();
+    expect(await screen.findByText(/已覆盖：站外搜索/)).toBeInTheDocument();
     expect(onImported).toHaveBeenCalled();
   });
 });

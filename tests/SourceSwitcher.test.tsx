@@ -99,8 +99,8 @@ describe('SourceSwitcher', () => {
   it('uses the site-engine tooltip for site-engine sources', () => {
     render(<SourceSwitcher sources={siteSources} activeId={null} onSelect={vi.fn()} />);
     const btn = screen.getByRole('button', { name: 'Docs Site' });
-    // tooltip_site_engine → "站点范围搜索（无 AI 综合答案）"
-    expect(btn).toHaveAttribute('title', '站点范围搜索（无 AI 综合答案）');
+    // tooltip_site_engine → "站外搜索（无 AI 综合答案）"
+    expect(btn).toHaveAttribute('title', '站外搜索（无 AI 综合答案）');
   });
 
   it('renders the site favicon for site-engine sources', () => {

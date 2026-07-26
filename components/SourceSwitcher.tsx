@@ -77,7 +77,7 @@ export function SourceSwitcher({ sources, activeId, onSelect, disabled }: Props)
       {sources.map((s) => {
         const active = s.id === activeId;
         // tooltip：provider/engine 走原有 supportsAnswer 文案；site-engine 用专门的
-        // 「站点范围搜索」提示。用户站点的名称是字面量（不走 i18n）。
+        // 「站外搜索」提示。用户站点的名称是字面量（不走 i18n）。
         const tooltip = s.kind === 'site-engine'
           ? t(MSG.tooltip_site_engine)
           : s.supportsAnswer

@@ -25,8 +25,8 @@ beforeEach(() => {
 describe('SiteEngineManager — empty state', () => {
   it('shows the empty hint and add button when there are no site engines', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    expect(screen.getByText(/还没有站点引擎/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '新增站点引擎' })).toBeInTheDocument();
+    expect(screen.getByText(/还没有站外搜索/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '新增站外搜索' })).toBeInTheDocument();
   });
 });
 
@@ -54,7 +54,7 @@ describe('SiteEngineManager — create flow', () => {
     mockedSend.mockResolvedValue(docs as never);
     render(<SiteEngineManager siteEngines={[]} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
 
     const nameInput = await screen.findByLabelText('名称');
     expect(nameInput).toHaveFocus();
@@ -68,12 +68,12 @@ describe('SiteEngineManager — create flow', () => {
       name: 'Docs', target: 'docs.example.com/guide', engineId: 'google',
     }));
     expect(onChange).toHaveBeenCalled();
-    expect(await screen.findByText('已新增站点引擎。')).toBeInTheDocument();
+    expect(await screen.findByText('已新增站外搜索。')).toBeInTheDocument();
   });
 
   it('disables the submit button until name and target are valid', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
 
     const submit = screen.getByRole('button', { name: '新增' });
     expect(submit).toBeDisabled();
@@ -87,7 +87,7 @@ describe('SiteEngineManager — create flow', () => {
 
   it('shows a field error for an invalid target', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Docs' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'not a url' } });
 
@@ -97,7 +97,7 @@ describe('SiteEngineManager — create flow', () => {
 
   it('shows the effective scope preview with a site: prefix', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Docs' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'docs.example.com/guide' } });
 
@@ -107,7 +107,7 @@ describe('SiteEngineManager — create flow', () => {
 
   it('warns when Bing truncates deep paths', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Deep' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'example.com/a/b/c/d' } });
     // Select Bing (second button in the segmented control)
@@ -118,7 +118,7 @@ describe('SiteEngineManager — create flow', () => {
 
   it('warns when Baidu drops the path', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Host' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'example.com/any/path' } });
     fireEvent.click(screen.getByRole('radio', { name: 'Baidu' }));
@@ -128,7 +128,7 @@ describe('SiteEngineManager — create flow', () => {
 
   it('detects a duplicate scope against existing definitions', () => {
     render(<SiteEngineManager siteEngines={[docs]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Duplicate' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'https://docs.example.com/guide' } });
 
@@ -140,7 +140,7 @@ describe('SiteEngineManager — create flow', () => {
   it('shows a failure status when the worker rejects create', async () => {
     mockedSend.mockRejectedValueOnce(new Error('invalid'));
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Docs' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'docs.example.com' } });
     fireEvent.click(screen.getByRole('button', { name: '新增' }));
@@ -169,7 +169,7 @@ describe('SiteEngineManager — edit flow', () => {
       id: 'site:docs', name: 'Docs v2', target: 'https://docs.example.com/guide', engineId: 'google',
     }));
     expect(onChange).toHaveBeenCalled();
-    expect(await screen.findByText('已更新站点引擎。')).toBeInTheDocument();
+    expect(await screen.findByText('已更新站外搜索。')).toBeInTheDocument();
   });
 
   it('can switch the backing engine in edit mode', async () => {
@@ -199,7 +199,7 @@ describe('SiteEngineManager — delete flow', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('deleteSiteEngine', 'site:docs'));
     expect(onChange).toHaveBeenCalled();
-    expect(await screen.findByText('已删除站点引擎。')).toBeInTheDocument();
+    expect(await screen.findByText('已删除站外搜索。')).toBeInTheDocument();
   });
 
   it('can cancel the inline delete confirmation', () => {
@@ -229,7 +229,7 @@ describe('SiteEngineManager — delete flow', () => {
 describe('SiteEngineManager — engine segmented control keyboard nav', () => {
   it('cycles the engine selection with arrow keys', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
 
     const google = screen.getByRole('radio', { name: 'Google' });
     expect(google).toHaveAttribute('aria-checked', 'true');
@@ -253,7 +253,7 @@ describe('SiteEngineManager — engine segmented control keyboard nav', () => {
 
   it('moves DOM focus to the newly selected radio, including wrap', async () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     await waitFor(() => expect(screen.getByLabelText('名称')).toHaveFocus());
 
     const google = screen.getByRole('radio', { name: 'Google' });
@@ -281,7 +281,7 @@ describe('SiteEngineManager — engine segmented control keyboard nav', () => {
 describe('SiteEngineManager — validation reveal timing', () => {
   it('does not show validation alerts on opening the blank create form', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     // Form is open with empty fields; no alerts should be announced.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     // Inputs are not marked invalid.
@@ -291,7 +291,7 @@ describe('SiteEngineManager — validation reveal timing', () => {
 
   it('shows errors after submitting the blank form', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     // The submit button is disabled when validation fails; press Enter on the name
     // field to attempt submit, which sets `submitted` and reveals all field errors.
     fireEvent.keyDown(screen.getByLabelText('名称'), { key: 'Enter' });
@@ -301,7 +301,7 @@ describe('SiteEngineManager — validation reveal timing', () => {
 
   it('shows a target error only after the field is touched', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     // Type a valid name first — no errors yet.
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Docs' } });
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -312,7 +312,7 @@ describe('SiteEngineManager — validation reveal timing', () => {
 
   it('associates the duplicate error with the target control via aria-describedby', () => {
     render(<SiteEngineManager siteEngines={[docs]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Duplicate' } });
     fireEvent.change(screen.getByLabelText('目标网站或页面 URL'), { target: { value: 'https://docs.example.com/guide' } });
 
@@ -330,14 +330,14 @@ describe('SiteEngineManager — validation reveal timing', () => {
 describe('SiteEngineManager — field limits and count affordances', () => {
   it('enforces maxlength on name and target inputs', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     expect(screen.getByLabelText('名称')).toHaveAttribute('maxlength', '40');
     expect(screen.getByLabelText('目标网站或页面 URL')).toHaveAttribute('maxlength', '2048');
   });
 
   it('shows a live character count for name and target', () => {
     render(<SiteEngineManager siteEngines={[]} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '新增站点引擎' }));
+    fireEvent.click(screen.getByRole('button', { name: '新增站外搜索' }));
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Docs' } });
     expect(screen.getByText('4 / 40')).toBeInTheDocument();
     expect(screen.getByText('0 / 2048')).toBeInTheDocument();
@@ -348,8 +348,8 @@ describe('SiteEngineManager — field limits and count affordances', () => {
       id: `site:engine${i}` as const, name: `Engine ${i}`, target: `https://e${i}.example.com`, engineId: 'google' as const,
     }));
     render(<SiteEngineManager siteEngines={engines} onChange={vi.fn()} />);
-    const addBtn = screen.getByRole('button', { name: '新增站点引擎' });
+    const addBtn = screen.getByRole('button', { name: '新增站外搜索' });
     expect(addBtn).toBeDisabled();
-    expect(screen.getByText(/最多 50 个站点引擎/)).toBeInTheDocument();
+    expect(screen.getByText(/最多 50 个站外搜索/)).toBeInTheDocument();
   });
 });

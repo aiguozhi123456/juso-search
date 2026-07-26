@@ -540,6 +540,6 @@ describe('options page', () => {
     // proving the options page refreshes its config snapshot post-import.
     await waitFor(() => expect(configCalls).toBeGreaterThan(initialCalls));
     // The import success banner (with siteEngines override report) confirms the round-trip.
-    expect(await screen.findByText(/已覆盖：站点引擎/)).toBeInTheDocument();
+    expect(await screen.findByText(/已覆盖：站外搜索/)).toBeInTheDocument();
   });
 });

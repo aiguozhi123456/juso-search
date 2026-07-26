@@ -10,11 +10,11 @@
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili work with zero AI service configuration.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site-scoped searches (Site Engines), and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili work with zero AI service configuration, and you can save site-scoped searches in settings without any API key.
 
 | For | What it does today |
 | --- | --- |
-| People | Aggregates conventional search engines with fast switching in both the Juso page and result pages |
+| People | Aggregates conventional engines and saved site-scoped searches with fast switching on the Juso page and result pages |
 | People | Turns AI search APIs into a search experience that can fast-switch with conventional engines |
 | Local AI agents | Provides one access path to configured AI search APIs |
 | Local AI agents | Searches conventional engines through a real browser |
@@ -35,9 +35,10 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 ## Current Capabilities and Sources
 
-Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine** or a configured AI search service; those two types use different execution paths.
+Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Engine**, or a configured AI search service; those three types use different execution paths.
 
 - Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili. They use no API key; Juso navigates a browser for people to use directly; Google, Bing, and Baidu also let agents extract ordinary search results.
+- Site Engines: save multiple site-scoped searches in extension settings. Each entry fixes Google, Bing, or Baidu as the underlying engine and searches that site with a `site:` operator. Targets must be public hostnames; the underlying engine is chosen at create time and does not change afterward. Saved entries appear on the search page and the SERP Switch Bar like other sources. No API key required.
 - AI search services: Tavily, Exa, Stepfun pay-as-you-go API, and Stepfun Step Plan. They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
 - Answer capability: Tavily and Exa can return a synthesized answer with a result list. Both Stepfun sources currently return result lists only.
 
@@ -45,7 +46,7 @@ In the current release, “aggregation” means unified access, selection, and f
 
 ## For People
 
-The independent search page lets you choose and switch Search Sources. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili result pages, the SERP Switch Bar can move the current query to another search engine or hand it off to Juso’s AI search page.
+The independent search page lets you choose and switch Search Sources, including saved Site Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili result pages, the SERP Switch Bar can move the current query to another search engine, a Site Engine, or hand it off to Juso’s AI search page.
 
 Successful AI searches are cached on the current device and appear in local search history that can be reviewed and replayed. Cache entries are scoped to a service plus normalized query, and are not shared across services. Use explicit refresh when you need fresh results; it bypasses the cache and may incur charges from the selected AI service.
 
@@ -56,9 +57,9 @@ Juso v1.1.0 is available for adopters comfortable with manual installation and c
 ### People
 
 1. Install and enable the extension through Installation and Updates.
-2. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings); configure the corresponding key in extension settings only when using an AI search service.
+2. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
 
-You can now search and switch among Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, and your configured AI search services from one entry point.
+You can now search and switch among conventional engines, saved Site Engines, and configured AI search services from one entry point.
 
 ### Local AI Agents
 
@@ -135,11 +136,11 @@ npm run lint
 ![Juso Architecture](docs/assets/architecture-en.svg)
 
 - `entrypoints/search/`: independent human search page, source switching, cache, and history.
-- `entrypoints/options/`: local credentials and Search Source preferences.
+- `entrypoints/options/`: local credentials, Search Source preferences, and Site Engine management.
 - `entrypoints/background.ts` and `lib/gateway.ts`: background service, message gateway, and bounded Agent Bridge actions.
 - `lib/providers/`: adapters and normalized response model for Tavily, Exa, Stepfun pay-as-you-go, and Step Plan.
-- Search Engines and the SERP Switch Bar: real-browser navigation, result-page switching, and ordinary-result extraction, on an execution path distinct from API services.
-- `lib/storage.ts`: local configuration, source preferences, cache, and user-initiated configuration exports.
+- Search Engines, Site Engines, and the SERP Switch Bar: real-browser navigation, `site:` scoped search, result-page switching, and ordinary-result extraction, on an execution path distinct from API services.
+- `lib/site-engines.ts` and `lib/storage.ts`: Site Engine definitions plus local configuration, source preferences, cache, and user-initiated configuration exports.
 
 ## Possible Future
 
