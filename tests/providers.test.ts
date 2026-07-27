@@ -3,9 +3,9 @@ import { allProviders, getAdapter } from '@/lib/providers/registry';
 import type { ProviderId } from '@/lib/providers/types';
 
 describe('provider registry', () => {
-  it('contains the four v1 providers', () => {
+  it('contains the five providers', () => {
     const ids = allProviders().map((p) => p.id).sort();
-    expect(ids).toEqual(['exa', 'stepfun', 'stepfun-plan', 'tavily']);
+    expect(ids).toEqual(['exa', 'jina', 'stepfun', 'stepfun-plan', 'tavily']);
   });
 
   it.each([
@@ -13,6 +13,7 @@ describe('provider registry', () => {
     ['exa', true],
     ['stepfun', false],
     ['stepfun-plan', false],
+    ['jina', false],
   ] as Array<[ProviderId, boolean]>)('declares supportsAnswer=%s for %s', (id, expected) => {
     expect(getAdapter(id).supportsAnswer).toBe(expected);
   });
@@ -23,6 +24,7 @@ describe('provider registry', () => {
     ['stepfun', '/icons/stepfun.svg'],
     // stepfun-plan 与 stepfun 同公司，共享同一品牌图标。
     ['stepfun-plan', '/icons/stepfun.svg'],
+    ['jina', '/icons/jina.svg'],
   ] as Array<[ProviderId, string]>)('declares favicon=%s for %s', (id, expected) => {
     expect(getAdapter(id).favicon).toBe(expected);
   });

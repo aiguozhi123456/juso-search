@@ -3,12 +3,14 @@ import { tavilyAdapter } from './tavily';
 import { exaAdapter } from './exa';
 import { stepfunAdapter } from './stepfun';
 import { stepfunPlanAdapter } from './stepfun-plan';
+import { jinaAdapter } from './jina';
 
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
   exa: exaAdapter,
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
+  jina: jinaAdapter,
 };
 
 export function getAdapter(id: ProviderId): ProviderAdapter {
@@ -23,5 +25,6 @@ export function allProviders(): ProviderAdapter[] {
     adapters.exa,
     adapters.stepfun,
     adapters['stepfun-plan'],
+    adapters.jina,
   ];
 }

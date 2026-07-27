@@ -275,6 +275,7 @@ export const MSG = {
   provider_exa: 'provider_exa',
   provider_stepfun: 'provider_stepfun',
   provider_stepfun_plan: 'provider_stepfun_plan',
+  provider_jina: 'provider_jina',
   // 常规搜索引擎标签（v2 快切）
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',

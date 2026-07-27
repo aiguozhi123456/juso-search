@@ -288,12 +288,12 @@ describe('storage: engineSearchEnabled', () => {
 describe('storage: source order', () => {
   it('round-trips a normalized complete order', async () => {
     await setSourceOrder(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan']);
-    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili']);
+    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'jina', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 
   it('normalizes invalid stored values', async () => {
     await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
-    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 });
 
@@ -419,7 +419,7 @@ describe('storage: Site Engines', () => {
     await expect(getProviderConfigSnapshot()).resolves.toMatchObject({
       activeSourceId: site.id,
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
       sourceHidden: [site.id],
     });
   });

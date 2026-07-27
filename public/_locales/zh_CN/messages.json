@@ -134,6 +134,7 @@
   "provider_exa": { "message": "Exa" },
   "provider_stepfun": { "message": "Stepfun 按量" },
   "provider_stepfun_plan": { "message": "Stepfun Step Plan" },
+  "provider_jina": { "message": "Jina" },
   "engine_google": { "message": "Google" },
   "engine_bing": { "message": "Bing" },
   "engine_baidu": { "message": "Baidu" },
