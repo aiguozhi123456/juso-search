@@ -475,6 +475,41 @@ body {
 .key-row .status.ok { color: var(--success); }
 .key-row .status.fail { color: var(--error); }
 
+/* ── 每提供商 maxResults 子行（从属于 key-row，独占整行自管布局） ── */
+.key-row__max-results {
+  grid-column: 1 / -1;            /* 跨满父网格，子元素不再泄漏进 5 列 */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  /* 缩进到主输入列起点（160px 标签列 + 列间距），表明次级从属关系 */
+  padding-left: calc(160px + var(--space-2));
+  margin-top: var(--space-1);
+}
+.key-row__max-results > label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+}
+/* 数字输入紧凑固定宽；其余边框/聚焦/悬停沿用 .key-row input */
+.key-row__max-results input[type="number"] {
+  width: 72px;
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+.key-row__max-results button {
+  padding: var(--space-1) var(--space-2);
+}
+.key-row__max-results .status {
+  grid-column: auto;              /* 解除 .key-row .status 的跨列设定 */
+  font-size: var(--text-xs);
+}
+.key-row__max-results .hint {
+  flex-basis: 100%;               /* 提示文本独占一行，不挤压控件 */
+  margin: 0;
+}
+
 /* ── Agent Bridge 门控 ──────────────────────────────── */
 .agent-bridge-settings { display: flex; flex-direction: column; gap: var(--space-2); }
 .agent-bridge-row {
@@ -585,6 +620,12 @@ body {
   .key-row label { grid-column: 1 / -1; }
   .key-row input { grid-column: 1 / -1; }
   .key-row .status { grid-column: 1 / -1; }
+  .key-row__max-results {
+    padding-left: 0;              /* 移动端标签列已折叠，取消缩进 */
+  }
+  .key-row__max-results > label {
+    flex-basis: 100%;             /* 标签独占一行，输入与按钮换行到下方 */
+  }
 }
 
 /* ── 彩色风格：设置区块按功能拥有稳定实色 ────────────────────────── */

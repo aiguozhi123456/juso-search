@@ -29,7 +29,7 @@ export type CacheMigration = {
 // ⚠️ 若迁移改变 SearchCacheIndex 形状，同步更新 isSearchCacheIndex 校验。
 export const cacheMigrations: CacheMigration[] = [];
 
-const MAX_CACHED_RESULTS = 10;
+const MAX_CACHED_RESULTS = 20;
 const MAX_CACHED_ANSWER_CHARS = 2000;
 const MAX_CACHED_CITATIONS = 10;
 const MAX_CACHED_SNIPPET_CHARS = 1000;

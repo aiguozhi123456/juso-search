@@ -14,10 +14,12 @@ import {
   ACTIVE_SOURCE_KEY,
   KEYS_KEY,
   LOCALE_KEY,
+  MAX_RESULTS_KEY,
   SOURCE_HIDDEN_KEY,
   SOURCE_ORDER_KEY,
   SITE_ENGINES_KEY,
   THEME_KEY,
+  clampMaxResults,
   withProviderKeysMutation,
   withSourceMutation,
 } from './storage';
@@ -49,11 +51,13 @@ export interface ConfigExport {
   sourceHidden?: SourceId[];
   /** Absent in legacy v3 exports; absence preserves local Site Engines. */
   siteEngines?: SiteEngineDefinition[];
+  /** 每个 provider 的搜索结果条数（仅含已显式设置的 id）。 */
+  providerMaxResults?: Partial<Record<ProviderId, number>>;
 }
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
@@ -74,6 +78,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines),
     sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines),
     siteEngines,
+    providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
   };
 }
 
@@ -146,6 +151,8 @@ export function parseImportPayload(raw: unknown): ParseResult {
       seenHidden.add(sourceId);
     }
   }
+  const hasMaxResults = Object.prototype.hasOwnProperty.call(obj, 'providerMaxResults');
+  const providerMaxResults = hasMaxResults ? normalizeMaxResultsMap(obj.providerMaxResults) : undefined;
   return {
     ok: true,
     value: {
@@ -160,6 +167,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines) : undefined,
       sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines) : undefined,
       siteEngines,
+      providerMaxResults,
     },
   };
 }
@@ -185,11 +193,13 @@ export interface ImportReport {
   sourceHiddenOverridden: boolean;
   /** 是否覆盖了 Site Engine definitions。 */
   siteEnginesOverridden: boolean;
+  /** 是否覆盖了 providerMaxResults。 */
+  providerMaxResultsOverridden: boolean;
 }
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'providerMaxResults';
   from: string | null;
   to: string | null;
 }
@@ -210,7 +220,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -251,6 +261,12 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (!sameSourceOrder(sourcePreferences.curSourceHidden, sourcePreferences.newSourceHidden)) {
     prefDiffs.push({ key: 'sourceHidden', from: sourcePreferences.curSourceHidden.join(' > '), to: sourcePreferences.newSourceHidden.join(' > ') });
   }
+  if (payload.providerMaxResults !== undefined) {
+    const curMax = normalizeMaxResultsMap(got[MAX_RESULTS_KEY]);
+    if (!sameMaxResultsMap(curMax, payload.providerMaxResults)) {
+      prefDiffs.push({ key: 'providerMaxResults', from: maxResultsSummary(curMax), to: maxResultsSummary(payload.providerMaxResults) });
+    }
+  }
   return { written, skipped, prefDiffs };
 }
 
@@ -270,7 +286,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -302,6 +318,7 @@ export async function mergeImport(
     let sourceOrderOverridden = false;
     let sourceHiddenOverridden = false;
     let siteEnginesOverridden = false;
+    let providerMaxResultsOverridden = false;
     if (applyPrefs) {
       const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
@@ -334,6 +351,13 @@ export async function mergeImport(
         setObj[SOURCE_HIDDEN_KEY] = newSourceHidden;
         sourceHiddenOverridden = true;
       }
+      if (payload.providerMaxResults !== undefined) {
+        const curMax = normalizeMaxResultsMap(got[MAX_RESULTS_KEY]);
+        if (!sameMaxResultsMap(curMax, payload.providerMaxResults)) {
+          setObj[MAX_RESULTS_KEY] = payload.providerMaxResults;
+          providerMaxResultsOverridden = true;
+        }
+      }
     }
     await browser.storage.local.set(setObj);
 
@@ -347,6 +371,7 @@ export async function mergeImport(
       sourceOrderOverridden,
       sourceHiddenOverridden,
       siteEnginesOverridden,
+      providerMaxResultsOverridden,
     };
   }));
 }
@@ -359,6 +384,20 @@ function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, st
     }
   }
   return providerKeys;
+}
+
+/** 把 storage 原始值规范化为 maxResults 映射：仅保留已知 provider、clamp 到 1–20。 */
+function normalizeMaxResultsMap(raw: unknown): Partial<Record<ProviderId, number>> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const map = raw as Record<string, unknown>;
+  const out: Partial<Record<ProviderId, number>> = {};
+  for (const [id, n] of Object.entries(map)) {
+    if (KNOWN_PROVIDER_IDS.has(id as ProviderId)) {
+      const clamped = clampMaxResults(n);
+      if (clamped !== null) out[id as ProviderId] = clamped;
+    }
+  }
+  return out;
 }
 
 function mergeProviderKeys(current: Record<string, string>, imported: Record<string, string>): Record<string, string> {
@@ -420,6 +459,19 @@ function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly 
 
 function sameSourceOrder(left: SourceId[], right: SourceId[]): boolean {
   return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+/** 两份 maxResults 映射是否等价（键集与值都相同）。 */
+function sameMaxResultsMap(left: Partial<Record<ProviderId, number>>, right: Partial<Record<ProviderId, number>>): boolean {
+  const lk = Object.keys(left);
+  const rk = Object.keys(right);
+  if (lk.length !== rk.length) return false;
+  return lk.every((k) => left[k as ProviderId] === right[k as ProviderId]);
+}
+
+/** maxResults 映射的紧凑摘要，供 diff 展示。 */
+function maxResultsSummary(map: Partial<Record<ProviderId, number>>): string {
+  return Object.entries(map).map(([id, n]) => `${id}=${n}`).join(' | ') || '—';
 }
 
 /** Deterministic compact diff value; preserves enough detail to distinguish same-sized lists. */

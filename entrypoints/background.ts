@@ -16,6 +16,8 @@ import {
   handleSearch,
   handleSetActiveProvider,
   handleSetActiveSource,
+  handleClearProviderMaxResults,
+  handleSetProviderMaxResults,
   handleSetSourceHidden,
   handleSetSourceOrder,
   handleTestKey,
@@ -50,6 +52,8 @@ export default defineBackground(() => {
   onMessage('deleteSiteEngine', ({ data }) => handleDeleteSiteEngine(data));
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
   onMessage('deleteProviderKey', ({ data }) => handleDeleteProviderKey(data));
+  onMessage('setProviderMaxResults', ({ data }) => handleSetProviderMaxResults(data.providerId, data.maxResults));
+  onMessage('clearProviderMaxResults', ({ data }) => handleClearProviderMaxResults(data));
   // SERP 注入栏把「跳 Juso 搜索页」委托给 worker：网页上下文直接 location.assign 到
   // chrome-extension:// 会被客户端拦截（ERR_BLOCKED_BY_CLIENT），只能在特权上下文用
   // tabs.update 导航当前 tab。buildSafeSearchUrl 固定 base=/search.html 并白名单转发

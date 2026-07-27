@@ -8,6 +8,7 @@ import { allProviders } from './providers/registry';
 import type { AgentListProvidersReply } from './agent-bridge';
 import {
   clearKey,
+  clearProviderMaxResults,
   clearSearchCache,
   deleteCachedSearch,
   getActiveProviderId,
@@ -15,12 +16,14 @@ import {
   getCachedSearchEntry,
   getConfiguredProviderIds,
   getKey,
+  getProviderMaxResults,
   getSearchCacheSummaries,
   getProviderConfigSnapshot,
   saveCachedSearch,
   setActiveProviderAndSourceId,
   selectActiveSourceId,
   setKey,
+  setProviderMaxResults,
   setSourceHidden,
   setSourceOrder,
   createSiteEngineDefinition,
@@ -83,7 +86,8 @@ export async function handleSearch(request: SearchRequest, signal?: AbortSignal)
     if (!key) {
       return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
     }
-    const response = await adapter.search(query, { signal }, key);
+    const maxResults = await getProviderMaxResults(providerId);
+    const response = await adapter.search(query, { signal, ...(maxResults !== null ? { maxResults } : {}) }, key);
     if (signal?.aborted) {
       throw new DOMException('The operation was aborted.', 'AbortError');
     }
@@ -142,6 +146,20 @@ export async function handleSaveProviderKey(providerId: ProviderId, key: string)
 export async function handleDeleteProviderKey(providerId: ProviderId): Promise<void> {
   await getSchemaReady();
   await clearKey(providerId);
+}
+
+export async function handleSetProviderMaxResults(providerId: ProviderId, maxResults: number): Promise<void> {
+  await getSchemaReady();
+  await setProviderMaxResults(providerId, maxResults);
+  // maxResults 变更后，旧缓存条目的结果条数已过时（cache key 不含 maxResults），
+  // 清空缓存避免命中返回错误条数的旧响应。
+  await clearSearchCache();
+}
+
+export async function handleClearProviderMaxResults(providerId: ProviderId): Promise<void> {
+  await getSchemaReady();
+  await clearProviderMaxResults(providerId);
+  await clearSearchCache();
 }
 
 export async function handleSetActiveProvider(providerId: ProviderId): Promise<void> {

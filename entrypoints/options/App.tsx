@@ -41,6 +41,7 @@ function KeyIcon({ size = 16 }: { size?: number }) {
 export default function App() {
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
+  const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
   const [active, setActive] = useState<SourceId | null>(null);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
   const [savingSourceOrder, setSavingSourceOrder] = useState(false);
@@ -93,6 +94,7 @@ export default function App() {
         setActive(config.activeSourceId);
       }
       setConfiguredProviderIds(config.configuredProviderIds);
+      setProviderMaxResults(config.providerMaxResults ?? {});
       // Site Engines 完全由 worker 持有真相：每次 config 刷新直接覆盖本地副本，
       // 让 SiteEngineManager 在 create/update/delete 后看到最新结果。
       const engines = config.siteEngines ?? [];
@@ -322,6 +324,17 @@ export default function App() {
                 configured={configuredProviderIds.includes(p.id)}
                 onConfigured={markConfigured}
                 onRemoved={markRemoved}
+                maxResults={providerMaxResults[p.id]}
+                onMaxResultsChange={(id, n) =>
+                  setProviderMaxResults((prev) => {
+                    if (n === undefined) {
+                      const next = { ...prev };
+                      delete next[id];
+                      return next;
+                    }
+                    return { ...prev, [id]: n };
+                  })
+                }
               />
             ))}
           </section>

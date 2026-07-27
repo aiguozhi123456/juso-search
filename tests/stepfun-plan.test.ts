@@ -69,4 +69,24 @@ describe('stepfunPlanAdapter', () => {
     }));
     await expect(stepfunPlanAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'parse' });
   });
+
+  it('truncates results to maxResults (MCP path ignores count upstream)', async () => {
+    const payload = {
+      query: 'q',
+      results: Array.from({ length: 8 }, (_, i) => ({
+        url: `https://r${i}.com`, position: i + 1, title: `R${i}`, snippet: 's',
+      })),
+    };
+    vi.stubGlobal(
+      'fetch',
+      mockMcp(
+        { jsonrpc: '2.0', id: 1, result: { capabilities: { tools: {} } } },
+        { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: JSON.stringify(payload) }] } },
+      ),
+    );
+    const out = await stepfunPlanAdapter.search('q', { maxResults: 3 }, 'sf-plan-key');
+    expect(out.results).toHaveLength(3);
+    expect(out.results[0].title).toBe('R0');
+    expect(out.results[2].title).toBe('R2');
+  });
 });

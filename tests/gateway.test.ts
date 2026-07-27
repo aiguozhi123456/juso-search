@@ -4,6 +4,7 @@ import { ProviderError } from '@/lib/providers/types';
 
 vi.mock('@/lib/storage', () => ({
   clearKey: vi.fn(),
+  clearProviderMaxResults: vi.fn().mockResolvedValue(undefined),
   clearSearchCache: vi.fn(),
   deleteCachedSearch: vi.fn(),
   getActiveProviderId: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock('@/lib/storage', () => ({
   getCachedSearchEntry: vi.fn(),
   getConfiguredProviderIds: vi.fn(),
   getKey: vi.fn(),
+  getProviderMaxResults: vi.fn().mockResolvedValue(null),
   getSearchCacheSummaries: vi.fn(),
   getSourceHidden: vi.fn(),
   getSourceOrder: vi.fn(),
@@ -23,6 +25,7 @@ vi.mock('@/lib/storage', () => ({
   setActiveSourceId: vi.fn(),
   selectActiveSourceId: vi.fn(),
   setKey: vi.fn(),
+  setProviderMaxResults: vi.fn().mockResolvedValue(undefined),
   setSourceHidden: vi.fn(),
   setSourceOrder: vi.fn(),
   createSiteEngineDefinition: vi.fn(),
@@ -57,6 +60,7 @@ vi.mock('@/lib/config-io', () => ({
 
 import {
   handleClearSearchCache,
+  handleClearProviderMaxResults,
   handleCreateSiteEngine,
   handleDeleteSiteEngine,
   handleDeleteCachedSearch,
@@ -70,6 +74,7 @@ import {
   handleSearch,
   handleSetActiveProvider,
   handleSetActiveSource,
+  handleSetProviderMaxResults,
   handleSetSourceOrder,
   handleSetSourceHidden,
   handleTestKey,
@@ -77,6 +82,7 @@ import {
 } from '@/lib/gateway';
 import {
   clearKey,
+  clearProviderMaxResults,
   clearSearchCache,
   deleteCachedSearch,
   getActiveProviderId,
@@ -84,6 +90,7 @@ import {
   getCachedSearchEntry,
   getConfiguredProviderIds,
   getKey,
+  getProviderMaxResults,
   getSearchCacheSummaries,
   getSourceHidden,
   getSourceOrder,
@@ -93,6 +100,7 @@ import {
   setActiveProviderAndSourceId,
   selectActiveSourceId,
   setKey,
+  setProviderMaxResults,
   setSourceHidden,
   setSourceOrder,
   createSiteEngineDefinition,
@@ -113,15 +121,18 @@ const mockedGetConfigured = vi.mocked(getConfiguredProviderIds);
 const mockedGetSourceOrder = vi.mocked(getSourceOrder);
 const mockedGetSourceHidden = vi.mocked(getSourceHidden);
 const mockedGetKey = vi.mocked(getKey);
+const mockedGetProviderMaxResults = vi.mocked(getProviderMaxResults);
 const mockedGetSearchCacheSummaries = vi.mocked(getSearchCacheSummaries);
 const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
 const mockedSetActive = vi.mocked(setActiveProviderId);
 const mockedSetActiveAndSource = vi.mocked(setActiveProviderAndSourceId);
 const mockedSelectActiveSource = vi.mocked(selectActiveSourceId);
 const mockedSetKey = vi.mocked(setKey);
+const mockedSetProviderMaxResults = vi.mocked(setProviderMaxResults);
 const mockedSetSourceOrder = vi.mocked(setSourceOrder);
 const mockedSetSourceHidden = vi.mocked(setSourceHidden);
 const mockedClearKey = vi.mocked(clearKey);
+const mockedClearProviderMaxResults = vi.mocked(clearProviderMaxResults);
 const mockedCreateSiteEngineDefinition = vi.mocked(createSiteEngineDefinition);
 const mockedUpdateSiteEngineDefinition = vi.mocked(updateSiteEngineDefinition);
 const mockedDeleteSiteEngineDefinition = vi.mocked(deleteSiteEngineDefinition);
@@ -239,6 +250,31 @@ describe('handleSearch', () => {
     expect(mockedGetAdapter).toHaveBeenCalledWith('exa');
     expect(adapter.search).toHaveBeenCalledWith('q', {}, 'exa-k');
     expect(reply.ok).toBe(true);
+  });
+
+  it('injects stored maxResults into the adapter search call', async () => {
+    const adapter = fakeAdapter();
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('tvly-k');
+    mockedGetProviderMaxResults.mockResolvedValue(5);
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    await handleSearch({ query: 'q' });
+
+    expect(mockedGetProviderMaxResults).toHaveBeenCalledWith('tavily');
+    expect(adapter.search).toHaveBeenCalledWith('q', { maxResults: 5 }, 'tvly-k');
+  });
+
+  it('omits maxResults when no per-provider value is stored', async () => {
+    const adapter = fakeAdapter();
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('tvly-k');
+    mockedGetProviderMaxResults.mockResolvedValue(null);
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    await handleSearch({ query: 'q' });
+
+    expect(adapter.search).toHaveBeenCalledWith('q', {}, 'tvly-k');
   });
 
   it('does not fall back when the requested provider is no longer configured', async () => {
@@ -387,7 +423,7 @@ describe('handleTestKey', () => {
 
 describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [] });
+    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], providerMaxResults: {} });
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
@@ -395,6 +431,7 @@ describe('handleGetProviderConfig', () => {
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
       sourceHidden: [], siteEngines: [],
+      providerMaxResults: {},
     });
   });
 });
@@ -422,6 +459,30 @@ describe('handleSaveProviderKey', () => {
     await handleSaveProviderKey('tavily', 'tvly-abc');
 
     expect(mockedSetKey).toHaveBeenCalledWith('tavily', 'tvly-abc');
+  });
+});
+
+describe('handleSetProviderMaxResults', () => {
+  it('writes the clamped maxResults and clears the search cache', async () => {
+    mockedSetProviderMaxResults.mockResolvedValue(undefined);
+    mockedClearSearchCache.mockResolvedValue(undefined);
+
+    await handleSetProviderMaxResults('tavily', 5);
+
+    expect(mockedSetProviderMaxResults).toHaveBeenCalledWith('tavily', 5);
+    expect(mockedClearSearchCache).toHaveBeenCalled();
+  });
+});
+
+describe('handleClearProviderMaxResults', () => {
+  it('clears the stored maxResults and the search cache', async () => {
+    mockedClearProviderMaxResults.mockResolvedValue(undefined);
+    mockedClearSearchCache.mockResolvedValue(undefined);
+
+    await handleClearProviderMaxResults('tavily');
+
+    expect(mockedClearProviderMaxResults).toHaveBeenCalledWith('tavily');
+    expect(mockedClearSearchCache).toHaveBeenCalled();
   });
 });
 
@@ -571,7 +632,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
     expect(reply.ok).toBe(true);
@@ -588,7 +649,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
-      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false,
+      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });
     expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: false });

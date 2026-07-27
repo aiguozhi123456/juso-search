@@ -120,7 +120,9 @@ Groups are an information-architecture shell: they do not replace individual pre
 When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun (both REST and MCP surfaces) does not.
 
 ### Local Search Cache
-The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query (`providerId + normalizedQuery`), so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
+The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query, so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
+
+The cache key is a subset of the inputs that produced the cached value. When a stored setting influences the response shape (e.g. per-provider result count), the key does not include it — so writes to that setting must invalidate the cache, or cache hits silently return responses with the stale shape. The cache also caps how many results it stores per entry; that cap must be at least the maximum the adapter is allowed to return, or a cache hit returns fewer results than the live miss did.
 
 ### Search Cache Summary
 The lightweight index entry shown in the history panel. It contains query, provider, timestamps, answer preview, and a few result title/url previews, while the replayable slim response is stored separately per cache entry. The panel reads summaries first and lazy-loads the full cached entry only when the user selects one.

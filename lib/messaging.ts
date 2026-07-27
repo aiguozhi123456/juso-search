@@ -39,6 +39,8 @@ export type ProviderConfigReply = {
   sourceOrder: SourceId[];
   sourceHidden: SourceId[];
   siteEngines: SiteEngineDefinition[];
+  /** 每个 provider 的搜索结果条数设置（已显式配置过的 id 才出现；缺省由适配器默认）。 */
+  providerMaxResults: Partial<Record<ProviderId, number>>;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -68,6 +70,8 @@ export type ProtocolMap = {
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
   deleteProviderKey(providerId: ProviderId): Promise<void>;
+  setProviderMaxResults(data: { providerId: ProviderId; maxResults: number }): Promise<void>;
+  clearProviderMaxResults(providerId: ProviderId): Promise<void>;
   // 由 background 在特权上下文用 tabs.update 把当前 tab 导航到扩展页深链。
   // SERP 注入栏不能自己 location.assign 到 chrome-extension://（被客户端拦截）。
   openSearchPage(deepLink: string): Promise<void>;

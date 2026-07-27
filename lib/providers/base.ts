@@ -37,7 +37,11 @@ export function defineProvider<TRaw>(def: ProviderDefinition<TRaw>): ProviderAda
     async search(query, opts, apiKey) {
       const raw = await def.transport.send(query, opts, apiKey);
       const body = def.normalize(query, raw);
-      return { query, provider: def.id, ...body };
+      // maxResults 安全网：传输层无法把条数传给上游时（如 stepfun-plan MCP），
+      // 在归一化后统一截断，保证用户设置的条数在所有 provider 上一致生效。
+      const limit = opts.maxResults;
+      const results = typeof limit === 'number' && limit > 0 ? body.results.slice(0, limit) : body.results;
+      return { query, provider: def.id, answer: body.answer, results };
     },
   };
 }

@@ -42,6 +42,7 @@ export const STYLE_KEY = 'stylePref'; // StylePref (UI 风格维度：经典 / �
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
 export const SITE_ENGINES_KEY = 'siteEngines'; // SiteEngineDefinition[]
+export const MAX_RESULTS_KEY = 'providerMaxResults'; // Record<ProviderId, number>
 // Agent Bridge 门控（默认 false）：上架合规——engine-search 抓 Google/Bing/Baidu 属 scraping 风险，
 // 必须用户显式开启。仅读各自键，不 get(null)（与 theme/locale 同样的 key 卫生）。
 export const AGENT_BRIDGE_ENABLED_KEY = 'agentBridgeEnabled'; // boolean（stored === true 才 true）
@@ -55,6 +56,8 @@ let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
 // sourceOrder 的读改写串行队列：setSourceOrder/mergeImport 共用，避免导入覆盖较新的移动。
 let sourceMutationQueue: Promise<unknown> = Promise.resolve();
+// providerMaxResults 的读改写串行队列：setProviderMaxResults/clearProviderMaxResults/mergeImport 共用，避免并发写丢失。
+let providerMaxResultsMutationQueue: Promise<unknown> = Promise.resolve();
 
 /** 串行化 providerKeys 的读改写（setKey / clearKey / mergeImport），防止并发写覆盖。 */
 export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
@@ -67,6 +70,13 @@ export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise
 export function withSourceMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = sourceMutationQueue.then(mutation, mutation);
   sourceMutationQueue = run.catch(() => undefined);
+  return run;
+}
+
+/** 串行化 providerMaxResults 的读改写（set / clear / mergeImport），防止并发写覆盖。 */
+export function withProviderMaxResultsMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const run = providerMaxResultsMutationQueue.then(mutation, mutation);
+  providerMaxResultsMutationQueue = run.catch(() => undefined);
   return run;
 }
 
@@ -104,14 +114,92 @@ export async function clearKey(id: ProviderId): Promise<void> {
   // Always acquire source before provider keys when an operation touches both;
   // mergeImport follows this same order.
   await withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
     const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
     delete keys[id];
     const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
     const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions);
     const hidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], definitions), order, keys, definitions);
-    await browser.storage.local.set({ [KEYS_KEY]: keys, [SOURCE_HIDDEN_KEY]: hidden });
+    // 同步清除该 provider 的 maxResults，避免删除 key 后残留孤立设置，
+    // 用户重新配置 key 时旧 maxResults 不会静默复用。
+    const maxMap = (got[MAX_RESULTS_KEY] && typeof got[MAX_RESULTS_KEY] === 'object' && !Array.isArray(got[MAX_RESULTS_KEY])
+      ? got[MAX_RESULTS_KEY] as Record<string, unknown>
+      : {});
+    const maxChanged = id in maxMap;
+    if (maxChanged) delete maxMap[id];
+    const setObj: Record<string, unknown> = { [KEYS_KEY]: keys, [SOURCE_HIDDEN_KEY]: hidden };
+    if (maxChanged) setObj[MAX_RESULTS_KEY] = maxMap;
+    await browser.storage.local.set(setObj);
   }));
+}
+
+// === 搜索结果条数（per-provider maxResults）===
+// 非敏感配置（与 key 不同），但仍走 worker 代理以保持单一配置入口。
+// 缺省（未显式设置）由各适配器兜底（REST 适配器 ?? 8，jina ?? 5）。
+
+/** 合法 maxResults 区间：1–20。超出则 clamp。 */
+export const MAX_RESULTS_MIN = 1;
+export const MAX_RESULTS_MAX = 20;
+
+export function clampMaxResults(n: unknown): number | null {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+  const i = Math.trunc(n);
+  if (i < MAX_RESULTS_MIN) return MAX_RESULTS_MIN;
+  if (i > MAX_RESULTS_MAX) return MAX_RESULTS_MAX;
+  return i;
+}
+
+async function readMaxResultsMap(): Promise<Record<string, number>> {
+  const got = await browser.storage.local.get(MAX_RESULTS_KEY);
+  const raw = got[MAX_RESULTS_KEY];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const map = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(map)) {
+    if (isKnownProvider(id)) {
+      const clamped = clampMaxResults(n);
+      if (clamped !== null) out[id] = clamped;
+    }
+  }
+  return out;
+}
+
+/** 返回某 provider 的 maxResults；未配置则 null（由调用方走适配器默认）。 */
+export async function getProviderMaxResults(id: ProviderId): Promise<number | null> {
+  const map = await readMaxResultsMap();
+  return map[id] ?? null;
+}
+
+/** 设置某 provider 的 maxResults（clamp 到 1–20）。 */
+export async function setProviderMaxResults(id: ProviderId, maxResults: number): Promise<void> {
+  const clamped = clampMaxResults(maxResults);
+  if (clamped === null) throw new Error('invalid_max_results');
+  await withProviderMaxResultsMutation(async () => {
+    const got = await browser.storage.local.get(MAX_RESULTS_KEY);
+    const map = (got[MAX_RESULTS_KEY] && typeof got[MAX_RESULTS_KEY] === 'object' && !Array.isArray(got[MAX_RESULTS_KEY])
+      ? got[MAX_RESULTS_KEY] as Record<string, unknown>
+      : {});
+    map[id] = clamped;
+    await browser.storage.local.set({ [MAX_RESULTS_KEY]: map });
+  });
+}
+
+/** 清除某 provider 的 maxResults（恢复适配器默认）。 */
+export async function clearProviderMaxResults(id: ProviderId): Promise<void> {
+  await withProviderMaxResultsMutation(async () => {
+    const got = await browser.storage.local.get(MAX_RESULTS_KEY);
+    const map = (got[MAX_RESULTS_KEY] && typeof got[MAX_RESULTS_KEY] === 'object' && !Array.isArray(got[MAX_RESULTS_KEY])
+      ? got[MAX_RESULTS_KEY] as Record<string, unknown>
+      : {});
+    if (!(id in map)) return; // 本就未设置，no-op
+    delete map[id];
+    await browser.storage.local.set({ [MAX_RESULTS_KEY]: map });
+  });
+}
+
+/** 返回全部已配置的 maxResults 映射（仅含已知 provider、已 clamp）。 */
+export async function getAllProviderMaxResults(): Promise<Partial<Record<ProviderId, number>>> {
+  return readMaxResultsMap();
 }
 
 /**
@@ -323,15 +411,30 @@ function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], keys: unknow
 }
 
 /** One coherent exact-key view for UI configuration replies. */
-export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[] }> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY]);
+export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; providerMaxResults: Partial<Record<ProviderId, number>> }> {
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const configuredProviderIds = allProviders().filter((p) => keys[p.id]).map((p) => p.id);
   const activeProviderId = isKnownProvider(got[ACTIVE_KEY]) && keys[got[ACTIVE_KEY]] ? got[ACTIVE_KEY] : configuredProviderIds[0] ?? null;
   const sourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines);
   const sourceHidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines), sourceOrder, keys, siteEngines);
-  return { configuredProviderIds, activeProviderId, activeSourceId: effectiveActiveSource(got[ACTIVE_SOURCE_KEY], got[ACTIVE_KEY], keys, siteEngines), sourceOrder, sourceHidden, siteEngines };
+  const providerMaxResults = await readMaxResultsMapFrom(got[MAX_RESULTS_KEY]);
+  return { configuredProviderIds, activeProviderId, activeSourceId: effectiveActiveSource(got[ACTIVE_SOURCE_KEY], got[ACTIVE_KEY], keys, siteEngines), sourceOrder, sourceHidden, siteEngines, providerMaxResults };
+}
+
+/** 从已读的 storage 原始值解析 maxResults 映射（避免重复 IO，供 snapshot 复用同一份 get）。 */
+function readMaxResultsMapFrom(raw: unknown): Partial<Record<ProviderId, number>> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const map = raw as Record<string, unknown>;
+  const out: Partial<Record<ProviderId, number>> = {};
+  for (const [id, n] of Object.entries(map)) {
+    if (isKnownProvider(id)) {
+      const clamped = clampMaxResults(n);
+      if (clamped !== null) out[id as ProviderId] = clamped;
+    }
+  }
+  return out;
 }
 
 async function readSearchCacheIndex(): Promise<SearchCacheIndex> {

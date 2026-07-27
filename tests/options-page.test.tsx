@@ -286,7 +286,7 @@ describe('options page', () => {
     openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
+    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 在第二次配置仍在途时 choose 到 exa。
     openTab('搜索');
@@ -322,7 +322,7 @@ describe('options page', () => {
     openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[1]);
+    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 隐藏当前激活的 google：重选到首个可见源 exa 并持久化。
     openTab('搜索');
@@ -540,7 +540,7 @@ describe('options page', () => {
           report: {
             written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
             themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false,
-            sourceHiddenOverridden: false, siteEnginesOverridden: true,
+            sourceHiddenOverridden: false, siteEnginesOverridden: true, providerMaxResultsOverridden: false,
           },
         });
       }

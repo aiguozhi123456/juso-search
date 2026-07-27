@@ -473,10 +473,10 @@ describe('storage: local search cache', () => {
 
     expect(summary.answerPreview).toHaveLength(160);
     expect(summary.resultPreviews).toHaveLength(3);
-    expect(summary.resultCount).toBe(10);
+    expect(summary.resultCount).toBe(12);
     expect(hit?.response.answer?.text).toHaveLength(2000);
     expect(hit?.response.answer?.citations).toHaveLength(10);
-    expect(hit?.response.results).toHaveLength(10);
+    expect(hit?.response.results).toHaveLength(12);
     expect(hit?.response.results[0].snippet).toHaveLength(1000);
     expect(hit?.response.results[0]).not.toHaveProperty('content');
   });
