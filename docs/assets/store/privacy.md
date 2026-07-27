@@ -2,13 +2,13 @@
 
 归档 Chrome Web Store Developer Dashboard「隐私权」步骤各字段填表内容。**英文为填表主版**。配合代码门控(Agent Bridge + engine-search 默认关闭)与公开隐私政策(`privacy-policy.md`)。
 
-最后更新:2026-07-25
+最后更新:2026-07-27
 
 ---
 
 ## 1. 单一用途(Single Purpose)
 
-> Provides a unified search interface for querying and quickly switching between multiple search sources — both user-configured AI search APIs (Tavily, Exa, Stepfun, using the user's own API keys) and conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu). Users launch searches from a toolbar search page and can move the current query between sources via a switch bar embedded on supported search engine result pages. Optionally, the user can expose this same search capability to a locally-run AI assistant of their own (for example, a coding agent) over a loopback bridge, so the assistant can issue searches through the user's already-configured sources without receiving the stored keys; this is the same search function exposed programmatically rather than via the toolbar UI, and is the only programmatic surface.
+> Provides a unified search interface for querying and quickly switching between multiple search sources — both user-configured AI search APIs (Tavily, Exa, Stepfun, using the user's own API keys), user-saved site-scoped searches (Site Engines, no API key required), and conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili). Users launch searches from a toolbar search page and can move the current query between sources via a switch bar embedded on supported search engine result pages. Optionally, the user can expose this same search capability to a locally-run AI assistant of their own (for example, a coding agent) over a loopback bridge, so the assistant can issue searches through the user's already-configured sources without receiving the stored keys; this is the same search function exposed programmatically rather than via the toolbar UI, and is the only programmatic surface.
 
 ## 2. 权限理由 — storage
 
@@ -24,7 +24,7 @@
 >
 > (2) 127.0.0.1 (Agent Bridge, off by default): lets a local AI assistant search via loopback without stored keys. Engine extraction (Google/Bing/Baidu only, needs separate opt-in) opens one background tab, reads only public results (title/url/snippet) via the extractor, then closes it. Each call is one fresh port/token and one request.
 >
-> (3) Search-engine content scripts (Google/Bing/Baidu/Douyin/Xiaohongshu): the switch-bar injects a closed shadow-root bar and a small `<style>` that only repositions engine toolbar on Baidu/Douyin for space; it reads only anchors and the URL query, never cookies/credentials, and does not alter results. The extractor reads only public results on request; nothing is sent externally.
+> (3) Search-engine content scripts (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili): the switch-bar injects a closed shadow-root bar and a small `<style>` that only repositions engine toolbar on Baidu/Douyin for space; it reads only anchors and the URL query, never cookies/credentials, and does not alter results. The extractor reads only public results on request; nothing is sent externally.
 
 ## 5. 远程代码:否
 
