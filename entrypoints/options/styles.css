@@ -491,12 +491,76 @@ body {
   font-weight: 500;
   color: var(--muted);
 }
-/* 数字输入紧凑固定宽；其余边框/聚焦/悬停沿用 .key-row input */
-.key-row__max-results input[type="number"] {
-  width: 72px;
+
+/* 自定义步进器：[− input +] 紧凑一体，隐藏原生 spinner */
+.key-row__max-results .stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  overflow: hidden;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+.key-row__max-results .stepper:hover { border-color: var(--muted); }
+.key-row__max-results .stepper:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.key-row__max-results .stepper__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-md);
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.key-row__max-results .stepper__btn:hover:not(:disabled) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.key-row__max-results .stepper__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.key-row__max-results .stepper__input {
+  width: 44px;
   flex: none;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+  border: none;
+  border-left: 1px solid var(--border-soft);
+  border-right: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
   font-size: var(--text-sm);
+  font-family: inherit;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+  transition: none;
+}
+/* 隐藏 WebKit 原生 spinner */
+.key-row__max-results .stepper__input::-webkit-inner-spin-button,
+.key-row__max-results .stepper__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+/* 步进器容器统一接管 hover/focus 视觉，input 自身不重复描边 */
+.key-row__max-results .stepper__input:hover:not(:disabled) { border-color: var(--border-soft); }
+.key-row__max-results .stepper__input:focus {
+  border-color: var(--border-soft);
+  box-shadow: none;
+  outline: none;
 }
 .key-row__max-results button {
   padding: var(--space-1) var(--space-2);
@@ -694,6 +758,16 @@ body {
   background: var(--color-yellow-soft);
 }
 [data-style="colorful"] .key-row .configured { color: var(--color-green); }
+
+/* 步进器在彩色风格下跟随 api-keys 区块的黄色签名 */
+[data-style="colorful"] .key-row__max-results .stepper:focus-within {
+  border-color: var(--color-yellow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-yellow) 18%, transparent);
+}
+[data-style="colorful"] .key-row__max-results .stepper__btn:hover:not(:disabled) {
+  color: var(--color-yellow);
+  background: var(--color-yellow-soft);
+}
 
 [data-style="colorful"] .config-io-actions button:hover:not(:disabled) {
   color: var(--color-violet);

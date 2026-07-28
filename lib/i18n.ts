@@ -217,6 +217,8 @@ export const MSG = {
   opts_max_results_hint: 'opts_max_results_hint',
   opts_max_results_saved: 'opts_max_results_saved',
   opts_max_results_save_failed: 'opts_max_results_save_failed',
+  opts_max_results_increase: 'opts_max_results_increase',
+  opts_max_results_decrease: 'opts_max_results_decrease',
   status_saved: 'status_saved',
   status_save_failed: 'status_save_failed',
   status_validated: 'status_validated',

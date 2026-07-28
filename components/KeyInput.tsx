@@ -2,7 +2,7 @@ import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
 import { useEffect, useRef, useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
-import { TrashIcon } from './icons';
+import { MinusIcon, PlusIcon, TrashIcon } from './icons';
 
 type Status = { kind: 'idle' | 'saving' | 'testing' | 'deleting' | 'ok' | 'fail'; message: string };
 type MaxStatus = { kind: 'idle' | 'saving' | 'ok' | 'fail'; message: string };
@@ -74,9 +74,9 @@ export function KeyInput({
     }
   }
 
-  async function saveMaxResults() {
+  async function saveMaxResults(overrideValue?: string) {
     if (maxSavingRef.current) return; // 防止 blur + click 双触发
-    const trimmed = maxVal.trim();
+    const trimmed = (overrideValue ?? maxVal).trim();
     // 留空 = 恢复默认：清除已存储的 maxResults，让适配器走默认值。
     if (trimmed === '') {
       if (maxResults === undefined) return; // 本就未设置，no-op
@@ -108,10 +108,27 @@ export function KeyInput({
     }
   }
 
+  /** 步进按钮 ±1，clamp 到 1–20 后立即保存。onMouseDown preventDefault 已阻止
+   *  input 失焦，故此处直接用新值调用 saveMaxResults，避免读到陈旧 state。 */
+  function stepBy(delta: number) {
+    const trimmed = maxVal.trim();
+    const parsed = trimmed === '' ? NaN : Number.parseInt(trimmed, 10);
+    const base = Number.isInteger(parsed) ? parsed : 0;
+    const next = Math.min(20, Math.max(1, base + delta));
+    const nextStr = next.toString();
+    setMaxVal(nextStr);
+    saveMaxResults(nextStr);
+  }
+
   const busy = status.kind === 'saving' || status.kind === 'testing' || status.kind === 'deleting';
   // 有未保存的输入时不允许"测试"（测试只校验已存储的 key）
   const testDisabled = !configured || !!val || busy;
   const maxBusy = maxStatus.kind === 'saving';
+  // 步进边界：留空或 ≤1 时禁用「−」，≥20 时禁用「+」
+  const maxNum = maxVal.trim() === '' ? NaN : Number.parseInt(maxVal.trim(), 10);
+  const hasMaxNum = Number.isInteger(maxNum);
+  const atMin = !hasMaxNum || maxNum <= 1;
+  const atMax = hasMaxNum && maxNum >= 20;
 
   return (
     <div className="key-row">
@@ -150,19 +167,43 @@ export function KeyInput({
       )}
       {!busy && status.message && <span className={`status ${status.kind}`}>{status.message}</span>}
       <div className="key-row__max-results">
-        <label>{t(MSG.opts_max_results_label)}</label>
-        <input
-          type="number"
-          min={1}
-          max={20}
-          step={1}
-          value={maxVal}
-          onChange={(e) => setMaxVal(e.target.value)}
-          onBlur={saveMaxResults}
-          disabled={maxBusy}
-        />
+        <label htmlFor={`max-results-${provider.id}`}>{t(MSG.opts_max_results_label)}</label>
+        <div className="stepper">
+          <button
+            type="button"
+            className="stepper__btn"
+            aria-label={t(MSG.opts_max_results_decrease)}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => stepBy(-1)}
+            disabled={maxBusy || atMin}
+          >
+            <MinusIcon size={14} />
+          </button>
+          <input
+            id={`max-results-${provider.id}`}
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            value={maxVal}
+            onChange={(e) => setMaxVal(e.target.value)}
+            onBlur={() => saveMaxResults()}
+            disabled={maxBusy}
+            className="stepper__input"
+          />
+          <button
+            type="button"
+            className="stepper__btn"
+            aria-label={t(MSG.opts_max_results_increase)}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => stepBy(1)}
+            disabled={maxBusy || atMax}
+          >
+            <PlusIcon size={14} />
+          </button>
+        </div>
         <button
-          onClick={saveMaxResults}
+          onClick={() => saveMaxResults()}
           onMouseDown={(e) => e.preventDefault()}
           disabled={maxBusy}
         >

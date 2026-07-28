@@ -80,6 +80,8 @@
   "opts_max_results_hint": { "message": "Number of results per search (1–20); leave blank to reset to default." },
   "opts_max_results_saved": { "message": "Saved" },
   "opts_max_results_save_failed": { "message": "Save failed" },
+  "opts_max_results_increase": { "message": "Increase result count" },
+  "opts_max_results_decrease": { "message": "Decrease result count" },
   "status_saved": { "message": "Saved" },
   "status_save_failed": { "message": "Save failed" },
   "status_validated": { "message": "Validated" },

@@ -80,6 +80,8 @@
   "opts_max_results_hint": { "message": "每次搜索返回的结果数（1–20），留空恢复默认。" },
   "opts_max_results_saved": { "message": "已保存" },
   "opts_max_results_save_failed": { "message": "保存失败" },
+  "opts_max_results_increase": { "message": "增加结果条数" },
+  "opts_max_results_decrease": { "message": "减少结果条数" },
   "status_saved": { "message": "已保存" },
   "status_save_failed": { "message": "保存失败" },
   "status_validated": { "message": "验证通过" },
