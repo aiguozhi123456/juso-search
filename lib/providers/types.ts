@@ -1,7 +1,7 @@
 // 归一化模型 + ProviderAdapter 契约（KTD1）。
 // 把各家 provider 的异构响应隔离在各自适配器内，统一成下列模型。
 
-export type ProviderId = 'tavily' | 'exa' | 'stepfun' | 'stepfun-plan' | 'jina';
+export type ProviderId = 'tavily' | 'exa' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global';
 
 export interface Citation {
   url: string;

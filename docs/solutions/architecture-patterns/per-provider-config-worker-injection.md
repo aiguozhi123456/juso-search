@@ -1,6 +1,7 @@
 ---
 title: "Per-provider config via worker injection (BYOK pattern extended to non-secret prefs)"
 date: 2026-07-27
+last_updated: 2026-07-28
 category: architecture-patterns
 module: lib/gateway
 problem_type: architecture_pattern
@@ -38,7 +39,7 @@ This repository is a WXT + React + TypeScript Chrome MV3 search extension with a
 
 The task: add a per-provider "max results" (搜索结果条数, 1–20) setting so a user can ask each provider to return fewer/more results than its built-in default.
 
-The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all four REST adapters (tavily/exa/stepfun/jina) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
+The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all six REST adapters (tavily/exa/stepfun/jina/doubao/doubao-global) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
 
 ## Guidance
 
@@ -77,9 +78,9 @@ No version bump, no migration. The rule (documented inline at `lib/schema.ts`): 
 
 ### Put the enforcement point in the adapter factory, not in each provider
 
-Four adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
+Seven adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
 
-The factory's truncation safety net handles all four in one place:
+The factory's truncation safety net handles all seven in one place:
 
 ```ts
 async search(query, opts, apiKey) {

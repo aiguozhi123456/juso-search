@@ -1,7 +1,7 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-last_updated: 2026-07-23
+last_updated: 2026-07-28
 category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
@@ -47,8 +47,9 @@ cheaply" ergonomics, but which were standardized at different times and had
 drifted into opposite shapes:
 
 - **Providers** (`lib/providers/`): AI search adapters — `tavily`, `exa`,
-  `stepfun`, `stepfun-plan` — each behind a `ProviderAdapter.search(query,
-  opts, key)` contract, BYOK keys, return `{ answer?, results }`.
+  `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global` — each behind a
+  `ProviderAdapter.search(query, opts, key)` contract, BYOK keys, return
+  `{ answer?, results }`.
 - **Engines** (`lib/engines/`): navigation-only SERP targets — `google`,
   `bing`, `baidu` — no key, no `answer`, no `search()`. Only build SERP URLs and tell
   the SERP-injection content script where to mount.
@@ -522,6 +523,8 @@ what the adapter requests, not that the external page still exposes a stable nod
 3. Register it in the providers registry.
 
 That's it — no fetch skeleton, no error mapping, no envelope assembly.
+
+> **Business-error note:** If the API returns HTTP 200 with business errors (Result: null + ResponseMetadata.Error), extract a shared error mapper (see `doubao-search-provider.md`) rather than inlining the business-error check per adapter.
 
 ## Related
 

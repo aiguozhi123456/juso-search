@@ -124,7 +124,7 @@ describe('options page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', [
-      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'jina', 'douyin', 'xiaohongshu', 'bilibili',
+      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'jina', 'doubao', 'doubao-global', 'douyin', 'xiaohongshu', 'bilibili',
     ]));
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
     expect(screen.getByRole('button', { name: 'Google 下移' })).toBeDisabled();

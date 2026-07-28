@@ -1,6 +1,6 @@
 # Chrome Web Store 商店说明 / Store Description
 
-> 最后更新 / Last updated: 2026-07-25
+> 最后更新 / Last updated: 2026-07-28
 
 ## 中文
 
@@ -12,9 +12,9 @@
 
 ### 核心功能
 
-- **统一搜索入口**：聚合 Google、Bing、百度、抖音、小红书等传统搜索引擎，以及 Tavily、Exa、Stepfun 等 AI 搜索服务。
+- **统一搜索入口**：聚合 Google、Bing、百度、抖音、小红书等传统搜索引擎，以及 Tavily、Exa、Stepfun、Jina、Doubao 等 AI 搜索服务。
 - **SERP 快切栏**：在受支持的搜索引擎结果页顶部，一键把当前搜索词切换到其他引擎，或跳转到双面搜的 AI 搜索页。
-- **AI 搜索体验**：Tavily 和 Exa 可返回带引用的综合答案与结果列表；Stepfun 提供结果列表。
+- **AI 搜索体验**：Tavily 和 Exa 可返回带引用的综合答案与结果列表；Stepfun、Jina、Doubao 提供结果列表。
 - **本地搜索历史**：成功的 AI 搜索会缓存在本机，可随时查看与重放，避免对同一查询重复计费。
 - **即装即用**：传统搜索引擎无需任何配置；只有使用 AI 搜索服务时，才需要在设置里填入对应服务的 API Key。
 - **本地 AI 智能体搜索入口（可选，默认关闭）**：进阶用户可在设置中开启 Agent Bridge，让本地 AI 智能体通过本机回环（loopback）调用你已配置的搜索能力；其中「读取传统搜索引擎公开结果」还需二次开启，且智能体不会获得你的 API Key。
@@ -50,9 +50,9 @@ Daily search often means jumping between Google, Bing, and Baidu, checking Douyi
 
 ### Core features
 
-- **Unified search entry**: Aggregates conventional engines (Google, Bing, Baidu, Douyin, Xiaohongshu) and AI search services (Tavily, Exa, Stepfun).
+- **Unified search entry**: Aggregates conventional engines (Google, Bing, Baidu, Douyin, Xiaohongshu) and AI search services (Tavily, Exa, Stepfun, Jina, Doubao).
 - **SERP switch bar**: On supported search-engine result pages, switch the current query to another engine or jump to Juso's AI search page.
-- **AI search experience**: Tavily and Exa return cited synthesized answers plus result lists; Stepfun returns result lists.
+- **AI search experience**: Tavily and Exa return cited synthesized answers plus result lists; Stepfun, Jina, and Doubao return result lists.
 - **Local search cache**: Successful AI searches are cached locally so you can review or replay them without being billed twice for the same query.
 - **Works out of the box**: Conventional engines need no setup; AI search services only require you to enter your own API key in settings.
 - **Local AI agent search entry (optional, off by default)**: Advanced users can enable Agent Bridge in settings, letting a local AI agent invoke your configured search sources over loopback; the "read conventional search-engine public results" feature needs a second opt-in, and the agent never receives your API key.

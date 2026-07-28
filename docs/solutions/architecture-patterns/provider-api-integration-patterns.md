@@ -1,7 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
-last_updated: 2026-07-09
+last_updated: 2026-07-28
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -32,7 +32,7 @@ tags:
 
 ## Context
 
-A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate four AI search providers — Tavily, Exa, Stepfun REST, and Stepfun MCP — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
+A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate seven AI search providers — Tavily, Exa, Stepfun REST, Stepfun MCP, Jina, Doubao, and Doubao Global — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
 
 ## Guidance
 
@@ -132,6 +132,9 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   exa: exaAdapter,
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
+  jina: jinaAdapter,
+  doubao: doubaoAdapter,
+  'doubao-global': doubaoGlobalAdapter,
 }
 
 export function getAdapter(id: ProviderId): ProviderAdapter { /* throws on unknown id */ }

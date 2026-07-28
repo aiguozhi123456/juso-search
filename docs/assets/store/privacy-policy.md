@@ -1,6 +1,6 @@
 # Privacy Policy / 隐私政策
 
-**Last updated: 2026-07-27**
+**Last updated: 2026-07-28**
 
 > This policy describes how the **Juso (双面搜)** browser extension ("the extension") handles data. The extension is a Bring-Your-Own-Key (BYOK) search aggregator: it lets you query AI search providers you have paid for, and switch queries between those providers and conventional search engines.
 
@@ -14,7 +14,7 @@ The extension **does not collect, transmit, or sell** any analytics, telemetry, 
 
 The only data the extension stores is:
 
-- **Your own API keys** for the AI search providers you configure (Tavily, Exa, Stepfun).
+- **Your own API keys** for the AI search providers you configure (Tavily, Exa, Stepfun, Jina, Doubao).
 - **Your preferences** — the active search source, source ordering and visibility, UI language, UI theme (light/dark/auto), visual style, and any user-saved Site Engines (site-scoped searches with no API key required).
 - **A local search-result cache** — recent successful search results stored per-device to avoid billing you twice for the same query.
 
@@ -81,7 +81,7 @@ For privacy questions, open an issue in the extension's source repository.
 
 扩展存储的唯一数据是:
 
-- **您自备的 AI 搜索 provider API 密钥**(Tavily、Exa、Stepfun)。
+- **您自备的 AI 搜索 provider API 密钥**(Tavily、Exa、Stepfun、Jina、Doubao)。
 - **您的偏好**——激活来源、来源排序与显隐、界面语言、主题(浅色/深色/自动)、视觉样式，以及您保存的站外搜索（Site Engine，无需 API 密钥的站点范围搜索）。
 - **本地搜索结果缓存**——近期成功的搜索结果按设备缓存,避免对同一查询重复向您计费。
 

@@ -1,6 +1,7 @@
 ---
 title: "Minimize Google and Bing SERP Scope Without Breaking SPA Injection"
 date: 2026-07-14
+last_updated: 2026-07-28
 category: architecture-patterns
 module: "SERP scope / content-script lifecycle"
 problem_type: architecture_pattern
@@ -43,12 +44,12 @@ Static matching is also broader than the runtime requirement. Chrome's `/search*
 ## Guidance
 
 1. Keep the approved Search Engine hosts in one scope module. Derive engine recognition, content-script patterns, and favicon `web_accessible_resources` patterns from the same allowlist so those surfaces cannot drift independently.
-2. Model injection, resource visibility, and privileged host access separately. Search hosts belong in static content-script and web-accessible-resource matches, but not in `host_permissions`; only the Tavily, Exa, and Stepfun API hosts need privileged host access.
+2. Model injection, resource visibility, and privileged host access separately. Search hosts belong in static content-script and web-accessible-resource matches, but not in `host_permissions`; only the Tavily, Exa, Stepfun, Jina (s.jina.ai), and Doubao (open.feedcoopapi.com) API hosts need privileged host access.
 3. Treat the static content-script pattern as an injection boundary, not the final business predicate. Runtime recognition must require HTTPS, the default port, the engine's canonical pathname (Google/Bing: `/search`, Baidu: `/s`, Douyin: `/search/<q>`, Xiaohongshu: `/search_result`, Bilibili: `/all`), and exact membership in the approved hostname set. Do not use suffix matching, `endsWith`, arbitrary subdomain wildcards, or hostname-only checks.
 4. Drive SPA state from the `newUrl` carried by `wxt:locationchange`, not from a possibly stale `window.location`. Remove the UI after leaving a canonical SERP and remount it when a supported SERP returns.
 5. Wait for the engine-specific anchor before remounting. Give each navigation a revision, disconnect any prior `MutationObserver`, and allow only the latest revision to mount. Disconnect the observer after a successful mount, a newer navigation, or content-script invalidation.
 6. Do not restore WXT `autoMount()` for Google/Bing anchor disappearance. Both engines may remove the old result subtree and insert a replacement with the same selector in one synchronous task; by the observer callback, only the replacement exists and disappearance detection can stall.
-7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm 11 content-script matches, 11 resource matches, and only three API `host_permissions`.
+7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm 11 content-script matches, 11 resource matches, and only five API `host_permissions`.
 
 ## Why This Matters
 

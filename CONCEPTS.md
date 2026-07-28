@@ -5,7 +5,7 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 ## Provider Adapter
 
 ### ProviderAdapter
-A normalization interface that wraps each external search provider's API (Tavily, Exa, Stepfun) behind a uniform search contract that returns a NormalizedSearchResponse. Each adapter declares whether it supports synthesized answers and owns its transport (REST or MCP), auth header construction, response parsing, and error mapping. The background worker is the only caller — the UI never touches adapters directly.
+A normalization interface that wraps each external search provider's API behind a uniform search contract that returns a NormalizedSearchResponse. Each adapter declares whether it supports synthesized answers and owns its transport (REST or MCP), auth header construction, response parsing, and error mapping. The background worker is the only caller — the UI never touches adapters directly.
 
 ### NormalizedSearchResponse
 The shared data model returned by every ProviderAdapter, collapsing each provider's heterogeneous response into a uniform shape: the original query, the provider id, an optional synthesized answer, and an always-populated results list. The answer is present only when the provider supports synthesized answers (Tavily, Exa) and the request requested one. This is what the UI renders.
@@ -117,7 +117,7 @@ A top-level partition of the options page that shows only a related subset of se
 Groups are an information-architecture shell: they do not replace individual preference keys or worker messaging. Switching groups changes which sections mount; it does not scroll a single long form.
 
 ### Answer Capability Degradation (R5)
-When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun (both REST and MCP surfaces) does not.
+When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun, Jina, and Doubao do not.
 
 ### Local Search Cache
 The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query, so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.

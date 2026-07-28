@@ -26,7 +26,7 @@ PROTOCOL = 1
 DEFAULT_EXTENSION_ID = "pdklefhommhabbhkglgkgomeibeibmcl"
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
-PROVIDERS = ("tavily", "exa", "stepfun", "stepfun-plan")
+PROVIDERS = ("tavily", "exa", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global")
 ENGINES = ("google", "bing", "baidu")
 EXTENSION_ID_RE = re.compile(r"^[a-p]{32}$")
 

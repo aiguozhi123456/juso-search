@@ -33,6 +33,8 @@ export const serpBarStyles = `
   --color-cyan: #087ea4; --color-cyan-soft: #e8f7fb;
   --color-blue: #2563eb; --color-blue-soft: #edf3ff;
   --color-violet: #7040d8; --color-violet-soft: #f3efff;
+  --color-yellow: #9a7200; --color-yellow-soft: #fff8dd;
+  --color-rose: #b82f63; --color-rose-soft: #fff0f5;
   --color-on-fill: #ffffff;
   --brand: var(--color-blue); --brand-on: var(--color-on-fill); --brand-soft: var(--color-blue-soft);
 }
@@ -44,6 +46,8 @@ export const serpBarStyles = `
   --color-cyan: #67d4ea; --color-cyan-soft: #122930;
   --color-blue: #79a8ff; --color-blue-soft: #18243a;
   --color-violet: #b794f6; --color-violet-soft: #281f3b;
+  --color-yellow: #e3b341; --color-yellow-soft: #2b2515;
+  --color-rose: #f472b6; --color-rose-soft: #321d29;
   --color-on-fill: #121722;
   --brand: var(--color-blue); --brand-on: var(--color-on-fill); --brand-soft: var(--color-blue-soft);
 }
@@ -161,6 +165,9 @@ export const serpBarStyles = `
 :host([data-style="colorful"]) .source-switcher button[data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
 :host([data-style="colorful"]) .source-switcher button[data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
 :host([data-style="colorful"]) .source-switcher button[data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
 :host([data-style="colorful"]) .source-switcher button:hover:not(:disabled):not([data-active="true"]) {
   color: var(--source-color);
   background: var(--source-soft);
@@ -182,6 +189,9 @@ export const serpBarStyles = `
 :host([data-style="colorful"]) .source-switcher[data-active-source="exa"] .switcher-indicator { background: var(--color-teal); }
 :host([data-style="colorful"]) .source-switcher[data-active-source="stepfun"] .switcher-indicator { background: var(--color-orange); }
 :host([data-style="colorful"]) .source-switcher[data-active-source="stepfun-plan"] .switcher-indicator { background: var(--color-green); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="jina"] .switcher-indicator { background: var(--color-teal); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="doubao"] .switcher-indicator { background: var(--color-rose); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="doubao-global"] .switcher-indicator { background: var(--color-yellow); }
 :host([data-style="colorful"]) .source-switcher button:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--source-color) 30%, transparent);
 }

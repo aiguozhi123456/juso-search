@@ -1,6 +1,7 @@
 ---
 title: Adding Jina AI as a Search Provider
 date: 2026-07-27
+last_updated: 2026-07-28
 category: tooling-decisions
 module: providers
 problem_type: tooling_decision
@@ -90,7 +91,7 @@ export const jinaAdapter = defineProvider<JinaResponse>({
 Append the new id to the union so the type system recognizes it everywhere:
 
 ```ts
-export type ProviderId = 'tavily' | 'exa' | 'stepfun' | 'stepfun-plan' | 'jina';
+export type ProviderId = 'tavily' | 'exa' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global';
 ```
 
 ### 3. Registry (`lib/providers/registry.ts`)
@@ -106,6 +107,8 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
   jina: jinaAdapter,
+  doubao: doubaoAdapter,
+  'doubao-global': doubaoGlobalAdapter,
 };
 
 export function allProviders(): ProviderAdapter[] {
@@ -115,6 +118,8 @@ export function allProviders(): ProviderAdapter[] {
     adapters.stepfun,
     adapters['stepfun-plan'],
     adapters.jina,
+    adapters.doubao,
+    adapters['doubao-global'],
   ];
 }
 ```

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Doubao">
+  <rect width="24" height="24" rx="6" fill="#3156F6"/>
+  <circle cx="11" cy="11" r="5" fill="none" stroke="#fff" stroke-width="2"/>
+  <line x1="14.5" y1="14.5" x2="18" y2="18" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>

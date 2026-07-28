@@ -1,6 +1,7 @@
 ---
 title: Chrome Web Store Listing and Privacy Docs Must Be Updated for Each Release
 date: 2026-07-27
+last_updated: 2026-07-28
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -69,7 +70,7 @@ Content scripts: Google, Bing, Baidu, Douyin, Xiaohongshu
 Single-purpose: Search assistant.
 
 **After (v1.2.0 privacy.md excerpt):**
-Host permissions: `127.0.0.1/*`, `api.tavily.com/*`, `api.exa.ai/*`, `api.stepfun.com/*`
+Host permissions: `127.0.0.1/*`, `api.tavily.com/*`, `api.exa.ai/*`, `api.stepfun.com/*`, `s.jina.ai/*`, `open.feedcoopapi.com/*`
 Content scripts: Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili
 Single-purpose: Unified search interface for conventional engines, user-saved Site Engines (site-scoped searches with no API key required), and configured AI search APIs.
 

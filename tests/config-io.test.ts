@@ -114,7 +114,7 @@ describe('buildExportPayload', () => {
   it('exports a normalized complete source order', async () => {
     installStorage({ sourceOrder: ['bing', 'exa', 'ghost', 'bing'] });
     await expect(buildExportPayload()).resolves.toMatchObject({
-      sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceOrder: ['bing', 'exa', 'tavily', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
     });
   });
 
@@ -136,7 +136,7 @@ describe('buildExportPayload', () => {
     await expect(buildExportPayload()).resolves.toMatchObject({
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
       activeSource: site.id,
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
       sourceHidden: [site.id],
     });
   });
@@ -229,7 +229,7 @@ describe('parseImportPayload', () => {
   it('normalizes a valid partial sourceOrder by appending missing sources', () => {
     const result = parseImportPayload(validPayload({ sourceOrder: ['bing', 'tavily'] }));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
   });
 
   it.each([
@@ -362,7 +362,7 @@ describe('mergeImport', () => {
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
-    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'] });
+    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'] });
     await mergeImport(payload);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toBeUndefined();
 
@@ -458,8 +458,8 @@ describe('mergeImport', () => {
     let signalImportSet!: () => void;
     const importSet = new Promise<void>((resolve) => { releaseImportSet = resolve; });
     const importSetStarted = new Promise<void>((resolve) => { signalImportSet = resolve; });
-    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina'];
-    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina'];
+    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global'];
+    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global'];
     const { store } = installStorage({}, {
       beforeSet: async (items) => {
         if (items.providerKeys && items.sourceOrder) {
@@ -525,8 +525,8 @@ describe('previewImport (dry-run)', () => {
       key: 'siteEngines', from: 'site:docs:google:https://docs.example.com/:Docs', to: '',
     }, {
       key: 'sourceOrder',
-      from: 'tavily > exa > stepfun > stepfun-plan > jina > google > bing > baidu > douyin > xiaohongshu > bilibili > site:docs',
-      to: 'tavily > exa > stepfun > stepfun-plan > jina > google > bing > baidu > douyin > xiaohongshu > bilibili',
+      from: 'tavily > exa > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > site:docs',
+      to: 'tavily > exa > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili',
     }]));
   });
 
@@ -544,8 +544,8 @@ describe('previewImport (dry-run)', () => {
     }));
     expect(preview.prefDiffs).toEqual([{
       key: 'sourceOrder',
-      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > jina > douyin > xiaohongshu > bilibili',
-      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > jina > douyin > xiaohongshu > bilibili',
+      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili',
     }]);
   });
 

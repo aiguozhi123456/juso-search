@@ -526,6 +526,9 @@ body {
 [data-style="colorful"] [data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
 [data-style="colorful"] [data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
 [data-style="colorful"] [data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+[data-style="colorful"] [data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+[data-style="colorful"] [data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
+[data-style="colorful"] [data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
 
 [data-style="colorful"] .source-switcher button {
   --source-color: var(--color-blue);
@@ -554,6 +557,9 @@ body {
 [data-style="colorful"] .source-switcher[data-active-source="exa"] .switcher-indicator { background: var(--color-teal); }
 [data-style="colorful"] .source-switcher[data-active-source="stepfun"] .switcher-indicator { background: var(--color-orange); }
 [data-style="colorful"] .source-switcher[data-active-source="stepfun-plan"] .switcher-indicator { background: var(--color-green); }
+[data-style="colorful"] .source-switcher[data-active-source="jina"] .switcher-indicator { background: var(--color-teal); }
+[data-style="colorful"] .source-switcher[data-active-source="doubao"] .switcher-indicator { background: var(--color-rose); }
+[data-style="colorful"] .source-switcher[data-active-source="doubao-global"] .switcher-indicator { background: var(--color-yellow); }
 
 /* Query = blue. */
 [data-style="colorful"] .search-box input:focus {

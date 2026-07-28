@@ -1,6 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
+last_updated: 2026-07-28
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -58,7 +59,7 @@ Juso 的快切栏同时包含需要 BYOK key 的 AI provider 和始终可用的�
 
 ```ts
 normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
-// ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu']
+// ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu']
 ```
 
 `allSources(configuredProviderIds, sourceOrder)` 先遍历规范化后的完整顺序，最后才过滤未配置 provider；engine 始终保留。不要先构造可见列表再排序，否则隐藏项的位置已经丢失。
@@ -74,13 +75,13 @@ normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
 例如仅 Exa 已配置时，完整顺序可能是：
 
 ```ts
-['tavily', 'stepfun', 'exa', 'stepfun-plan', 'google', 'bing', 'baidu']
+['tavily', 'stepfun', 'exa', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'bing', 'baidu']
 ```
 
 可见顺序是 `exa, google, bing, baidu`。将 Exa 下移时，应交换完整数组中的 `exa` 与 `google`：
 
 ```ts
-['tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu']
+['tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'jina', 'doubao', 'doubao-global', 'bing', 'baidu']
 ```
 
 隐藏 provider 仍保留在偏好中，重新配置后会按用户原有位置意图重新出现。

@@ -142,6 +142,8 @@
   "provider_stepfun": { "message": "Stepfun pay-as-you-go" },
   "provider_stepfun_plan": { "message": "Stepfun Step Plan" },
   "provider_jina": { "message": "Jina" },
+  "provider_doubao": { "message": "Doubao Search Custom" },
+  "provider_doubao_global": { "message": "Doubao Search Global" },
   "engine_google": { "message": "Google" },
   "engine_bing": { "message": "Bing" },
   "engine_baidu": { "message": "Baidu" },

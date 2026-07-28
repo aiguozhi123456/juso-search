@@ -4,6 +4,8 @@ import { exaAdapter } from './exa';
 import { stepfunAdapter } from './stepfun';
 import { stepfunPlanAdapter } from './stepfun-plan';
 import { jinaAdapter } from './jina';
+import { doubaoAdapter } from './doubao';
+import { doubaoGlobalAdapter } from './doubao-global';
 
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
@@ -11,6 +13,8 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
   jina: jinaAdapter,
+  doubao: doubaoAdapter,
+  'doubao-global': doubaoGlobalAdapter,
 };
 
 export function getAdapter(id: ProviderId): ProviderAdapter {
@@ -26,5 +30,7 @@ export function allProviders(): ProviderAdapter[] {
     adapters.stepfun,
     adapters['stepfun-plan'],
     adapters.jina,
+    adapters.doubao,
+    adapters['doubao-global'],
   ];
 }

@@ -283,6 +283,8 @@ export const MSG = {
   provider_stepfun: 'provider_stepfun',
   provider_stepfun_plan: 'provider_stepfun_plan',
   provider_jina: 'provider_jina',
+  provider_doubao: 'provider_doubao',
+  provider_doubao_global: 'provider_doubao_global',
   // 常规搜索引擎标签（v2 快切）
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',
