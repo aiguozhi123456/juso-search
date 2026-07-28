@@ -67,7 +67,7 @@ describe('allSources', () => {
 
   it('normalizes unknown, duplicate, and omitted source ids', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
-      'bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
+      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
     ]);
   });
 

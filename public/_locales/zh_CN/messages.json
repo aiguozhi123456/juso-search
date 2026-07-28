@@ -139,6 +139,7 @@
   "locale_en": { "message": "English" },
   "provider_tavily": { "message": "Tavily" },
   "provider_exa": { "message": "Exa" },
+  "provider_brave": { "message": "Brave Search" },
   "provider_stepfun": { "message": "Stepfun 按量" },
   "provider_stepfun_plan": { "message": "Stepfun Step Plan" },
   "provider_jina": { "message": "Jina" },

@@ -1,6 +1,7 @@
 import type { ProviderAdapter, ProviderId } from './types';
 import { tavilyAdapter } from './tavily';
 import { exaAdapter } from './exa';
+import { braveAdapter } from './brave';
 import { stepfunAdapter } from './stepfun';
 import { stepfunPlanAdapter } from './stepfun-plan';
 import { jinaAdapter } from './jina';
@@ -10,6 +11,7 @@ import { doubaoGlobalAdapter } from './doubao-global';
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
   exa: exaAdapter,
+  brave: braveAdapter,
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
   jina: jinaAdapter,
@@ -27,6 +29,7 @@ export function allProviders(): ProviderAdapter[] {
   return [
     adapters.tavily,
     adapters.exa,
+    adapters.brave,
     adapters.stepfun,
     adapters['stepfun-plan'],
     adapters.jina,

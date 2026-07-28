@@ -1,7 +1,7 @@
 import { ProviderError, type ProviderTransport, type SearchOptions } from './types';
 import { t, MSG } from '@/lib/i18n';
 
-// REST 适配器共享的最小 HTTP 辅助：POST JSON + 统一 network/parse 错误映射。
+// REST 适配器共享的最小 HTTP 辅助：JSON GET/POST + 统一 network/parse 错误映射。
 
 export interface PostJsonResult<T> {
   status: number;
@@ -13,9 +13,24 @@ export async function postJson<T>(
   url: string,
   init: { headers?: Record<string, string>; body: string; signal?: AbortSignal },
 ): Promise<PostJsonResult<T>> {
+  return requestJson<T>(url, { ...init, method: 'POST' });
+}
+
+export async function getJson<T>(
+  url: string,
+  init: { headers?: Record<string, string>; params?: Record<string, string>; signal?: AbortSignal },
+): Promise<PostJsonResult<T>> {
+  const requestUrl = init.params ? `${url}?${new URLSearchParams(init.params).toString()}` : url;
+  return requestJson<T>(requestUrl, { headers: init.headers, signal: init.signal, method: 'GET' });
+}
+
+async function requestJson<T>(
+  url: string,
+  init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
+): Promise<PostJsonResult<T>> {
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', headers: init.headers, body: init.body, signal: init.signal });
+    res = await fetch(url, { method: init.method, headers: init.headers, body: init.body, signal: init.signal });
   } catch {
     throw new ProviderError('network', t(MSG.error_http_network));
   }
@@ -97,9 +112,11 @@ function sanitizeProviderErrorDetail(detail: string): string | undefined {
 export interface RestTransportConfig {
   endpoint: string;
   label: string;
+  method?: 'GET' | 'POST';
   buildRequest(query: string, opts: SearchOptions, apiKey: string): {
     headers?: Record<string, string>;
-    body: string;
+    body?: string;
+    params?: Record<string, string>;
   };
 }
 
@@ -108,7 +125,11 @@ export interface RestTransportConfig {
 export function restTransport<TRaw>(cfg: RestTransportConfig): ProviderTransport<TRaw> {
   return {
     async send(query, opts, apiKey) {
-      const { status, data, errorDetail } = await postJson<TRaw>(cfg.endpoint, { ...cfg.buildRequest(query, opts, apiKey), signal: opts.signal });
+      const request = cfg.buildRequest(query, opts, apiKey);
+      const response = cfg.method === 'GET'
+        ? await getJson<TRaw>(cfg.endpoint, { headers: request.headers, params: request.params, signal: opts.signal })
+        : await postJson<TRaw>(cfg.endpoint, { headers: request.headers, body: request.body ?? '', signal: opts.signal });
+      const { status, data, errorDetail } = response;
       const err = mapStatus(status, t(cfg.label), errorDetail);
       if (err) throw err;
       return data;

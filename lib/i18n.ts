@@ -280,6 +280,7 @@ export const MSG = {
   // provider 显示标签
   provider_tavily: 'provider_tavily',
   provider_exa: 'provider_exa',
+  provider_brave: 'provider_brave',
   provider_stepfun: 'provider_stepfun',
   provider_stepfun_plan: 'provider_stepfun_plan',
   provider_jina: 'provider_jina',
