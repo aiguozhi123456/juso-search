@@ -153,6 +153,39 @@ export const serpBarStyles = `
 .source-switcher .source-icon { border-radius: var(--radius-sm); display: inline-block; }
 .source-switcher .no-answer { font-size: 11px; opacity: 0.78; font-weight: 500; }
 
+/* ── 来源分组：折叠 pill + hover 浮层（shadow DOM 自包含，与搜索页同构） ── */
+.source-switcher { overflow: visible; }
+.source-switcher .switcher-group { position: relative; display: inline-flex; }
+.source-switcher .group-trigger {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid transparent; background: transparent;
+  border-radius: var(--radius-full);
+  padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--muted);
+  font-family: inherit;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.source-switcher .group-trigger:hover:not(:disabled) { color: var(--brand); background: var(--brand-soft); }
+.source-switcher .group-trigger:disabled { opacity: 0.55; cursor: default; }
+.source-switcher .group-trigger .group-label { white-space: nowrap; }
+.source-switcher .group-trigger::after { content: '▾'; font-size: 11px; opacity: 0.7; }
+.source-switcher .switcher-group.open > .group-trigger { color: var(--brand); background: var(--brand-soft); }
+.source-switcher .group-trigger .group-badge {
+  width: 6px; height: 6px; border-radius: var(--radius-full);
+  background: var(--brand); margin-left: 1px;
+}
+.source-switcher .group-flyout {
+  position: absolute; top: 100%; left: 0; margin-top: 4px;
+  display: flex; flex-direction: column; gap: 4px; padding: 4px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  z-index: 20; min-width: max-content;
+}
+.source-switcher .group-flyout button { justify-content: flex-start; white-space: nowrap; }
+
 /* 彩色风格：来源 ID 拥有稳定实色；容器与阴影保持经典的克制处理。 */
 :host([data-style="colorful"]) .source-switcher button {
   --source-color: var(--color-blue);

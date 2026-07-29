@@ -97,6 +97,33 @@ describe('buildExportPayload', () => {
     expect(payload.activeSource).toBe('google');
   });
 
+  it('exports groupConfig when present', async () => {
+    installStorage({
+      providerKeys: {},
+      groupConfig: {
+        groups: [
+          { id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } },
+          { id: 'engines', label: { kind: 'i18n', key: 'group_engines' } },
+          { id: 'sites', label: { kind: 'i18n', key: 'group_sites' } },
+        ],
+        layout: [{ kind: 'source', sourceId: 'google' }, { kind: 'group', groupId: 'ai-search' }],
+        assignments: { tavily: 'ai-search' },
+      },
+    });
+    const payload = await buildExportPayload();
+    expect(payload.groupConfig).toBeDefined();
+    expect(payload.groupConfig?.layout).toEqual([
+      { kind: 'source', sourceId: 'google' },
+      { kind: 'group', groupId: 'ai-search' },
+    ]);
+  });
+
+  it('omits groupConfig (undefined) when not stored', async () => {
+    installStorage({ providerKeys: {} });
+    const payload = await buildExportPayload();
+    expect(payload.groupConfig).toBeUndefined();
+  });
+
   it('falls back activeSource through activeProvider and configured keys', async () => {
     installStorage({ providerKeys: { exa: 'exa-1' }, activeProvider: 'exa' });
     await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'exa' });

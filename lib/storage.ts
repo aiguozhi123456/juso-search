@@ -1,9 +1,12 @@
 import type { EngineId } from './engines/types';
+import { allEngines } from './engines/registry';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { SourceId } from './sources';
 import { isEngineId, normalizeSourceHidden, normalizeSourceOrder } from './sources';
 import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
+import type { GroupConfig } from './source-groups';
+import { normalizeGroupConfig, defaultGroupConfig } from './source-groups';
 import {
   findDuplicateSiteEngineScopes,
   MAX_SITE_ENGINES,
@@ -42,6 +45,7 @@ export const STYLE_KEY = 'stylePref'; // StylePref (UI 风格维度：经典 / �
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
 export const SITE_ENGINES_KEY = 'siteEngines'; // SiteEngineDefinition[]
+export const GROUP_CONFIG_KEY = 'groupConfig'; // GroupConfig（分组定义 + 顶层混合 layout + 赋值）
 export const MAX_RESULTS_KEY = 'providerMaxResults'; // Record<ProviderId, number>
 // Agent Bridge 门控（默认 false）：上架合规——engine-search 抓 Google/Bing/Baidu 属 scraping 风险，
 // 必须用户显式开启。仅读各自键，不 get(null)（与 theme/locale 同样的 key 卫生）。
@@ -90,6 +94,8 @@ function isKnownProvider(id: unknown): id is ProviderId {
 }
 
 const DEFAULT_ENGINE_ID: EngineId = 'google';
+/** 全部常规 engine id（静态，用于 normalizeGroupConfig 的已知 source 集合）。 */
+const ENGINE_IDS_LIST: EngineId[] = allEngines().map((e) => e.id);
 
 export async function getConfiguredProviderIds(): Promise<ProviderId[]> {
   const keys = await readKeys();
@@ -346,6 +352,37 @@ export async function setSourceHidden(ids: SourceId[]): Promise<void> {
   });
 }
 
+// === 来源分组与顶层布局 ===
+// 分组只是布局层：不改变 source 的显隐与底层顺序（sourceOrder/sourceHidden 仍各自负责），
+// 仅在其之上叠加「哪些 source 置顶平铺 / 哪些收进分组」的布局信息。
+
+/** 计算当前已知的全部 source id（provider + engine + site-engine），供 normalizeGroupConfig 校验。 */
+function allKnownSourceIds(definitions: readonly SiteEngineDefinition[]): SourceId[] {
+  return [
+    ...allProviders().map((p) => p.id),
+    ...ENGINE_IDS_LIST,
+    ...definitions.map((d) => d.id),
+  ];
+}
+
+export async function getGroupConfig(): Promise<GroupConfig> {
+  const got = await browser.storage.local.get([GROUP_CONFIG_KEY, SITE_ENGINES_KEY]);
+  const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  const raw = got[GROUP_CONFIG_KEY];
+  // 缺失/非法 → 回退默认分组配置（开箱即分组，所有 source 按类型入组）。
+  if (!raw || typeof raw !== 'object') return defaultGroupConfig(allKnownSourceIds(definitions));
+  return normalizeGroupConfig(raw, allKnownSourceIds(definitions));
+}
+
+export async function setGroupConfig(config: GroupConfig): Promise<void> {
+  await withSourceMutation(async () => {
+    const got = await browser.storage.local.get(SITE_ENGINES_KEY);
+    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const normalized = normalizeGroupConfig(config, allKnownSourceIds(definitions));
+    await browser.storage.local.set({ [GROUP_CONFIG_KEY]: normalized });
+  });
+}
+
 export async function getSiteEngineDefinitions(): Promise<SiteEngineDefinition[]> {
   const got = await browser.storage.local.get(SITE_ENGINES_KEY);
   return normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
@@ -411,8 +448,8 @@ function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], keys: unknow
 }
 
 /** One coherent exact-key view for UI configuration replies. */
-export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; providerMaxResults: Partial<Record<ProviderId, number>> }> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
+export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig }> {
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const configuredProviderIds = allProviders().filter((p) => keys[p.id]).map((p) => p.id);
@@ -420,7 +457,10 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
   const sourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines);
   const sourceHidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines), sourceOrder, keys, siteEngines);
   const providerMaxResults = await readMaxResultsMapFrom(got[MAX_RESULTS_KEY]);
-  return { configuredProviderIds, activeProviderId, activeSourceId: effectiveActiveSource(got[ACTIVE_SOURCE_KEY], got[ACTIVE_KEY], keys, siteEngines), sourceOrder, sourceHidden, siteEngines, providerMaxResults };
+  const groupConfig = got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
+    ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds(siteEngines))
+    : defaultGroupConfig(allKnownSourceIds(siteEngines));
+  return { configuredProviderIds, activeProviderId, activeSourceId: effectiveActiveSource(got[ACTIVE_SOURCE_KEY], got[ACTIVE_KEY], keys, siteEngines), sourceOrder, sourceHidden, siteEngines, providerMaxResults, groupConfig };
 }
 
 /** 从已读的 storage 原始值解析 maxResults 映射（避免重复 IO，供 snapshot 复用同一份 get）。 */

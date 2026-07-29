@@ -4,6 +4,9 @@ import { allProviders } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
 import { allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
+import type { GroupConfig } from '@/lib/source-groups';
+import { defaultGroupConfig } from '@/lib/source-groups';
+import { SourceGroupEditor } from '@/components/SourceGroupEditor';
 import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -49,6 +52,7 @@ export default function App() {
   const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
   const [savingSourceHidden, setSavingSourceHidden] = useState(false);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
+  const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const configRequestEpoch = useRef(0);
   const sourceOrderRevision = useRef(0);
   const sourceHiddenRevision = useRef(0);
@@ -99,6 +103,7 @@ export default function App() {
       // 让 SiteEngineManager 在 create/update/delete 后看到最新结果。
       const engines = config.siteEngines ?? [];
       setSiteEngines(engines);
+      setGroupConfig(config.groupConfig);
       // sourceOrder 必须与同一份 siteEngines 快照一起规范化，否则 site: id 会被误判为未知而丢弃。
       if (orderRevisionAtRequest === sourceOrderRevision.current) {
         setSourceOrder(normalizeSourceOrder(config.sourceOrder, engines));
@@ -310,6 +315,13 @@ export default function App() {
             </div>
             {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
           </section>
+
+          <SourceGroupEditor
+            sources={configuredSources}
+            groupConfig={groupConfig}
+            onChange={setGroupConfig}
+            resolveLabel={(source) => sourceLabel(source, t)}
+          />
           </>
           )}
 

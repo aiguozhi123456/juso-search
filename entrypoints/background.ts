@@ -20,6 +20,7 @@ import {
   handleSetProviderMaxResults,
   handleSetSourceHidden,
   handleSetSourceOrder,
+  handleSetGroupConfig,
   handleTestKey,
   handleUpdateSiteEngine,
 } from '@/lib/gateway';
@@ -47,6 +48,7 @@ export default defineBackground(() => {
   onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
   onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
   onMessage('setSourceHidden', ({ data }) => handleSetSourceHidden(data));
+  onMessage('setGroupConfig', ({ data }) => handleSetGroupConfig(data));
   onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
   onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));
   onMessage('deleteSiteEngine', ({ data }) => handleDeleteSiteEngine(data));

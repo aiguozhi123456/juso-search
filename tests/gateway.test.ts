@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { ProviderAdapter } from '@/lib/providers/types';
 import { ProviderError } from '@/lib/providers/types';
+import { defaultGroupConfig } from '@/lib/source-groups';
 
 vi.mock('@/lib/storage', () => ({
   clearKey: vi.fn(),
@@ -426,7 +427,7 @@ describe('handleTestKey', () => {
 
 describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], providerMaxResults: {} });
+    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
@@ -435,6 +436,7 @@ describe('handleGetProviderConfig', () => {
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
       sourceHidden: [], siteEngines: [],
       providerMaxResults: {},
+      groupConfig: defaultGroupConfig([]),
     });
   });
 });
@@ -636,6 +638,7 @@ describe('handleImportConfig', () => {
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
       sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
+      groupConfigOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
     expect(reply.ok).toBe(true);
@@ -653,6 +656,7 @@ describe('handleImportConfig', () => {
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
       sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
+      groupConfigOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });
     expect(mockedMergeImport).toHaveBeenCalledWith(payload, { applyPrefs: false });

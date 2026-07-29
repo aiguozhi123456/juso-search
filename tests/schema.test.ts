@@ -90,11 +90,12 @@ describe('ensureSchema: downgrade tolerance', () => {
 describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(3);
+      expect(mod.migrations).toHaveLength(4);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
       expect(mod.migrations[2].version).toBe(3);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(4);
+      expect(mod.migrations[3].version).toBe(4);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(5);
     });
   });
 
@@ -135,6 +136,14 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
 
   it('v3->v4 adds explicit empty Site Engine definitions', () => {
     expect(migrateConfig({}, 3, 4, migrations).siteEngines).toEqual([]);
+  });
+
+  it('v4->v5 is a no-op pass-through (groupConfig defaults lazily via getter)', () => {
+    // groupConfig 缺省由 getter 回退默认配置，迁移无需填充数据——仅 bump 版本戳。
+    const before = { providerKeys: {}, sourceHidden: ['baidu'] };
+    const after = migrateConfig(before, 4, 5, migrations);
+    expect(after).toEqual(before);
+    expect('groupConfig' in after).toBe(false);
   });
 
   it('stamps version as the final commit after data migration', async () => {

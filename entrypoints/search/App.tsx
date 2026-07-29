@@ -17,6 +17,8 @@ import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import type { SearchCacheEntry } from '@/lib/search-cache';
 import { allSources, isProviderId } from '@/lib/sources';
 import type { SearchSource, SourceId } from '@/lib/sources';
+import type { GroupConfig } from '@/lib/source-groups';
+import { defaultGroupConfig } from '@/lib/source-groups';
 import { parseSearchDeepLink } from '@/lib/deep-link';
 import { isSiteEngineId } from '@/lib/site-engines';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
@@ -31,6 +33,7 @@ export default function App() {
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>([]);
   const [sourceHidden, setSourceHidden] = useState<SourceId[]>([]);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
+  const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -53,6 +56,7 @@ export default function App() {
       setSourceOrder(config.sourceOrder ?? []);
       setSourceHidden(config.sourceHidden ?? []);
       setSiteEngines(config.siteEngines ?? []);
+      setGroupConfig(config.groupConfig);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
@@ -369,6 +373,7 @@ export default function App() {
     setSourceOrder(config.sourceOrder ?? []);
     setSourceHidden(config.sourceHidden ?? []);
     setSiteEngines(config.siteEngines ?? []);
+    setGroupConfig(config.groupConfig);
     setActive(config.activeSourceId);
   }
 
@@ -392,7 +397,7 @@ export default function App() {
     <div className={`app${isStart ? ' app--start' : ''}`}>
       <header className="topbar">
         <h1 className="topbar-wordmark"><Wordmark /></h1>
-        <SourceSwitcher sources={sources} activeId={visibleActive} onSelect={handleSelectSource} disabled={loading || switching} />
+        <SourceSwitcher sources={sources} groupConfig={groupConfig} activeId={visibleActive} onSelect={handleSelectSource} disabled={loading || switching} />
         <div className="topbar-actions">
           <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />
           <ThemeToggle />

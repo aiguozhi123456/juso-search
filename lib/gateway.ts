@@ -2,6 +2,7 @@ import type { ProviderId } from './providers/types';
 import { ProviderError } from './providers/types';
 import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
 import type { SourceId } from './sources';
+import type { GroupConfig } from './source-groups';
 import { isSiteEngineId, type SiteEngineDefinition, type SiteEngineEngineId, type SiteEngineId } from './site-engines';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
@@ -26,6 +27,7 @@ import {
   setProviderMaxResults,
   setSourceHidden,
   setSourceOrder,
+  setGroupConfig,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -196,6 +198,11 @@ export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<voi
 export async function handleSetSourceHidden(sourceHidden: SourceId[]): Promise<void> {
   await getSchemaReady();
   await setSourceHidden(sourceHidden);
+}
+
+export async function handleSetGroupConfig(config: GroupConfig): Promise<void> {
+  await getSchemaReady();
+  await setGroupConfig(config);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

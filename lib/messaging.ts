@@ -1,6 +1,7 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import type { SourceId } from './sources';
+import type { GroupConfig } from './source-groups';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 import type { SiteEngineDefinition, SiteEngineEngineId, SiteEngineId } from './site-engines';
@@ -41,6 +42,8 @@ export type ProviderConfigReply = {
   siteEngines: SiteEngineDefinition[];
   /** 每个 provider 的搜索结果条数设置（已显式配置过的 id 才出现；缺省由适配器默认）。 */
   providerMaxResults: Partial<Record<ProviderId, number>>;
+  /** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */
+  groupConfig: GroupConfig;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -65,6 +68,7 @@ export type ProtocolMap = {
   setActiveSource(sourceId: SourceId): Promise<void>;
   setSourceOrder(sourceOrder: SourceId[]): Promise<void>;
   setSourceHidden(sourceHidden: SourceId[]): Promise<void>;
+  setGroupConfig(config: GroupConfig): Promise<void>;
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;

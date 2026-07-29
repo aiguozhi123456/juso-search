@@ -34,6 +34,8 @@ import {
   updateSiteEngineDefinition,
   getProviderConfigSnapshot,
   deleteSiteEngineDefinition,
+  getGroupConfig,
+  setGroupConfig,
 } from '@/lib/storage';
 import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
@@ -294,6 +296,57 @@ describe('storage: source order', () => {
   it('normalizes invalid stored values', async () => {
     await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
     expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+  });
+});
+
+describe('storage: groupConfig', () => {
+  it('returns the default group config when unset (all sources grouped by type)', async () => {
+    const cfg = await getGroupConfig();
+    expect(cfg.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites']);
+    expect(cfg.layout).toEqual([
+      { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'engines' },
+      { kind: 'group', groupId: 'sites' },
+    ]);
+    expect(cfg.assignments).toEqual({});
+  });
+
+  it('round-trips a pinned + grouped layout, normalizing dirty data', async () => {
+    await setGroupConfig({
+      groups: [
+        { id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } },
+        { id: 'engines', label: { kind: 'i18n', key: 'group_engines' } },
+        { id: 'sites', label: { kind: 'i18n', key: 'group_sites' } },
+        { id: 'custom', label: { kind: 'literal', value: 'Custom' } },
+      ],
+      layout: [
+        { kind: 'source', sourceId: 'google' },
+        { kind: 'group', groupId: 'ai-search' },
+        { kind: 'group', groupId: 'custom' },
+      ],
+      assignments: { tavily: 'custom', google: 'ai-search', ghost: 'custom' },
+    });
+    const cfg = await getGroupConfig();
+    // google pinned → its assignment dropped; ghost (unknown source) dropped
+    expect(cfg.assignments).toEqual({ tavily: 'custom' });
+    expect(cfg.layout).toEqual([
+      { kind: 'source', sourceId: 'google' },
+      { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'custom' },
+    ]);
+  });
+
+  it('is included in getProviderConfigSnapshot', async () => {
+    await setGroupConfig({
+      groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
+      layout: [{ kind: 'group', groupId: 'ai-search' }],
+      assignments: {},
+    });
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.groupConfig).toBeDefined();
+    // missing builtin groups (engines, sites) filled into groups; layout preserved as stored.
+    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-search']);
+    expect(snap.groupConfig.layout).toEqual([{ kind: 'group', groupId: 'ai-search' }]);
   });
 });
 

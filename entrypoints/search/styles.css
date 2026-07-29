@@ -162,6 +162,81 @@ body {
   font-weight: 500;
 }
 
+/* ── 来源分组：折叠 pill + hover 浮层 ── */
+/* 容器不裁剪浮层（默认无 overflow，显式声明以防继承）。 */
+.source-switcher { overflow: visible; }
+.source-switcher .switcher-group {
+  position: relative;
+  display: inline-flex;
+}
+.source-switcher .group-trigger {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.source-switcher .group-trigger:hover:not(:disabled) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.source-switcher .group-trigger:disabled { opacity: 0.55; cursor: default; }
+.source-switcher .group-trigger .group-label {
+  white-space: nowrap;
+}
+/* 展开箭头（纯文字，无图标依赖）。 */
+.source-switcher .group-trigger::after {
+  content: '▾';
+  font-size: var(--text-xs);
+  opacity: 0.7;
+  margin-left: calc(var(--space-1) * -0.25);
+}
+.source-switcher .switcher-group.open > .group-trigger {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+/* 含激活源的分组徽章：右上角实心小圆点。 */
+.source-switcher .group-trigger .group-badge {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  margin-left: calc(var(--space-1) * 0.25);
+}
+/* 浮层：绝对定位、列向、激活项高亮。 */
+.source-switcher .group-flyout {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--fg) 18%, transparent);
+  z-index: 20;
+  min-width: max-content;
+  animation: juso-rise var(--duration-fast) var(--ease-out);
+}
+.source-switcher .group-flyout button {
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
 .topbar-actions { margin-left: auto; display: flex; gap: var(--space-2); align-items: center; }
 .history-button, .settings-button {
   width: 34px; height: 34px; padding: 0;

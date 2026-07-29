@@ -1,4 +1,4 @@
-// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteEngines / agentBridgeEnabled / engineSearchEnabled / providerMaxResults）。
+// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteEngines / agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig）。
 //
 // 双版本体系：config 域用 `schemaVersion`（本文件），缓存池用 `cacheSchemaVersion`
 // （见 search-cache.ts 的 ensureCacheSchema + cacheMigrations）。两域独立演进——
@@ -13,12 +13,12 @@
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
-// agentBridgeEnabled / engineSearchEnabled / providerMaxResults 默认值由 getter 兜底，不 bump 版本（无需迁移）。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults'] as const;
+// agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig 默认值由 getter 兜底，不 bump 版本（无需迁移）。
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {
@@ -52,6 +52,9 @@ export const migrations: Migration[] = [
   { version: 2, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V3) },
   // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.
   { version: 3, migrate: (config) => ({ ...config, siteEngines: Array.isArray(config.siteEngines) ? config.siteEngines : [] }) },
+  // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
+  // 故迁移无需填充数据——仅 bump 版本戳以纳入 CONFIG_KEYS 白名单（ensureSchema 会读它）。
+  { version: 4, migrate: (config) => config },
 ];
 
 /**

@@ -19,6 +19,7 @@ import {
   SOURCE_ORDER_KEY,
   SITE_ENGINES_KEY,
   THEME_KEY,
+  GROUP_CONFIG_KEY,
   clampMaxResults,
   withProviderKeysMutation,
   withSourceMutation,
@@ -27,6 +28,8 @@ import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
 import { isEngineId, isKnownSiteEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
+import type { GroupConfig } from './source-groups';
+import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 import type { SiteEngineDefinition } from './site-engines';
 import { isBoundedSiteEngineCollection, isSiteEngineId, normalizeSiteEngineDefinitions } from './site-engines';
@@ -53,11 +56,13 @@ export interface ConfigExport {
   siteEngines?: SiteEngineDefinition[];
   /** 每个 provider 的搜索结果条数（仅含已显式设置的 id）。 */
   providerMaxResults?: Partial<Record<ProviderId, number>>;
+  /** 来源分组与顶层布局（导入文件可选；缺失则保留本地配置）。 */
+  groupConfig?: GroupConfig;
 }
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
@@ -66,6 +71,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
   const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys, siteEngines);
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
+  const allKnownSourceIds: SourceId[] = computeAllKnownSourceIds(siteEngines);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
@@ -79,8 +85,17 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines),
     siteEngines,
     providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
+    groupConfig: got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
+      ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds)
+      : undefined,
   };
 }
+
+/** 全部已知 source id（provider + engine + site-engine），供 normalizeGroupConfig 校验。 */
+function computeAllKnownSourceIds(siteEngines: readonly SiteEngineDefinition[]): SourceId[] {
+  return [...KNOWN_PROVIDER_IDS, ...ENGINE_IDS, ...siteEngines.map((s) => s.id)];
+}
+const ENGINE_IDS: EngineId[] = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'];
 
 function getAppVersion(): string {
   const manifest = browser.runtime.getManifest();
@@ -153,6 +168,12 @@ export function parseImportPayload(raw: unknown): ParseResult {
   }
   const hasMaxResults = Object.prototype.hasOwnProperty.call(obj, 'providerMaxResults');
   const providerMaxResults = hasMaxResults ? normalizeMaxResultsMap(obj.providerMaxResults) : undefined;
+  const hasGroupConfig = Object.prototype.hasOwnProperty.call(obj, 'groupConfig');
+  let groupConfig: GroupConfig | undefined;
+  if (hasGroupConfig) {
+    // normalizeGroupConfig 容错：非法结构会被规整为默认配置，不阻断导入。
+    groupConfig = normalizeGroupConfig(obj.groupConfig, computeAllKnownSourceIds(siteEngines ?? []));
+  }
   return {
     ok: true,
     value: {
@@ -168,6 +189,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines) : undefined,
       siteEngines,
       providerMaxResults,
+      groupConfig,
     },
   };
 }
@@ -195,11 +217,13 @@ export interface ImportReport {
   siteEnginesOverridden: boolean;
   /** 是否覆盖了 providerMaxResults。 */
   providerMaxResultsOverridden: boolean;
+  /** 是否覆盖了 groupConfig（来源分组与顶层布局）。 */
+  groupConfigOverridden: boolean;
 }
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'providerMaxResults';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -267,7 +291,28 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
       prefDiffs.push({ key: 'providerMaxResults', from: maxResultsSummary(curMax), to: maxResultsSummary(payload.providerMaxResults) });
     }
   }
+  if (payload.groupConfig !== undefined) {
+    const curGroupRaw = got[GROUP_CONFIG_KEY];
+    const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
+      ? normalizeGroupConfig(curGroupRaw, computeAllKnownSourceIds(currentSites))
+      : undefined;
+    if (!sameGroupConfig(curGroup, payload.groupConfig)) {
+      prefDiffs.push({ key: 'groupConfig', from: groupConfigSummary(curGroup), to: groupConfigSummary(payload.groupConfig) });
+    }
+  }
   return { written, skipped, prefDiffs };
+}
+
+/** groupConfig 的可读摘要（分组数 / 顶层项数 / 赋值数），用于 diff 展示。 */
+function groupConfigSummary(config: GroupConfig | undefined): string {
+  if (!config) return '()';
+  return `(${config.groups.length}组/${config.layout.length}项/${Object.keys(config.assignments).length}赋值)`;
+}
+
+/** 比较 groupConfig 是否等价（结构化比较）。 */
+function sameGroupConfig(a: GroupConfig | undefined, b: GroupConfig): boolean {
+  if (!a) return false;
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /**
@@ -286,7 +331,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -319,6 +364,7 @@ export async function mergeImport(
     let sourceHiddenOverridden = false;
     let siteEnginesOverridden = false;
     let providerMaxResultsOverridden = false;
+    let groupConfigOverridden = false;
     if (applyPrefs) {
       const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
@@ -358,6 +404,18 @@ export async function mergeImport(
           providerMaxResultsOverridden = true;
         }
       }
+      if (payload.groupConfig !== undefined) {
+        const curGroupRaw = got[GROUP_CONFIG_KEY];
+        const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
+          ? normalizeGroupConfig(curGroupRaw, computeAllKnownSourceIds(currentSites))
+          : undefined;
+        // 用导入的 site engines 视角重新规范化导入的 groupConfig，确保赋值合法。
+        const newGroup = normalizeGroupConfig(payload.groupConfig, computeAllKnownSourceIds(importedSites));
+        if (!sameGroupConfig(curGroup, newGroup)) {
+          setObj[GROUP_CONFIG_KEY] = newGroup;
+          groupConfigOverridden = true;
+        }
+      }
     }
     await browser.storage.local.set(setObj);
 
@@ -372,6 +430,7 @@ export async function mergeImport(
       sourceHiddenOverridden,
       siteEnginesOverridden,
       providerMaxResultsOverridden,
+      groupConfigOverridden,
     };
   }));
 }
