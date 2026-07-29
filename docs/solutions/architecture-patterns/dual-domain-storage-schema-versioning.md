@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-07-09
+last_updated: 2026-07-30
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -49,15 +49,17 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on ten small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on twelve small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export const migrations: Migration[] = [
-  // { from: 0, to: 1, migrate: (data) => ({ ...data, /* shape change */ }) },
+  // each entry: { version: N, migrate: (config) => config }
+  // { version: 1, migrate: (config) => mergeDefaultHidden(config, ['douyin', 'xiaohongshu']) },
+  // { version: 4, migrate: (config) => config },  // no-op: see "bump the stamp without migrating" below
 ];
 
 // lib/search-cache.ts — cache pool domain
@@ -138,6 +140,19 @@ export async function ensureCacheSchema(): Promise<void> {
 ```
 
 **Note the asymmetry:** config data is *not* regenerable (it contains user-entered keys and preferences), so a failed config migration must not be "solved" by clearing config. The cache domain's clear-on-failure recovery is only safe *because* the cache is derivable.
+
+### You may bump the version stamp without migrating any data
+
+A version bump does not always mean a data transformation. When a new config key has a safe computed default and every reader already tolerates its absence, the migration can be an **identity no-op** — the only job of the bump is to advance the version stamp (so `ensureSchema` treats the install as current) and bring the new key under `CONFIG_KEYS` (so the migration machinery reads it consistently). The real default is supplied lazily by a getter fallback, never written by the migration.
+
+```ts
+// lib/schema.ts — v4→v5 introduced groupConfig (source grouping/layout).
+// Its default comes from a getter, so the migration writes nothing — it only
+// bumps the stamp to admit groupConfig into CONFIG_KEYS.
+{ version: 4, migrate: (config) => config },
+```
+
+Reserve this pattern for the case where the migration would otherwise be writing a default the getter already produces. If the new key needs a *materialized* value (e.g. the v3→v4 entry that backfills an explicit empty `siteEngines` array so old installs opt into persisted Site Engines), write it in the migration as before. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the full lazy-default + no-migration decision.
 
 ### Gate every storage-touching handler behind a lazy memoized readiness check
 
@@ -260,7 +275,7 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export async function ensureSchema(): Promise<void> {
   const { schemaVersion: v } = await browser.storage.local.get('schemaVersion');
@@ -329,5 +344,6 @@ async function handleExportConfig() {
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`
 - `lib/gateway.ts` — worker handlers and the readiness gate: `getSchemaReady`, `handleExportConfig`, `handlePreviewImport`, `handleImportConfig`
 - `lib/storage.ts` — `withProviderKeysMutation` and `withSourceOrderMutation` (serialization queues for atomic config mutations)
-- [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only（注意：该文档的刷新候选注释提到"four keys"，实际 config domain 现已为十个键）（注意：该文档的刷新候选注释提到"four keys"，实际 config domain 现已为十个键）
+- [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only
+- [source-group-layout-layer](./source-group-layout-layer.md) — the v4→v5 no-op migration above is the one that introduced `groupConfig`
 - `CONCEPTS.md` — project vocabulary for the BYOK trust boundary (R7)

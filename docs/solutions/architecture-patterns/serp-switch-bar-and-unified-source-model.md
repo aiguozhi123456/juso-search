@@ -1,7 +1,7 @@
 ---
 title: "Unified Source Model and Shadow-DOM SERP Switch Bar for Cross-Engine Quick-Switching"
 date: 2026-07-08
-last_updated: 2026-07-14
+last_updated: 2026-07-30
 category: architecture-patterns
 module: "engines / sources / content-script / search page"
 problem_type: architecture_pattern
@@ -16,6 +16,7 @@ related_components:
   - lib/engines/types.ts
   - lib/engines/registry.ts
   - lib/sources.ts
+  - lib/source-groups.ts
   - lib/deep-link.ts
   - components/SourceSwitcher.tsx
   - entrypoints/serp-bar.content.ts
@@ -47,7 +48,7 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 1. **Do not merge engines into `ProviderId`.** Engines are a parallel concept with a parallel registry (`lib/engines/registry.ts`) and their own `EngineId` union. Merging would pollute the BYOK key/configured-status machinery and the `ProviderAdapter.search()` contract with members that satisfy neither. The `id` namespaces are disjoint by construction, so a combined `SourceId = ProviderId | EngineId | SiteEngineId` is safe without runtime tagging.
 
-2. **Introduce a `SearchSource` view layer** (`lib/sources.ts`) that projects configured providers + all engines into one homogeneous `{ id, kind, label, supportsAnswer, favicon? }` shape. This is the single seam a switcher consumes, and the place where "configured providers only" (v1 rule) and "all engines always" meet. `isEngineId`/`isProviderId` guards narrow a `SourceId` back to the typed registry at the call site.
+2. **Introduce a `SearchSource` view layer** (`lib/sources.ts`) that projects configured providers + all engines (and user-defined site engines) into one homogeneous `{ id, kind, label, supportsAnswer, favicon?, ... }` shape — the place where "configured providers only" (v1 rule) and "all engines always" meet, and where `isEngineId`/`isProviderId` guards narrow a `SourceId` back to the typed registry at the call site. Note: as of the source-group layout layer, this flat `SearchSource[]` is **no longer the seam the switcher renders**. `SourceSwitcher` now takes `sources` plus a `groupConfig` and projects a mixed `PinnedItem | GroupItem` sequence via `projectLayout` (`lib/source-groups.ts`); the flat `SearchSource[]` is the projection that layout layer consumes. Grouping is purely a layout layer over the same sources — it never re-hides or re-orders them. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the layout seam.
 
 3. **One switcher component, two hosts.** `SourceSwitcher` is presentational (`{ sources, activeId, onSelect, disabled }`); the host decides what selection *means*. On the Juso search page, a provider selection does the v1 serialized-write + re-search, and an engine selection does a current-tab `location.assign`. On the injected SERP bar, any selection is a current-tab navigation (engine → that SERP/home; provider → Juso search page deep link).
 

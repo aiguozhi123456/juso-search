@@ -1,7 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
-last_updated: 2026-07-28
+last_updated: 2026-07-30
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -48,6 +48,8 @@ Juso 的快切栏同时包含需要 BYOK key 的 AI provider 和始终可用的�
 - 只做乐观 UI，不处理陈旧读取和交叉写入，会让较早的响应或导入覆盖较新的移动。
 
 ## Guidance
+
+> 注：本文描述的是 source **投影层**（`sourceOrder` 为权威顺序，`allSources` 投影可见项）。其上现已叠加一层独立的「布局层」`groupConfig`（见 [source-group-layout-layer.md](./source-group-layout-layer.md)）：分组与置顶只决定快切栏顶层如何布局，**不改变** source 的显隐与底层 `sourceOrder`；置顶的 source 会从其分组移除（pins-once）。投影层模型不变，`groupConfig` 是纯消费 `allSources` 输出的非侵入层。
 
 ### 持久化完整顺序，最后才投影可见来源
 
@@ -114,7 +116,7 @@ return normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
 
 因此只有“仍是最新请求，且请求期间顺序 revision 未变化”的响应才能更新 `sourceOrder`。响应中的 active source 和 configured providers 仍可同步，陈旧顺序快照则被丢弃。
 
-worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines 和 activeSource）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
+worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines、activeSource 和 groupConfig）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
 
 ### 区分字段缺失与字段值
 
@@ -178,6 +180,7 @@ const hasSourceOrder = Object.prototype.hasOwnProperty.call(obj, 'sourceOrder');
 
 ## Related
 
+- [source-group-layout-layer](./source-group-layout-layer.md) — 在本投影层之上新增的「布局层」（`groupConfig`）：分组/置顶只是布局，不改变显隐与底层 `sourceOrder`；置顶的 source 从其分组移除（pins-once）。投影层模型不变。
 - `docs/solutions/architecture-patterns/serp-switch-bar-and-unified-source-model.md` — 统一来源视图和搜索页/SERP 两个快切栏宿主的基础设计。
 - `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md` — `SourceId` 视图偏好与 provider-only 执行状态的边界。
 - `docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md` — config domain、精确键 IO、导入导出和 mutation queue 模式。

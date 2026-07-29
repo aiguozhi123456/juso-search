@@ -44,6 +44,11 @@ The user's default search source preference. It may point to a configured AI pro
 
 An Active Source does not replace the Active Provider: provider sources keep both concepts aligned, while engine sources leave provider-only fallback state untouched. When provider keys disappear, the effective Active Source resolves through usable provider choices and then to a conventional engine, so the extension still has a usable default without sending engine ids into the provider adapter path.
 
+### Source Group Layout
+A pure layout layer over the projected Search Source set that decides which sources are pinned flat in the quick-switch bar's top row versus collapsed into labeled groups. It does not change which sources exist, which are visible, or their underlying Source Order — it only re-projects the already-projected source list into a mixed sequence of pinned pills and collapsible group pills.
+
+Every source is in exactly one of two states: **pinned** (a top-row flat pill) or **grouped** (folded into a group). The three built-in groups — AI search, search engines, sites — always exist, and a source with no explicit assignment falls through to its type group, so the out-of-box experience needs no persisted assignments. The config is self-healing: any value read from storage is re-normalized against the live source set before use, dropping references to deleted/hidden sources and deleted groups. It is orthogonal to Source Order, Source Visibility, and Active Source; a group's internal order is just the projection order filtered.
+
 ### SERP Switch Bar
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 

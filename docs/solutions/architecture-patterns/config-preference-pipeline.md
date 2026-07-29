@@ -1,7 +1,7 @@
 ---
 title: "Adding a persisted config preference: the end-to-end pipeline"
 date: 2026-07-17
-last_updated: 2026-07-23
+last_updated: 2026-07-30
 category: architecture-patterns
 module: config-preferences
 problem_type: architecture_pattern
@@ -10,6 +10,7 @@ severity: low
 applies_when:
   - "Adding a new persisted user preference to this extension"
   - "Adding a second array-of-SourceId source-bar preference on top of sourceOrder"
+  - "Adding a third source-bar preference with a nested-object shape (groupConfig: groups + layout + assignments), not a SourceId[] array"
   - "A preference must round-trip through worker messaging, config export/import, and multiple UI hosts"
 related_components:
   - lib/sources.ts
@@ -108,6 +109,7 @@ tags:
 
 - 给本扩展新增任何持久化配置偏好（标量型如 theme/locale，或 `SourceId[]` 型快切栏偏好）。
 - 在 `sourceOrder` 之上再加一个快切栏来源偏好。
+- 新增**嵌套对象型**（非 `SourceId[]`）快切栏偏好——`groupConfig`（来源分组与顶层布局）是第三个走本管线的偏好：结构为 `{ groups, layout, assignments }`，其规范化（`normalizeGroupConfig`：丢弃非法项、补齐内置组、修复指向已删除来源/分组的赋值）是本管线承载的第三种规范化形态；schema 用 v4→v5 的**无数据迁移** bump 纳入 `CONFIG_KEYS` 白名单。详见 *source-group-layout-layer*。
 - 新偏好需要进入配置导入/导出并出现在导入 diff/报告中。
 - 任何需要跨「扩展页 + content script + 多标签」一致消费、且要与乐观 UI/后台刷新并发的偏好。
 
@@ -120,6 +122,7 @@ tags:
 ## Related
 
 - [persistent-source-order-and-visible-projection](./persistent-source-order-and-visible-projection.md) — 第一个 `SourceId[]` 快切栏偏好先例；本文是其「加一个偏好」的配套清单，共享的乐观/回滚/revision 细节在此不重复。
+- [source-group-layout-layer](./source-group-layout-layer.md) — 第三个走本管线的偏好 `groupConfig`（嵌套对象：groups + layout + assignments），含结构化容错规范化与 v4→v5 无数据迁移的 schema bump。
 - [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — `CONFIG_KEYS` 白名单、默认安全则不 bump 版本、mutation queue 嵌套模式。
 - [serp-switch-bar-and-unified-source-model](./serp-switch-bar-and-unified-source-model.md) — `allSources` 投影与两个快切栏宿主的基础设计。
 - [theme-persistence-i18n-key-hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) — worker 脱敏配置与 i18n 三方一致性守卫。
