@@ -137,13 +137,27 @@ export function normalizeGroupConfig(
     seenGroupIds.add(obj.id);
     groups.push({ id: obj.id, label: obj.label });
   }
-  // 补齐缺失的内置三组（保持在前，按 DEFAULT_GROUPS 顺序）。
-  const missingBuiltin = DEFAULT_GROUPS.filter((g) => !seenGroupIds.has(g.id));
-  for (const g of [...missingBuiltin, ...groups]) {
-    seenGroupIds.add(g.id);
+  // 补齐缺失的内置三组，并保证「内置在前、按 DEFAULT_GROUPS 顺序」。
+  // 不能只 unshift 缺失项：若持久化里已有部分内置组（如只有 engines），
+  // 仅补缺失的 ai-search/sites 会让结果变成 [ai-search, sites, engines, ...]，
+  // 打破 DEFAULT_GROUPS 顺序。改为以 DEFAULT_GROUPS 为骨架重排：内置位用已有项或默认项，再追加自定义组。
+  const orderedIds = new Set<SourceGroupId>();
+  const ordered: SourceGroup[] = [];
+  for (const def of DEFAULT_GROUPS) {
+    const existing = groups.find((g) => g.id === def.id);
+    ordered.push(existing ?? def);
+    orderedIds.add(def.id);
   }
-  groups.unshift(...missingBuiltin);
-  const knownGroupIds = new Set(groups.map((g) => g.id));
+  for (const g of groups) {
+    if (!orderedIds.has(g.id)) {
+      ordered.push(g);
+      orderedIds.add(g.id);
+    }
+  }
+  groups.splice(0, groups.length, ...ordered);
+  seenGroupIds.clear();
+  for (const g of groups) seenGroupIds.add(g.id);
+  const knownGroupIds = seenGroupIds;
 
   // ── layout ──
   const layout: SwitcherItem[] = [];

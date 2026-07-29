@@ -169,6 +169,19 @@ body {
   position: relative;
   display: inline-flex;
 }
+/* 鼠标桥：trigger 与浮层之间不可有物理缝隙——穿缝会触发 mouseleave，
+   把浮层在鼠标到达前收回（无法切换组内 source）。展开时用一块透明 ::after
+   把 trigger 底边到浮层顶边连成连续可悬停区域，视觉间隙由浮层 padding 提供。 */
+.source-switcher .switcher-group.open::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--space-1);
+  /* 不捕获点击、不可见，仅承接 mouseenter 以维持悬停态。 */
+  pointer-events: auto;
+}
 .source-switcher .group-trigger {
   position: relative;
   z-index: 1;
@@ -214,16 +227,19 @@ body {
   background: var(--brand);
   margin-left: calc(var(--space-1) * 0.25);
 }
-/* 浮层：绝对定位、列向、激活项高亮。 */
+/* 浮层：绝对定位、列向、激活项高亮。
+   注意：top: 100% 紧贴 trigger 底边，禁止 margin-top 留缝——trigger 与浮层之间的
+   物理缝隙会让 mouseleave 在鼠标穿缝时提前触发，浮层在到达前就被收回（无法切换）。
+   视觉呼吸改由浮层内部 padding-top 承担；浮层与 trigger 的分隔感由边框 + 阴影提供。 */
 .source-switcher .group-flyout {
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: var(--space-1);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-1);
+  padding-top: calc(var(--space-1) + 2px);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

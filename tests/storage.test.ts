@@ -344,8 +344,9 @@ describe('storage: groupConfig', () => {
     });
     const snap = await getProviderConfigSnapshot();
     expect(snap.groupConfig).toBeDefined();
-    // missing builtin groups (engines, sites) filled into groups; layout preserved as stored.
-    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-search']);
+    // missing builtin groups (engines, sites) filled into groups in DEFAULT_GROUPS order;
+    // the persisted ai-search is reordered into its canonical position. Layout preserved as stored.
+    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites']);
     expect(snap.groupConfig.layout).toEqual([{ kind: 'group', groupId: 'ai-search' }]);
   });
 });

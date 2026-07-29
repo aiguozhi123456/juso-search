@@ -84,7 +84,7 @@ export function KeyInput({
       setMaxStatus({ kind: 'saving', message: '' });
       try {
         await sendMessage('clearProviderMaxResults', provider.id);
-        onMaxResultsChange?.(provider.id, undefined as never);
+        onMaxResultsChange?.(provider.id, undefined);
         setMaxStatus({ kind: 'ok', message: t(MSG.opts_max_results_saved) });
       } catch {
         setMaxStatus({ kind: 'fail', message: t(MSG.opts_max_results_save_failed) });

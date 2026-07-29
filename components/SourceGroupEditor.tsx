@@ -60,7 +60,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   function groupDisplayLabel(id: SourceGroupId): string {
     const label = groupLabelById.get(id);
     if (!label) return id;
-    return label.kind === 'literal' ? label.value : t(label.key as never);
+    return label.kind === 'literal' ? label.value : t(label.key);
   }
 
   // 持久化：乐观推进 + 失败回滚。

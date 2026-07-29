@@ -439,7 +439,7 @@ body {
 }
 .layout-row {
   display: flex; align-items: center; gap: var(--space-3);
-  min-height: 42px; padding: 0 var(--space-2);
+  min-height: 48px; padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-soft);
   font-size: var(--text-md);
   transition: background var(--duration-fast) var(--ease-out);
@@ -449,33 +449,39 @@ body {
 .layout-row[data-kind="group"] { background: var(--bg-soft); }
 .layout-tag {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 44px; padding: 2px var(--space-1);
+  min-width: 48px; padding: 2px var(--space-2);
   border-radius: var(--radius-full);
-  font-size: var(--text-xs); font-weight: 600;
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.02em;
   background: var(--brand-soft); color: var(--brand);
   flex-shrink: 0;
 }
 .layout-row[data-kind="group"] .layout-tag { background: var(--border-soft); color: var(--muted); }
-.layout-name { flex: 1; min-width: 0; word-break: break-word; }
+.layout-name { flex: 1; min-width: 0; word-break: break-word; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
+/* 组名与成员清晰分层：组名作为标签，成员作为其下的芯片区，独占空间并可整齐换行。 */
+.layout-row[data-kind="group"] .layout-name { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
 .layout-group-members {
-  display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-left: var(--space-2); vertical-align: middle;
+  display: flex; flex-wrap: wrap; gap: var(--space-1);
+  width: 100%;
 }
 .layout-group-member {
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 1px var(--space-1); border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 2px 2px 2px var(--space-2); border-radius: var(--radius-full);
   background: var(--bg); border: 1px solid var(--border-soft);
   font-size: var(--text-xs); line-height: 1.4;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
+.layout-group-member:hover { border-color: var(--border); }
 .layout-member-name { white-space: nowrap; }
 .layout-member-pin {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; padding: 0; border: none; border-radius: 50%;
-  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.5;
-  transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  width: 18px; height: 18px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.45;
+  transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
-.layout-member-pin:hover:not(:disabled) { opacity: 1; color: var(--brand); }
+.layout-member-pin:hover:not(:disabled) { opacity: 1; color: var(--brand); background: var(--brand-soft); }
 .layout-member-pin:disabled { opacity: 0.3; cursor: default; }
-.layout-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+.layout-actions { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
+/* 文字按钮（重命名 / 删除 / 置顶平铺）与图标按钮（上下移）统一 28px 高，视觉对齐。 */
 .layout-actions button {
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 28px; padding: 0 var(--space-2);
@@ -488,35 +494,49 @@ body {
 }
 .layout-actions button:hover:not(:disabled) { color: var(--brand); border-color: var(--brand); }
 .layout-actions button:disabled { opacity: 0.5; cursor: default; }
+/* 图标按钮（上下移）固定方形，与文字按钮等高。 */
+.layout-actions button[aria-label] { width: 30px; padding: 0; }
 .layout-actions button svg { display: block; }
 .layout-fold select {
   min-height: 28px; padding: 0 var(--space-2);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--fg); font-size: var(--text-sm); font-family: inherit;
   cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
+.layout-fold select:hover { border-color: var(--muted); }
+.layout-fold select:focus { outline: none; border-color: var(--brand); }
 .layout-rename-input {
   width: 100%; max-width: 240px;
-  padding: 4px var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--brand); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--fg); font-size: var(--text-md); font-family: inherit;
 }
+.layout-rename-input:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 .layout-row--orphan { opacity: 0.6; }
 .source-layout-new {
   display: flex; gap: var(--space-2); margin-top: var(--space-3); align-items: center;
 }
 .layout-new-input {
   flex: 1; max-width: 280px;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--fg); font-size: var(--text-md); font-family: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
 }
-.layout-new-input:focus { outline: none; border-color: var(--brand); }
+.layout-new-input:hover:not(:disabled) { border-color: var(--muted); }
+.layout-new-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
 .source-layout-new button {
-  padding: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  min-height: 28px;
   border: 1px solid var(--brand); border-radius: var(--radius-sm);
   background: var(--brand); color: var(--brand-on);
-  font-size: var(--text-sm); font-family: inherit; cursor: pointer;
+  font-size: var(--text-sm); font-weight: 500; font-family: inherit; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+}
+.source-layout-new button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 88%, black);
+  border-color: color-mix(in srgb, var(--brand) 88%, black);
 }
 .source-layout-new button:disabled { opacity: 0.5; cursor: default; }
 .sr-only {

@@ -143,6 +143,23 @@ describe('normalizeGroupConfig', () => {
     expect(cfg.groups.map((g) => g.id)).toEqual([AI_SEARCH_GROUP, ENGINES_GROUP, SITES_GROUP, 'custom']);
   });
 
+  // 回归：持久化里只有「部分」内置组时，仍须按 DEFAULT_GROUPS 顺序把内置三组排在前。
+  // 旧实现只 unshift 缺失项，会把结果排成 [ai-search, sites, engines, ...]，顺序错乱。
+  it('keeps builtin groups in DEFAULT_GROUPS order even when only some are persisted', () => {
+    const raw = {
+      // 只有 engines 一个内置组 + 一个自定义组
+      groups: [
+        { id: ENGINES_GROUP, label: { kind: 'i18n', key: 'group_engines' } },
+        { id: 'custom', label: { kind: 'literal', value: 'Custom' } },
+      ],
+      layout: [],
+      assignments: {},
+    };
+    const cfg = normalizeGroupConfig(raw, []);
+    // 内置三组按 DEFAULT_GROUPS 顺序在前，自定义组随后
+    expect(cfg.groups.map((g) => g.id)).toEqual([AI_SEARCH_GROUP, ENGINES_GROUP, SITES_GROUP, 'custom']);
+  });
+
   it('strips groups with invalid labels', () => {
     const raw = {
       groups: [

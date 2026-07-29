@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { SourceSwitcher } from '@/components/SourceSwitcher';
 import type { SearchSource } from '@/lib/sources';
 import type { ProviderId } from '@/lib/providers/types';
@@ -186,5 +186,85 @@ describe('SourceSwitcher — grouped layout', () => {
     expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
     // AI 搜索作为分组 trigger
     expect(screen.getByRole('button', { name: /AI 搜索/ })).toBeInTheDocument();
+  });
+
+  // 回归 #2：鼠标从 trigger 穿过视觉缝隙进入浮层时，浮层不应在抵达前被收回。
+  // trigger 与浮层间存在视觉缝隙，穿缝会先触发 mouseleave；用 hover-intent 延迟关闭，
+  // 使「短暂离开 → 重新进入浮层」不关闭浮层，只有真正离开（超过延迟）才关闭。
+  it('keeps the flyout open when the mouse briefly leaves then re-enters (hover-intent bridge)', () => {
+    vi.useFakeTimers();
+    try {
+      render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />);
+      const group = screen.getByRole('button', { name: /搜索引擎/ }).parentElement!;
+      // 打开浮层
+      fireEvent.mouseEnter(group);
+      expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+      // 穿缝：先离开（启动延迟关闭），但在延迟窗口内重新进入浮层区域
+      fireEvent.mouseLeave(group);
+      fireEvent.mouseEnter(group);
+      // 延迟尚未到期，浮层仍应打开
+      act(() => { vi.advanceTimersByTime(60); });
+      expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+      // 真正离开并超过延迟窗口后才关闭
+      fireEvent.mouseLeave(group);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByRole('button', { name: /Bing/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 回归：hover-intent 的延迟关闭计时器在组件卸载时必须被清理，
+  // 否则卸载后回调仍会触发 onClose（作用到已卸载组件）。
+  it('clears the pending close timer on unmount (no callback after teardown)', () => {
+    vi.useFakeTimers();
+    try {
+      const onSelect = vi.fn();
+      const { unmount } = render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={onSelect} />,
+      );
+      const group = screen.getByRole('button', { name: /搜索引擎/ }).parentElement!;
+      fireEvent.mouseEnter(group);
+      expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+      // 离开 → 启动延迟关闭（计时器挂起）
+      fireEvent.mouseLeave(group);
+      // 在延迟窗口内卸载组件
+      unmount();
+      // 推进时间超过延迟：不应抛出「setState on unmounted」/不应有异常
+      expect(() => act(() => { vi.advanceTimersByTime(300); })).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 回归 #1：指示器表达「当前选中」，始终锚定激活源所在项；
+  // hover 展开其它分组时指示器不应跳到被悬停的分组（造成选中态重叠/错位）。
+  // jsdom 下 offset* 默认为 0（isReady=false，指示器不渲染），此处桩出非零测量，
+  // 让指示器真正渲染并据 style 变量断言它锚定的是激活源所在分组而非被悬停分组。
+  it('anchors the indicator to the active group, not to a hovered non-active group', () => {
+    const offsets = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(80);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(26);
+    vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(10);
+    vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockReturnValue(4);
+    try {
+      // active=google 在「搜索引擎」组；hover 不含激活源的「AI 搜索」组。
+      const { container } = render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId="google" onSelect={vi.fn()} />,
+      );
+      const aiGroup = screen.getByRole('button', { name: /AI 搜索/ }).parentElement!;
+      fireEvent.mouseEnter(aiGroup);
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      const switcher = container.querySelector('.source-switcher')!;
+      // 指示器应锚定激活源所在分组（搜索引擎）的 trigger，而非被悬停的 AI 搜索。
+      const enginesTrigger = screen.getByRole('button', { name: /搜索引擎/ });
+      expect(switcher.getAttribute('style')).toContain(`--indicator-w: 80px`);
+      // 被悬停分组 trigger 不被当作指示器目标：其 data-active-source 仍为 google（激活源）
+      expect(switcher.getAttribute('data-active-source')).toBe('google');
+      // 关键：激活源在搜索引擎组 → 该 trigger 应带 group-badge（含激活源），AI 组不带
+      expect(enginesTrigger.querySelector('.group-badge')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /AI 搜索/ }).querySelector('.group-badge')).toBeNull();
+    } finally {
+      offsets.mockRestore();
+    }
   });
 });

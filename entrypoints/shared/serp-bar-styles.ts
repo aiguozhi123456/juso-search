@@ -176,9 +176,12 @@ export const serpBarStyles = `
   width: 6px; height: 6px; border-radius: var(--radius-full);
   background: var(--brand); margin-left: 1px;
 }
+/* 浮层紧贴 trigger 底边（top:100%，无 margin-top 缝隙）：穿缝会触发 mouseleave
+   把浮层提前收回，导致无法切到组内 source。呼吸由内部 padding-top 提供。 */
 .source-switcher .group-flyout {
-  position: absolute; top: 100%; left: 0; margin-top: 4px;
+  position: absolute; top: 100%; left: 0;
   display: flex; flex-direction: column; gap: 4px; padding: 4px;
+  padding-top: 6px;
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.15);

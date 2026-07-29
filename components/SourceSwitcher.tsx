@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SearchSource, SourceId } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
 import type { GroupConfig, SourceLabel } from '@/lib/source-groups';
@@ -26,7 +26,7 @@ interface IndicatorMetrics {
 
 /** 解析分组/来源标签为可见文本（i18n key 走 t()，字面量直出）。 */
 function resolveLabel(label: SourceLabel): string {
-  return label.kind === 'literal' ? label.value : t(label.key as never);
+  return label.kind === 'literal' ? label.value : t(label.key);
 }
 
 /**
@@ -54,11 +54,12 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     [sources, groupConfig, activeId],
   );
 
-  // 决定指示器锚定的 pill data-key：
-  // - 展开某分组时锚定该分组 trigger（让用户感知当前焦点）；
-  // - 否则锚定激活源所在项：置顶源 → 自身 pill；组内源 → 该分组 trigger。
+  // 决定指示器锚定的 pill data-key：始终跟随「激活源」——
+  // 置顶源 → 自身 pill；组内源 → 该分组 trigger。
+  // 不跟随 hover 焦点：指示器表达的是「当前选中」，而 hover 展开由分组 trigger
+  // 自身的 .open 底色表达。若二者混用，悬停别的分组会让指示器跳过去，造成「选中态
+  // 显示重叠 / 错位」——选中态被错误地画在被悬停的分组上。
   const indicatorKey = useMemo(() => {
-    if (openGroupId) return `g:${openGroupId}`;
     if (activeId == null) return null;
     for (const item of layout.items) {
       if (item.kind === 'source') {
@@ -68,7 +69,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       }
     }
     return null;
-  }, [openGroupId, activeId, layout]);
+  }, [activeId, layout]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -215,12 +216,34 @@ function GroupPill({
   const label = resolveLabel(group.label);
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。
   const groupId = `switcher-group-${group.id}`;
+  // hover-intent：trigger 与浮层之间存在视觉缝隙，鼠标穿缝时会先离开 .switcher-group
+  // 触发 mouseleave。若立即关闭，浮层会在鼠标抵达前被收回，导致无法切到组内 source。
+  // 改为延迟关闭：离开后留一个短窗口，期间重新进入（到 trigger 或浮层）即取消关闭。
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleClose = () => {
+    if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      onClose();
+    }, 120);
+  };
+  const cancelClose = () => {
+    if (closeTimerRef.current != null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+  // 卸载时清掉未触发的延迟关闭，避免回调作用到已卸载组件。
+  useEffect(() => () => cancelClose(), []);
   return (
     <div
       className={`switcher-group${open ? ' open' : ''}`}
       data-group={group.id}
-      onMouseEnter={onOpen}
-      onMouseLeave={onClose}
+      onMouseEnter={() => {
+        cancelClose();
+        onOpen();
+      }}
+      onMouseLeave={scheduleClose}
       onFocus={onOpen}
       onBlur={(e) => {
         // 仅当焦点离开整个分组（trigger + 浮层）时才关闭。
