@@ -87,7 +87,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       w: target.offsetWidth,
       h: target.offsetHeight,
     });
-  }, [indicatorKey, layout, disabled]);
+  }, [indicatorKey, layout]);
 
   const isReady = indicator != null && indicator.w > 0;
   const style = isReady

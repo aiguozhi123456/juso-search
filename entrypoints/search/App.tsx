@@ -321,10 +321,10 @@ export default function App() {
     if (id === active) return;
     const switchReqId = ++switchReqIdRef.current;
     setSwitching(true);
+    setActive(id);
     try {
       await sendMessage('setActiveSource', id);
       if (switchReqId !== switchReqIdRef.current) return;
-      setActive(id);
       const nextQuery = query.trim();
       if (nextQuery) await handleSearch(nextQuery, { providerId: id });
     } finally {

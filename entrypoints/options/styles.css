@@ -457,9 +457,24 @@ body {
 }
 .layout-row[data-kind="group"] .layout-tag { background: var(--border-soft); color: var(--muted); }
 .layout-name { flex: 1; min-width: 0; word-break: break-word; }
-.layout-group-count {
-  color: var(--muted); font-size: var(--text-sm); font-weight: 400; margin-left: var(--space-2);
+.layout-group-members {
+  display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-left: var(--space-2); vertical-align: middle;
 }
+.layout-group-member {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px var(--space-1); border-radius: var(--radius-full);
+  background: var(--bg); border: 1px solid var(--border-soft);
+  font-size: var(--text-xs); line-height: 1.4;
+}
+.layout-member-name { white-space: nowrap; }
+.layout-member-pin {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.5;
+  transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.layout-member-pin:hover:not(:disabled) { opacity: 1; color: var(--brand); }
+.layout-member-pin:disabled { opacity: 0.3; cursor: default; }
 .layout-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 .layout-actions button {
   display: inline-flex; align-items: center; justify-content: center;

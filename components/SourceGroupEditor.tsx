@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { SearchSource } from '@/lib/sources';
 import type {
   GroupConfig,
@@ -44,6 +44,8 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   // 正在重命名的分组 id；其值即输入框文本。
   const [renamingId, setRenamingId] = useState<SourceGroupId | null>(null);
   const [renamingValue, setRenamingValue] = useState('');
+  /** 防止重命名提交被 Enter + 卸载-on-Blur 触发两次。 */
+  const renameCommittedRef = useRef(false);
 
   // 基于 sources 重新规范化，保证编辑器只展示已知项（隐藏项也保留以便管理）。
   const cfg = normalizeGroupConfig(
@@ -126,10 +128,12 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   function startRename(group: SourceGroup) {
     setRenamingId(group.id);
     setRenamingValue(groupDisplayLabel(group.id));
+    renameCommittedRef.current = false;
   }
 
   function commitRename() {
-    if (!renamingId) return;
+    if (!renamingId || renameCommittedRef.current) return;
+    renameCommittedRef.current = true;
     const name = renamingValue.trim();
     const previous = cfg;
     // 内置分组的 label 是 i18n key；重命名后改为字面量（覆盖 i18n 默认名）。
@@ -242,11 +246,25 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
                 ) : (
                   <>
                     {groupDisplayLabel(groupId)}
-                    {itemsInGroup.length > 0 && (
-                      <span className="layout-group-count">
-                        ({itemsInGroup.map((s) => resolveLabel(s)).join('、')})
-                      </span>
-                    )}
+                    <span className="layout-group-members">
+                      {itemsInGroup.map((s) => (
+                        <span className="layout-group-member" key={s.id}>
+                          <span className="layout-member-name">{resolveLabel(s)}</span>
+                          <button
+                            type="button"
+                            className="layout-member-pin"
+                            aria-label={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
+                            title={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
+                            disabled={saving}
+                            onClick={() => pinSource(s.id)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                              <path d="M3 2v7.5L9 5.5 6 3l-3-1z" fill="currentColor" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                    </span>
                   </>
                 )}
               </span>
