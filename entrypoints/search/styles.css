@@ -222,12 +222,6 @@ body {
   color: var(--brand);
   background: var(--brand-soft);
 }
-/* 指示器锚定的分组 trigger：其底色由指示器实色承担，.open 的 brand-soft
-   底色会与指示器叠加（半透明叠在实色上）。清除该 trigger 的 .open 底色，
-   文字保持 brand-on 高对比；非锚定分组的 .open 仍用 brand-soft 表达悬停。 */
-.source-switcher .switcher-group.open > .group-trigger[data-indicator-target="true"] {
-  background: transparent;
-}
 /* 含激活源的分组徽章：右上角实心小圆点。 */
 .source-switcher .group-trigger .group-badge {
   width: 6px;

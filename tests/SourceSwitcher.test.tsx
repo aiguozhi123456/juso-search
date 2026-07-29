@@ -237,32 +237,33 @@ describe('SourceSwitcher — grouped layout', () => {
     }
   });
 
-  // 回归 #1：指示器表达「当前选中」，始终锚定激活源所在项；
-  // hover 展开其它分组时指示器不应跳到被悬停的分组（造成选中态重叠/错位）。
-  // jsdom 下 offset* 默认为 0（isReady=false，指示器不渲染），此处桩出非零测量，
-  // 让指示器真正渲染并据 style 变量断言它锚定的是激活源所在分组而非被悬停分组。
-  it('anchors the indicator to the active group, not to a hovered non-active group', () => {
+  // 回归：组内 source 被选中时，分类只用小圆点表达归属，不得把 source 的实色
+  // 指示器锚定到分类 trigger；展开分类后，亮态只落在实际选中的 source 按钮上。
+  // 桩出非零尺寸，避免错误实现因 jsdom 的 offsetWidth=0 而不渲染指示器、漏过断言。
+  it('uses only the badge for an active group and highlights the actual source in its flyout', () => {
     const offsets = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(80);
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(26);
     vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockReturnValue(10);
     vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockReturnValue(4);
     try {
-      // active=google 在「搜索引擎」组；hover 不含激活源的「AI 搜索」组。
       const { container } = render(
         <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId="google" onSelect={vi.fn()} />,
       );
-      const aiGroup = screen.getByRole('button', { name: /AI 搜索/ }).parentElement!;
-      fireEvent.mouseEnter(aiGroup);
-      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
-      const switcher = container.querySelector('.source-switcher')!;
-      // 指示器应锚定激活源所在分组（搜索引擎）的 trigger，而非被悬停的 AI 搜索。
       const enginesTrigger = screen.getByRole('button', { name: /搜索引擎/ });
-      expect(switcher.getAttribute('style')).toContain(`--indicator-w: 80px`);
-      // 被悬停分组 trigger 不被当作指示器目标：其 data-active-source 仍为 google（激活源）
-      expect(switcher.getAttribute('data-active-source')).toBe('google');
-      // 关键：激活源在搜索引擎组 → 该 trigger 应带 group-badge（含激活源），AI 组不带
+      // 收起态：分类选中状态只能由小圆点表示，不得出现 source 指示器或亮态标记。
       expect(enginesTrigger.querySelector('.group-badge')).toBeTruthy();
+      expect(enginesTrigger).not.toHaveAttribute('data-indicator-target');
+      expect(enginesTrigger).not.toHaveClass('active');
+      expect(container.querySelector('.switcher-indicator')).toBeNull();
       expect(screen.getByRole('button', { name: /AI 搜索/ }).querySelector('.group-badge')).toBeNull();
+
+      // 展开后：只有实际选中的 Google source 获得 active 亮态。
+      fireEvent.mouseEnter(enginesTrigger.parentElement!);
+      const google = screen.getByRole('button', { name: /Google/ });
+      expect(google).toHaveClass('active');
+      expect(google).toHaveAttribute('data-active', 'true');
+      expect(screen.getByRole('button', { name: /Bing/ })).not.toHaveClass('active');
+      expect(enginesTrigger).not.toHaveClass('active');
     } finally {
       offsets.mockRestore();
     }

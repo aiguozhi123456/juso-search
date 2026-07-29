@@ -174,8 +174,6 @@ export const serpBarStyles = `
 .source-switcher .group-trigger .group-label { white-space: nowrap; }
 .source-switcher .group-trigger::after { content: '▾'; font-size: 11px; opacity: 0.7; }
 .source-switcher .switcher-group.open > .group-trigger { color: var(--brand); background: var(--brand-soft); }
-/* 指示器锚定的分组 trigger：清除 .open 底色，避免与指示器实色叠加。 */
-.source-switcher .switcher-group.open > .group-trigger[data-indicator-target="true"] { background: transparent; }
 .source-switcher .group-trigger .group-badge {
   width: 6px; height: 6px; border-radius: var(--radius-full);
   background: var(--brand); margin-left: 1px;

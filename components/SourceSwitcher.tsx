@@ -36,7 +36,7 @@ function resolveLabel(label: SourceLabel): string {
  *
  * 签名交互：滑动指示器（segmented control 风格）。
  *   · 激活态由 absolute 定位的 .switcher-indicator 块承载 brand 实色；
- *   · 指示器跟随「激活/打开项的触发 pill」：置顶源跟随自身 pill，分组内源跟随分组 trigger；
+ *   · 指示器只跟随激活的置顶 source；组内 source 的分类状态仅由 trigger 小圆点表达；
  *   · useLayoutEffect 重新测量目标 pill 的 offset*，CSS transition 完成"滑动"动画；
  *   · 分组 trigger hover 进入时展开浮层（.group-flyout），离开关闭；键盘 onFocus/Blur 同步；
  *   · 同一组件用于搜索页与 SERP 注入栏（shadow DOM 内），两处样式各自维护；
@@ -54,18 +54,13 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     [sources, groupConfig, activeId],
   );
 
-  // 决定指示器锚定的 pill data-key：始终跟随「激活源」——
-  // 置顶源 → 自身 pill；组内源 → 该分组 trigger。
-  // 不跟随 hover 焦点：指示器表达的是「当前选中」，而 hover 展开由分组 trigger
-  // 自身的 .open 底色表达。若二者混用，悬停别的分组会让指示器跳过去，造成「选中态
-  // 显示重叠 / 错位」——选中态被错误地画在被悬停的分组上。
+  // 决定指示器锚定的置顶 source pill。组内 source 不把指示器投射到分类 trigger：
+  // source 的亮态只属于实际 source，分类选中状态仅由 containsActive 小圆点表达。
   const indicatorKey = useMemo(() => {
     if (activeId == null) return null;
     for (const item of layout.items) {
       if (item.kind === 'source') {
         if (item.source.id === activeId) return `s:${item.source.id}`;
-      } else if (item.containsActive) {
-        return `g:${item.group.id}`;
       }
     }
     return null;
@@ -129,10 +124,9 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
             />
           );
         }
-        const key = `g:${item.group.id}`;
         return (
           <GroupPill
-            key={key}
+            key={`g:${item.group.id}`}
             group={item.group}
             items={item.items}
             containsActive={item.containsActive}
@@ -142,7 +136,6 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
             open={openGroupId === item.group.id}
             onOpen={() => setOpenGroupId(item.group.id)}
             onClose={() => setOpenGroupId((cur) => (cur === item.group.id ? null : cur))}
-            indicatorTarget={indicatorTargetKey === key}
           />
         );
       })}
@@ -215,7 +208,6 @@ function GroupPill({
   open,
   onOpen,
   onClose,
-  indicatorTarget,
 }: {
   group: { id: string; label: SourceLabel };
   items: SearchSource[];
@@ -226,8 +218,6 @@ function GroupPill({
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
-  /** 该分组 trigger 是否为指示器锚定目标（组内含激活源时为 true）。 */
-  indicatorTarget?: boolean;
 }) {
   const label = resolveLabel(group.label);
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。
@@ -278,7 +268,6 @@ function GroupPill({
         type="button"
         className="group-trigger"
         data-key={`g:${group.id}`}
-        data-indicator-target={indicatorTarget ? 'true' : undefined}
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={groupId}
