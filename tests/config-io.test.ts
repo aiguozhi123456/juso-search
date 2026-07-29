@@ -8,6 +8,7 @@ import {
 } from '@/lib/config-io';
 import { CURRENT_SCHEMA_VERSION } from '@/lib/schema';
 import { setSourceOrder } from '@/lib/storage';
+import { defaultGroupConfig } from '@/lib/source-groups';
 import type { SourceId } from '@/lib/sources';
 
 // 内存版 chrome.storage.local，支持 get(string | string[] | null) + set + remove。
@@ -192,6 +193,13 @@ describe('parseImportPayload', () => {
     const parsed = parseImportPayload(payload);
     expect(parsed).toMatchObject({ ok: true });
     if (parsed.ok) expect(parsed.value.siteEngines).toBeUndefined();
+  });
+
+  it('accepts a v4 export (immediately previous schema; structurally a v5 without groupConfig)', () => {
+    // v4 是本次 schema bump 前的导出版本；结构等同缺 groupConfig 的 v5，应当可重新导入。
+    const payload = validPayload({ schemaVersion: 4 });
+    const parsed = parseImportPayload(payload);
+    expect(parsed.ok).toBe(true);
   });
 
   it('rejects non-object', () => {
@@ -542,6 +550,21 @@ describe('previewImport (dry-run)', () => {
       activeProvider: 'tavily', activeSource: 'tavily', themePref: 'auto', localePref: 'auto',
     }));
     expect(preview.prefDiffs).toEqual([]);
+  });
+
+  it('reports no groupConfig diff when the imported groupConfig equals the current one', async () => {
+    // 回归：previewImport 此前漏读 GROUP_CONFIG_KEY，会把任何 groupConfig 都误报为 diff（与 mergeImport 不一致）。
+    const groupConfig = defaultGroupConfig(['tavily', 'google']);
+    installStorage({
+      activeProvider: 'tavily', activeSource: 'tavily', providerKeys: { tavily: 'k' },
+      themePref: 'auto', localePref: 'auto',
+      groupConfig,
+    });
+    const preview = await previewImport(validPayload({
+      activeProvider: 'tavily', activeSource: 'tavily', themePref: 'auto', localePref: 'auto',
+      groupConfig,
+    }));
+    expect(preview.prefDiffs.find((d) => d.key === 'groupConfig')).toBeUndefined();
   });
 
   it('includes Site Engine-only changes in the same preference confirmation diff', async () => {

@@ -27,7 +27,7 @@ import {
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { isEngineId, isKnownSiteEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
+import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -71,7 +71,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
   const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys, siteEngines);
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
-  const allKnownSourceIds: SourceId[] = computeAllKnownSourceIds(siteEngines);
+  const knownSourceIds = allKnownSourceIds(siteEngines);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
@@ -86,16 +86,10 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     siteEngines,
     providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
     groupConfig: got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
-      ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds)
+      ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], knownSourceIds)
       : undefined,
   };
 }
-
-/** 全部已知 source id（provider + engine + site-engine），供 normalizeGroupConfig 校验。 */
-function computeAllKnownSourceIds(siteEngines: readonly SiteEngineDefinition[]): SourceId[] {
-  return [...KNOWN_PROVIDER_IDS, ...ENGINE_IDS, ...siteEngines.map((s) => s.id)];
-}
-const ENGINE_IDS: EngineId[] = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'];
 
 function getAppVersion(): string {
   const manifest = browser.runtime.getManifest();
@@ -119,7 +113,10 @@ export function parseImportPayload(raw: unknown): ParseResult {
   }
   const obj = raw as Record<string, unknown>;
   if (serializedSize(raw) > MAX_IMPORT_BYTES) return { ok: false, error: 'import_too_large' };
-  if (obj.schemaVersion !== 3 && obj.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  // 接受 v3（遗留，无 siteEngines/groupConfig）、v4（前一版，与 v5 结构兼容——groupConfig 导入时可选）
+  // 与 CURRENT（v5）。v4 导出在本次 schema bump 前由 buildExportPayload 产出，结构等同缺 groupConfig 的 v5，
+  // 拒绝它会让用户在升级后无法重新导入升级前的备份。
+  if (obj.schemaVersion !== 3 && obj.schemaVersion !== 4 && obj.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     return { ok: false, error: 'schema_version_mismatch' };
   }
   const pk = obj.providerKeys;
@@ -172,7 +169,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
   let groupConfig: GroupConfig | undefined;
   if (hasGroupConfig) {
     // normalizeGroupConfig 容错：非法结构会被规整为默认配置，不阻断导入。
-    groupConfig = normalizeGroupConfig(obj.groupConfig, computeAllKnownSourceIds(siteEngines ?? []));
+    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteEngines ?? []));
   }
   return {
     ok: true,
@@ -244,7 +241,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -294,7 +291,7 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (payload.groupConfig !== undefined) {
     const curGroupRaw = got[GROUP_CONFIG_KEY];
     const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-      ? normalizeGroupConfig(curGroupRaw, computeAllKnownSourceIds(currentSites))
+      ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites))
       : undefined;
     if (!sameGroupConfig(curGroup, payload.groupConfig)) {
       prefDiffs.push({ key: 'groupConfig', from: groupConfigSummary(curGroup), to: groupConfigSummary(payload.groupConfig) });
@@ -407,10 +404,10 @@ export async function mergeImport(
       if (payload.groupConfig !== undefined) {
         const curGroupRaw = got[GROUP_CONFIG_KEY];
         const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-          ? normalizeGroupConfig(curGroupRaw, computeAllKnownSourceIds(currentSites))
+          ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites))
           : undefined;
         // 用导入的 site engines 视角重新规范化导入的 groupConfig，确保赋值合法。
-        const newGroup = normalizeGroupConfig(payload.groupConfig, computeAllKnownSourceIds(importedSites));
+        const newGroup = normalizeGroupConfig(payload.groupConfig, allKnownSourceIds(importedSites));
         if (!sameGroupConfig(curGroup, newGroup)) {
           setObj[GROUP_CONFIG_KEY] = newGroup;
           groupConfigOverridden = true;

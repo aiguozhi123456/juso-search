@@ -29,6 +29,7 @@ vi.mock('@/lib/storage', () => ({
   setProviderMaxResults: vi.fn().mockResolvedValue(undefined),
   setSourceHidden: vi.fn(),
   setSourceOrder: vi.fn(),
+  setGroupConfig: vi.fn().mockResolvedValue(undefined),
   createSiteEngineDefinition: vi.fn(),
   updateSiteEngineDefinition: vi.fn(),
   deleteSiteEngineDefinition: vi.fn(),
@@ -81,6 +82,7 @@ import {
   handleSetProviderMaxResults,
   handleSetSourceOrder,
   handleSetSourceHidden,
+  handleSetGroupConfig,
   handleTestKey,
   handleUpdateSiteEngine,
 } from '@/lib/gateway';
@@ -107,6 +109,7 @@ import {
   setProviderMaxResults,
   setSourceHidden,
   setSourceOrder,
+  setGroupConfig,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -135,6 +138,7 @@ const mockedSetKey = vi.mocked(setKey);
 const mockedSetProviderMaxResults = vi.mocked(setProviderMaxResults);
 const mockedSetSourceOrder = vi.mocked(setSourceOrder);
 const mockedSetSourceHidden = vi.mocked(setSourceHidden);
+const mockedSetGroupConfig = vi.mocked(setGroupConfig);
 const mockedClearKey = vi.mocked(clearKey);
 const mockedClearProviderMaxResults = vi.mocked(clearProviderMaxResults);
 const mockedCreateSiteEngineDefinition = vi.mocked(createSiteEngineDefinition);
@@ -454,6 +458,14 @@ describe('handleSetSourceOrder', () => {
     const sourceOrder = ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu'] as const;
     await handleSetSourceOrder([...sourceOrder]);
     expect(mockedSetSourceOrder).toHaveBeenCalledWith(sourceOrder);
+  });
+});
+
+describe('handleSetGroupConfig', () => {
+  it('writes the group config from the worker context', async () => {
+    const cfg = defaultGroupConfig(['tavily', 'google']);
+    await handleSetGroupConfig(cfg);
+    expect(mockedSetGroupConfig).toHaveBeenCalledWith(cfg);
   });
 });
 

@@ -1,9 +1,8 @@
 import type { EngineId } from './engines/types';
-import { allEngines } from './engines/registry';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { SourceId } from './sources';
-import { isEngineId, normalizeSourceHidden, normalizeSourceOrder } from './sources';
+import { allKnownSourceIds, isEngineId, normalizeSourceHidden, normalizeSourceOrder } from './sources';
 import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig, defaultGroupConfig } from './source-groups';
@@ -94,8 +93,6 @@ function isKnownProvider(id: unknown): id is ProviderId {
 }
 
 const DEFAULT_ENGINE_ID: EngineId = 'google';
-/** 全部常规 engine id（静态，用于 normalizeGroupConfig 的已知 source 集合）。 */
-const ENGINE_IDS_LIST: EngineId[] = allEngines().map((e) => e.id);
 
 export async function getConfiguredProviderIds(): Promise<ProviderId[]> {
   const keys = await readKeys();
@@ -355,15 +352,8 @@ export async function setSourceHidden(ids: SourceId[]): Promise<void> {
 // === 来源分组与顶层布局 ===
 // 分组只是布局层：不改变 source 的显隐与底层顺序（sourceOrder/sourceHidden 仍各自负责），
 // 仅在其之上叠加「哪些 source 置顶平铺 / 哪些收进分组」的布局信息。
-
-/** 计算当前已知的全部 source id（provider + engine + site-engine），供 normalizeGroupConfig 校验。 */
-function allKnownSourceIds(definitions: readonly SiteEngineDefinition[]): SourceId[] {
-  return [
-    ...allProviders().map((p) => p.id),
-    ...ENGINE_IDS_LIST,
-    ...definitions.map((d) => d.id),
-  ];
-}
+// 已知 source id 集合由 lib/sources.ts 的 allKnownSourceIds 统一计算（provider + engine + site-engine），
+// 避免各调用方各自硬编码 engine 列表导致漂移。
 
 export async function getGroupConfig(): Promise<GroupConfig> {
   const got = await browser.storage.local.get([GROUP_CONFIG_KEY, SITE_ENGINES_KEY]);

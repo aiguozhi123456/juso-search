@@ -7,7 +7,6 @@ import type {
   SwitcherItem,
 } from '@/lib/source-groups';
 import {
-  defaultGroupConfig,
   isBuiltinGroupId,
   normalizeGroupConfig,
   pinnedSourceIds,
@@ -327,6 +326,3 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
     </section>
   );
 }
-
-// 导出默认配置供 App 初始化（也可从 source-groups 直接导入，这里集中便于测试 mock）。
-export { defaultGroupConfig };

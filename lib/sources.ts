@@ -40,6 +40,18 @@ const DEFAULT_SOURCE_ORDER: SourceId[] = [
   ...allEngines().map((engine) => engine.id),
 ];
 
+/**
+ * 当前已知的全部 source id（provider + engine + 给定 site-engine 定义），
+ * 供 normalizeGroupConfig 等校验逻辑使用。单一定义点，避免各调用方各自硬编码 engine 列表导致漂移。
+ */
+export function allKnownSourceIds(siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+  return [
+    ...allProviders().map((provider) => provider.id),
+    ...allEngines().map((engine) => engine.id),
+    ...siteDefinitions.map((definition) => definition.id),
+  ];
+}
+
 /** Resolves a source label without sending literal user data through i18n. */
 export function sourceLabel(
   source: Pick<SearchSource, 'label' | 'labelDescriptor'>,

@@ -57,6 +57,9 @@ export default function App() {
   const sourceOrderRevision = useRef(0);
   const sourceHiddenRevision = useRef(0);
   const activeSourceRevision = useRef(0);
+  // 与 sourceOrder/sourceHidden 同构的乐观修订守卫：SourceGroupEditor.persist 乐观推进本地 groupConfig，
+  // 在此期间返回的 getProviderConfig 不应再用旧 groupConfig 覆盖。
+  const groupConfigRevision = useRef(0);
   const [activeGroup, setActiveGroup] = useState('search');
 
    const navGroups = [
@@ -87,6 +90,7 @@ export default function App() {
       const orderRevisionAtRequest = sourceOrderRevision.current;
       const hiddenRevisionAtRequest = sourceHiddenRevision.current;
       const activeRevisionAtRequest = activeSourceRevision.current;
+      const groupRevisionAtRequest = groupConfigRevision.current;
       const config = await sendMessage('getProviderConfig', undefined);
       // Stale guard: if a newer config request was made while this one was in flight,
       // ignore the entire response so older data doesn't clobber newer optimistic state
@@ -103,7 +107,11 @@ export default function App() {
       // 让 SiteEngineManager 在 create/update/delete 后看到最新结果。
       const engines = config.siteEngines ?? [];
       setSiteEngines(engines);
-      setGroupConfig(config.groupConfig);
+      // 与 sourceOrder/sourceHidden 同构：仅当请求期间没有本地 groupConfig 乐观变更时才采纳响应，
+      // 避免在途的旧配置覆盖 SourceGroupEditor.persist 刚写入的乐观态。
+      if (groupRevisionAtRequest === groupConfigRevision.current) {
+        setGroupConfig(config.groupConfig);
+      }
       // sourceOrder 必须与同一份 siteEngines 快照一起规范化，否则 site: id 会被误判为未知而丢弃。
       if (orderRevisionAtRequest === sourceOrderRevision.current) {
         setSourceOrder(normalizeSourceOrder(config.sourceOrder, engines));
@@ -319,7 +327,12 @@ export default function App() {
           <SourceGroupEditor
             sources={configuredSources}
             groupConfig={groupConfig}
-            onChange={setGroupConfig}
+            onChange={(next) => {
+              // 推进乐观修订：任何在本次变更之前发起、尚未返回的 getProviderConfig
+              // 都不应再用旧 groupConfig 覆盖本次编辑（同 sourceOrder/sourceHidden 守卫）。
+              groupConfigRevision.current += 1;
+              setGroupConfig(next);
+            }}
             resolveLabel={(source) => sourceLabel(source, t)}
           />
           </>
