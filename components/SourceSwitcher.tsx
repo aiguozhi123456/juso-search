@@ -226,6 +226,14 @@ function GroupPill({
         // 仅当焦点离开整个分组（trigger + 浮层）时才关闭。
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose();
       }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && open) {
+          // Escape 关闭浮层并归还焦点到 trigger，保持键盘用户的位置感。
+          const trigger = (e.target as HTMLElement).closest('.switcher-group')?.querySelector('.group-trigger') as HTMLElement | null;
+          trigger?.focus();
+          onClose();
+        }
+      }}
     >
       <button
         type="button"
@@ -241,7 +249,7 @@ function GroupPill({
         {containsActive && <span className="group-badge" aria-hidden="true" />}
       </button>
       {open && (
-        <div className="group-flyout" role="menu" id={groupId}>
+        <div className="group-flyout" id={groupId}>
           {items.map((source) => (
             <SourceButton
               key={source.id}

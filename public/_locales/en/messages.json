@@ -167,7 +167,7 @@
   "engine_xiaohongshu": { "message": "Xiaohongshu" },
   "engine_bilibili": { "message": "Bilibili" },
   "source_switcher_aria": { "message": "Switch search source" },
-  "source_switcher_group_aria": { "message": "$1 group (hover to expand)", "placeholders": { "1": { "content": "$1" } } },
+  "source_switcher_group_aria": { "message": "$1 group (hover or focus to expand)", "placeholders": { "1": { "content": "$1" } } },
   "group_ai_search": { "message": "AI Search" },
   "group_engines": { "message": "Search Engines" },
   "group_sites": { "message": "Sites" },
