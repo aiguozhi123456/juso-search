@@ -431,60 +431,112 @@ body {
 }
 .source-order-actions button:disabled { opacity: 0.5; cursor: default; }
 
-/* ── 来源布局编辑器（平铺项 + 分组混合序列） ── */
+/* ── 来源布局编辑器（平铺项 + 分组混合序列） ──
+   设计意图：把「紧贴的表格」升级为「松散堆叠的行卡片」。
+   · 平铺项 = 单行软卡；分组项 = 容器卡（头部 + 内嵌凹陷成员区）。
+   · 行间留白让分组容器感清晰；hover 提边 + 微阴影给出可交互的层次。 */
 .source-layout-list {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--border-soft); border-radius: var(--radius-md);
-  overflow: hidden;
+  display: flex; flex-direction: column; gap: var(--space-2);
 }
+
+/* 行卡片基础 */
 .layout-row {
   display: flex; align-items: center; gap: var(--space-3);
-  min-height: 48px; padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border-soft);
-  font-size: var(--text-md);
-  transition: background var(--duration-fast) var(--ease-out);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-md);
+  background: var(--bg); font-size: var(--text-md);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
 }
-.layout-row:last-child { border-bottom: none; }
-.layout-row:hover { background: var(--bg); }
-.layout-row[data-kind="group"] { background: var(--bg-soft); }
+.layout-row:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-1);
+}
+/* 平铺项：单行紧凑 */
+.layout-row--source { min-height: 44px; }
+/* 分组项：纵向容器 —— 头部 + 成员区 */
+.layout-row--group {
+  flex-direction: column; align-items: stretch;
+  gap: var(--space-2); padding: var(--space-3);
+}
+/* 分组头部：标签 + 组名 + 操作，单行 */
+.layout-group-head {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-height: 28px;
+}
+
+/* 标签 pill：平铺用 brand 实色（强调已置顶），分组用描边中性（容器语义） */
 .layout-tag {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 48px; padding: 2px var(--space-2);
+  min-width: 44px; padding: 2px var(--space-2);
   border-radius: var(--radius-full);
-  font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.02em;
-  background: var(--brand-soft); color: var(--brand);
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.04em;
   flex-shrink: 0;
 }
-.layout-row[data-kind="group"] .layout-tag { background: var(--border-soft); color: var(--muted); }
-.layout-name { flex: 1; min-width: 0; word-break: break-word; display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
-/* 组名与成员清晰分层：组名作为标签，成员作为其下的芯片区，独占空间并可整齐换行。 */
-.layout-row[data-kind="group"] .layout-name { flex-direction: column; align-items: flex-start; gap: var(--space-1); }
-.layout-group-members {
-  display: flex; flex-wrap: wrap; gap: var(--space-1);
-  width: 100%;
+.layout-tag--source { background: var(--brand-soft); color: var(--brand); }
+.layout-tag--group {
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
 }
+
+/* 名称区：占满剩余空间 */
+.layout-name {
+  flex: 1; min-width: 0; display: flex; align-items: center;
+  gap: var(--space-2); word-break: break-word;
+}
+/* 分组标题略重，建立层级 */
+.layout-group-title { font-weight: 600; }
+/* 成员计数徽标：纯数字、装饰性（aria-hidden） */
+.layout-group-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--border-soft); color: var(--muted);
+  font-size: var(--text-xs); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 分组成员区：内嵌凹陷容器，承载成员芯片 ── */
+.layout-group-members {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+/* 成员芯片：精致 pill，置顶按钮内嵌右侧 */
 .layout-group-member {
   display: inline-flex; align-items: center; gap: var(--space-1);
-  padding: 2px 2px 2px var(--space-2); border-radius: var(--radius-full);
+  padding: 2px 2px 2px var(--space-2);
+  border-radius: var(--radius-full);
   background: var(--bg); border: 1px solid var(--border-soft);
   font-size: var(--text-xs); line-height: 1.4;
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 .layout-group-member:hover { border-color: var(--border); }
-.layout-member-name { white-space: nowrap; }
+.layout-member-name { white-space: nowrap; color: var(--fg); }
+/* 置顶按钮：常驻可见的圆形图标钮，hover 转 brand 强调 */
 .layout-member-pin {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; padding: 0; border: none; border-radius: 50%;
-  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.45;
-  transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+  width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.55;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
 }
-.layout-member-pin:hover:not(:disabled) { opacity: 1; color: var(--brand); background: var(--brand-soft); }
+.layout-member-pin:hover:not(:disabled) {
+  opacity: 1; color: var(--brand); background: var(--brand-soft);
+}
 .layout-member-pin:disabled { opacity: 0.3; cursor: default; }
-.layout-actions { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
-/* 文字按钮（重命名 / 删除 / 置顶平铺）与图标按钮（上下移）统一 28px 高，视觉对齐。 */
-.layout-actions button {
+
+/* ── 操作区 ── */
+.layout-actions {
+  display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0;
+}
+/* 按钮基类：文字钮与图标钮统一 30px 高，视觉对齐 */
+.layout-btn {
   display: inline-flex; align-items: center; justify-content: center;
-  min-height: 28px; padding: 0 var(--space-2);
+  gap: var(--space-1);
+  min-height: 30px; padding: 0 var(--space-2);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--fg); cursor: pointer;
   font-size: var(--text-sm); font-family: inherit;
@@ -492,53 +544,85 @@ body {
               border-color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
-.layout-actions button:hover:not(:disabled) { color: var(--brand); border-color: var(--brand); }
-.layout-actions button:disabled { opacity: 0.5; cursor: default; }
-/* 图标按钮（上下移）固定方形，与文字按钮等高。 */
-.layout-actions button[aria-label] { width: 30px; padding: 0; }
-.layout-actions button svg { display: block; }
-.layout-fold select {
-  min-height: 28px; padding: 0 var(--space-2);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--bg); color: var(--fg); font-size: var(--text-sm); font-family: inherit;
-  cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out);
+.layout-btn:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand); background: var(--brand-soft);
 }
-.layout-fold select:hover { border-color: var(--muted); }
-.layout-fold select:focus { outline: none; border-color: var(--brand); }
-.layout-rename-input {
-  width: 100%; max-width: 240px;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--brand); border-radius: var(--radius-sm);
-  background: var(--bg); color: var(--fg); font-size: var(--text-md); font-family: inherit;
+.layout-btn:disabled { opacity: 0.5; cursor: default; }
+.layout-btn svg { display: block; }
+/* 图标钮：方形 */
+.layout-btn--icon { width: 30px; padding: 0; }
+/* 破坏性按钮（删除）：hover 转 error 语义 */
+.layout-btn--danger:hover:not(:disabled) {
+  color: var(--error); border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
 }
-.layout-rename-input:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
-.layout-row--orphan { opacity: 0.6; }
-.source-layout-new {
-  display: flex; gap: var(--space-2); margin-top: var(--space-3); align-items: center;
+/* 主按钮（新建分组）：brand 实色 */
+.layout-btn--primary {
+  padding: 0 var(--space-4);
+  border-color: var(--brand); background: var(--brand);
+  color: var(--brand-on); font-weight: 500;
 }
-.layout-new-input {
-  flex: 1; max-width: 280px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--bg); color: var(--fg); font-size: var(--text-md); font-family: inherit;
-  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
-}
-.layout-new-input:hover:not(:disabled) { border-color: var(--muted); }
-.layout-new-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
-.source-layout-new button {
-  padding: var(--space-2) var(--space-4);
-  min-height: 28px;
-  border: 1px solid var(--brand); border-radius: var(--radius-sm);
-  background: var(--brand); color: var(--brand-on);
-  font-size: var(--text-sm); font-weight: 500; font-family: inherit; cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
-}
-.source-layout-new button:hover:not(:disabled) {
+.layout-btn--primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--brand) 88%, black);
   border-color: color-mix(in srgb, var(--brand) 88%, black);
+  color: var(--brand-on);
 }
-.source-layout-new button:disabled { opacity: 0.5; cursor: default; }
+/* 上下移：成对分组，与左侧管理动作留白分隔 */
+.layout-move {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  margin-left: var(--space-1);
+}
+
+/* 收入分组 select：复用全局 select 的 chevron，仅压缩尺寸对齐按钮。
+   注意用 background-color（非 shorthand background）以免清掉全局箭头。 */
+.layout-fold select {
+  min-height: 30px; padding: 0 var(--space-8) 0 var(--space-2);
+  font-size: var(--text-sm); border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.layout-fold select:hover:not(:disabled) { border-color: var(--muted); }
+.layout-fold select:focus { outline: none; border-color: var(--brand); }
+
+/* 重命名输入框：内嵌组名位置，brand 描边 + 焦点环 */
+.layout-rename-input {
+  width: 100%; max-width: 260px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--brand); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg);
+  font-size: var(--text-md); font-family: inherit;
+}
+.layout-rename-input:focus { outline: none; box-shadow: var(--focus-ring); }
+
+/* 孤儿行（未放置 source）：虚线描边 + 减淡，提示待安置 */
+.layout-row--orphan {
+  border-style: dashed; background: var(--bg-soft); opacity: 0.75;
+}
+.layout-row--orphan:hover { border-color: var(--brand); }
+
+/* ── 新建分组区：独立邀请动作，虚线容器 + 主按钮 ── */
+.source-layout-new {
+  display: flex; gap: var(--space-2); align-items: center;
+  margin-top: var(--space-3); padding: var(--space-3);
+  border: 1px dashed var(--border); border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.source-layout-new:focus-within { border-color: var(--brand); }
+.layout-new-input {
+  flex: 1; min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg);
+  font-size: var(--text-md); font-family: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+.layout-new-input:hover:not(:disabled) { border-color: var(--muted); }
+.layout-new-input:focus {
+  outline: none; border-color: var(--brand); box-shadow: var(--focus-ring);
+}
+
 .sr-only {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;

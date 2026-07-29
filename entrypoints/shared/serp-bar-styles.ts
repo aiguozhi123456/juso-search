@@ -143,11 +143,13 @@ export const serpBarStyles = `
 }
 .source-switcher button:disabled { opacity: 0.55; cursor: default; }
 .source-switcher button[data-active="true"] { color: var(--brand-on); font-weight: 600; }
-/* fallback：未测量到指示器时，active 直接用实色（与搜索页一致） */
+/* fallback：未测量到指示器时，active 直接用实色（与搜索页一致）。
+   指示器锚定的 pill 自身底色由指示器承担；仅清除该 pill 的底色，
+   浮层内 active 项（其后无指示器）保留自身实色，避免白字透明底不可见。 */
 .source-switcher button.active {
   background: var(--brand); color: var(--brand-on); border-color: var(--brand);
 }
-.source-switcher[style*="--indicator-w"] button.active {
+.source-switcher button.active[data-indicator-target="true"] {
   background: transparent; border-color: transparent;
 }
 .source-switcher .source-icon { border-radius: var(--radius-sm); display: inline-block; }
@@ -172,6 +174,8 @@ export const serpBarStyles = `
 .source-switcher .group-trigger .group-label { white-space: nowrap; }
 .source-switcher .group-trigger::after { content: '▾'; font-size: 11px; opacity: 0.7; }
 .source-switcher .switcher-group.open > .group-trigger { color: var(--brand); background: var(--brand-soft); }
+/* 指示器锚定的分组 trigger：清除 .open 底色，避免与指示器实色叠加。 */
+.source-switcher .switcher-group.open > .group-trigger[data-indicator-target="true"] { background: transparent; }
 .source-switcher .group-trigger .group-badge {
   width: 6px; height: 6px; border-radius: var(--radius-full);
   background: var(--brand); margin-left: 1px;
@@ -213,7 +217,7 @@ export const serpBarStyles = `
   border-color: var(--source-color);
   color: var(--color-on-fill);
 }
-:host([data-style="colorful"]) .source-switcher[style*="--indicator-w"] button.active {
+:host([data-style="colorful"]) .source-switcher button.active[data-indicator-target="true"] {
   background: transparent;
   border-color: transparent;
 }

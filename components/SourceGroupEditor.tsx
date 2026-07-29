@@ -13,7 +13,7 @@ import {
   resolveGroupId,
 } from '@/lib/source-groups';
 import { sendMessage } from '@/lib/messaging';
-import { ChevronDownIcon, ChevronUpIcon } from '@/components/icons';
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
 
 interface Props {
@@ -177,8 +177,8 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
             if (!source) return null;
             const name = resolveLabel(source);
             return (
-              <div className="layout-row" key={`s:${item.sourceId}`} data-kind="source">
-                <span className="layout-tag">{t(MSG.opts_group_item_source)}</span>
+              <div className="layout-row layout-row--source" key={`s:${item.sourceId}`} data-kind="source">
+                <span className="layout-tag layout-tag--source">{t(MSG.opts_group_item_source)}</span>
                 <span className="layout-name">{name}</span>
                 <div className="layout-actions">
                   <label className="layout-fold">
@@ -194,24 +194,28 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
                       ))}
                     </select>
                   </label>
-                  <button
-                    type="button"
-                    aria-label={t(MSG.opts_group_move_up, [name])}
-                    title={t(MSG.opts_group_move_up, [name])}
-                    disabled={saving || index === 0}
-                    onClick={() => moveItem(index, -1)}
-                  >
-                    <ChevronUpIcon size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t(MSG.opts_group_move_down, [name])}
-                    title={t(MSG.opts_group_move_down, [name])}
-                    disabled={saving || index === cfg.layout.length - 1}
-                    onClick={() => moveItem(index, 1)}
-                  >
-                    <ChevronDownIcon size={16} />
-                  </button>
+                  <div className="layout-move">
+                    <button
+                      type="button"
+                      className="layout-btn layout-btn--icon"
+                      aria-label={t(MSG.opts_group_move_up, [name])}
+                      title={t(MSG.opts_group_move_up, [name])}
+                      disabled={saving || index === 0}
+                      onClick={() => moveItem(index, -1)}
+                    >
+                      <ChevronUpIcon size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="layout-btn layout-btn--icon"
+                      aria-label={t(MSG.opts_group_move_down, [name])}
+                      title={t(MSG.opts_group_move_down, [name])}
+                      disabled={saving || index === cfg.layout.length - 1}
+                      onClick={() => moveItem(index, 1)}
+                    >
+                      <ChevronDownIcon size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -223,87 +227,99 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
           const itemsInGroup = sources.filter(
             (s) => !pinned.has(s.id) && resolveGroupId(s.id, cfg.assignments) === groupId,
           );
+          const renaming = renamingId === groupId;
           return (
-            <div className="layout-row" key={`g:${groupId}`} data-kind="group">
-              <span className="layout-tag">{t(MSG.opts_group_item_group)}</span>
-              <span className="layout-name">
-                {renamingId === groupId ? (
-                  <input
-                    className="layout-rename-input"
-                    value={renamingValue}
-                    autoFocus
-                    disabled={saving}
-                    onChange={(e) => setRenamingValue(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitRename();
-                      if (e.key === 'Escape') {
-                        setRenamingId(null);
-                        setRenamingValue('');
-                      }
-                    }}
-                  />
-                ) : (
-                  <>
-                    {groupDisplayLabel(groupId)}
-                    <span className="layout-group-members">
-                      {itemsInGroup.map((s) => (
-                        <span className="layout-group-member" key={s.id}>
-                          <span className="layout-member-name">{resolveLabel(s)}</span>
-                          <button
-                            type="button"
-                            className="layout-member-pin"
-                            aria-label={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
-                            title={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
-                            disabled={saving}
-                            onClick={() => pinSource(s.id)}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                              <path d="M3 2v7.5L9 5.5 6 3l-3-1z" fill="currentColor" />
-                            </svg>
-                          </button>
-                        </span>
-                      ))}
-                    </span>
-                  </>
-                )}
-              </span>
-              <div className="layout-actions">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => (group ? startRename(group) : undefined)}
-                >
-                  {t(MSG.opts_group_rename)}
-                </button>
-                {!isBuiltin && (
+            <div className="layout-row layout-row--group" key={`g:${groupId}`} data-kind="group">
+              <div className="layout-group-head">
+                <span className="layout-tag layout-tag--group">{t(MSG.opts_group_item_group)}</span>
+                <span className="layout-name">
+                  {renaming ? (
+                    <input
+                      className="layout-rename-input"
+                      value={renamingValue}
+                      autoFocus
+                      disabled={saving}
+                      onChange={(e) => setRenamingValue(e.target.value)}
+                      onBlur={commitRename}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') commitRename();
+                        if (e.key === 'Escape') {
+                          setRenamingId(null);
+                          setRenamingValue('');
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <span className="layout-group-title">{groupDisplayLabel(groupId)}</span>
+                      <span className="layout-group-count" aria-hidden="true">{itemsInGroup.length}</span>
+                    </>
+                  )}
+                </span>
+                <div className="layout-actions">
                   <button
                     type="button"
+                    className="layout-btn"
                     disabled={saving}
-                    onClick={() => deleteGroup(groupId)}
+                    onClick={() => (group ? startRename(group) : undefined)}
                   >
-                    {t(MSG.opts_group_delete)}
+                    {t(MSG.opts_group_rename)}
                   </button>
-                )}
-                <button
-                  type="button"
-                  aria-label={t(MSG.opts_group_move_up, [groupDisplayLabel(groupId)])}
-                  title={t(MSG.opts_group_move_up, [groupDisplayLabel(groupId)])}
-                  disabled={saving || index === 0}
-                  onClick={() => moveItem(index, -1)}
-                >
-                  <ChevronUpIcon size={16} />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t(MSG.opts_group_move_down, [groupDisplayLabel(groupId)])}
-                  title={t(MSG.opts_group_move_down, [groupDisplayLabel(groupId)])}
-                  disabled={saving || index === cfg.layout.length - 1}
-                  onClick={() => moveItem(index, 1)}
-                >
-                  <ChevronDownIcon size={16} />
-                </button>
+                  {!isBuiltin && (
+                    <button
+                      type="button"
+                      className="layout-btn layout-btn--danger"
+                      disabled={saving}
+                      onClick={() => deleteGroup(groupId)}
+                    >
+                      {t(MSG.opts_group_delete)}
+                    </button>
+                  )}
+                  <div className="layout-move">
+                    <button
+                      type="button"
+                      className="layout-btn layout-btn--icon"
+                      aria-label={t(MSG.opts_group_move_up, [groupDisplayLabel(groupId)])}
+                      title={t(MSG.opts_group_move_up, [groupDisplayLabel(groupId)])}
+                      disabled={saving || index === 0}
+                      onClick={() => moveItem(index, -1)}
+                    >
+                      <ChevronUpIcon size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="layout-btn layout-btn--icon"
+                      aria-label={t(MSG.opts_group_move_down, [groupDisplayLabel(groupId)])}
+                      title={t(MSG.opts_group_move_down, [groupDisplayLabel(groupId)])}
+                      disabled={saving || index === cfg.layout.length - 1}
+                      onClick={() => moveItem(index, 1)}
+                    >
+                      <ChevronDownIcon size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
+              {!renaming && itemsInGroup.length > 0 && (
+                <div className="layout-group-members">
+                  {itemsInGroup.map((s) => (
+                    <span className="layout-group-member" key={s.id}>
+                      <span className="layout-member-name">{resolveLabel(s)}</span>
+                      <button
+                        type="button"
+                        className="layout-member-pin"
+                        aria-label={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
+                        title={t(MSG.opts_group_pin_source, [resolveLabel(s)])}
+                        disabled={saving}
+                        onClick={() => pinSource(s.id)}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                          <path d="M3 2v7.5L9 5.5 6 3l-3-1z" fill="currentColor" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -313,10 +329,10 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
           .filter((s) => !cfg.layout.some((it) => it.kind === 'source' && it.sourceId === s.id))
           .filter((s) => !cfg.layout.some((it) => it.kind === 'group' && resolveGroupId(s.id, cfg.assignments) === it.groupId))
           .map((s) => (
-            <div className="layout-row layout-row--orphan" key={`o:${s.id}`}>
+            <div className="layout-row layout-row--source layout-row--orphan" key={`o:${s.id}`}>
               <span className="layout-name">{resolveLabel(s)}</span>
               <div className="layout-actions">
-                <button type="button" disabled={saving} onClick={() => pinSource(s.id)}>
+                <button type="button" className="layout-btn" disabled={saving} onClick={() => pinSource(s.id)}>
                   {t(MSG.opts_group_pin_source)}
                 </button>
               </div>
@@ -336,8 +352,9 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
             if (e.key === 'Enter') createGroup();
           }}
         />
-        <button type="button" disabled={saving || !newGroupName.trim()} onClick={createGroup}>
-          {t(MSG.opts_group_new)}
+        <button type="button" className="layout-btn layout-btn--primary" disabled={saving || !newGroupName.trim()} onClick={createGroup}>
+          <PlusIcon size={15} />
+          <span>{t(MSG.opts_group_new)}</span>
         </button>
       </div>
       {error && <p className="status fail" role="alert">{error}</p>}

@@ -145,13 +145,16 @@ body {
 .source-switcher button:disabled { opacity: 0.55; cursor: default; }
 /* fallback：未测量到指示器（首屏 / 无 JS / 测量失败）时，active 直接用实色，
    避免出现"白色文字在白底"的不可见选中态。一旦 .switcher-indicator 出现，
-   button 自身底色由指示器承担，文字仍保持 brand-on 高对比。 */
+   指示器锚定的那个 pill 自身底色由指示器承担，文字仍保持 brand-on 高对比。
+   仅清除「指示器锚定 pill」的底色——浮层内 active 项其后无指示器，必须保留
+   自身实色，否则白字透明底不可见。此前用 [style*="--indicator-w"] 全局清除
+   所有 .active 底色，会误伤浮层内 active 项。 */
 .source-switcher button.active {
   background: var(--brand);
   color: var(--brand-on);
   border-color: var(--brand);
 }
-.source-switcher[style*="--indicator-w"] button.active {
+.source-switcher button.active[data-indicator-target="true"] {
   background: transparent;
   border-color: transparent;
 }
@@ -218,6 +221,12 @@ body {
 .source-switcher .switcher-group.open > .group-trigger {
   color: var(--brand);
   background: var(--brand-soft);
+}
+/* 指示器锚定的分组 trigger：其底色由指示器实色承担，.open 的 brand-soft
+   底色会与指示器叠加（半透明叠在实色上）。清除该 trigger 的 .open 底色，
+   文字保持 brand-on 高对比；非锚定分组的 .open 仍用 brand-soft 表达悬停。 */
+.source-switcher .switcher-group.open > .group-trigger[data-indicator-target="true"] {
+  background: transparent;
 }
 /* 含激活源的分组徽章：右上角实心小圆点。 */
 .source-switcher .group-trigger .group-badge {
@@ -634,7 +643,7 @@ body {
   border-color: var(--source-color);
   color: var(--color-on-fill);
 }
-[data-style="colorful"] .source-switcher[style*="--indicator-w"] button.active {
+[data-style="colorful"] .source-switcher button.active[data-indicator-target="true"] {
   background: transparent;
   border-color: transparent;
 }

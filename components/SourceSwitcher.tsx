@@ -99,6 +99,11 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
         '--indicator-h': `${indicator!.h}px`,
       } as React.CSSProperties)
     : undefined;
+  // 指示器锚定的那个 pill 的 data-key。CSS 用 [data-indicator-target="true"]
+  // 精确清除「该 pill 自身的 .active/.open 底色」，避免指示器实色与按钮底色叠加。
+  // 此前用 [style*="--indicator-w"] 全局清除所有 .active 按钮底色，会误伤浮层内
+  // 的 active 项（其后无指示器 → 白字透明底不可见）。
+  const indicatorTargetKey = isReady ? indicatorKey : null;
 
   return (
     <div
@@ -112,19 +117,22 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       {isReady && <span className="switcher-indicator" aria-hidden="true" />}
       {layout.items.map((item) => {
         if (item.kind === 'source') {
+          const key = `s:${item.source.id}`;
           return (
             <SourceButton
-              key={`s:${item.source.id}`}
+              key={key}
               source={item.source}
               active={item.source.id === activeId}
               disabled={disabled}
               onSelect={onSelect}
+              indicatorTarget={indicatorTargetKey === key}
             />
           );
         }
+        const key = `g:${item.group.id}`;
         return (
           <GroupPill
-            key={`g:${item.group.id}`}
+            key={key}
             group={item.group}
             items={item.items}
             containsActive={item.containsActive}
@@ -134,6 +142,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
             open={openGroupId === item.group.id}
             onOpen={() => setOpenGroupId(item.group.id)}
             onClose={() => setOpenGroupId((cur) => (cur === item.group.id ? null : cur))}
+            indicatorTarget={indicatorTargetKey === key}
           />
         );
       })}
@@ -147,11 +156,14 @@ function SourceButton({
   active,
   disabled,
   onSelect,
+  indicatorTarget,
 }: {
   source: SearchSource;
   active: boolean;
   disabled?: boolean;
   onSelect: (source: SearchSource) => void;
+  /** 该 pill 是否为指示器锚定目标（仅置顶源可能为 true；浮层内项恒为 false）。 */
+  indicatorTarget?: boolean;
 }) {
   const tooltip = source.kind === 'site-engine'
     ? t(MSG.tooltip_site_engine)
@@ -166,6 +178,7 @@ function SourceButton({
       data-active={active ? 'true' : 'false'}
       data-source={source.id}
       data-key={`s:${source.id}`}
+      data-indicator-target={indicatorTarget ? 'true' : undefined}
       aria-pressed={active}
       disabled={disabled}
       onClick={() => onSelect(source)}
@@ -202,6 +215,7 @@ function GroupPill({
   open,
   onOpen,
   onClose,
+  indicatorTarget,
 }: {
   group: { id: string; label: SourceLabel };
   items: SearchSource[];
@@ -212,6 +226,8 @@ function GroupPill({
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
+  /** 该分组 trigger 是否为指示器锚定目标（组内含激活源时为 true）。 */
+  indicatorTarget?: boolean;
 }) {
   const label = resolveLabel(group.label);
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。
@@ -262,6 +278,7 @@ function GroupPill({
         type="button"
         className="group-trigger"
         data-key={`g:${group.id}`}
+        data-indicator-target={indicatorTarget ? 'true' : undefined}
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={groupId}
