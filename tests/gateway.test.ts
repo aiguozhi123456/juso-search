@@ -649,6 +649,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
+      serpBarPositionOverridden: false,
       sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
@@ -667,6 +668,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
+      serpBarPositionOverridden: false,
       sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);

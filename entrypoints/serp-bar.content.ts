@@ -18,14 +18,18 @@ import {
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
-import { getStylePref, getThemePref } from '@/lib/storage';
-import type { StylePref } from '@/lib/storage';
+import { getStylePref, getThemePref, getBarPositionPref } from '@/lib/storage';
+import type { StylePref, BarPositionPref } from '@/lib/storage';
+import { isUiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
 import {
   pickAnchor,
   injectPageStyles,
   removePageStyles,
+  injectBottomPadStyles,
+  removeBottomPadStyles,
+  resolveBarPosition,
   canAttemptMount,
   shouldUpgradeFromLastResort,
   shouldMountForEngine,
@@ -77,6 +81,53 @@ export default defineContentScript({
     // click must not race a newer selection.
     let selectGen = 0;
     let selecting = false;
+
+    // 底栏滚动隐藏：向下滑动藏栏、向上滑动显栏；近顶部始终显示。
+    const SCROLL_HIDE_THRESHOLD = 8;
+    let lastScrollY = 0;
+
+    /**
+     * Apply position chrome: dataset, pageStyles vs pad, scroll-hide baseline.
+     * Does NOT render — callers re-render when React props (e.g. bottomMode) must change.
+     */
+    const applyPositionChrome = (pos: 'top' | 'bottom', opts?: { resetScrollBaseline?: boolean }) => {
+      if (!mountedHost) return;
+      mountedHost.dataset.position = pos;
+      if (pos === 'bottom') {
+        // bottom must NOT keep top-bar engine shims (Douyin etc.)
+        removePageStyles();
+        injectBottomPadStyles();
+        delete mountedHost.dataset.hidden;
+        if (opts?.resetScrollBaseline !== false) lastScrollY = window.scrollY;
+      } else {
+        removeBottomPadStyles();
+        injectPageStyles(state.engine);
+        delete mountedHost.dataset.hidden;
+        lastScrollY = 0;
+      }
+    };
+
+    const handleScrollHide = () => {
+      if (!mountedHost || state.resolvedPosition !== 'bottom') return;
+      const currentY = window.scrollY;
+      // 近顶部始终显示，避免页面顶端无栏可用。
+      if (currentY < 10) {
+        delete mountedHost.dataset.hidden;
+        lastScrollY = currentY;
+        return;
+      }
+      const delta = currentY - lastScrollY;
+      // 仅在有意义位移时切换，避免微小抖动反复触发。
+      if (Math.abs(delta) < SCROLL_HIDE_THRESHOLD) return;
+      if (delta > 0) {
+        // 向下滑动——藏栏。SourceSwitcher 经 MutationObserver 关 flyout。
+        mountedHost.dataset.hidden = 'true';
+      } else {
+        // 向上滑动——显栏。
+        delete mountedHost.dataset.hidden;
+      }
+      lastScrollY = currentY;
+    };
 
     /** Apply a fresh provider config onto local bar state and re-render chips. */
     const applyConfigSnapshot = (config: ProviderConfigReply) => {
@@ -174,7 +225,8 @@ export default defineContentScript({
         mountedAnchorIndex = anchorsFor(state.engine).findIndex((c) => c.selector === strategy.selector);
         if (mountedAnchorIndex < 0) mountedAnchorIndex = 0;
         syncAlignedHost(shadowHost, strategy);
-        injectPageStyles(state.engine);
+        // pageStyles only in top mode; bottom removes engine shims and pads the page.
+        applyPositionChrome(state.resolvedPosition);
         const mountEl = document.createElement('div');
         uiContainer.append(mountEl);
         const root = createRoot(mountEl);
@@ -186,7 +238,9 @@ export default defineContentScript({
         mountedRoot = null;
         mountedHost = null;
         mountedAnchorIndex = -1;
+        lastScrollY = 0;
         removePageStyles();
+        removeBottomPadStyles();
         mounted?.root.unmount();
       },
     });
@@ -227,7 +281,9 @@ export default defineContentScript({
         mountedRoot = null;
         mountedHost = null;
         mountedAnchorIndex = -1;
+        lastScrollY = 0;
         removePageStyles();
+        removeBottomPadStyles();
       }
     };
 
@@ -345,6 +401,10 @@ export default defineContentScript({
       state.query = refreshed.query;
       state.activeId = refreshed.activeId;
       state.activeSiteId = refreshed.activeSiteId;
+      state.barPositionPref = refreshed.barPositionPref;
+      state.resolvedPosition = refreshed.resolvedPosition;
+      // SPA 导航可能带回更新后的分组配置（设置页改过 layout）。
+      if (refreshed.groupConfig) state.groupConfig = refreshed.groupConfig;
       // SPA 导航到被隐藏 engine 的结果页：移除栏且不再重挂。
       // 反向（从隐藏 engine 导航回可见 engine）由后续正常挂载路径恢复。
       if (!shouldMountForEngine(nextEngine.id, state.sourceHidden, state.activeSiteId)) {
@@ -359,7 +419,8 @@ export default defineContentScript({
         mountWhenAnchorReady(revision);
         return;
       }
-      if (mountedHost) syncAlignedHost(mountedHost, strategy);
+      applyPositionChrome(state.resolvedPosition);
+      syncAlignedHost(mountedHost, strategy);
       if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
       watchHostDetachment(revision);
       watchLastResortUpgrade(revision);
@@ -381,7 +442,36 @@ export default defineContentScript({
     }
 
     ctx.addEventListener(window, 'resize', () => {
-      if (mountedHost && document.contains(mountedHost)) syncAlignedHost(mountedHost, strategy);
+      if (mountedHost && document.contains(mountedHost)) {
+        syncAlignedHost(mountedHost, strategy);
+        const next = resolveBarPosition(state.barPositionPref, window.innerWidth);
+        if (next !== state.resolvedPosition) {
+          state.resolvedPosition = next;
+          applyPositionChrome(next);
+          // bottomMode 进 React 树：位置变化必须 re-render。
+          if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+        }
+      }
+    });
+
+    // 底栏滚动隐藏：passive 监听，handler 内部按 resolvedPosition 早退。
+    ctx.addEventListener(window, 'scroll', handleScrollHide, { passive: true });
+
+    // 实时同步栏位偏好：用户在设置页切换 serpBarPosition 时，已打开的 SERP 标签
+    // 无需刷新即可生效。与 theme/style 不同——栏位切换的"无反应"体验比换色更突兀。
+    const onPrefMessage = (message: unknown) => {
+      if (!isUiPrefChangedMessage(message) || message.key !== 'serpBarPosition') return;
+      state.barPositionPref = message.value;
+      const next = resolveBarPosition(message.value, window.innerWidth);
+      if (next === state.resolvedPosition) return;
+      state.resolvedPosition = next;
+      if (!mountedHost) return;
+      applyPositionChrome(next);
+      if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+    };
+    browser.runtime.onMessage.addListener(onPrefMessage);
+    ctx.onInvalidated(() => {
+      browser.runtime.onMessage.removeListener(onPrefMessage);
     });
   },
 });
@@ -398,13 +488,16 @@ interface BarState {
   activeId: SourceId;
   resolvedTheme: 'light' | 'dark';
   stylePref: StylePref;
+  barPositionPref: BarPositionPref;
+  resolvedPosition: 'top' | 'bottom';
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
-  const [config, themePref, stylePref] = await Promise.all([
+  const [config, themePref, stylePref, barPositionPref] = await Promise.all([
     sendMessage('getProviderConfig', undefined),
     getThemePref(),
     getStylePref(),
+    getBarPositionPref(),
   ]);
   const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? []);
   const rawQuery = readQuery(engine, url);
@@ -426,6 +519,8 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     activeId: context.activeId,
     resolvedTheme: resolveTheme(themePref),
     stylePref,
+    barPositionPref,
+    resolvedPosition: resolveBarPosition(barPositionPref, window.innerWidth),
   };
 }
 
@@ -446,6 +541,7 @@ function render(
       activeId: state.activeId,
       onSelect: onSelectSource,
       disabled,
+      bottomMode: state.resolvedPosition === 'bottom',
     }),
   );
 }

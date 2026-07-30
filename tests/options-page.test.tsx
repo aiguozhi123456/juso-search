@@ -17,6 +17,9 @@ vi.mock('@/lib/useLocale', () => ({
 vi.mock('@/lib/useStyle', () => ({
   useStyle: () => ({ pref: 'classic', setPref: vi.fn() }),
 }));
+vi.mock('@/lib/useBarPosition', () => ({
+  useBarPosition: () => ({ pref: 'auto', setPref: vi.fn() }),
+}));
 // AgentBridgeSettings 直接读 storage；页面测试隔离掉，避免依赖 browser.storage.local
 vi.mock('@/lib/storage', () => ({
   getAgentBridgeEnabled: vi.fn().mockResolvedValue(false),
@@ -539,7 +542,7 @@ describe('options page', () => {
           ok: true,
           report: {
             written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
-            themePrefOverridden: false, localePrefOverridden: false, sourceOrderOverridden: false,
+            themePrefOverridden: false, localePrefOverridden: false, serpBarPositionOverridden: false, sourceOrderOverridden: false,
             sourceHiddenOverridden: false, siteEnginesOverridden: true, providerMaxResultsOverridden: false,
           },
         });

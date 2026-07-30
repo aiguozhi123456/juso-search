@@ -8,7 +8,7 @@
 //
 // 安全（R7）：本模块只在 worker 上下文调用（由 gateway handler 触发），不进入页面代码。
 
-import type { LocalePref, ThemePref } from './storage';
+import type { BarPositionPref, LocalePref, ThemePref } from './storage';
 import {
   ACTIVE_KEY,
   ACTIVE_SOURCE_KEY,
@@ -20,6 +20,7 @@ import {
   SITE_ENGINES_KEY,
   THEME_KEY,
   GROUP_CONFIG_KEY,
+  BAR_POSITION_KEY,
   clampMaxResults,
   withProviderKeysMutation,
   withSourceMutation,
@@ -37,6 +38,7 @@ import { isBoundedSiteEngineCollection, isSiteEngineId, normalizeSiteEngineDefin
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
 const LOCALE_VALUES = new Set<LocalePref>(['auto', 'zh_CN', 'en']);
+const BAR_POSITION_VALUES = new Set<BarPositionPref>(['auto', 'top', 'bottom']);
 const DEFAULT_ENGINE_ID: EngineId = 'google';
 const MAX_IMPORT_BYTES = 256 * 1024;
 
@@ -50,6 +52,7 @@ export interface ConfigExport {
   activeSource: SourceId | null;
   themePref: ThemePref;
   localePref: LocalePref;
+  serpBarPosition?: BarPositionPref;
   sourceOrder?: SourceId[];
   sourceHidden?: SourceId[];
   /** Absent in legacy v3 exports; absence preserves local Site Engines. */
@@ -62,7 +65,7 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
@@ -71,6 +74,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
   const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys, siteEngines);
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
+  const barPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
   const knownSourceIds = allKnownSourceIds(siteEngines);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -81,6 +85,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     activeSource,
     themePref: theme,
     localePref: locale,
+    serpBarPosition: barPosition,
     sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines),
     sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines),
     siteEngines,
@@ -143,6 +148,9 @@ export function parseImportPayload(raw: unknown): ParseResult {
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
   if (!LOCALE_VALUES.has(locale as LocalePref)) return { ok: false, error: 'invalid_locale' };
+  const hasBarPosition = Object.prototype.hasOwnProperty.call(obj, 'serpBarPosition');
+  const barPosition = obj.serpBarPosition;
+  if (hasBarPosition && !BAR_POSITION_VALUES.has(barPosition as BarPositionPref)) return { ok: false, error: 'invalid_bar_position' };
   const hasSourceOrder = Object.prototype.hasOwnProperty.call(obj, 'sourceOrder');
   const sourceOrder = obj.sourceOrder;
   if (hasSourceOrder) {
@@ -182,6 +190,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       activeSource: activeSource === undefined ? active as ProviderId | null : activeSource as SourceId | null,
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
+      serpBarPosition: hasBarPosition ? barPosition as BarPositionPref : undefined,
       sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines) : undefined,
       sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines) : undefined,
       siteEngines,
@@ -206,6 +215,8 @@ export interface ImportReport {
   themePrefOverridden: boolean;
   /** 是否覆盖了 localePref。 */
   localePrefOverridden: boolean;
+  /** 是否覆盖了 serpBarPosition。 */
+  serpBarPositionOverridden: boolean;
   /** 是否覆盖了 sourceOrder。 */
   sourceOrderOverridden: boolean;
   /** 是否覆盖了 sourceHidden。 */
@@ -220,7 +231,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'providerMaxResults' | 'groupConfig';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -241,7 +252,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -275,6 +286,11 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   const curLocale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   if (curLocale !== payload.localePref) {
     prefDiffs.push({ key: 'localePref', from: curLocale, to: payload.localePref });
+  }
+  const curBarPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
+  const newBarPosition = payload.serpBarPosition ?? 'auto';
+  if (curBarPosition !== newBarPosition) {
+    prefDiffs.push({ key: 'serpBarPosition', from: curBarPosition, to: newBarPosition });
   }
   if (!sameSourceOrder(sourcePreferences.curSourceOrder, sourcePreferences.newSourceOrder)) {
     prefDiffs.push({ key: 'sourceOrder', from: sourcePreferences.curSourceOrder.join(' > '), to: sourcePreferences.newSourceOrder.join(' > ') });
@@ -328,7 +344,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -357,6 +373,7 @@ export async function mergeImport(
     let activeSourceOverridden = false;
     let themeOverridden = false;
     let localeOverridden = false;
+    let barPositionOverridden = false;
     let sourceOrderOverridden = false;
     let sourceHiddenOverridden = false;
     let siteEnginesOverridden = false;
@@ -385,6 +402,12 @@ export async function mergeImport(
       if (curLocale !== payload.localePref) {
         setObj[LOCALE_KEY] = payload.localePref;
         localeOverridden = true;
+      }
+      const curBarPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
+      const newBarPosition = payload.serpBarPosition ?? 'auto';
+      if (curBarPosition !== newBarPosition) {
+        setObj[BAR_POSITION_KEY] = newBarPosition;
+        barPositionOverridden = true;
       }
       if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
         setObj[SOURCE_ORDER_KEY] = newSourceOrder;
@@ -423,6 +446,7 @@ export async function mergeImport(
       activeSourceOverridden,
       themePrefOverridden: themeOverridden,
       localePrefOverridden: localeOverridden,
+      serpBarPositionOverridden: barPositionOverridden,
       sourceOrderOverridden,
       sourceHiddenOverridden,
       siteEnginesOverridden,

@@ -629,6 +629,71 @@ body {
   clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
 
+/* ── 快切栏栏位切换（auto / top / bottom）：3 态图标滑动指示器 ── */
+.bar-position-toggle {
+  position: relative;
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-full);
+  background: var(--bg-soft);
+}
+.bar-position-toggle-indicator {
+  position: absolute;
+  left: var(--indicator-x, 0);
+  top: var(--indicator-y, 0);
+  width: var(--indicator-w, 0);
+  height: var(--indicator-h, 0);
+  background: var(--brand);
+  border-radius: var(--radius-full);
+  transition: left var(--duration-normal) var(--ease-out),
+              top var(--duration-normal) var(--ease-out),
+              width var(--duration-normal) var(--ease-out),
+              height var(--duration-normal) var(--ease-out);
+  z-index: 0;
+  pointer-events: none;
+}
+.bar-position-toggle button {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
+}
+.bar-position-toggle button:hover:not([data-active="true"]) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.bar-position-toggle button[data-active="true"] { color: var(--brand-on); }
+.bar-position-toggle button.active { background: var(--brand); color: var(--brand-on); }
+.bar-position-toggle[style*="--indicator-w"] button.active { background: transparent; }
+.bar-position-toggle button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.bar-position-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-3);
+}
+.bar-position-label {
+  font-size: 14px;
+  color: var(--muted, #666);
+}
+
 /* ── API key 行 ──────────────────────────────────── */
 .key-row {
   display: grid; grid-template-columns: 160px 1fr auto auto auto;

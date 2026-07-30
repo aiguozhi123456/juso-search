@@ -3,6 +3,7 @@ import type { SearchSource, SourceId } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
 import type { GroupConfig, SourceLabel } from '@/lib/source-groups';
 import { projectLayout, defaultGroupConfig } from '@/lib/source-groups';
+import { scrollChildToCenter } from '@/lib/scroll-child-to-center';
 import { t, MSG } from '@/lib/i18n';
 
 interface Props {
@@ -15,6 +16,11 @@ interface Props {
   /** 选中某源的回调。是否真正跳转/搜索由宿主决定。 */
   onSelect: (source: SearchSource) => void;
   disabled?: boolean;
+  /**
+   * 底栏模式：横滑轨道 + active 滚到轨道视口正中；分组 flyout 用 fixed 锚定向上展开，
+   * 且 trigger 支持点击切换（触屏主路径）。顶栏/搜索页不传。
+   */
+  bottomMode?: boolean;
 }
 
 interface IndicatorMetrics {
@@ -22,6 +28,11 @@ interface IndicatorMetrics {
   y: number;
   w: number;
   h: number;
+}
+
+interface FlyoutAnchor {
+  left: number;
+  bottom: number;
 }
 
 /** 解析分组/来源标签为可见文本（i18n key 走 t()，字面量直出）。 */
@@ -39,14 +50,16 @@ function resolveLabel(label: SourceLabel): string {
  *   · 指示器只跟随激活的置顶 source；组内 source 的分类状态仅由 trigger 小圆点表达；
  *   · useLayoutEffect 重新测量目标 pill 的 offset*，CSS transition 完成"滑动"动画；
  *   · 分组 trigger hover 进入时展开浮层（.group-flyout），离开关闭；键盘 onFocus/Blur 同步；
+ *   · bottomMode：轨道横滑、指示器在 track 内、active 居中、flyout fixed 向上、点击切换；
  *   · 同一组件用于搜索页与 SERP 注入栏（shadow DOM 内），两处样式各自维护；
  *   · 测量在 layout 阶段同步完成，避免指示器先飞到 (0,0) 再回弹；
  *   · jsdom 下 offset* 返回 0，指示器宽高为 0、视觉不可见，不影响测试断言。
  */
-export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled }: Props) {
+export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled, bottomMode = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<IndicatorMetrics | null>(null);
-  // 当前展开的分组 id（hover/focus 控制）；null 表示全部收起。
+  // 当前展开的分组 id（hover/focus/click 控制）；null 表示全部收起。
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
   const layout = useMemo(
@@ -66,13 +79,24 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     return null;
   }, [activeId, layout]);
 
+  // 居中目标：置顶 active pill，或含 active 的分组 trigger（组内不重排 DOM）。
+  const centerKey = useMemo(() => {
+    if (activeId == null) return null;
+    for (const item of layout.items) {
+      if (item.kind === 'source' && item.source.id === activeId) return `s:${item.source.id}`;
+      if (item.kind === 'group' && item.containsActive) return `g:${item.group.id}`;
+    }
+    return null;
+  }, [activeId, layout]);
+
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container || indicatorKey == null) {
+    // 指示器相对 track（底栏横滑时与 pill 同滚动上下文）；顶栏 track 不滚动，等价于原 container。
+    const measureRoot = trackRef.current ?? containerRef.current;
+    if (!measureRoot || indicatorKey == null) {
       setIndicator(null);
       return;
     }
-    const target = container.querySelector<HTMLElement>(`[data-key="${CSS.escape(indicatorKey)}"]`);
+    const target = measureRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(indicatorKey)}"]`);
     if (!target) {
       setIndicator(null);
       return;
@@ -83,7 +107,38 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       w: target.offsetWidth,
       h: target.offsetHeight,
     });
-  }, [indicatorKey, layout]);
+  }, [indicatorKey, layout, bottomMode]);
+
+  useLayoutEffect(() => {
+    if (!bottomMode || centerKey == null) return;
+    const track = trackRef.current;
+    if (!track) return;
+    const target = track.querySelector<HTMLElement>(`[data-key="${CSS.escape(centerKey)}"]`);
+    if (!target) return;
+    scrollChildToCenter(track, target);
+  }, [bottomMode, centerKey, layout]);
+
+  // 底栏 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
+  useEffect(() => {
+    if (!bottomMode) setOpenGroupId(null);
+  }, [bottomMode]);
+
+  // 底栏 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
+  useEffect(() => {
+    if (!bottomMode) return;
+    const el = containerRef.current;
+    if (!el) return;
+    const root = el.getRootNode();
+    const host = root instanceof ShadowRoot
+      ? (root.host as HTMLElement)
+      : (el.closest?.('[data-position]') as HTMLElement | null);
+    if (!host) return;
+    const obs = new MutationObserver(() => {
+      if (host.dataset.hidden === 'true') setOpenGroupId(null);
+    });
+    obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
+    return () => obs.disconnect();
+  }, [bottomMode]);
 
   const isReady = indicator != null && indicator.w > 0;
   const style = isReady
@@ -100,6 +155,38 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   // 的 active 项（其后无指示器 → 白字透明底不可见）。
   const indicatorTargetKey = isReady ? indicatorKey : null;
 
+  const pills = layout.items.map((item) => {
+    if (item.kind === 'source') {
+      const key = `s:${item.source.id}`;
+      return (
+        <SourceButton
+          key={key}
+          source={item.source}
+          active={item.source.id === activeId}
+          disabled={disabled}
+          onSelect={onSelect}
+          indicatorTarget={indicatorTargetKey === key}
+        />
+      );
+    }
+    return (
+      <GroupPill
+        key={`g:${item.group.id}`}
+        group={item.group}
+        items={item.items}
+        containsActive={item.containsActive}
+        activeId={activeId}
+        disabled={disabled}
+        onSelect={onSelect}
+        open={openGroupId === item.group.id}
+        onOpen={() => setOpenGroupId(item.group.id)}
+        onClose={() => setOpenGroupId((cur) => (cur === item.group.id ? null : cur))}
+        onToggle={() => setOpenGroupId((cur) => (cur === item.group.id ? null : item.group.id))}
+        bottomMode={bottomMode}
+      />
+    );
+  });
+
   return (
     <div
       ref={containerRef}
@@ -107,38 +194,12 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       role="group"
       aria-label={t(MSG.source_switcher_aria)}
       data-active-source={activeId ?? undefined}
-      style={style}
+      data-bottom={bottomMode ? 'true' : undefined}
     >
-      {isReady && <span className="switcher-indicator" aria-hidden="true" />}
-      {layout.items.map((item) => {
-        if (item.kind === 'source') {
-          const key = `s:${item.source.id}`;
-          return (
-            <SourceButton
-              key={key}
-              source={item.source}
-              active={item.source.id === activeId}
-              disabled={disabled}
-              onSelect={onSelect}
-              indicatorTarget={indicatorTargetKey === key}
-            />
-          );
-        }
-        return (
-          <GroupPill
-            key={`g:${item.group.id}`}
-            group={item.group}
-            items={item.items}
-            containsActive={item.containsActive}
-            activeId={activeId}
-            disabled={disabled}
-            onSelect={onSelect}
-            open={openGroupId === item.group.id}
-            onOpen={() => setOpenGroupId(item.group.id)}
-            onClose={() => setOpenGroupId((cur) => (cur === item.group.id ? null : cur))}
-          />
-        );
-      })}
+      <div ref={trackRef} className="switcher-track" style={style}>
+        {isReady && <span className="switcher-indicator" aria-hidden="true" />}
+        {pills}
+      </div>
     </div>
   );
 }
@@ -197,7 +258,7 @@ function SourceButton({
   );
 }
 
-/** 分组 pill：trigger + hover 浮层。 */
+/** 分组 pill：trigger + hover/click 浮层。 */
 function GroupPill({
   group,
   items,
@@ -208,6 +269,8 @@ function GroupPill({
   open,
   onOpen,
   onClose,
+  onToggle,
+  bottomMode,
 }: {
   group: { id: string; label: SourceLabel };
   items: SearchSource[];
@@ -218,10 +281,16 @@ function GroupPill({
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
+  onToggle: () => void;
+  bottomMode: boolean;
 }) {
   const label = resolveLabel(group.label);
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。
   const groupId = `switcher-group-${group.id}`;
+  const groupRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  const [flyoutAnchor, setFlyoutAnchor] = useState<FlyoutAnchor | null>(null);
   // hover-intent：trigger 与浮层之间存在视觉缝隙，鼠标穿缝时会先离开 .switcher-group
   // 触发 mouseleave。若立即关闭，浮层会在鼠标抵达前被收回，导致无法切到组内 source。
   // 改为延迟关闭：离开后留一个短窗口，期间重新进入（到 trigger 或浮层）即取消关闭。
@@ -241,30 +310,106 @@ function GroupPill({
   };
   // 卸载时清掉未触发的延迟关闭，避免回调作用到已卸载组件。
   useEffect(() => () => cancelClose(), []);
+
+  // 底栏 fixed flyout：按 trigger 视口盒锚定到上方（host 无 backdrop-filter 时 fixed 相对 viewport）。
+  useLayoutEffect(() => {
+    if (!open || !bottomMode) {
+      setFlyoutAnchor(null);
+      return;
+    }
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const update = () => {
+      const rect = trigger.getBoundingClientRect();
+      let left = rect.left;
+      // 粗略右缘夹紧，避免 flyout 贴出视口（flyout 宽度未知时用 200 作下限估计）。
+      const maxLeft = Math.max(0, window.innerWidth - 200);
+      if (left > maxLeft) left = maxLeft;
+      if (left < 0) left = 0;
+      setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, bottomMode]);
+
+  // 底栏：点外部关闭（触屏无可靠 hover-out）。监听 document（capture），
+  // 这样页面（shadow 外）的点击也能命中；composedPath 含 shadow 内后代，
+  // path.includes(groupRef/flyoutRef) 判断对 shadow 内点击同样有效。
+  useEffect(() => {
+    if (!open || !bottomMode) return;
+    const onPointerDown = (e: Event) => {
+      const path = typeof (e as PointerEvent).composedPath === 'function'
+        ? (e as PointerEvent).composedPath()
+        : [];
+      if (groupRef.current && path.includes(groupRef.current)) return;
+      if (flyoutRef.current && path.includes(flyoutRef.current)) return;
+      onClose();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [open, bottomMode, onClose]);
+
+  const flyoutStyle: React.CSSProperties | undefined = bottomMode && flyoutAnchor
+    ? {
+        position: 'fixed',
+        left: flyoutAnchor.left,
+        bottom: flyoutAnchor.bottom,
+        top: 'auto',
+        right: 'auto',
+      }
+    : undefined;
+
   return (
     <div
+      ref={groupRef}
       className={`switcher-group${open ? ' open' : ''}`}
       data-group={group.id}
       onMouseEnter={() => {
+        // 底栏 + 粗指针（触屏）：禁用 hover 开层，避免点触后 hover 粘滞。
+        if (bottomMode && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
         cancelClose();
         onOpen();
       }}
       onMouseLeave={scheduleClose}
-      onFocus={onOpen}
+      onFocus={() => {
+        // 底栏：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
+        // （首次点触空操作）；键盘用户用 Enter/Space 触发 click→onToggle 开层。
+        if (bottomMode) return;
+        onOpen();
+      }}
       onBlur={(e) => {
         // 仅当焦点离开整个分组（trigger + 浮层）时才关闭。
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose();
+        // fixed flyout 可能不在 currentTarget 子树内：用 flyoutRef 检查。
+        const related = e.relatedTarget as Node | null;
+        if (groupRef.current?.contains(related)) return;
+        if (flyoutRef.current?.contains(related)) return;
+        onClose();
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && open) {
           // Escape 关闭浮层并归还焦点到 trigger，保持键盘用户的位置感。
-          const trigger = (e.target as HTMLElement).closest('.switcher-group')?.querySelector('.group-trigger') as HTMLElement | null;
-          trigger?.focus();
+          triggerRef.current?.focus();
           onClose();
+          return;
+        }
+        // 底栏键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
+        // 某些合成键盘事件不派发 click）。
+        if (bottomMode && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+          if (e.target === triggerRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggle();
+          }
         }
       }}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="group-trigger"
         data-key={`g:${group.id}`}
@@ -273,12 +418,25 @@ function GroupPill({
         aria-controls={groupId}
         aria-label={t(MSG.source_switcher_group_aria, [label])}
         disabled={disabled}
+        onClick={(e) => {
+          // 仅底栏：点击切换（触屏主路径）；顶栏/搜索页靠 hover/focus。
+          if (!bottomMode) return;
+          e.stopPropagation();
+          onToggle();
+        }}
       >
         <span className="group-label">{label}</span>
         {containsActive && <span className="group-badge" aria-hidden="true" />}
       </button>
       {open && (
-        <div className="group-flyout" id={groupId}>
+        <div
+          ref={flyoutRef}
+          className={`group-flyout${bottomMode ? ' group-flyout--fixed-up' : ''}`}
+          id={groupId}
+          style={flyoutStyle}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
           {items.map((source) => (
             <SourceButton
               key={source.id}

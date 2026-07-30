@@ -269,3 +269,87 @@ describe('SourceSwitcher — grouped layout', () => {
     }
   });
 });
+
+describe('SourceSwitcher — bottomMode', () => {
+  const groupedConfig = defaultGroupConfig(sources.map((s) => s.id));
+
+  it('renders data-bottom="true" on .source-switcher', () => {
+    const { container } = render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    expect(container.querySelector('.source-switcher')).toHaveAttribute('data-bottom', 'true');
+  });
+
+  it('click group trigger opens flyout; second click closes', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    // 收起：组内 source 不可见
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    fireEvent.click(aiTrigger);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  it('without bottomMode, click trigger alone does NOT open (hover still does)', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    // hover 仍可展开（既有行为）
+    fireEvent.mouseEnter(aiTrigger.parentElement!);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+
+  // P0-2: 底栏下 focus 不应自动开层（否则触屏 focus→click 竞态导致首次点触空操作）。
+  it('focus on trigger does NOT open the flyout in bottomMode', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    aiTrigger.focus();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  // P0-2: 键盘路径——focus 不开层，但 Enter/Space 应切换开层。
+  it('Enter on focused trigger opens the flyout in bottomMode', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    aiTrigger.focus();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    fireEvent.keyDown(aiTrigger, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+
+  it('Space on focused trigger opens the flyout in bottomMode', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    aiTrigger.focus();
+    fireEvent.keyDown(aiTrigger, { key: ' ' });
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+
+  // P1-1: 页面（shadow 外）pointerdown 应关闭已展开的浮层。
+  it('pointerdown outside the group closes an open flyout in bottomMode', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    // 在 document 上派发一个落在分组之外的 pointerdown（capture 监听应捕获并关闭）。
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    fireEvent.pointerDown(outside);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    document.body.removeChild(outside);
+  });
+});

@@ -54,6 +54,7 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
     activeSource: 'tavily',
     themePref: 'auto',
     localePref: 'auto',
+    serpBarPosition: 'auto',
     siteEngines: [],
     ...overrides,
   };
@@ -94,6 +95,7 @@ describe('buildExportPayload', () => {
     const payload = await buildExportPayload();
     expect(payload.themePref).toBe('auto');
     expect(payload.localePref).toBe('auto');
+    expect(payload.serpBarPosition).toBe('auto');
     expect(payload.activeProvider).toBeNull();
     expect(payload.activeSource).toBe('google');
   });
@@ -123,6 +125,12 @@ describe('buildExportPayload', () => {
     installStorage({ providerKeys: {} });
     const payload = await buildExportPayload();
     expect(payload.groupConfig).toBeUndefined();
+  });
+
+  it('reads a stored serpBarPosition value', async () => {
+    installStorage({ serpBarPosition: 'bottom' });
+    const payload = await buildExportPayload();
+    expect(payload.serpBarPosition).toBe('bottom');
   });
 
   it('falls back activeSource through activeProvider and configured keys', async () => {
@@ -320,6 +328,19 @@ describe('parseImportPayload', () => {
     const result = parseImportPayload(validPayload({ localePref: 'fr' as never }));
     expect(result.ok).toBe(false);
   });
+
+  it('rejects an invalid serpBarPosition value', () => {
+    const result = parseImportPayload(validPayload({ serpBarPosition: 'side' as never }));
+    expect(result).toEqual({ ok: false, error: 'invalid_bar_position' });
+  });
+
+  it('accepts a missing serpBarPosition field (legacy export)', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.serpBarPosition;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.serpBarPosition).toBeUndefined();
+  });
 });
 
 describe('mergeImport', () => {
@@ -394,6 +415,27 @@ describe('mergeImport', () => {
     expect(report.localePrefOverridden).toBe(false);
     expect(report.sourceOrderOverridden).toBe(false);
     expect(report.sourceHiddenOverridden).toBe(false);
+  });
+
+  it('applyPrefs=true with a different serpBarPosition writes it and marks overridden', async () => {
+    installStorage({ serpBarPosition: 'auto' });
+    const report = await mergeImport(validPayload({ serpBarPosition: 'bottom' }), { applyPrefs: true });
+    expect(report.serpBarPositionOverridden).toBe(true);
+    expect((await browser.storage.local.get('serpBarPosition')).serpBarPosition).toBe('bottom');
+  });
+
+  it('applyPrefs=true with an identical serpBarPosition does NOT mark overridden', async () => {
+    installStorage({ serpBarPosition: 'bottom' });
+    const report = await mergeImport(validPayload({ serpBarPosition: 'bottom' }), { applyPrefs: true });
+    expect(report.serpBarPositionOverridden).toBe(false);
+    expect((await browser.storage.local.get('serpBarPosition')).serpBarPosition).toBe('bottom');
+  });
+
+  it('applyPrefs undefined/false does NOT touch serpBarPosition', async () => {
+    installStorage({ serpBarPosition: 'top' });
+    const report = await mergeImport(validPayload({ serpBarPosition: 'bottom' }));
+    expect(report.serpBarPositionOverridden).toBe(false);
+    expect((await browser.storage.local.get('serpBarPosition')).serpBarPosition).toBe('top');
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
@@ -606,5 +648,14 @@ describe('previewImport (dry-run)', () => {
     });
     const preview = await previewImport(validPayload({ sourceHidden: ['bing', 'tavily'] }));
     expect(preview.prefDiffs).toEqual([{ key: 'sourceHidden', from: 'baidu', to: 'bing > tavily' }]);
+  });
+
+  it('reports a serpBarPosition diff when current is auto and payload is bottom', async () => {
+    installStorage({
+      providerKeys: { tavily: 'tvly-1' }, activeProvider: 'tavily', activeSource: 'tavily',
+      themePref: 'auto', localePref: 'auto', serpBarPosition: 'auto',
+    });
+    const preview = await previewImport(validPayload({ serpBarPosition: 'bottom' }));
+    expect(preview.prefDiffs).toEqual([{ key: 'serpBarPosition', from: 'auto', to: 'bottom' }]);
   });
 });

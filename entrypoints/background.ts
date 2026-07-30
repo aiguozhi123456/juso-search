@@ -24,7 +24,7 @@ import {
   handleTestKey,
   handleUpdateSiteEngine,
 } from '@/lib/gateway';
-import { isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
+import { isBarPositionPref, isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
@@ -114,6 +114,10 @@ export default defineBackground(() => {
     const stylePref = changes.stylePref?.newValue;
     if (isStylePref(stylePref)) {
       void broadcastUiPref({ type: 'uiPrefChanged', key: 'stylePref', value: stylePref });
+    }
+    const barPosition = changes.serpBarPosition?.newValue;
+    if (isBarPositionPref(barPosition)) {
+      void broadcastUiPref({ type: 'uiPrefChanged', key: 'serpBarPosition', value: barPosition });
     }
   });
 });

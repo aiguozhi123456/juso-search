@@ -11,6 +11,7 @@ import { sendMessage } from '@/lib/messaging';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { StyleToggle } from '@/components/StyleToggle';
+import { BarPositionToggle } from '@/components/BarPositionToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
@@ -273,6 +274,10 @@ export default function App() {
 
           <section data-section="quickbar">
             <h2>{t(MSG.opts_quickbar_heading)}</h2>
+            <div className="bar-position-row">
+              <span className="bar-position-label">{t(MSG.bar_position_group)}</span>
+              <BarPositionToggle />
+            </div>
             <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
             <div className="source-order-list">
               {configuredSources.map((source, index) => {

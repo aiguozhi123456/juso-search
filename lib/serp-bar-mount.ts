@@ -6,9 +6,13 @@
 // 与 lib/serp-handoff.ts 的「纯函数 + 注入依赖」模式。
 import type { AnchorStrategy, SearchEngine } from '@/lib/engines/types';
 import type { SourceId } from '@/lib/sources';
+import type { BarPositionPref } from '@/lib/storage';
 
 /** 各 engine 注入宿主页 <head> 的 <style> 共享 id。 */
 export const PAGE_STYLES_ID = 'juso-serp-page-styles';
+
+/** 底栏垫高样式 <style> 的 id（与 engine pageStyles 分离，避免互相覆盖）。 */
+export const BOTTOM_PAD_STYLES_ID = 'juso-serp-bottom-pad';
 
 /** 每个 SERP URL 生命周期（locationRevision）允许的最大成功 mount 次数。 */
 export const DEFAULT_REMOUNT_BUDGET = 8;
@@ -114,6 +118,33 @@ export function injectPageStyles(engine: SearchEngine, doc: Document = document)
 /** 移除宿主页 CSS shim；不存在时为 no-op。doc 可注入便于单测。 */
 export function removePageStyles(doc: Document = document): void {
   doc.head.querySelector(`style#${PAGE_STYLES_ID}`)?.remove();
+}
+
+/** 扁底栏 footprint（与 serp-bar-styles 底栏 padding/chip 同源）：
+ *  上下 padding ~4px×2 + chip ~28px ≈ 36px，用 40px 留余量。 */
+export const BOTTOM_BAR_PAD_PX = 40;
+
+/** 注入底栏垫高样式：底栏 position:fixed 覆盖页面底部，需给 html 加 padding-bottom
+ *  让出栏高。叠加 env(safe-area-inset-bottom) 适配 iOS 底部 Home 条。 */
+export function injectBottomPadStyles(doc: Document = document): void {
+  const existing = doc.head.querySelector<HTMLStyleElement>(`style#${BOTTOM_PAD_STYLES_ID}`);
+  if (existing) existing.remove();
+  const styleEl = doc.createElement('style');
+  styleEl.id = BOTTOM_PAD_STYLES_ID;
+  styleEl.textContent = `html{padding-bottom:calc(${BOTTOM_BAR_PAD_PX}px + env(safe-area-inset-bottom,0px)) !important}`;
+  doc.head.append(styleEl);
+}
+
+/** 移除底栏垫高样式。 */
+export function removeBottomPadStyles(doc: Document = document): void {
+  doc.head.querySelector(`style#${BOTTOM_PAD_STYLES_ID}`)?.remove();
+}
+
+/** auto 模式：视口宽度 <= 480px 时用底栏，否则顶栏。 */
+export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number): 'top' | 'bottom' {
+  if (pref === 'top') return 'top';
+  if (pref === 'bottom') return 'bottom';
+  return viewportWidth <= 480 ? 'bottom' : 'top';
 }
 
 /**

@@ -88,8 +88,15 @@ body {
 .provider-switcher button.active { border-color: var(--brand); color: var(--brand); font-weight: 600; }
 .provider-switcher .no-answer { font-size: var(--text-xs); opacity: 0.7; }
 
-/* ── 统一快切栏（v2 签名组件：滑动指示器） ────────── */
+/* ── 统一快切栏（v2 签名组件：滑动指示器） ──────────
+ * 外层不裁剪；横滑/指示器坐标系在 .switcher-track（SERP 底栏会 overflow-x）。 */
 .source-switcher {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  overflow: visible;
+}
+.switcher-track {
   position: relative;
   display: inline-flex;
   flex-wrap: wrap;
@@ -98,6 +105,7 @@ body {
   background: var(--bg-soft);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-full);
+  max-width: 100%;
 }
 /* 滑动指示器：absolute 块承载 brand 实色，CSS 变量由 JS 测量后注入 */
 .switcher-indicator {
@@ -166,8 +174,6 @@ body {
 }
 
 /* ── 来源分组：折叠 pill + hover 浮层 ── */
-/* 容器不裁剪浮层（默认无 overflow，显式声明以防继承）。 */
-.source-switcher { overflow: visible; }
 .source-switcher .switcher-group {
   position: relative;
   display: inline-flex;

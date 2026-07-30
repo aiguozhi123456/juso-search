@@ -4,9 +4,13 @@ import { bingEngine } from '@/lib/engines/bing';
 import { baiduEngine } from '@/lib/engines/baidu';
 import {
   PAGE_STYLES_ID,
+  BOTTOM_PAD_STYLES_ID,
   injectPageStyles,
   pickAnchor,
   removePageStyles,
+  injectBottomPadStyles,
+  removeBottomPadStyles,
+  resolveBarPosition,
   preferredAnchorCandidates,
   preferredAnchorsPresent,
   anyAnchorPresent,
@@ -25,6 +29,11 @@ const C: AnchorStrategy = { selector: '#c', append: 'before', alignTo: '#c' };
 /** Helper: count <style#juso-serp-page-styles> currently in <head>. */
 function countPageStyleEls(): number {
   return document.head.querySelectorAll(`style#${PAGE_STYLES_ID}`).length;
+}
+
+/** Helper: count <style#juso-serp-bottom-pad> currently in <head>. */
+function countBottomPadStyleEls(): number {
+  return document.head.querySelectorAll(`style#${BOTTOM_PAD_STYLES_ID}`).length;
 }
 
 describe('pickAnchor', () => {
@@ -220,5 +229,81 @@ describe('shouldMountForEngine (hidden engine gate)', () => {
   it('mounts when the hidden list is undefined or empty', () => {
     expect(shouldMountForEngine('google', undefined)).toBe(true);
     expect(shouldMountForEngine('google', [])).toBe(true);
+  });
+});
+
+describe('resolveBarPosition', () => {
+  it('explicit top always resolves to top regardless of width', () => {
+    expect(resolveBarPosition('top', 320)).toBe('top');
+    expect(resolveBarPosition('top', 1920)).toBe('top');
+  });
+
+  it('explicit bottom always resolves to bottom regardless of width', () => {
+    expect(resolveBarPosition('bottom', 320)).toBe('bottom');
+    expect(resolveBarPosition('bottom', 1920)).toBe('bottom');
+  });
+
+  it('auto at the 480px boundary resolves to bottom', () => {
+    expect(resolveBarPosition('auto', 480)).toBe('bottom');
+  });
+
+  it('auto just above the 480px boundary resolves to top', () => {
+    expect(resolveBarPosition('auto', 481)).toBe('top');
+  });
+
+  it('auto on a narrow viewport resolves to bottom', () => {
+    expect(resolveBarPosition('auto', 320)).toBe('bottom');
+  });
+
+  it('auto on a wide viewport resolves to top', () => {
+    expect(resolveBarPosition('auto', 1920)).toBe('top');
+  });
+});
+
+describe('injectBottomPadStyles', () => {
+  afterEach(() => {
+    removeBottomPadStyles(document);
+  });
+
+  it('creates exactly one <style> in <head> containing padding-bottom', () => {
+    injectBottomPadStyles(document);
+
+    const els = document.head.querySelectorAll<HTMLStyleElement>(`style#${BOTTOM_PAD_STYLES_ID}`);
+    expect(els).toHaveLength(1);
+
+    const el = els[0]!;
+    expect(el.id).toBe(BOTTOM_PAD_STYLES_ID);
+    expect(el.textContent).toContain('padding-bottom');
+  });
+
+  it('is idempotent: a second call replaces, does not duplicate', () => {
+    injectBottomPadStyles(document);
+    injectBottomPadStyles(document);
+
+    expect(countBottomPadStyleEls()).toBe(1);
+  });
+});
+
+describe('removeBottomPadStyles', () => {
+  beforeEach(() => {
+    // 起始态：head 不含目标 <style>。
+    removeBottomPadStyles(document);
+  });
+
+  it('removes the <style> injected by injectBottomPadStyles', () => {
+    injectBottomPadStyles(document);
+    expect(countBottomPadStyleEls()).toBe(1);
+
+    removeBottomPadStyles(document);
+
+    expect(countBottomPadStyleEls()).toBe(0);
+  });
+
+  it('is a no-op when no such element exists (does not throw)', () => {
+    expect(countBottomPadStyleEls()).toBe(0);
+
+    expect(() => removeBottomPadStyles(document)).not.toThrow();
+
+    expect(countBottomPadStyleEls()).toBe(0);
   });
 });

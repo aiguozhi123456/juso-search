@@ -94,8 +94,15 @@ export const serpBarStyles = `
   justify-content: center !important;
 }
 
-/* 签名滑动指示器 segmented control（与搜索页同款） */
+/* 签名滑动指示器 segmented control（与搜索页同款）。
+ * 外层 .source-switcher 不裁剪；横滑与指示器落在 .switcher-track 内。 */
 .source-switcher {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  overflow: visible;
+}
+.switcher-track {
   position: relative;
   display: inline-flex;
   flex-wrap: wrap;
@@ -104,6 +111,7 @@ export const serpBarStyles = `
   background: var(--bg-soft);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-full);
+  max-width: 100%;
 }
 .switcher-indicator {
   position: absolute;
@@ -156,7 +164,6 @@ export const serpBarStyles = `
 .source-switcher .no-answer { font-size: 11px; opacity: 0.78; font-weight: 500; }
 
 /* ── 来源分组：折叠 pill + hover 浮层（shadow DOM 自包含，与搜索页同构） ── */
-.source-switcher { overflow: visible; }
 .source-switcher .switcher-group { position: relative; display: inline-flex; }
 .source-switcher .group-trigger {
   position: relative; z-index: 1;
@@ -232,5 +239,86 @@ export const serpBarStyles = `
 :host([data-style="colorful"]) .source-switcher[data-active-source="doubao-global"] .switcher-indicator { background: var(--color-yellow); }
 :host([data-style="colorful"]) .source-switcher button:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--source-color) 30%, transparent);
+}
+
+/* 底栏：扁、贴底全宽；page pad 由 #juso-serp-bottom-pad 让出栏高。
+ * 放在样式表末尾，等特异性下覆盖抖音的 top:56px。
+ * 横滑只在 .switcher-track；flyout 用 fixed 向上（.group-flyout--fixed-up），不被 overflow 裁切。 */
+:host([data-position="bottom"]) {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  max-width: none !important;
+  z-index: 600 !important;
+  background: var(--bg) !important;
+  background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
+  box-sizing: border-box !important;
+  /* 竖向更扁：少挡内容；safe-area 仍抬起 Home 条。 */
+  padding: 4px 8px !important;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  padding-left: calc(8px + env(safe-area-inset-left, 0px)) !important;
+  padding-right: calc(8px + env(safe-area-inset-right, 0px)) !important;
+  box-shadow: 0 -1px 8px rgba(0,0,0,0.1) !important;
+  border-top: 1px solid var(--border-soft) !important;
+  /* 不在 host 上用 backdrop-filter：会把 fixed 子元素的 containing block 变成 host，
+   * 导致 flyout 的 left/bottom 视口坐标错位。毛玻璃改挂在 .switcher-track。 */
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+:host([data-position="bottom"][data-hidden="true"]) {
+  transform: translateY(100%) !important;
+}
+:host([data-engine="douyin"][data-position="bottom"]) {
+  top: auto !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+:host([data-position="bottom"]) .source-switcher {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+:host([data-position="bottom"]) .switcher-track {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 2px 4px !important;
+  gap: 2px !important;
+  /* 半透明底色提供"磨砂"观感；不放 backdrop-filter——它是 fixed flyout 的祖先，
+   * 会建立 containing block 并配合 overflow-y:hidden 裁切向上浮层。host 同理不带。 */
+  background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
+}
+:host([data-position="bottom"]) .switcher-track::-webkit-scrollbar {
+  display: none !important;
+}
+/* 扁栏 chip：略小于 tip 的加厚 touch，仍可点。 */
+:host([data-position="bottom"]) .source-switcher button,
+:host([data-position="bottom"]) .source-switcher .group-trigger {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  flex-shrink: 0 !important;
+}
+/* fixed 向上 flyout：位置由 JS 写入 left/bottom；样式只负责外观。 */
+:host([data-position="bottom"]) .group-flyout--fixed-up {
+  position: fixed !important;
+  top: auto !important;
+  z-index: 700 !important;
+  padding-top: 4px !important;
+  padding-bottom: 6px !important;
+  box-shadow: 0 -6px 20px rgba(0,0,0,0.15) !important;
 }
 `;

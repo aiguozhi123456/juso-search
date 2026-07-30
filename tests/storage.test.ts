@@ -15,6 +15,8 @@ import {
   setLocalePref,
   getStylePref,
   setStylePref,
+  getBarPositionPref,
+  setBarPositionPref,
   getSourceOrder,
   setSourceOrder,
   getSourceHidden,
@@ -246,6 +248,26 @@ describe('storage: style pref', () => {
     expect(await getStylePref()).toBe('colorful');
     await browser.storage.local.set({ stylePref: 'decorative' });
     expect(await getStylePref()).toBe('classic');
+  });
+});
+
+describe('storage: barPosition pref', () => {
+  it('defaults to auto', async () => {
+    expect(await getBarPositionPref()).toBe('auto');
+  });
+
+  it('round-trips explicit prefs', async () => {
+    await setBarPositionPref('top');
+    expect(await getBarPositionPref()).toBe('top');
+    await setBarPositionPref('bottom');
+    expect(await getBarPositionPref()).toBe('bottom');
+    await setBarPositionPref('auto');
+    expect(await getBarPositionPref()).toBe('auto');
+  });
+
+  it('rejects unknown stored values, falling back to auto', async () => {
+    await browser.storage.local.set({ serpBarPosition: 'side' });
+    expect(await getBarPositionPref()).toBe('auto');
   });
 });
 

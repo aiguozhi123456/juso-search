@@ -93,6 +93,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     if (report.activeSourceOverridden) labels.push(prefLabel('activeSource'));
     if (report.themePrefOverridden) labels.push(prefLabel('themePref'));
     if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
+    if (report.serpBarPositionOverridden) labels.push(prefLabel('serpBarPosition'));
     if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
     if (report.sourceHiddenOverridden) labels.push(prefLabel('sourceHidden'));
     if (report.siteEnginesOverridden) labels.push(prefLabel('siteEngines'));

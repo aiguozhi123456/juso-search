@@ -56,6 +56,8 @@ It appears before the engine's complete result experience while aligning with th
 
 On slow SPA SERPs, the bar re-resolves ordered placement anchors on each mount, remounts with a budget when the host is detached by the page, and upgrades placement only from a last-resort fallback—not between intermediate anchors—so the control does not jump vertically as optional shells appear later.
 
+The bar has two positioning models, selected by a user preference (auto/top/bottom). The **top** model is per-engine inline insertion: the shadow host is a sibling of a persistent results container, horizontally aligned to the engine's main content column. The **bottom** model is a universal fixed viewport overlay (`position: fixed; bottom: 0`) with a page-padding shim so the fixed bar does not cover content; it ignores per-engine anchors entirely. In `auto` mode the bar resolves to bottom on narrow viewports and top otherwise. The bottom variant supports scroll-to-hide (the bar slides out on downward scroll and returns on upward scroll or near page top) and mobile polish (safe-area insets, horizontal chip scroll, active-chip centering).
+
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
 
