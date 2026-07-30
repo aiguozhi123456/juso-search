@@ -184,13 +184,27 @@ export default defineContentScript({
       name: 'juso-serp-bar',
       position: 'inline',
       // 函数锚点：每次 mountUi→getAnchor 时重选候选（首选→回退）。
+      // 底栏返回 "body"：WXT 的 mountUi 会在 getAnchor 找不到锚点时 throw，导致底栏在
+      // SPA 早期（engine 锚点未渲染）挂不上；body 永远存在，绕过该限制。底栏的 append
+      // 分支忽略传入的 anchor 直接 appendChild 到 body，故这里返回什么都安全，只要存在。
       anchor: () => {
+        if (state.resolvedPosition === 'bottom') return 'body';
         strategy = pickAnchor(anchorsFor(state.engine));
         return strategy.selector;
       },
       // 自定义 append：按当前 strategy.append 插入。before/after 无 parent 时硬失败，
       // 避免 onMount 跑完但 host 不在 document 里（ui.mounted 与 DOM 脱节）。
+      // 底栏例外：host 挂到 document.body（忽略 engine 锚点）。底栏是 position:fixed
+      // 视口覆盖层，若挂进 engine 子树（如小红书 #search-input、抖音 #search-result-container），
+      // 页面祖先的 transform/filter/will-change/contain/backdrop-filter 会把它变成
+      // containing block（见 docs/.../serp-bar-bottom-position-and-scroll-hide.md §4a），
+      // 导致 bottom:0 锚到祖先而非视口（小红书"不在页面底部"），且其层叠上下文困住 z-index
+      // （抖音栏被分享/设置浮层盖住）。挂到 body 脱离子树后这两者一并解决。
       append: (anchor, root) => {
+        if (state.resolvedPosition === 'bottom') {
+          (document.body ?? document.documentElement).appendChild(root);
+          return;
+        }
         switch (strategy.append) {
           case 'first':
             anchor.prepend(root);
@@ -224,7 +238,9 @@ export default defineContentScript({
         mountedHost = shadowHost;
         mountedAnchorIndex = anchorsFor(state.engine).findIndex((c) => c.selector === strategy.selector);
         if (mountedAnchorIndex < 0) mountedAnchorIndex = 0;
-        syncAlignedHost(shadowHost, strategy);
+        // 顶栏才需要按 engine 锚点对齐内容列；底栏挂 body、position:fixed 全宽，
+        // syncAlignedHost 写的 --juso-serp-* 变量会被底栏 !important 全部忽略，纯冗余。
+        if (state.resolvedPosition !== 'bottom') syncAlignedHost(shadowHost, strategy);
         // pageStyles only in top mode; bottom removes engine shims and pads the page.
         applyPositionChrome(state.resolvedPosition);
         const mountEl = document.createElement('div');
@@ -299,6 +315,26 @@ export default defineContentScript({
           if (mountedHost && document.contains(mountedHost)) return false;
           safeRemove();
         }
+        // 底栏挂 document.body，与 engine 锚点无关：document.body 在就立即挂，
+        // 不受 remountBudget/engine 锚点是否存在限制（避免位置翻面后预算耗尽导致栏消失）。
+        if (state.resolvedPosition === 'bottom') {
+          if (!document.body) return false;
+          // revision 竞态兜底，与下方 engine 锚点路径一致。
+          if (revision !== locationRevision) return false;
+          try {
+            ui.mount();
+          } catch {
+            return false;
+          }
+          if (revision !== locationRevision || !mountedHost || !document.contains(mountedHost)) {
+            safeRemove();
+            return false;
+          }
+          // body 级 host 无需 watchLastResortUpgrade（不挂兜底锚点）；
+          // watchHostDetachment 仍要：站点若清 body 仍需重挂。
+          watchHostDetachment(revision);
+          return true;
+        }
         const candidates = anchorsFor(state.engine);
         if (!canAttemptMount({
           candidates,
@@ -372,7 +408,10 @@ export default defineContentScript({
           detachRemountTimer = null;
           if (revision !== locationRevision) return;
           safeRemove();
-          if (revision === locationRevision && remountBudget > 0) {
+          // 底栏挂 body，重挂不依赖 engine 锚点/预算（见 mountIfReady 底栏快路径）；
+          // 顶栏仍受预算限制，防止敌对 SPA 无限重建拖垮扩展。
+          const canRemount = state.resolvedPosition === 'bottom' || remountBudget > 0;
+          if (revision === locationRevision && canRemount) {
             mountWhenAnchorReady(revision);
           }
         }, DETACH_REMOUNT_MS);
@@ -420,7 +459,7 @@ export default defineContentScript({
         return;
       }
       applyPositionChrome(state.resolvedPosition);
-      syncAlignedHost(mountedHost, strategy);
+      if (state.resolvedPosition !== 'bottom') syncAlignedHost(mountedHost, strategy);
       if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
       watchHostDetachment(revision);
       watchLastResortUpgrade(revision);
@@ -443,13 +482,16 @@ export default defineContentScript({
 
     ctx.addEventListener(window, 'resize', () => {
       if (mountedHost && document.contains(mountedHost)) {
-        syncAlignedHost(mountedHost, strategy);
+        // 仅顶栏需按 engine 锚点重对齐；底栏全宽 fixed，重算 --juso-serp-* 是冗余。
+        if (state.resolvedPosition !== 'bottom') syncAlignedHost(mountedHost, strategy);
         const next = resolveBarPosition(state.barPositionPref, window.innerWidth);
         if (next !== state.resolvedPosition) {
+          // 位置翻面（top↔bottom）改变了 host 的物理挂载位置（body vs engine 锚点），
+          // 仅换 data-position 不够：必须 teardown + 重挂，让 append/onMount 按新模式
+          // 落点（onMount 内的 applyPositionChrome 会重盖 data-position + 切 pad/pageStyles）。
           state.resolvedPosition = next;
-          applyPositionChrome(next);
-          // bottomMode 进 React 树：位置变化必须 re-render。
-          if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+          if (ui.mounted) safeRemove();
+          mountWhenAnchorReady(locationRevision);
         }
       }
     });
@@ -464,10 +506,11 @@ export default defineContentScript({
       state.barPositionPref = message.value;
       const next = resolveBarPosition(message.value, window.innerWidth);
       if (next === state.resolvedPosition) return;
+      // 同 resize：位置翻面需重挂以改变 host 物理位置（body vs engine 锚点）。
       state.resolvedPosition = next;
       if (!mountedHost) return;
-      applyPositionChrome(next);
-      if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+      if (ui.mounted) safeRemove();
+      mountWhenAnchorReady(locationRevision);
     };
     browser.runtime.onMessage.addListener(onPrefMessage);
     ctx.onInvalidated(() => {

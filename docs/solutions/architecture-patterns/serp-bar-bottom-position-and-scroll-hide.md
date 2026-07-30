@@ -503,6 +503,51 @@ ctx.addEventListener(window, 'scroll', handleScrollHide, { passive: true });
 
 The cross-boundary contract is deliberately one-directional and attribute-based: the content script owns the hide *intent* (`data-hidden`), the component owns the *reaction* (close flyout). Neither side calls into the other; they communicate only through the host attribute. This is the same `data-*` bridge discipline as `data-position`, extended to a runtime behavioral signal.
 
+#### 4g. Body-mount in bottom mode — escape the *page* ancestor containing block (the cross-site trap)
+
+§4a fixed the containing-block trap for the bar's **own** host (`backdrop-filter` on `:host`). But `position:fixed` is vulnerable to *any* ancestor in the page DOM, not just the bar's internal ancestors. The bottom bar was originally inserted into the same inline anchor as the top bar — a sibling of a results container *inside the page*. Two cross-site bugs traced to that:
+
+- **小红书:** the host was inserted `after #search-input`, deep in the SPA subtree. 小红书's SPA renders ancestors carrying `transform`/`will-change`/`contain`; those become the containing block of the `position:fixed` host, so `bottom:0` anchored to the ancestor box, not the viewport → the bar floated at the wrong vertical position ("not at the page bottom"). No CSS on `:host` can fix this — the trap is upstream, in the page.
+- **抖音:** the host was inserted before `#search-result-container`, again inside a page subtree whose stacking context trapped the `z-index: 600` host beneath 抖音's share/settings popups (~1000+). Even raising `z-index` could not escape a low ancestor stacking context.
+
+**Fix — in bottom mode the host is mounted to `document.body`, ignoring the engine anchor.** This aligns the DOM mount with the design stated in §1 ("bottom is *universal*: … ignores every engine's DOM") — the CSS already treated the bottom bar as a viewport overlay, but the mount had not caught up. Mounting to `document.body` puts the host at the page top level, so no page ancestor can establish a containing block or a trapping stacking context.
+
+Three implementation details make this safe:
+
+1. **The WXT `anchor` returns `'body'` in bottom mode.** `createShadowRootUi`'s internal `getAnchor` resolves a string selector via `querySelector`; if it returns nothing, `mountUi` **throws** `"could not find anchor element"`. On an SPA the engine anchor may not exist yet at `document_idle`, so returning the engine selector would make the bottom bar fail to mount early. `'body'` always exists, so `getAnchor` always resolves and the custom `append` (below) takes over placement.
+
+2. **The custom `append` redirects to `document.body` in bottom mode.** WXT calls `options.append(anchor, root)` when `append` is a function (the existing override); we branch on `state.resolvedPosition === 'bottom'` and do `(document.body ?? document.documentElement).appendChild(root)`, ignoring the `anchor` argument entirely. The engine-anchor `switch (strategy.append)` path runs only in top mode.
+
+```typescript
+append: (anchor, root) => {
+  if (state.resolvedPosition === 'bottom') {
+    (document.body ?? document.documentElement).appendChild(root);
+    return;
+  }
+  switch (strategy.append) { /* …top-mode engine-anchor insertion… */ }
+}
+```
+
+3. **A `mountIfReady` fast-path makes the body mount budget-independent.** The engine-anchor path gates mounting on `canAttemptMount` (which needs `remountBudget > 0` and a preferred/last-resort anchor present). A bottom bar depends on neither — only on `document.body` existing — so the bottom branch checks `document.body` and mounts directly, never consuming the remount budget. The detach handler mirrors this: it remounts in bottom mode regardless of budget (a body-mounted host's parent is stable; the budget gate exists to fight hostile SPA teardown of *inline* anchors). This is what prevents the bar from silently disappearing after a `top → bottom` flip late in a long-lived page when the budget is exhausted.
+
+**z-index is raised to `2147483647` (int32 max).** With the host body-mounted, its stacking context is the page root, so a maximal z-index guarantees it sits above every site floating layer (抖音 share/settings popups, etc.). The fixed-up flyout (`.group-flyout--fixed-up`) uses the same max: it is a child of the (now-body-level) host, so it does not need to exceed the host, and the same value keeps it above site popups too.
+
+```css
+:host([data-position="bottom"]) {
+  position: fixed !important;
+  bottom: 0 !important;
+  /* … */
+  z-index: 2147483647 !important;   /* int32 max: body-mounted → escapes site stacking context */
+}
+:host([data-position="bottom"]) .group-flyout--fixed-up {
+  z-index: 2147483647 !important;   /* host's fixed child; no need to exceed host */
+}
+```
+
+**Remount on `top ↔ bottom` flip.** The host's physical parent differs between modes (engine anchor subtree vs `document.body`), so a position flip cannot be an in-place `applyPositionChrome` + re-render — that only changes `data-position` and the pad/pageStyles, leaving the host in the *old* DOM location. The `resize` (auto-breakpoint crossing) and `onPrefMessage` (Options toggle) transition paths now do **teardown + remount**: `state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`, reusing the current `locationRevision` so no budget/observer bookkeeping resets. `onMount`'s call to `applyPositionChrome(state.resolvedPosition)` restamps `data-position` and swaps pad↔pageStyles during the remount, so the helper remains the single owner of those operations.
+
+The generalizable lesson: **a `position:fixed` overlay's containing block is determined by its *page* ancestor chain, not its CSS alone.** Mounting such an overlay inside a rich SPA subtree (transforms, will-change, contain) silently breaks its viewport anchoring and traps its z-index, and no amount of `:host` CSS can repair it — the fix is structural: mount the overlay at the page top level (`document.body`).
+
 ### 5. `CONFIG_KEYS` without a schema bump
 
 `serpBarPosition` is a persisted pref that must survive config export/import, so it has to be in the config-domain whitelist. But like `groupConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, and `providerMaxResults` before it, its default is supplied by a **getter** (`getBarPositionPref` normalizes any missing/unknown value to `'auto'`). A missing key is therefore safe without a migration: there is nothing to transform, just a default to fall back to. So it is added to `CONFIG_KEYS` **without** bumping `CURRENT_SCHEMA_VERSION` and **without** a migration entry:
@@ -553,11 +598,14 @@ The stylesheet also defends against the engine-specific *host* rule that would o
 
 - **CSS containing-block rules for `position:fixed` are non-obvious and silent.** `backdrop-filter`, `transform`, `filter`, `will-change`, and `contain` on *any ancestor* of a `position: fixed` element silently make that ancestor the containing block — the "fixed" child is then positioned relative to the ancestor, not the viewport, and may be clipped by the ancestor's `overflow`. There is no console warning; the flyout just lands in the wrong place or vanishes. This is a recurring trap for *any* fixed overlay that also hosts a flyout/popover child, and the symptom (flyout clipped) mis-points at `overflow` while the root cause is an unrelated ancestor property. Recording the full chain — ancestor property creates containing block → `overflow` now clips → flyout vanishes — is what prevents re-deriving it.
 
+- **A `position:fixed` overlay's containing block is set by its page ancestor chain, not by its own CSS — so where you *mount* it matters as much as how you *style* it.** §4a fixed the trap for the bar's own `:host` (`backdrop-filter` on the host). §4g is the cross-site corollary: mounting the bottom bar inside a rich SPA subtree (小红书's `#search-input` ancestors, 抖音's `#search-result-container`) meant a *page* ancestor — not the host — established the containing block (bar not at the real viewport bottom) and a trapping stacking context (z-index trapped below site popups). No `:host` CSS can fix an upstream-page-ancestor trap; the fix is structural — mount the overlay at `document.body`. The recurring lesson: when a fixed overlay misbehaves on one site and not others, suspect the mount location inside that site's transform/will-change/contain subtree, and prefer a top-level mount for overlays that must ignore page geometry.
+
 - **Touch interaction cannot reuse desktop hover/focus patterns without race analysis.** A tap synthesizes `focus` then `click` on the same element; if both mutate open-state, the first tap is a no-op. The desktop `onFocus={onOpen}` is correct for keyboard users on a top bar but must be gated out of the touch (bottom) path, with `click`/`Enter`/`Space` carrying the open action instead. Any popover that supports both pointer and touch will hit this unless the focus and click paths are deliberately disambiguated.
 
 ## When to Apply
 
 - **Adding a fixed-position overlay variant to an inline-anchored component** — the `data-position` attribute bridge, the universal fixed-bottom + page-pad approach (replacing per-engine anchors), and the `applyPositionChrome` helper that unifies every transition path.
+- **A `position:fixed` overlay that misbehaves on specific sites (wrong vertical anchor, or covered by site popups)** — mount it to `document.body` instead of an inline anchor inside the site's transform/will-change/contain subtree (§4g); raise z-index to int32 max (`2147483647`) only *after* escaping the site's stacking context. Remount (teardown + re-mount), not in-place restyle, on any `top↔bottom` flip so the host's physical parent changes.
 - **Merging parallel feature tracks that both touch the same UI region** — budget for an integration-review pass exercising the intersection; do not assume each track's isolation tests cover the merge.
 - **Debugging a flyout/popover that vanishes or mis-anchors under `overflow:auto` or `backdrop-filter` ancestors** — check the *ancestor chain* for `backdrop-filter`/`transform`/`filter`/`will-change`/`contain` (each creates a containing block for fixed descendants); the `overflow` is a symptom, not the cause.
 - **Wiring touch-friendly open/close where focus-open races click-toggle** — gate `onFocus` out of the touch path; let `click`/`Enter`/`Space` own the open action; suppress `mouseenter` on coarse pointers to avoid hover-stick.

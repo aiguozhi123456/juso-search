@@ -13,6 +13,19 @@ describe('SERP bar shadow-host layout', () => {
     );
   });
 
+  it('mounts the bottom bar to document.body, escaping the engine anchor subtree', async () => {
+    // 底栏 host 必须脱离 engine 内联锚点子树（小红书 #search-input / 抖音
+    // #search-result-container），否则页面祖先的 transform/filter/will-change/contain/
+    // backdrop-filter 会让它变成 position:fixed 的 containing block（底栏不贴真底部），
+    // 并困住 z-index（被站点浮层盖住）。底栏返回 "body" 锚点并在 append 内 appendChild 到 body。
+    const source = await readFile(resolve(process.cwd(), 'entrypoints/serp-bar.content.ts'), 'utf8');
+
+    // anchor 在底栏返回 "body"（让 WXT 的 getAnchor 永远命中，绕过 mountUi 的 throw）。
+    expect(source).toMatch(/resolvedPosition\s*===\s*'bottom'\)\s*return\s*'body'/);
+    // append 在底栏分支 appendChild 到 document.body（兜底 documentElement）。
+    expect(source).toMatch(/document\.body\s*\?\?\s*document\.documentElement\)\.appendChild\(root\)/);
+  });
+
   it('restores host layout with important rules and namespaced alignment variables', () => {
     for (const property of [
       'display: block',
@@ -40,6 +53,22 @@ describe('SERP bar shadow-host layout', () => {
     expect(sharedHostRule).not.toBeNull();
     expect(bingHostRule).not.toBeNull();
     expect(serpBarStyles.indexOf(bingHostRule![0])).toBeGreaterThan(serpBarStyles.indexOf(sharedHostRule![0]));
+  });
+
+  it('raises the bottom bar host to int32-max z-index so it sits above site popups once body-mounted', () => {
+    // 底栏 host 挂到 document.body 后脱离站点子树层叠上下文；再用 int32 最大值
+    // z-index 盖过抖音分享/设置等站点浮层（其值常 >1000，远低于 2147483647）。
+    const bottomHostRule = serpBarStyles.match(
+      /:host\(\[data-position="bottom"\]\)\s*\{[^}]*z-index:\s*2147483647\s*!important[^}]*\}/,
+    );
+    expect(bottomHostRule).not.toBeNull();
+
+    // 底栏 fixed-up flyout 同取 int32 最大值：它是 host 的 fixed 子元素，无需超过 host；
+    // 同值即可，并一并盖过站点浮层。
+    const bottomFlyoutRule = serpBarStyles.match(
+      /\.group-flyout--fixed-up\s*\{[^}]*z-index:\s*2147483647\s*!important[^}]*\}/,
+    );
+    expect(bottomFlyoutRule).not.toBeNull();
   });
 
   it('aligns the Bing host to the target content box', () => {

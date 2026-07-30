@@ -252,7 +252,10 @@ export const serpBarStyles = `
   width: 100% !important;
   margin-left: 0 !important;
   max-width: none !important;
-  z-index: 600 !important;
+  /* int32 最大值：底栏挂到 document.body（见 serp-bar.content.ts 的 append 分支），
+   * 脱离页面 SPA 子树的层叠上下文/containing block；再用最高 z-index 盖过
+   * 抖音分享/设置等站点浮层（其值常 >1000）。 */
+  z-index: 2147483647 !important;
   background: var(--bg) !important;
   background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
   box-sizing: border-box !important;
@@ -312,11 +315,13 @@ export const serpBarStyles = `
   font-size: 12px !important;
   flex-shrink: 0 !important;
 }
-/* fixed 向上 flyout：位置由 JS 写入 left/bottom；样式只负责外观。 */
+/* fixed 向上 flyout：位置由 JS 写入 left/bottom；样式只负责外观。
+ * z-index 与 host 同取 int32 最大值：host 已是 body 级 fixed 覆盖层（脱离站点子树），
+ * flyout 作为其 fixed 子元素无需超过 host；同值即可，且一并盖过站点浮层。 */
 :host([data-position="bottom"]) .group-flyout--fixed-up {
   position: fixed !important;
   top: auto !important;
-  z-index: 700 !important;
+  z-index: 2147483647 !important;
   padding-top: 4px !important;
   padding-bottom: 6px !important;
   box-shadow: 0 -6px 20px rgba(0,0,0,0.15) !important;
