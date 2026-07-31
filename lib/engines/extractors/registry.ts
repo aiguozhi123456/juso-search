@@ -1,21 +1,21 @@
 import type { EngineId } from '../types';
 import { baiduExtractor } from './baidu';
+import { bilibiliExtractor } from './bilibili';
 import { bingExtractor } from './bing';
+import { douyinExtractor } from './douyin';
 import { duckduckgoExtractor } from './duckduckgo';
 import { googleExtractor } from './google';
 import type { EngineExtractor } from './types';
-import { UNSUPPORTED_EXTRACTOR } from './unsupported';
+import { xiaohongshuExtractor } from './xiaohongshu';
 import { yandexExtractor } from './yandex';
 
 const extractors: Record<EngineId, EngineExtractor> = {
   google: googleExtractor,
   bing: bingExtractor,
   baidu: baiduExtractor,
-  // 抖音 / 小红书 / 哔哩哔哩暂不做 headless 结果抽取：登录态 SPA，结果经异步接口渲染。
-  // 用占位 extractor 满足全映射，归一为 'unsupported-layout'。
-  douyin: UNSUPPORTED_EXTRACTOR,
-  xiaohongshu: UNSUPPORTED_EXTRACTOR,
-  bilibili: UNSUPPORTED_EXTRACTOR,
+  douyin: douyinExtractor,
+  xiaohongshu: xiaohongshuExtractor,
+  bilibili: bilibiliExtractor,
   yandex: yandexExtractor,
   duckduckgo: duckduckgoExtractor,
 };
