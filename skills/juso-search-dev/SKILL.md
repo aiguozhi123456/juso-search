@@ -30,7 +30,15 @@ python scripts/juso_search.py --extension-id YOUR_EXTENSION_ID search "query" --
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
 ```
 
-`--provider` is required for provider searches so a request cannot silently follow the extension's active-provider state. `engine-search` supports `google`, `bing`, and `baidu`; it extracts ordinary result links only and does not promise AI or knowledge-panel content. Once an Agent has a result URL, use the host's built-in `web_fetch` to retrieve it; fetching pages is not a Juso capability.
+`--provider` is required for provider searches so a request cannot silently follow the extension's active-provider state. `engine-search` supports `google`, `bing`, `baidu`, `yandex`, `duckduckgo`, `bilibili`, `xiaohongshu`, and `douyin`; it extracts ordinary result links only and does not promise AI or knowledge-panel content. Once an Agent has a result URL, use the host's built-in `web_fetch` to retrieve it; fetching pages is not a Juso capability.
+
+For `bilibili`, results are scraped from `search.bilibili.com/all` in the user's logged-in profile; `snippet` is rich metadata (`UP主: … · 播放: … · 弹幕: … · 时长: …`), not a description. The list mixes two card types: true search results (full metadata) and a top "author latest videos" aggregate block (no UP主/弹幕 — those snippet fields are omitted, not zero). Distinguish them by snippet completeness, not position.
+
+For `xiaohongshu`, results are scraped from `www.xiaohongshu.com/search_result` in the user's logged-in profile; `snippet` is rich metadata (`作者: … · 点赞: …`), not a note body. Notes often have no title — untitled notes carry the placeholder `(无标题)`. Ad/live-stream/trending cards carry no `/explore/` link and are excluded automatically.
+
+For `douyin`, results are scraped from `www.douyin.com/search/{keyword}` in the user's logged-in profile. Douyin is heavily obfuscated: cards have no `<a>` links (navigation is JS-routed), so the result `url` is synthesized from the card id as `https://www.douyin.com/video/{id}` (videos) or `/note/{id}` (image posts). There is no title element — `title` is the full caption text and `snippet` is `作者: … · 点赞: …` parsed from it. User-aggregate / related-searches cards (no duration or `图文` prefix) are skipped.
+
+> **`douyin` headless limitation (2026-07-31):** the extractor code is correct (verified: the same selectors return 25 cards when the tab is open and visible), but in the automated `engine-search` flow — which opens the SERP as a programmatically-created tab — Douyin's anti-bot frequently returns `no-results` (cards not rendered) or `challenge` (captcha/slider). This is a site anti-bot reaction to the automated tab, not an extraction bug. Retry, or treat `douyin` as best-effort; `bilibili` and `xiaohongshu` are reliable in the same flow.
 
 ### Browser path, profile, and extension id
 
