@@ -55,6 +55,8 @@ const engines: Record<EngineId, SearchEngine> = {
   douyin: douyinEngine,
   xiaohongshu: xiaohongshuEngine,
   bilibili: bilibiliEngine,
+  yandex: yandexEngine,
+  duckduckgo: duckduckgoEngine,
 };
 ```
 
@@ -69,16 +71,15 @@ const extractors: Record<EngineId, EngineExtractor> = {
   google: googleExtractor,
   bing: bingExtractor,
   baidu: baiduExtractor,
-  // 抖音 / 小红书暂不做 headless 结果抽取：登录态 SPA，结果经异步接口渲染。
-  // 用占位 extractor 满足全映射，归一为 'unsupported-layout'。
-  douyin: UNSUPPORTED_EXTRACTOR,
-  xiaohongshu: UNSUPPORTED_EXTRACTOR,
-  // 哔哩哔哩导航-only，不做结果抽取。
-  bilibili: UNSUPPORTED_EXTRACTOR,
+  douyin: douyinExtractor,
+  xiaohongshu: xiaohongshuExtractor,
+  bilibili: bilibiliExtractor,
+  yandex: yandexExtractor,
+  duckduckgo: duckduckgoExtractor,
 };
 ```
 
-The placeholder (`lib/engines/extractors/unsupported.ts`):
+As of 2026-07-31, all eight registered engines have real extractors (the three Chinese sites were added after this doc was written — see _Status change_ below). The placeholder `UNSUPPORTED_EXTRACTOR` (`lib/engines/extractors/unsupported.ts`) is retained as a fallback mechanism for future engines not yet implementing DOM extraction:
 
 ```ts
 export const UNSUPPORTED_EXTRACTOR: EngineExtractor = {
@@ -90,15 +91,25 @@ export const UNSUPPORTED_EXTRACTOR: EngineExtractor = {
 
 `hasNaturalResultsArea → false` causes the extraction pipeline to return an `unsupported-layout` error rather than results. The full `Record<EngineId, EngineExtractor>` mapping exists to satisfy TypeScript exhaustiveness, not to declare capability.
 
+#### Status change — the three Chinese sites now have real extractors
+
+This doc was written (2026-07-23) when douyin/xiaohongshu/bilibili mapped to `UNSUPPORTED_EXTRACTOR` because they were login-walled SPAs rendering results via async APIs. They now ship real extractors (2026-07-31), each with site-specific DOM scraping:
+
+- **bilibili** — `.bili-video-card` cards; rich snippet metadata (`UP主 · 播放 · 弹幕 · 时长`).
+- **xiaohongshu** — `.note-item` cards; `/explore/{id}` links; untitled notes carry placeholder.
+- **douyin** — heavily obfuscated: cards have no `<a>` links, so URL is synthesized from `waterfall_item_{id}` as `/video/{id}` or `/note/{id}`; `title` is the caption text.
+
+The four-layer rule below still holds — it is now satisfied (all layers list all engines) rather than violated.
+
 ### Layer 3 — Skill CLI whitelist
 
 Source of truth: `skills/juso-search/scripts/juso_search.py` line 30 + `SKILL.md` line 32.
 
 ```python
-ENGINES = ("google", "bing", "baidu")
+ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")
 ```
 
-The CLI rejects `--engine douyin` or `--engine xiaohongshu` at argument-parse time. SKILL.md documents: "`engine-search` supports `google`, `bing`, and `baidu`."
+As of 2026-07-31 the CLI whitelist covers all eight engines (mirroring the extractor registry). SKILL.md documents the full list plus per-engine notes on `snippet` content and URL handling.
 
 ### Layer 4 — Default visibility in quick-switch bar
 
@@ -170,12 +181,12 @@ When adding a new engine:
 
 ### Layer checklist
 
-| Layer | Source of truth | Current support | Evidence of absence |
-|-------|----------------|-----------------|---------------------|
-| 1 — Navigation / SERP bar | `lib/engines/registry.ts` | google, bing, baidu, douyin, xiaohongshu | — |
-| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | google, bing, baidu | `douyin: UNSUPPORTED_EXTRACTOR, xiaohongshu: UNSUPPORTED_EXTRACTOR` |
-| 3 — Skill CLI whitelist | `juso_search.py` `ENGINES` + `SKILL.md` | google, bing, baidu | tuple excludes douyin/xiaohongshu |
-| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu | migration v2 merges into `sourceHidden` |
+| Layer | Source of truth | Current support (2026-07-31) | Evidence of absence |
+|-------|----------------|------------------------------|---------------------|
+| 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 8 engines | — |
+| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 8 engines (Chinese sites added 2026-07-31) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
+| 3 — Skill CLI whitelist | `juso_search.py` `ENGINES` + `SKILL.md` | all 8 engines | — |
+| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v2), bilibili (v3) | yandex/duckduckgo default-visible |
 
 ### Misleading signal that caused the incident
 

@@ -504,11 +504,13 @@ registry (see `engine-capability-is-per-registry-not-per-id-union.md`), so a new
 engine also needs an explicit decision at each remaining layer:
 
 - Extractor registry: register a real extractor, or map the engine to
-  `UNSUPPORTED_EXTRACTOR` when its results render through async interfaces behind
-  login walls. The full `Record<EngineId, EngineExtractor>` mapping satisfies
-  exhaustiveness; it does not declare capability.
+  `UNSUPPORTED_EXTRACTOR` when extraction is not yet implemented. Login-walled
+  async SPAs are not a blocker — bilibili/xiaohongshu/douyin all ship real
+  extractors that scrape the logged-in live DOM (douyin synthesizes URLs from
+  card ids since it has no `<a>` links). The full `Record<EngineId, EngineExtractor>`
+  mapping satisfies exhaustiveness; it does not declare capability.
 - Agent skill CLI: add the engine to the skill script's engine whitelist and its
-  SKILL.md documentation only when extraction is supported.
+  SKILL.md documentation once extraction is supported.
 - Default visibility: decide whether the engine ships default-hidden via
   `DEFAULT_HIDDEN_ENGINE_IDS` until the user shows it.
 
