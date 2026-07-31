@@ -13,7 +13,7 @@
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
@@ -45,6 +45,8 @@ function mergeHiddenFactory(ids: readonly string[]) {
 const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'];
 // v2→v3：哔哩哔哩引擎加入快切栏——默认隐藏（同抖音 / 小红书，登录态 SPA、二线定位）。
 const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
+// v5→v6：Yandex / DuckDuckGo 引擎加入快切栏——默认隐藏（国际二线引擎，开箱不膨胀快切栏）。
+const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo'];
 
 // 迁移注册表：按 version 升序。未来加版本两步：(1) 向此数组 append 一条 Migration；(2) bump CURRENT_SCHEMA_VERSION。
 export const migrations: Migration[] = [
@@ -55,6 +57,8 @@ export const migrations: Migration[] = [
   // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
   // 故迁移无需填充数据——仅 bump 版本戳以纳入 CONFIG_KEYS 白名单（ensureSchema 会读它）。
   { version: 4, migrate: (config) => config },
+  // v5→v6: Yandex / DuckDuckGo 引擎加入——两者默认隐藏（出现在管理 UI 但不进快切栏，用户手动显示）。
+  { version: 5, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V4) },
 ];
 
 /**

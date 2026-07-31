@@ -3,10 +3,10 @@ import { allSources, isEngineId, isProviderId, normalizeSourceHidden, normalizeS
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 
 // sourceOrder 默认补尾顺序：provider(registry) → engine(registry)。
-// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili。
-// 注：默认隐藏（douyin / xiaohongshu / bilibili）是 schema v2/v3 迁移写入 sourceHidden 的结果，
+// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo。
+// 注：默认隐藏（douyin / xiaohongshu / bilibili / yandex / duckduckgo）是 schema 迁移写入 sourceHidden 的结果，
 //     不由 allSources 投影层决定——本文件测的是投影函数本身。
-const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'] as const;
+const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] as const;
 
 describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
@@ -61,19 +61,19 @@ describe('allSources', () => {
   });
 
   it('projects configured providers and engines in a custom mixed order', () => {
-    expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili'])
-      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+    expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'])
+      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
   });
 
   it('normalizes unknown, duplicate, and omitted source ids', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
-      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
+      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
     ]);
   });
 
   it('filters out hidden providers and engines', () => {
     const sources = allSources(['tavily', 'exa'], undefined, ['tavily', 'baidu']);
-    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili']);
+    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
   });
 
   it('ignores an empty hidden list', () => {

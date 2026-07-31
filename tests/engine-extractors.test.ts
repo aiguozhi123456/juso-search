@@ -66,6 +66,18 @@ describe('engine natural-result extractors', () => {
     });
   });
 
+  it('extracts Yandex natural results and rejects ads and invalid schemes', () => {
+    expect(extract('yandex', 'yandex-basic.html')).toEqual({
+      engine: 'yandex', query: 'test query', results: [{ title: 'Yandex title', url: 'https://example.com/yandex', snippet: 'Yandex snippet' }],
+    });
+  });
+
+  it('extracts DuckDuckGo natural results and rejects ads and invalid schemes', () => {
+    expect(extract('duckduckgo', 'duckduckgo-basic.html')).toEqual({
+      engine: 'duckduckgo', query: 'test query', results: [{ title: 'DuckDuckGo title', url: 'https://example.com/ddg', snippet: 'DuckDuckGo snippet' }],
+    });
+  });
+
   it('clamps the requested maximum result count', () => {
     expect((extract('google', 'google-basic.html', 1) as { results: unknown[] }).results).toHaveLength(1);
     expect((extract('google', 'google-basic.html', 0) as { results: unknown[] }).results).toHaveLength(1);

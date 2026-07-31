@@ -17,6 +17,8 @@ A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, Bili
 
 Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Engines whose results render through async interfaces behind login walls ship a placeholder extraction path that reports an unsupported layout instead of results, and the Agent-facing search surface exposes only the extraction-capable subset. Adding an engine is therefore several independent decisions — navigation registration, extraction support or deliberate non-support, Agent-surface inclusion, and default visibility — not one.
 
+Each engine must emit its true canonical SERP URL (verified against the address the engine itself settles on after a real navigation): a non-canonical form that triggers a host-side redirect is an antifraud signal on engines like Yandex and can turn every navigation into a verification wall. The companion agent-bridge client (Python skill) carries its own engine allowlist that must mirror the worker's, so a newly extraction-capable engine is exposed to agents only when both lists agree.
+
 Search Engines are deliberately not merged into the provider identity set: provider-backed searches use stored credentials and normalized APIs, while engine search navigates a real browser page and extracts only natural result metadata. Some engines may ship default-hidden in Source Visibility via a one-shot schema migration so they appear in management UI but not in the quick-switch bar until the user shows them.
 
 ### Search Source

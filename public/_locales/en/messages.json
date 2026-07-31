@@ -171,6 +171,8 @@
   "engine_douyin": { "message": "Douyin" },
   "engine_xiaohongshu": { "message": "Xiaohongshu" },
   "engine_bilibili": { "message": "Bilibili" },
+  "engine_yandex": { "message": "Yandex" },
+  "engine_duckduckgo": { "message": "DuckDuckGo" },
   "source_switcher_aria": { "message": "Switch search source" },
   "source_switcher_group_aria": { "message": "$1 group (hover or focus to expand)", "placeholders": { "1": { "content": "$1" } } },
   "group_ai_search": { "message": "AI Search" },

@@ -171,6 +171,8 @@
   "engine_douyin": { "message": "抖音" },
   "engine_xiaohongshu": { "message": "小红书" },
   "engine_bilibili": { "message": "哔哩哔哩" },
+  "engine_yandex": { "message": "Yandex" },
+  "engine_duckduckgo": { "message": "DuckDuckGo" },
   "source_switcher_aria": { "message": "切换搜索来源" },
   "source_switcher_group_aria": { "message": "$1 分组（悬浮或聚焦展开）", "placeholders": { "1": { "content": "$1" } } },
   "group_ai_search": { "message": "AI 搜索" },

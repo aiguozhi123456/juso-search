@@ -172,7 +172,7 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
       : { ok: false, error: 'invalid list providers request' };
   }
   if (value.action === 'engine-search') {
-    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults']) || typeof value.query !== 'string' || !['google', 'bing', 'baidu'].includes(value.engineId as string)) return { ok: false, error: 'invalid engine search request' };
+    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults']) || typeof value.query !== 'string' || !['google', 'bing', 'baidu', 'yandex', 'duckduckgo'].includes(value.engineId as string)) return { ok: false, error: 'invalid engine search request' };
     const query = value.query.trim();
     if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20))) return { ok: false, error: 'invalid engine search request' };
     return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }) } };

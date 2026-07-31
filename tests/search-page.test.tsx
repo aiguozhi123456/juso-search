@@ -12,7 +12,7 @@ function configReply(partial: Record<string, unknown>): Record<string, unknown> 
   // 可见 source = 已配置 provider + 全部 engine（engine 恒显示）；site-engine 由 siteEngines 决定。
   const allSourceIds = [
     ...configuredProviderIds,
-    'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
+    'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
     ...((partial.siteEngines as { id: string }[] | undefined) ?? []).map((s) => s.id),
   ];
   const groupConfig = partial.groupConfig ?? pinnedGroupConfig(allSourceIds);
@@ -543,7 +543,7 @@ describe('search page', () => {
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
           sourceOrder: ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'],
-          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili'],
+          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
           groupConfig: pinnedGroupConfig(['bing', 'exa', 'google', 'tavily', 'baidu']),
         }));
       }

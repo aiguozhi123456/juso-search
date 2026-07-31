@@ -1,9 +1,11 @@
 import type { EngineId } from '../types';
 import { baiduExtractor } from './baidu';
 import { bingExtractor } from './bing';
+import { duckduckgoExtractor } from './duckduckgo';
 import { googleExtractor } from './google';
 import type { EngineExtractor } from './types';
 import { UNSUPPORTED_EXTRACTOR } from './unsupported';
+import { yandexExtractor } from './yandex';
 
 const extractors: Record<EngineId, EngineExtractor> = {
   google: googleExtractor,
@@ -14,6 +16,8 @@ const extractors: Record<EngineId, EngineExtractor> = {
   douyin: UNSUPPORTED_EXTRACTOR,
   xiaohongshu: UNSUPPORTED_EXTRACTOR,
   bilibili: UNSUPPORTED_EXTRACTOR,
+  yandex: yandexExtractor,
+  duckduckgo: duckduckgoExtractor,
 };
 
 export function getEngineExtractor(engine: EngineId): EngineExtractor {

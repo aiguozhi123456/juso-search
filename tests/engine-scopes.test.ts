@@ -4,12 +4,14 @@ import {
   BILIBILI_SERP_HOSTS,
   BING_SERP_HOSTS,
   DOUYIN_SERP_HOSTS,
+  DUCKDUCKGO_SERP_HOSTS,
   ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
   GOOGLE_SERP_HOSTS,
   SERP_CONTENT_MATCH_PATTERNS,
   SERP_HOST_MATCH_PATTERNS,
   SERP_HOSTS,
   XIAOHONGSHU_SERP_HOSTS,
+  YANDEX_SERP_HOSTS,
 } from '@/lib/engines/scopes';
 
 describe('SERP scopes', () => {
@@ -23,13 +25,15 @@ describe('SERP scopes', () => {
       ...DOUYIN_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...XIAOHONGSHU_SERP_HOSTS.map((host) => `https://${host}/search_result*`),
       ...BILIBILI_SERP_HOSTS.map((host) => `https://${host}/all*`),
+      ...YANDEX_SERP_HOSTS.map((host) => `https://${host}/search*`),
+      ...DUCKDUCKGO_SERP_HOSTS.map((host) => `https://${host}/*`),
     ]);
     expect(new Set(SERP_HOST_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
     expect(new Set(SERP_CONTENT_MATCH_PATTERNS).size).toBe(SERP_HOSTS.length);
     expect(ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS).toEqual(SERP_HOST_MATCH_PATTERNS);
   });
 
-  it('uses only the approved Google, Bing, Baidu, Douyin, Xiaohongshu and Bilibili hosts', () => {
+  it('uses only the approved Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex and DuckDuckGo hosts', () => {
     expect(GOOGLE_SERP_HOSTS).toEqual([
       'www.google.com',
       'www.google.com.hk',
@@ -42,5 +46,7 @@ describe('SERP scopes', () => {
     expect(DOUYIN_SERP_HOSTS).toEqual(['www.douyin.com']);
     expect(XIAOHONGSHU_SERP_HOSTS).toEqual(['www.xiaohongshu.com']);
     expect(BILIBILI_SERP_HOSTS).toEqual(['search.bilibili.com']);
+    expect(YANDEX_SERP_HOSTS).toEqual(['yandex.com', 'yandex.ru']);
+    expect(DUCKDUCKGO_SERP_HOSTS).toEqual(['duckduckgo.com']);
   });
 });

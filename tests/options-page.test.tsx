@@ -102,14 +102,14 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
-    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书[\s\S]*哔哩哔哩/);
+    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书[\s\S]*哔哩哔哩[\s\S]*Yandex[\s\S]*DuckDuckGo/);
   });
 
   it('disables moving the first source up and the last source down', async () => {
     render(<App />);
     expect(await screen.findByRole('button', { name: 'Exa 上移' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '哔哩哔哩 下移' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'DuckDuckGo 下移' })).toBeDisabled();
   });
 
   it('moves adjacent visible sources in the complete stored order', async () => {
@@ -127,7 +127,7 @@ describe('options page', () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', [
-      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'brave', 'jina', 'doubao', 'doubao-global', 'douyin', 'xiaohongshu', 'bilibili',
+      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'brave', 'jina', 'doubao', 'doubao-global', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
     ]));
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
     expect(screen.getByRole('button', { name: 'Google 下移' })).toBeDisabled();
@@ -505,7 +505,7 @@ describe('options page', () => {
           activeProviderId: null,
           activeSourceId: 'google',
           // Hide all engines except google → only one visible source remains.
-          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
         });
       }
       return Promise.resolve(undefined);

@@ -150,7 +150,7 @@ describe('buildExportPayload', () => {
   it('exports a normalized complete source order', async () => {
     installStorage({ sourceOrder: ['bing', 'exa', 'ghost', 'bing'] });
     await expect(buildExportPayload()).resolves.toMatchObject({
-      sourceOrder: ['bing', 'exa', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceOrder: ['bing', 'exa', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
     });
   });
 
@@ -172,7 +172,7 @@ describe('buildExportPayload', () => {
     await expect(buildExportPayload()).resolves.toMatchObject({
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
       activeSource: site.id,
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
       sourceHidden: [site.id],
     });
   });
@@ -272,7 +272,7 @@ describe('parseImportPayload', () => {
   it('normalizes a valid partial sourceOrder by appending missing sources', () => {
     const result = parseImportPayload(validPayload({ sourceOrder: ['bing', 'tavily'] }));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
   });
 
   it.each([
@@ -439,7 +439,7 @@ describe('mergeImport', () => {
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
-    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili'] });
+    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] });
     await mergeImport(payload);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toBeUndefined();
 
@@ -535,8 +535,8 @@ describe('mergeImport', () => {
     let signalImportSet!: () => void;
     const importSet = new Promise<void>((resolve) => { releaseImportSet = resolve; });
     const importSetStarted = new Promise<void>((resolve) => { signalImportSet = resolve; });
-    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global'];
-    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global'];
+    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo'];
+    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo'];
     const { store } = installStorage({}, {
       beforeSet: async (items) => {
         if (items.providerKeys && items.sourceOrder) {
@@ -617,8 +617,8 @@ describe('previewImport (dry-run)', () => {
       key: 'siteEngines', from: 'site:docs:google:https://docs.example.com/:Docs', to: '',
     }, {
       key: 'sourceOrder',
-      from: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > site:docs',
-      to: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili',
+      from: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo > site:docs',
+      to: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
     }]));
   });
 
@@ -636,8 +636,8 @@ describe('previewImport (dry-run)', () => {
     }));
     expect(preview.prefDiffs).toEqual([{
       key: 'sourceOrder',
-      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili',
-      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili',
+      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
     }]);
   });
 

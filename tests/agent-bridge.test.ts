@@ -83,6 +83,12 @@ describe('agent bridge protocol', () => {
     expect(parseAgentClaim({ ...engineClaim, request: { ...engineClaim.request, extra: true } })).toMatchObject({ ok: false });
   });
 
+  it('accepts yandex and duckduckgo engine-search claims', () => {
+    const engineClaim = { protocol: 1, requestId: 'engine', request: { action: 'engine-search', query: 'hello', engineId: 'google' } };
+    expect(parseAgentClaim({ ...engineClaim, request: { ...engineClaim.request, engineId: 'yandex' } })).toMatchObject({ ok: true, value: { request: { engineId: 'yandex' } } });
+    expect(parseAgentClaim({ ...engineClaim, request: { ...engineClaim.request, engineId: 'duckduckgo' } })).toMatchObject({ ok: true, value: { request: { engineId: 'duckduckgo' } } });
+  });
+
   it('uses a fresh bounded signal to complete an aborted engine search', async () => {
     const engineClaim = { protocol: 1, requestId: 'engine', request: { action: 'engine-search', query: 'hello', engineId: 'google' } };
     const fetchMock = vi.fn()

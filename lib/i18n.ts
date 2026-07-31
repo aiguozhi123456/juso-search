@@ -314,6 +314,8 @@ export const MSG = {
   engine_douyin: 'engine_douyin',
   engine_xiaohongshu: 'engine_xiaohongshu',
   engine_bilibili: 'engine_bilibili',
+  engine_yandex: 'engine_yandex',
+  engine_duckduckgo: 'engine_duckduckgo',
   // 统一快切栏
   source_switcher_aria: 'source_switcher_aria',
   source_switcher_group_aria: 'source_switcher_group_aria',

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorsFor } from '@/lib/engines/registry';
 import { DEFAULT_ANCHORS } from '@/lib/engines/types';
-import { BAIDU_SERP_HOSTS, BILIBILI_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS } from '@/lib/engines/scopes';
+import { BAIDU_SERP_HOSTS, BILIBILI_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, DUCKDUCKGO_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS, YANDEX_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
-  it('registers google + bing + baidu + douyin + xiaohongshu + bilibili', () => {
-    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili']);
+  it('registers google + bing + baidu + douyin + xiaohongshu + bilibili + yandex + duckduckgo', () => {
+    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
   });
 
   it('getEngine throws on unknown id', () => {
@@ -40,6 +40,17 @@ describe('buildSerpUrl', () => {
   it('bilibili encodes the query into the keyword param on search.bilibili.com/all', () => {
     expect(getEngine('bilibili').buildSerpUrl('hello 世界')).toBe(
       'https://search.bilibili.com/all?keyword=hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
+  it('yandex encodes the query into the text param on canonical /search (no trailing slash)', () => {
+    // canonical 路径无尾斜杠：带尾斜杠会触发 302 重定向到 /search，重定向链是 Yandex 反爬高权重信号。
+    expect(getEngine('yandex').buildSerpUrl('hello 世界')).toBe(
+      'https://yandex.com/search?text=hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
+  it('duckduckgo encodes the query into the q param on root path', () => {
+    expect(getEngine('duckduckgo').buildSerpUrl('hello 世界')).toBe(
+      'https://duckduckgo.com/?q=hello%20%E4%B8%96%E7%95%8C',
     );
   });
 });
@@ -79,6 +90,19 @@ describe('matchEngineByUrl', () => {
     expect(matchEngineByUrl('https://search.bilibili.com/all?keyword=hello')?.id).toBe('bilibili');
     expect(matchEngineByUrl('https://search.bilibili.com/all/?keyword=hello&from_source=web')?.id).toBe('bilibili');
   });
+  it('matches Yandex SERP host (text param on /search/)', () => {
+    expect(matchEngineByUrl('https://yandex.com/search/?text=hello')?.id).toBe('yandex');
+    expect(matchEngineByUrl('https://yandex.ru/search/?text=hello&lr=213')?.id).toBe('yandex');
+  });
+  it('matches Yandex canonical SERP without trailing slash and with post-verification tracker params', () => {
+    // 真机复核：验证后真实 URL 形如 /search?text=...&utm_referrer=...&lr=87（canonical 无尾斜杠 + 追踪参数）。
+    expect(matchEngineByUrl('https://yandex.com/search?text=hello')?.id).toBe('yandex');
+    expect(matchEngineByUrl('https://yandex.com/search?text=%E6%B5%8B%E8%AF%95&utm_referrer=https%3A%2F%2Fduckduckgo.com%2F&lr=87')?.id).toBe('yandex');
+  });
+  it('matches DuckDuckGo SERP host (q param on root path)', () => {
+    expect(matchEngineByUrl('https://duckduckgo.com/?q=hello')?.id).toBe('duckduckgo');
+    expect(matchEngineByUrl('https://duckduckgo.com/?q=hello&ia=web')?.id).toBe('duckduckgo');
+  });
   it('rejects forged and unsupported hosts', () => {
     expect(matchEngineByUrl('https://www.google.co.jp.example.com/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.google.fr/search?q=x')).toBeNull();
@@ -86,6 +110,9 @@ describe('matchEngineByUrl', () => {
     expect(matchEngineByUrl('https://www.baidu.com.example.com/s?wd=x')).toBeNull();
     expect(matchEngineByUrl('https://www.douyin.com.example.com/search/x')).toBeNull();
     expect(matchEngineByUrl('https://search.bilibili.com.example.com/all?keyword=x')).toBeNull();
+    expect(matchEngineByUrl('https://yandex.com.example.com/search/?text=x')).toBeNull();
+    expect(matchEngineByUrl('https://duckduckgo.com.example.com/?q=x')).toBeNull();
+    expect(matchEngineByUrl('https://www.yandex.com/search/?text=x')).toBeNull();
   });
   it.each([
     'http://www.google.com/search?q=x',
@@ -112,6 +139,15 @@ describe('matchEngineByUrl', () => {
     'http://search.bilibili.com/all?keyword=x',
     'https://search.bilibili.com:8443/all?keyword=x',
     'https://search.bilibili.com/alling?keyword=x',
+    // Yandex query 在 text 参数、canonical 路径 /search：以下非 canonical 形式应被拒
+    'http://yandex.com/search/?text=x',
+    'https://yandex.com:8443/search/?text=x',
+    'https://yandex.com/searching?text=x',
+    // DuckDuckGo query 在 q 参数、canonical 根路径 /：非根路径应被拒
+    'http://duckduckgo.com/?q=x',
+    'https://duckduckgo.com:8443/?q=x',
+    'https://duckduckgo.com/search?q=x',
+    'https://duckduckgo.com/results?q=x',
   ])('rejects non-canonical SERP URL %s', (url) => {
     expect(matchEngineByUrl(url)).toBeNull();
   });
@@ -146,6 +182,18 @@ describe('extractQuery', () => {
     expect(extractQuery('https://search.bilibili.com/all?keyword=react+hooks')).toBe('react hooks');
     expect(extractQuery('https://search.bilibili.com/all/?keyword=react+hooks&from_source=web')).toBe('react hooks');
   });
+  it('decodes Yandex query from the text param', () => {
+    expect(extractQuery('https://yandex.com/search/?text=react+hooks')).toBe('react hooks');
+    expect(extractQuery('https://yandex.ru/search/?text=react%20hooks&lr=213')).toBe('react hooks');
+  });
+  it('decodes Yandex query from the canonical /search (no trailing slash, with tracker params)', () => {
+    expect(extractQuery('https://yandex.com/search?text=react+hooks')).toBe('react hooks');
+    expect(extractQuery('https://yandex.com/search?text=%E6%B5%8B%E8%AF%95&utm_referrer=https%3A%2F%2Fduckduckgo.com%2F&lr=87')).toBe('测试');
+  });
+  it('decodes DuckDuckGo query from the q param', () => {
+    expect(extractQuery('https://duckduckgo.com/?q=react+hooks')).toBe('react hooks');
+    expect(extractQuery('https://duckduckgo.com/?q=react%20hooks&ia=web')).toBe('react hooks');
+  });
   it('returns null when no query param', () => {
     expect(extractQuery('https://www.google.com/search')).toBeNull();
   });
@@ -173,6 +221,12 @@ describe('engine scopes', () => {
     }
     for (const host of BILIBILI_SERP_HOSTS) {
       expect(matchEngineByUrl(`https://${host}/all?keyword=x`)?.id).toBe('bilibili');
+    }
+    for (const host of YANDEX_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/search/?text=x`)?.id).toBe('yandex');
+    }
+    for (const host of DUCKDUCKGO_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/?q=x`)?.id).toBe('duckduckgo');
     }
   });
 });
@@ -219,6 +273,14 @@ describe('anchor strategy', () => {
   it('baidu declares pageStyles targeting the result-molecule z-index shim', () => {
     // Pin the selector target, not the full CSS — lets QA tune property values freely.
     expect(getEngine('baidu').pageStyles).toContain('#wrapper>.result-molecule');
+  });
+  it('duckduckgo cascade: primary nav + after + alignTo nav, fallback #header_wrapper + after', () => {
+    // 真机复核（2026-07-31）：DDG 主站 React 渲染，#react-results / main 实际不存在。
+    // nav 是与结果列同宽（left≈31, w≈672）的 tabs 条，host 落在 tabs 与结果之间。
+    const ddg = getEngine('duckduckgo');
+    expect(ddg.anchors).toHaveLength(2);
+    expect(ddg.anchors[0]).toEqual({ selector: 'nav', append: 'after', alignTo: 'nav' });
+    expect(ddg.anchors[1]).toEqual({ selector: '#header_wrapper', append: 'after', alignTo: '#header_wrapper' });
   });
   it('null engine falls back to DEFAULT_ANCHORS', () => {
     expect(anchorsFor(null)).toEqual(DEFAULT_ANCHORS);
