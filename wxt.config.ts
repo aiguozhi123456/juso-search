@@ -14,7 +14,7 @@ export default defineConfig({
     default_locale: 'zh_CN',
     name: '__MSG_ext_name__',
     description: '__MSG_ext_description__',
-    version: '1.2.0',
+    version: '1.3.0',
     action: {
       default_title: '__MSG_ext_name__',
       default_icon: {
