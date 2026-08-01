@@ -2,29 +2,29 @@
 
 归档 Chrome Web Store Developer Dashboard「隐私权」步骤各字段填表内容。**英文为填表主版**。配合代码门控(Agent Bridge + engine-search 默认关闭)与公开隐私政策(`privacy-policy.md`)。
 
-最后更新:2026-07-28
+最后更新:2026-08-01
 
 ---
 
 ## 1. 单一用途(Single Purpose)
 
-> Provides a unified search interface for querying and quickly switching between multiple search sources — both user-configured AI search APIs (Tavily, Exa, Stepfun, Jina, Doubao, using the user's own API keys), user-saved site-scoped searches (Site Engines, no API key required), and conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili). Users launch searches from a toolbar search page and can move the current query between sources via a switch bar embedded on supported search engine result pages. Optionally, the user can expose this same search capability to a locally-run AI assistant of their own (for example, a coding agent) over a loopback bridge, so the assistant can issue searches through the user's already-configured sources without receiving the stored keys; this is the same search function exposed programmatically rather than via the toolbar UI, and is the only programmatic surface.
+> Provides a unified search interface for querying and quickly switching between multiple search sources — both user-configured AI search APIs (Tavily, Exa, Brave, Stepfun, Jina, Doubao, using the user's own API keys), user-saved site-scoped searches (Site Engines, no API key required), and conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, DuckDuckGo). Users launch searches from a toolbar search page and can move the current query between sources via a switch bar embedded on supported search engine result pages. Optionally, the user can expose this same search capability to a locally-run AI assistant of their own (for example, a coding agent) over a loopback bridge, so the assistant can issue searches through the user's already-configured sources without receiving the stored keys; this is the same search function exposed programmatically rather than via the toolbar UI, and is the only programmatic surface.
 
 ## 2. 权限理由 — storage
 
-> Stores the user's own API keys for configured AI search providers (Tavily, Exa, Stepfun, Jina, Doubao) and the user's search preferences — including the active search source, source ordering and visibility, UI language, UI theme (light/dark/auto), and visual style — so configuration persists across browser sessions and is available to the extension. Also stores a local per-device cache of successful search results to avoid billing the user twice for the same query. All data is kept only in `chrome.storage.local` (never synced) and is never logged. Stored API keys are read exclusively by the background service worker and are never read by any extension page or content script; the non-sensitive UI preferences (theme, visual style, language) are also read directly by the extension's own UI pages and the SERP content script for fast first paint. Keys are sent only to the user's selected search provider when fulfilling a search.
+> Stores the user's own API keys for configured AI search providers (Tavily, Exa, Brave, Stepfun, Jina, Doubao) and the user's search preferences — including the active search source, source ordering and visibility, source groups (grouping, collapse, pinned layout), per-provider result counts (maxResults), the SERP switch-bar position (top/bottom/auto), UI language, UI theme (light/dark/auto), and visual style — so configuration persists across browser sessions and is available to the extension. Also stores a local per-device cache of successful search results to avoid billing the user twice for the same query. All data is kept only in `chrome.storage.local` (never synced) and is never logged. Stored API keys are read exclusively by the background service worker and are never read by any extension page or content script; the non-sensitive UI preferences (theme, visual style, language) are also read directly by the extension's own UI pages and the SERP content script for fast first paint. Keys are sent only to the user's selected search provider when fulfilling a search.
 
 ## 3. 权限理由 — downloads
 
 > Allows the background service worker to save a user-initiated configuration backup file to the user's Downloads folder. The backup is a JSON file containing the user's provider API keys and search preferences (active source, source ordering), which the user can later import to restore their setup. The download is performed by the worker (rather than a page `<a>` download) so the stored API keys flow from the service worker directly into the file without ever entering any page's memory, and the file is written only when the user explicitly requests an export.
 
-## 4. 权限理由 — 主机权限(限 1000 字符;实测 ~994)
+## 4. 权限理由 — 主机权限(限 1000 字符;实测 ~981)
 
-> (1) Provider APIs (api.tavily.com, api.exa.ai, api.stepfun.com, s.jina.ai, open.feedcoopapi.com): the worker fetches the user's providers, sending only query, user's key, and minimal params; Stepfun MCP calls only 'web_search'. No cookies/history/page content collected.
+> (1) Provider APIs (api.tavily.com, api.exa.ai, api.search.brave.com, api.stepfun.com, s.jina.ai, open.feedcoopapi.com): the worker fetches providers with only the query, key, and minimal params; Stepfun MCP calls only 'web_search'. No cookies/history/page content collected.
 >
-> (2) 127.0.0.1 (Agent Bridge, off by default): lets a local AI assistant search via loopback without stored keys. Engine extraction (Google/Bing/Baidu only, needs separate opt-in) opens one background tab, reads only public results (title/url/snippet) via the extractor, then closes it. Each call is one fresh port/token and one request.
+> (2) 127.0.0.1 (Agent Bridge, off by default): lets a local AI assistant search via loopback without stored keys. Engine extraction (any supported engine, separate opt-in) opens one background tab, reads public results only (title/url/snippet), then closes it. One fresh port/token per call.
 >
-> (3) Search-engine content scripts (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili): the switch-bar injects a closed shadow-root bar and a small `<style>` that only repositions engine toolbar on Baidu/Douyin for space; it reads only anchors and the URL query, never cookies/credentials, and does not alter results. The extractor reads only public results on request; nothing is sent externally.
+> (3) Search-engine content scripts (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili/Yandex/DuckDuckGo): the switch-bar injects a closed shadow-root bar plus a small `<style>` (top: repositions Baidu/Douyin toolbars; bottom: pads page bottom); it reads only anchors and the URL query, never cookies/credentials, and does not alter results. The extractor reads only public results on request; nothing is sent externally.
 
 ## 5. 远程代码:否
 

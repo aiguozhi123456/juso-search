@@ -40,7 +40,7 @@ The development build (`build:dev`) uses a built-in public key to keep the exten
 - `entrypoints/search/`: independent human search page, source switching, cache, and history.
 - `entrypoints/options/`: local credentials, Search Source preferences, and Site Engine management.
 - `entrypoints/background.ts` and `lib/gateway.ts`: background service, message gateway, and bounded Agent Bridge actions.
-- `lib/providers/`: adapters and normalized response model for Tavily, Exa, Stepfun pay-as-you-go, and Step Plan.
+- `lib/providers/`: adapters and normalized response model for Tavily, Exa, Brave, Stepfun pay-as-you-go, Step Plan, Jina, and Doubao (Custom/Global).
 - Search Engines, Site Engines, and the SERP Switch Bar: real-browser navigation, `site:` scoped search, result-page switching, and ordinary-result extraction, on an execution path distinct from API services.
 - `lib/site-engines.ts` and `lib/storage.ts`: Site Engine definitions plus local configuration, source preferences, cache, and user-initiated configuration exports.
 

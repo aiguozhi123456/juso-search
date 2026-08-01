@@ -1,6 +1,6 @@
 # Privacy Policy / 隐私政策
 
-**Last updated: 2026-07-28**
+**Last updated: 2026-08-01**
 
 > This policy describes how the **Juso (双面搜)** browser extension ("the extension") handles data. The extension is a Bring-Your-Own-Key (BYOK) search aggregator: it lets you query AI search providers you have paid for, and switch queries between those providers and conventional search engines.
 
@@ -14,8 +14,8 @@ The extension **does not collect, transmit, or sell** any analytics, telemetry, 
 
 The only data the extension stores is:
 
-- **Your own API keys** for the AI search providers you configure (Tavily, Exa, Stepfun, Jina, Doubao).
-- **Your preferences** — the active search source, source ordering and visibility, UI language, UI theme (light/dark/auto), visual style, and any user-saved Site Engines (site-scoped searches with no API key required).
+- **Your own API keys** for the AI search providers you configure (Tavily, Exa, Brave, Stepfun, Jina, Doubao).
+- **Your preferences** — the active search source, source ordering and visibility, source groups (grouping, collapse, and pinned layout), per-provider result counts (maxResults), the SERP switch-bar position (top/bottom/auto), UI language, UI theme (light/dark/auto), visual style, and any user-saved Site Engines (site-scoped searches with no API key required).
 - **A local search-result cache** — recent successful search results stored per-device to avoid billing you twice for the same query.
 
 ### 2. How data is stored
@@ -44,13 +44,13 @@ The bridge supports three actions:
 
 1. **Provider search** — search through one of your configured AI providers (available when the Agent Bridge is enabled).
 2. **List configured providers** — return which providers you have configured (no keys).
-3. **Engine extraction** — **requires a second, separate opt-in** ("Allow reading public search-engine results"), also off by default. When enabled, the agent can ask the extension to open **one background tab** to **Google, Bing, or Baidu's** result page for a given query, read only the **publicly-rendered result metadata** (titles, URLs, snippets) via a content script, close the tab, and return that data to the local agent. The browser loads the search-engine page exactly as if you had opened it; no additional data is collected from or sent to that page beyond the query in the URL.
+3. **Engine extraction** — **requires a second, separate opt-in** ("Allow reading public search-engine results"), also off by default. When enabled, the agent can ask the extension to open **one background tab** to any supported engine's result page (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, or Douyin) for a given query, read only the **publicly-rendered result metadata** (titles, URLs, snippets) via a content script, close the tab, and return that data to the local agent. For Bilibili, Xiaohongshu, and Douyin, extraction runs in your own browser profile exactly as loaded (which may be logged in), and only the rendered public result metadata is read. The browser loads the search-engine page exactly as if you had opened it; no additional data is collected from or sent to that page beyond the query in the URL.
 
 ### 6. Content scripts on search-engine pages
 
-On the result pages of conventional search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili), the extension runs two narrowly-scoped content scripts:
+On the result pages of conventional search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, DuckDuckGo), the extension runs two narrowly-scoped content scripts:
 
-- The **switch-bar** script injects a single switch bar inside a closed shadow root, plus a small `<style>` element that only repositions the engine's own toolbar on Baidu and Douyin to avoid overlap (removed when the bar unmounts; no override on Google/Bing). It reads only the DOM anchors needed to place the bar and the query from the URL; it does **not** read account, personal, or form fields, does not modify the search results themselves, and does not send page content anywhere.
+- The **switch-bar** script injects a single switch bar inside a closed shadow root, plus small `<style>` elements that only make room for the bar — repositioning the engine's own toolbar on Baidu and Douyin in top-bar mode, or adding bottom padding to the page in bottom-bar mode (removed when the bar unmounts; no override on other engines). It reads only the DOM anchors needed to place the bar and the query from the URL; it does **not** read account, personal, or form fields, does not modify the search results themselves, and does not send page content anywhere.
 - The **extractor** script reads only the natural result metadata (titles, URLs, snippets) the engine has already rendered, and only when the background worker requests it (for the optional engine-extraction action above). It is passive otherwise.
 
 No content script on these pages reads cookies, stored credentials, account data, or personal identifiers, and none transmits page content to any external server.
@@ -81,8 +81,8 @@ For privacy questions, open an issue in the extension's source repository.
 
 扩展存储的唯一数据是:
 
-- **您自备的 AI 搜索 provider API 密钥**(Tavily、Exa、Stepfun、Jina、Doubao)。
-- **您的偏好**——激活来源、来源排序与显隐、界面语言、主题(浅色/深色/自动)、视觉样式，以及您保存的站外搜索（Site Engine，无需 API 密钥的站点范围搜索）。
+- **您自备的 AI 搜索 provider API 密钥**(Tavily、Exa、Brave、Stepfun、Jina、Doubao)。
+- **您的偏好**——激活来源、来源排序与显隐、来源分组(分组、折叠与置顶布局)、每来源结果数量(maxResults)、快切栏栏位(顶部/底部/自动)、界面语言、主题(浅色/深色/自动)、视觉样式，以及您保存的站外搜索（Site Engine，无需 API 密钥的站点范围搜索）。
 - **本地搜索结果缓存**——近期成功的搜索结果按设备缓存,避免对同一查询重复向您计费。
 
 ### 2. 数据的存储方式
@@ -111,13 +111,13 @@ For privacy questions, open an issue in the extension's source repository.
 
 1. **Provider 搜索**——通过您配置的某个 AI provider 搜索(启用 Agent Bridge 后可用)。
 2. **列出已配置 provider**——返回您已配置哪些 provider(不含密钥)。
-3. **引擎抽取**——**需要单独的二次确认开启**("允许读取搜索引擎公开结果"),同样默认关闭。开启后,agent 可请求扩展针对某查询**在后台打开一个标签**到 **Google、Bing 或百度**的结果页,通过内容脚本**仅读取公开渲染的结果元数据**(标题、网址、摘要),然后关闭标签,将数据返回给本地 agent。浏览器加载该搜索引擎页面的方式与您亲自打开完全一致;除 URL 中的查询外,不从该页面收集或向其发送任何额外数据。
+3. **引擎抽取**——**需要单独的二次确认开启**("允许读取搜索引擎公开结果"),同样默认关闭。开启后,agent 可请求扩展针对某查询**在后台打开一个标签**到任意受支持引擎(Google、Bing、百度、Yandex、DuckDuckGo、哔哩哔哩、小红书或抖音)的结果页,通过内容脚本**仅读取公开渲染的结果元数据**(标题、网址、摘要),然后关闭标签,将数据返回给本地 agent。对哔哩哔哩、小红书与抖音,抽取在您自己的浏览器配置中按原样运行(可能处于已登录状态),仅读取渲染出的公开结果元数据。浏览器加载该搜索引擎页面的方式与您亲自打开完全一致;除 URL 中的查询外,不从该页面收集或向其发送任何额外数据。
 
 ### 6. 搜索引擎页面上的内容脚本
 
-在常规搜索引擎(Google、Bing、百度、抖音、小红书、哔哩哔哩)的结果页上,扩展运行两个范围严格的内容脚本:
+在常规搜索引擎(Google、Bing、百度、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo)的结果页上,扩展运行两个范围严格的内容脚本:
 
-- **快切栏**脚本在闭合 shadow root 内注入一行快切栏,并在百度与抖音上注入一个小幅 `<style>` 仅位移引擎自身工具栏以避免遮挡(卸载时移除;Google/Bing 无样式覆盖)。它仅读取用于定位快切栏的 DOM 锚点与 URL 中的查询;**不读取**账号、个人或表单字段,不修改搜索结果本身,不向任何地方发送页面内容。
+- **快切栏**脚本在闭合 shadow root 内注入一行快切栏,并注入小幅 `<style>` 仅为快切栏腾出空间——顶栏模式在百度与抖音上仅位移引擎自身工具栏,底栏模式则为页面添加底部内边距(卸载时移除;其余引擎无样式覆盖)。它仅读取用于定位快切栏的 DOM 锚点与 URL 中的查询;**不读取**账号、个人或表单字段,不修改搜索结果本身,不向任何地方发送页面内容。
 - **抽取**脚本仅读取引擎已渲染的自然结果元数据(标题、网址、摘要),且仅当 background worker 请求时(用于上述可选的引擎抽取操作)。其余时间被动。
 
 这些页面上的内容脚本均不读取 Cookie、已存凭据、账号数据或个人标识,均不向任何外部服务器发送页面内容。

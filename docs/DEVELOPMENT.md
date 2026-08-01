@@ -40,7 +40,7 @@ npm run lint     # eslint .
 - `entrypoints/search/`：独立人类搜索页、搜索来源切换、缓存与历史。
 - `entrypoints/options/`：本地密钥、来源偏好与 Site Engine 管理。
 - `entrypoints/background.ts`、`lib/gateway.ts`：后台服务、消息网关与 Agent Bridge 的受限执行入口。
-- `lib/providers/`：Tavily、Exa、Stepfun 按量与 Step Plan 的适配器及统一响应模型。
+- `lib/providers/`：Tavily、Exa、Brave、Stepfun 按量与 Step Plan、Jina、Doubao（Custom/Global）的适配器及统一响应模型。
 - 搜索引擎、Site Engine 与 SERP Switch Bar：真实浏览器导航、`site:` 站外搜索、结果页切换和普通结果提取；其执行契约不同于 API 服务。
 - `lib/site-engines.ts`、`lib/storage.ts`：站外搜索定义与本地配置、来源偏好、缓存与用户发起的配置导出。
 

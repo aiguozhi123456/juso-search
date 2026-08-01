@@ -11,7 +11,7 @@
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site-scoped searches (Site Engines), and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili work with zero AI service configuration, and you can save site-scoped searches in settings without any API key.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site-scoped searches (Site Engines), and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo work with zero AI service configuration, and you can save site-scoped searches in settings without any API key.
 
 | For | What it does today |
 | --- | --- |
@@ -38,22 +38,22 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Engine**, or a configured AI search service; those three types use different execution paths.
 
-- Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili. They use no API key; Juso navigates a browser for people to use directly; Google, Bing, and Baidu also let agents extract ordinary search results.
+- Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo. They use no API key; Juso navigates a browser for people to use directly; all eight engines also let agents extract ordinary search results (Bilibili, Xiaohongshu, and Douyin extraction runs in a logged-in browser profile).
 - Site Engines: save multiple site-scoped searches in extension settings. Each entry fixes Google, Bing, or Baidu as the underlying engine and searches that site with a `site:` operator. Targets must be public hostnames; the underlying engine is chosen at create time and does not change afterward. Saved entries appear on the search page and the SERP Switch Bar like other sources. No API key required.
-- AI search services: Tavily, Exa, Stepfun pay-as-you-go API, and Stepfun Step Plan. They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
-- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Both Stepfun sources currently return result lists only.
+- AI search services: Tavily, Exa, Brave, Stepfun pay-as-you-go API, Stepfun Step Plan, Jina, and Doubao (Custom and Global endpoints). They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
+- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Stepfun (including Step Plan), Brave, Jina, and Doubao currently return result lists only.
 
 In the current release, “aggregation” means unified access, selection, and fast source switching. It does **not** mean a query retrieves from several sources in parallel by default, nor that results are merged, deduplicated, or fused by default.
 
 ## For People
 
-The independent search page lets you choose and switch Search Sources, including saved Site Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili result pages, the SERP Switch Bar can move the current query to another search engine, a Site Engine, or hand it off to Juso’s AI search page.
+The independent search page lets you choose and switch Search Sources, including saved Site Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo result pages, the SERP Switch Bar can move the current query to another search engine, a Site Engine, or hand it off to Juso’s AI search page.
 
 Successful AI searches are cached on the current device and appear in local search history that can be reviewed and replayed. Cache entries are scoped to a service plus normalized query, and are not shared across services. Use explicit refresh when you need fresh results; it bypasses the cache and may incur charges from the selected AI service.
 
 ## Quick Start
 
-Juso v1.2.0 is available on GitHub Release (Chrome Web Store currently shows v1.1.0; v1.2.0 pending review).
+Juso v1.3.0 is available on GitHub Release (Chrome Web Store currently shows v1.2.0; v1.3.0 pending review).
 
 ### Install the extension
 
@@ -64,9 +64,9 @@ Juso v1.2.0 is available on GitHub Release (Chrome Web Store currently shows v1.
 
 Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
 
-**From GitHub Release (v1.2.0)**
+**From GitHub Release (v1.3.0)**
 
-1. Download `juso-search-1.2.0-chrome-dev.zip` from the [GitHub Release v1.2.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.2.0).
+1. Download `juso-search-1.3.0-chrome-dev.zip` from the [GitHub Release v1.3.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.3.0).
 2. Extract the ZIP.
 3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
 
@@ -76,7 +76,7 @@ See the [development document](docs/DEVELOPMENT.en.md) for development commands,
 
 ### People
 
-1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
+1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
 
 You can now search and switch among conventional engines, saved Site Engines, and configured AI search services from one entry point.
 
@@ -111,7 +111,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 To override temporarily: `python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`.
 
-The local agent can now list configured services, perform API searches with an **explicit** provider, or search Google, Bing, and Baidu through the browser—without receiving stored credentials.
+The local agent can now list configured services, perform API searches with an **explicit** provider, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials.
 
 ## Security and Data Boundaries
 
