@@ -17,8 +17,8 @@ interface Props {
   onSelect: (source: SearchSource) => void;
   disabled?: boolean;
   /**
-   * 底栏模式：横滑轨道 + active 滚到轨道视口正中；分组 flyout 用 fixed 锚定向上展开，
-   * 且 trigger 支持点击切换（触屏主路径）。顶栏/搜索页不传。
+   * 底栏模式：横滑轨道 + active 滚到轨道视口正中；分组 flyout 用 fixed 锚定向上展开。
+   * 点击切换（固定展开）为两模式统一行为，见组件头注释。顶栏/搜索页不传。
    */
   bottomMode?: boolean;
 }
@@ -50,6 +50,8 @@ function resolveLabel(label: SourceLabel): string {
  *   · 指示器只跟随激活的置顶 source；组内 source 的分类状态仅由 trigger 小圆点表达；
  *   · useLayoutEffect 重新测量目标 pill 的 offset*，CSS transition 完成"滑动"动画；
  *   · 分组 trigger hover 进入时展开浮层（.group-flyout），离开关闭；键盘 onFocus/Blur 同步；
+ *   · 分组 trigger 点击固定展开（两模式一致）：收起→打开并固定；瞬态展开中点击→转为固定；
+ *     固定后 hover 移出不收起，仅再点/Escape/外部点击/选中组内源时关闭；
  *   · bottomMode：轨道横滑、指示器在 track 内、active 居中、flyout fixed 向上、点击切换；
  *   · 同一组件用于搜索页与 SERP 注入栏（shadow DOM 内），两处样式各自维护；
  *   · 测量在 layout 阶段同步完成，避免指示器先飞到 (0,0) 再回弹；
@@ -61,6 +63,8 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   const [indicator, setIndicator] = useState<IndicatorMetrics | null>(null);
   // 当前展开的分组 id（hover/focus/click 控制）；null 表示全部收起。
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  // 点击固定的分组 id：固定后不因 hover 移出而收起，仅显式关闭（再点/Escape/外部点击/选中组内源）。
+  const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
 
   const layout = useMemo(
     () => projectLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId),
@@ -120,7 +124,10 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
 
   // 底栏 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
   useEffect(() => {
-    if (!bottomMode) setOpenGroupId(null);
+    if (!bottomMode) {
+      setOpenGroupId(null);
+      setPinnedGroupId(null);
+    }
   }, [bottomMode]);
 
   // 底栏 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
@@ -134,7 +141,10 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       : (el.closest?.('[data-position]') as HTMLElement | null);
     if (!host) return;
     const obs = new MutationObserver(() => {
-      if (host.dataset.hidden === 'true') setOpenGroupId(null);
+      if (host.dataset.hidden === 'true') {
+        setOpenGroupId(null);
+        setPinnedGroupId(null);
+      }
     });
     obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
     return () => obs.disconnect();
@@ -179,9 +189,33 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
         disabled={disabled}
         onSelect={onSelect}
         open={openGroupId === item.group.id}
-        onOpen={() => setOpenGroupId(item.group.id)}
-        onClose={() => setOpenGroupId((cur) => (cur === item.group.id ? null : cur))}
-        onToggle={() => setOpenGroupId((cur) => (cur === item.group.id ? null : item.group.id))}
+        pinned={pinnedGroupId === item.group.id}
+        onOpen={() => {
+          setOpenGroupId(item.group.id);
+          // hover/focus 展开为瞬态：单开语义下，固定的是别的组时清掉旧固定；
+          // 且 hover 回原组也不恢复固定（固定只能由点击产生）。
+          setPinnedGroupId((cur) => (cur === item.group.id ? cur : null));
+        }}
+        onClose={() => {
+          setOpenGroupId((cur) => (cur === item.group.id ? null : cur));
+          setPinnedGroupId((cur) => (cur === item.group.id ? null : cur));
+        }}
+        onToggle={() => {
+          if (openGroupId === item.group.id) {
+            if (pinnedGroupId === item.group.id) {
+              // 固定展开 → 关闭并取消固定。
+              setOpenGroupId(null);
+              setPinnedGroupId(null);
+            } else {
+              // 瞬态展开 → 固定。
+              setPinnedGroupId(item.group.id);
+            }
+          } else {
+            // 收起 → 打开并固定。
+            setOpenGroupId(item.group.id);
+            setPinnedGroupId(item.group.id);
+          }
+        }}
         bottomMode={bottomMode}
       />
     );
@@ -267,6 +301,7 @@ function GroupPill({
   disabled,
   onSelect,
   open,
+  pinned,
   onOpen,
   onClose,
   onToggle,
@@ -279,6 +314,8 @@ function GroupPill({
   disabled?: boolean;
   onSelect: (source: SearchSource) => void;
   open: boolean;
+  /** 是否点击固定（固定后 hover 移出不收起）。 */
+  pinned: boolean;
   onOpen: () => void;
   onClose: () => void;
   onToggle: () => void;
@@ -294,19 +331,28 @@ function GroupPill({
   // hover-intent：trigger 与浮层之间存在视觉缝隙，鼠标穿缝时会先离开 .switcher-group
   // 触发 mouseleave。若立即关闭，浮层会在鼠标抵达前被收回，导致无法切到组内 source。
   // 改为延迟关闭：离开后留一个短窗口，期间重新进入（到 trigger 或浮层）即取消关闭。
+  // 点击固定的分组不受延迟关闭影响（pinnedRef 读取最新固定态）。
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleClose = () => {
-    if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null;
-      onClose();
-    }, 120);
-  };
+  const pinnedRef = useRef(pinned);
+  pinnedRef.current = pinned;
   const cancelClose = () => {
     if (closeTimerRef.current != null) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
+  };
+  // onClose 的本地包装：显式关闭路径（Escape/外部 pointerdown/blur/选中组内源）
+  // 都先取消挂起的 hover-intent 延迟关闭，避免旧定时器到期后再触发幂等 onClose。
+  const handleClose = () => {
+    cancelClose();
+    onClose();
+  };
+  const scheduleClose = () => {
+    if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      if (!pinnedRef.current) handleClose();
+    }, 120);
   };
   // 卸载时清掉未触发的延迟关闭，避免回调作用到已卸载组件。
   useEffect(() => () => cancelClose(), []);
@@ -337,22 +383,22 @@ function GroupPill({
     };
   }, [open, bottomMode]);
 
-  // 底栏：点外部关闭（触屏无可靠 hover-out）。监听 document（capture），
-  // 这样页面（shadow 外）的点击也能命中；composedPath 含 shadow 内后代，
-  // path.includes(groupRef/flyoutRef) 判断对 shadow 内点击同样有效。
+  // 点外部关闭（两种模式统一）：触屏无可靠 hover-out（底栏主路径），
+  // 顶栏/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
+  // 也能命中；composedPath 含 shadow 内后代，path.includes 判断对 shadow 内点击同样有效。
   useEffect(() => {
-    if (!open || !bottomMode) return;
+    if (!open) return;
     const onPointerDown = (e: Event) => {
       const path = typeof (e as PointerEvent).composedPath === 'function'
         ? (e as PointerEvent).composedPath()
         : [];
       if (groupRef.current && path.includes(groupRef.current)) return;
       if (flyoutRef.current && path.includes(flyoutRef.current)) return;
-      onClose();
+      handleClose();
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [open, bottomMode, onClose]);
+  }, [open, handleClose]);
 
   const flyoutStyle: React.CSSProperties | undefined = bottomMode && flyoutAnchor
     ? {
@@ -388,13 +434,13 @@ function GroupPill({
         const related = e.relatedTarget as Node | null;
         if (groupRef.current?.contains(related)) return;
         if (flyoutRef.current?.contains(related)) return;
-        onClose();
+        handleClose();
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && open) {
           // Escape 关闭浮层并归还焦点到 trigger，保持键盘用户的位置感。
           triggerRef.current?.focus();
-          onClose();
+          handleClose();
           return;
         }
         // 底栏键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
@@ -419,8 +465,7 @@ function GroupPill({
         aria-label={t(MSG.source_switcher_group_aria, [label])}
         disabled={disabled}
         onClick={(e) => {
-          // 仅底栏：点击切换（触屏主路径）；顶栏/搜索页靠 hover/focus。
-          if (!bottomMode) return;
+          // 点击切换（两模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
           e.stopPropagation();
           onToggle();
         }}
@@ -445,7 +490,7 @@ function GroupPill({
               disabled={disabled}
               onSelect={(s) => {
                 onSelect(s);
-                onClose();
+                handleClose();
               }}
             />
           ))}

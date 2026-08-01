@@ -271,6 +271,135 @@ describe('SourceSwitcher — grouped layout', () => {
   });
 });
 
+describe('SourceSwitcher — click pin (top bar / search page)', () => {
+  const groupedConfig = defaultGroupConfig(sources.map((s) => s.id));
+
+  // 点击固定（pin）：顶栏/搜索页与底栏一致——点击打开并固定，
+  // 固定后 hover 移出不收起；再点一次关闭。
+  it('click group trigger opens + pins the flyout; hover-out does NOT close it; second click closes', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+      );
+      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      fireEvent.click(aiTrigger);
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      // 点击固定后移开鼠标并超过 hover-intent 延迟窗口，浮层仍保持展开
+      fireEvent.mouseLeave(aiTrigger.parentElement!);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      // 再次点击 → 关闭
+      fireEvent.click(aiTrigger);
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 回归：hover 瞬态展开中点击 trigger，应转为固定而非收回（用户描述的"点击导致收回"）。
+  it('clicking an already hover-open group pins it instead of closing', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+      );
+      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      fireEvent.mouseEnter(aiTrigger.parentElement!); // hover 瞬态展开
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      fireEvent.click(aiTrigger); // 点击 → 固定（不得关闭）
+      fireEvent.mouseLeave(aiTrigger.parentElement!);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Escape closes a pinned flyout', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    aiTrigger.focus();
+    fireEvent.keyDown(aiTrigger, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  // 固定态与底栏一致：页面（shadow 外）pointerdown 关闭固定展开的浮层。
+  it('pointerdown outside the group closes a pinned flyout (top bar too)', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    fireEvent.pointerDown(outside);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    document.body.removeChild(outside);
+  });
+
+  // 单开语义：固定 A 后 hover 别的组 → A 关闭且固定被清除；hover 回 A 也不恢复固定。
+  it('hovering another group clears the pinned group (single-open)', () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+      );
+      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      const enginesGroup = screen.getByRole('button', { name: /搜索引擎/ }).parentElement!;
+      fireEvent.click(aiTrigger); // 固定 AI
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      // hover 另一组：AI 固定被清除并关闭，另一组瞬态展开
+      fireEvent.mouseEnter(enginesGroup);
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+      expect(screen.getByRole('button', { name: /Bing/ })).toBeInTheDocument();
+      // hover 回 AI 不恢复固定：移开并超过延迟窗口后浮层仍关闭
+      fireEvent.mouseEnter(aiTrigger.parentElement!);
+      fireEvent.mouseLeave(aiTrigger.parentElement!);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 本次行为扩展：顶栏瞬态（hover）展开的浮层同样响应外部 pointerdown 关闭。
+  it('pointerdown outside the group closes a transient hover-open flyout (top bar)', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.mouseEnter(aiTrigger.parentElement!);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    fireEvent.pointerDown(outside);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    document.body.removeChild(outside);
+  });
+
+  // 守卫回归：pointerdown 落在 trigger 或浮层内部时不关闭（真实点击顺序 pointerdown 先于 click）。
+  it('pointerdown on the trigger or inside the flyout keeps it open', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    // trigger 上 pointerdown → path 含 groupRef，不关闭
+    fireEvent.pointerDown(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    // 浮层内 item 上 pointerdown → path 含 flyoutRef，不关闭
+    fireEvent.pointerDown(screen.getByRole('button', { name: /Tavily/ }));
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+});
+
 describe('SourceSwitcher — bottomMode', () => {
   const groupedConfig = defaultGroupConfig(sources.map((s) => s.id));
 
@@ -292,18 +421,6 @@ describe('SourceSwitcher — bottomMode', () => {
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     fireEvent.click(aiTrigger);
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
-  });
-
-  it('without bottomMode, click trigger alone does NOT open (hover still does)', () => {
-    render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
-    );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
-    fireEvent.click(aiTrigger);
-    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
-    // hover 仍可展开（既有行为）
-    fireEvent.mouseEnter(aiTrigger.parentElement!);
-    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
   });
 
   // P0-2: 底栏下 focus 不应自动开层（否则触屏 focus→click 竞态导致首次点触空操作）。
