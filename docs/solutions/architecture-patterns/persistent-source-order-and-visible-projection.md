@@ -49,7 +49,7 @@ Juso 的快切栏同时包含需要 BYOK key 的 AI provider 和始终可用的�
 
 ## Guidance
 
-> 注：本文描述的是 source **投影层**（`sourceOrder` 为权威顺序，`allSources` 投影可见项）。其上现已叠加一层独立的「布局层」`groupConfig`（见 [source-group-layout-layer.md](./source-group-layout-layer.md)）：分组与置顶只决定快切栏顶层如何布局，**不改变** source 的显隐与底层 `sourceOrder`；置顶的 source 会从其分组移除（pins-once）。投影层模型不变，`groupConfig` 是纯消费 `allSources` 输出的非侵入层。
+> 注：本文描述的是 source **投影层**（`sourceOrder` 为权威顺序，`allSources` 投影可见项）。其上现已叠加一层独立的「布局层」`groupConfig`（见 [source-group-layout-layer.md](./source-group-layout-layer.md)）：分组与置顶只决定快切栏顶层如何布局，**不改变** source 的显隐与底层 `sourceOrder`；置顶的 source 会从其分组移除（pins-once）。此外，**组内显式顺序也已从 `sourceOrder` 解耦**到 `groupConfig.groupOrders`（groupId → 该组显式成员顺序，缺省回退 `sources` 顺序）——在「来源布局」编辑器里拖动组成员只写 `groupOrders`，不再穿透影响本投影层；快切栏管理列表也不再提供排序控件（顺序统一收敛到布局编辑器）。投影层模型不变，`groupConfig` 是纯消费 `allSources` 输出的非侵入层。
 
 ### 持久化完整顺序，最后才投影可见来源
 

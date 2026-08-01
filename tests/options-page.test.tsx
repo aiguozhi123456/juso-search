@@ -2,9 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
-import type { ProviderId } from '@/lib/providers/types';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
-import type { SourceId } from '@/lib/sources';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
 // 主题/locale/style 逻辑由各自单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
@@ -106,48 +104,11 @@ describe('options page', () => {
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书[\s\S]*哔哩哔哩[\s\S]*Yandex[\s\S]*DuckDuckGo/);
   });
 
-  it('disables moving the first source up and the last source down', async () => {
+  it('quickbar list has no reorder buttons (ordering moved to the source layout editor)', async () => {
     render(<App />);
-    expect(await screen.findByRole('button', { name: 'Exa 上移' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'DuckDuckGo 下移' })).toBeDisabled();
-  });
-
-  it('moves adjacent visible sources in the complete stored order', async () => {
-    const save = deferred<void>();
-    mockedSend.mockImplementation(((type: string) => {
-      if (type === 'getProviderConfig') {
-        return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
-          sourceOrder: ['tavily', 'stepfun', 'exa', 'stepfun-plan', 'google', 'bing', 'baidu'],
-        });
-      }
-      if (type === 'setSourceOrder') return save.promise;
-      return Promise.resolve(undefined);
-    }) as never);
-    render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', [
-      'tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'bing', 'baidu', 'brave', 'jina', 'doubao', 'doubao-global', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
-    ]));
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
-    expect(screen.getByRole('button', { name: 'Google 下移' })).toBeDisabled();
-    save.resolve();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Google 下移' })).not.toBeDisabled());
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
-  });
-
-  it('rolls back the order and shows an error when saving fails', async () => {
-    mockedSend.mockImplementation(((type: string) => {
-      if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
-      }
-      if (type === 'setSourceOrder') return Promise.reject(new Error('storage unavailable'));
-      return Promise.resolve({ ok: true });
-    }) as never);
-    render(<App />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Exa 下移' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('顺序保存失败，已回滚');
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Exa[\s\S]*Google[\s\S]*Bing[\s\S]*Baidu/);
+    await screen.findByRole('button', { name: '在快切栏隐藏 Exa' });
+    const quickbar = screen.getByRole('heading', { name: '快切栏' }).parentElement as HTMLElement;
+    expect(within(quickbar).queryByRole('button', { name: /上移|下移/ })).toBeNull();
   });
 
   it('hides a source from the quick-switch bar by persisting it in sourceHidden', async () => {
@@ -223,47 +184,6 @@ describe('options page', () => {
     // 失败后回滚：可访问名恢复为“隐藏”语义
     await waitFor(() => expect(screen.getByRole('button', { name: '在快切栏隐藏 Bing' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: '在快切栏显示 Bing' })).not.toBeInTheDocument();
-  });
-
-  it('does not let an older config response undo a successful source order move', async () => {
-    const staleConfig = deferred<{ configuredProviderIds: ProviderId[]; activeProviderId: null; activeSourceId: SourceId; sourceOrder: SourceId[] }>();
-    const save = deferred<void>();
-    let configCalls = 0;
-    mockedSend.mockImplementation(((type: string) => {
-      if (type === 'getProviderConfig') {
-        configCalls += 1;
-        if (configCalls === 1) {
-          return Promise.resolve({
-            configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
-            sourceOrder: ['exa', 'google', 'bing', 'baidu', 'tavily', 'stepfun', 'stepfun-plan'],
-          });
-        }
-        return staleConfig.promise;
-      }
-      if (type === 'setSourceOrder') return save.promise;
-      return Promise.resolve({ ok: true });
-    }) as never);
-    render(<App />);
-
-    await screen.findByRole('button', { name: 'Exa 下移' });
-    openTab('密钥');
-    const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
-    fireEvent.change(input, { target: { value: 'tvly-abc' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
-    await waitFor(() => expect(mockedSend.mock.calls.filter(([type]) => type === 'getProviderConfig')).toHaveLength(2));
-
-    openTab('搜索');
-    fireEvent.click(screen.getByRole('button', { name: 'Exa 下移' }));
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', expect.any(Array)));
-
-    save.resolve();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Google 下移' })).not.toBeDisabled());
-    staleConfig.resolve({
-      configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
-      sourceOrder: ['exa', 'google', 'bing', 'baidu', 'tavily', 'stepfun', 'stepfun-plan'],
-    });
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('Exa'));
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Google[\s\S]*Exa/);
   });
 
   it('does not let an older config response overwrite a newer choose()', async () => {
@@ -438,7 +358,7 @@ describe('options page', () => {
     expect(screen.getByRole('group', { name: '语言' })).toBeInTheDocument();
   });
 
-  it('persists a middle-order move of a site engine alongside built-in sources', async () => {
+  it('renders a site engine in its saved sourceOrder position in the quickbar list', async () => {
     const siteEngine: SiteEngineDefinition = {
       id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google',
     };
@@ -453,14 +373,12 @@ describe('options page', () => {
       return Promise.resolve(undefined);
     }) as never);
     render(<App />);
-    // Site engine appears between exa and google; moving it down swaps with google.
-    fireEvent.click(await screen.findByRole('button', { name: 'Docs 下移' }));
-    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setSourceOrder', expect.arrayContaining([
-      'exa', 'google', 'site:docs', 'bing', 'baidu',
-    ])));
-    // The site: id is preserved in the persisted order (not dropped by normalization).
-    const call = mockedSend.mock.calls.find(([type]) => type === 'setSourceOrder');
-    expect(call?.[1]).toEqual(expect.arrayContaining(['site:docs']));
+    // Site engine appears between exa and google, in the persisted order (no reorder UI anymore).
+    await screen.findByRole('button', { name: '在快切栏隐藏 Docs' });
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Exa[\s\S]*Docs[\s\S]*Google/);
+    // 排序集中在「来源布局」编辑器：快切栏列表不应出现任何移动按钮。
+    const quickbar = screen.getByRole('heading', { name: '快切栏' }).parentElement as HTMLElement;
+    expect(within(quickbar).queryByRole('button', { name: /上移|下移/ })).toBeNull();
   });
 
   it('ignores a stale config response for siteEngines, active, and configured providers', async () => {

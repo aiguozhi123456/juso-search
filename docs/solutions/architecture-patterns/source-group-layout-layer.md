@@ -20,9 +20,9 @@ tags:
   - projection
   - config-normalization
   - schema-versioning
-  - lazy-defaults
-  - react
-  - chrome-extension
+  - drag-and-drop
+  - touch-fallback
+  - group-orders
 ---
 
 # Source Groups: A Layout Layer Over the Source Projection
@@ -49,6 +49,8 @@ export interface GroupConfig {
   layout: SwitcherItem[];
   /** sourceId → groupId；仅对「入组」的 source 记录，置顶 source 不出现。 */
   assignments: Record<string, SourceGroupId>;
+  /** groupId → 该组显式成员顺序（仅收录「入组」且已知的 source；可缺省 = 回退 sources 顺序）。 */
+  groupOrders: Record<string, SourceId[]>;
 }
 
 export type SwitcherItem =
@@ -56,10 +58,11 @@ export type SwitcherItem =
   | { kind: 'group'; groupId: SourceGroupId };
 ```
 
-Three deliberately independent fields:
+Four deliberately independent fields:
 - **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The three builtins — `ai-search`, `engines`, `sites` — always exist.
 - **`layout`** — a single mixed sequence of top-row items. Each item is either a pinned source (rendered as a bare pill) or a group (rendered as a collapsible pill with a hover flyout). Pinned sources and groups are peers and share one ordering, so the user can interleave them freely.
 - **`assignments`** — `sourceId → groupId`, recorded **only** for sources that live inside a group. A pinned source does not appear in `assignments` at all; pinning is expressed by its presence in `layout`.
+- **`groupOrders`** — `groupId → explicit member order` for that group. Optional per group: when absent, the group falls back to the projected `sources` order (see section 7).
 
 ### 2. The pin-or-group binary state
 
@@ -149,9 +152,86 @@ const groupConfig = got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'o
 
 It is also a field on `ProviderConfigReply` in `lib/messaging.ts` (`/** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */ groupConfig: GroupConfig;`), and the worker exposes a `setGroupConfig(config)` handler. So grouping rides the same plumbing the projection layer already used: one snapshot, one message pair, one known source-id set (`allKnownSourceIds`) shared across both layers so they cannot drift on what counts as a source. Import/export (`lib/config-io.ts`) carries `groupConfig` as an optional field with a preview diff and re-normalizes it against the imported Site Engines view, and v4 imports are accepted as structurally-v5-without-`groupConfig`.
 
+### 7. `groupOrders` — within-group order, decoupled from the global `sourceOrder`
+
+Initially, group-internal order was just the projection order filtered (members sorted by `sources`, i.e. by `sourceOrder`). That leaked: reordering the quick-switch list changed the order inside every group, which users experienced as "editing one list changed another". `groupOrders` decouples the two axes:
+
+- **`groupOrders[groupId]`** holds the explicit member order for that group, *only* for sources that are grouped (pinned sources are removed from every entry). Absent per group means "fall back to the projected `sources` order" — so old persisted configs without `groupOrders` render exactly as before (the field is fully optional and lazy).
+- **Normalization** (`normalizeGroupConfig`, after `layout`/`assignments` cleaning) validates each entry against the live source set: ids must be known, not pinned, and resolve to that group (`resolveGroupId(id, assignments) === gid`); it dedupes and drops entries that end up empty. Residue from assignment changes (an id whose group moved on) is discarded, so stale positions never linger.
+- **Projection** (`projectLayout`) is the defensive second layer: explicit ids that are not visible or not in the group are skipped, and remaining members are appended in `sources` order after the explicit prefix.
+- **Relationship to `sourceOrder`**: `sourceOrder` remains the canonical *global* management order (quick-switch list display, active-source dropdown). Within-group order is an independent layout concern — editing one never mutates the other. The editor writes `groupOrders` on member drag and on pin/fold transitions (`pinSource` strips the source from all entries; `foldIntoGroup` appends to the target group's order; `deleteGroup` drops the group's entry).
+
+**Single pure function `groupOrderOf` — the editor must not re-implement group-order parsing.** A second hand-rolled "resolve group order" inside the editor would drift from `projectLayout`. The shared rule lives in `lib/source-groups.ts` and serves both consumers:
+
+```ts
+/**
+ * 解析某组的「管理视图」成员顺序（编辑器使用）：显式 groupOrders 优先
+ * （防御过滤：未知/置顶/归属变更 id 剔除、去重保留首现），剩余成员按
+ * `sourceIds` 顺序补尾；无显式顺序时全部按 `sourceIds` 顺序。
+ */
+export function groupOrderOf(
+  sourceIds: readonly SourceId[],
+  config: GroupConfig,
+  groupId: SourceGroupId,
+): SourceId[] {
+  const pinned = pinnedSourceIds(config.layout);
+  const idSet = new Set(sourceIds);
+  const members = sourceIds.filter(
+    (id) => !pinned.has(id) && resolveGroupId(id, config.assignments) === groupId,
+  );
+  const explicit = [...new Set(config.groupOrders?.[groupId] ?? [])].filter(
+    (id) => idSet.has(id) && !pinned.has(id) && resolveGroupId(id, config.assignments) === groupId,
+  );
+  return [...explicit, ...members.filter((id) => !explicit.includes(id))];
+}
+```
+
+`groupOrderOf` returns the **full member order** (management view, including hidden sources), while `projectLayout` operates on the visible subset. Both must agree on the same visible sequence — locked by a parity test (see Examples). All editor mutations build on it: `moveGroupMember` reorders the `groupOrderOf` result and writes it back wholesale; `pinSource` removes the id from every group entry; `foldIntoGroup` materializes the target group's **full** order (explicit prefix + remaining members by management order) before appending — never reuses the old group's order as base, which would cross-pollute (see pitfalls below).
+
+### 8. Sorting UX: drag-and-drop with touch fallback and misclick guards
+
+The quick-switch list (options page) originally offered per-item ↑↓ arrows, and the layout editor offered row moves — two surfaces could sort, and users could not tell which one "won". Sorting was centralized into the layout editor only: the quick-bar rows keep just name + visibility toggle; `moveSource`, `savingSourceOrder`, and `sourceOrderError` were removed from `entrypoints/options/App.tsx`. The mental model becomes "want to sort → go to the layout editor".
+
+**Native HTML5 DnD rules:**
+
+1. **Firefox requires `setData` to start a drag** — always call `setData('text/plain', ...)` and set `effectAllowed = 'move'` in dragstart. The index/source id is stored in a ref; drop reads the ref, not the DataTransfer payload.
+2. **Never start a drag from an interactive control** — a slight pointer move while clicking a button would otherwise swallow the click. Guard in dragstart:
+
+   ```ts
+   /** 从行内交互控件（按钮/select/输入框）上按下不启动拖拽，防止轻微位移吞掉点击。 */
+   function isInteractiveTarget(e: React.DragEvent): boolean {
+     return !!(e.target as HTMLElement | null)?.closest('button, select, input, a');
+   }
+
+   function handleLayoutDragStart(e: React.DragEvent, index: number) {
+     if (saving) return;
+     if (isInteractiveTarget(e)) {
+       // Chrome 中 dragstart 已开始拖拽，preventDefault 取消；Firefox 未 setData 本就不启动。
+       e.preventDefault();
+       return;
+     }
+     dragFromLayoutRef.current = index;
+     setDraggingLayoutIndex(index);
+     e.dataTransfer.setData('text/plain', String(index));
+     e.dataTransfer.effectAllowed = 'move';
+   }
+   ```
+
+3. **Member chips live inside group rows** — their dragstart/dragover/drop must `stopPropagation`, or the group row's top-level drag triggers instead. Cross-group member drags are a no-op: moving between groups is done by pin/fold controls, drag reorders within one group only.
+
+**Touch fallback.** Native DnD is unavailable on touch devices, so member chips keep a pair of small ↑↓ arrows calling the **same** `moveGroupMember(groupId, index, index ± 1)` the drag uses — both interaction paths share one implementation and can never diverge. First/last members disable the out-of-bounds arrow.
+
+**i18n and styling.** Two new keys (`opts_group_drag_handle` drag-handle hint, `opts_group_member_drag` member-drag hint with `{0}` source-name placeholder) plus rewritten `opts_quickbar_hint` / `opts_source_groups_hint`; zh/en `messages.json` stay in sync (i18n-parity test guards). Drag visuals reuse existing CSS variables (`--brand`/`--muted`/`--brand-soft`/`--duration-fast`) — no new palette.
+
+**Pitfalls encountered while building this:**
+- **`foldIntoGroup` cross-group pollution** — the first version used `orders[oldGroupId]` as the base, mixing the old group's order into the new group. The base must be the **target** group's explicit order, merged with `groupOrderOf(groupId)`.
+- **Folding into a partially-ordered group by inserting a single id** — the member rendered last but the stored order placed it inside the explicit prefix. Fix: materialize the full member order, then append.
+- **Duplicate group-order parsing drifted** — before `groupOrderOf`, the editor's private resolution diverged from `projectLayout` (missing tail-backfill). Removed the private copy; parity tests keep them aligned.
+- **Drag swallowed button clicks** — fixed by `isInteractiveTarget` + `preventDefault` (Chrome) and no-`setData` (Firefox).
+
 ## Why This Matters
 
-**Layering keeps three axes composable.** Source visibility, source order, and top-row layout are orthogonal. A user hiding a provider, reordering engines, and pinning a Site Engine to the top row are doing three independent things, and the design lets each happen without touching the others. `lib/sources.ts` keeps owning the projection (what exists, what is visible, the canonical order); `lib/source-groups.ts` only layers "which visible sources are pinned flat vs. collapsed into a group" on top. `projectLayout` consumes the already-projected source list — it never re-hides, never re-orders the underlying list; group-internal order is just the projection order filtered. Had grouping been folded into projection, every existing code path (the SERP inject bar, import merge, active-source resolution, the mutation queues) would have had to learn about groups, and the diff surface for a layout feature would have ballooned into the visibility model.
+**Layering keeps three axes composable.** Source visibility, source order, and top-row layout are orthogonal. A user hiding a provider, reordering engines, and pinning a Site Engine to the top row are doing three independent things, and the design lets each happen without touching the others. `lib/sources.ts` keeps owning the projection (what exists, what is visible, the canonical order); `lib/source-groups.ts` only layers "which visible sources are pinned flat vs. collapsed into a group" on top. `projectLayout` consumes the already-projected source list — it never re-hides, never re-orders the underlying list; group-internal order is either explicit (`groupOrders`) or the projection order filtered. Had grouping been folded into projection, every existing code path (the SERP inject bar, import merge, active-source resolution, the mutation queues) would have had to learn about groups, and the diff surface for a layout feature would have ballooned into the visibility model.
 
 **Self-healing normalization plus lazy schema defaults match a BYOK reality.** Configured sources appear and disappear at runtime — a user adds a Site Engine, deletes a provider key, imports a backup. A persisted layout that points at a now-deleted source must not crash the render or strand the config. `normalizeGroupConfig` is the boundary that absorbs this churn: every read re-validates against the live source set and rewrites a clean config. Paired with the no-migration lazy-default getter pattern, new installs and old installs alike get a coherent default with zero migration code, and stale references heal themselves on the next read instead of accumulating. For an MV3 service worker that is frequently torn down and rebuilt, a read path that is also a repair path is what keeps the persisted state trustworthy.
 
@@ -233,6 +313,30 @@ The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v
 
 The bump still has a job: it advances the version stamp so `ensureSchema` treats the install as current, and it brings `groupConfig` under the `CONFIG_KEYS` whitelist so the migration machinery reads it consistently. But because `getGroupConfig` and `getProviderConfigSnapshot` both synthesize the default when the key is absent, no install needs data written to get the grouped experience. The decision is "migrate only when the getter cannot produce the right shape on its own."
 
+### The `groupOrderOf` parity test — editor and projection cannot drift
+
+Under the same config, the editor-side management order filtered to the visible subset must match the projection layer's in-group order exactly. Three visibility subsets pin the equivalence:
+
+```ts
+it.each([
+  ['全部可见', SOURCES],
+  ['baidu 与 site:docs 隐藏', SOURCES.slice(0, 5)],
+  ['仅置顶 + 单引擎可见', [SOURCES[0], SOURCES[3], SOURCES[6]]],
+])('%s：groupOrderOf 过滤可见后 === projectLayout 组内序', (_label, visible) => {
+  const visibleIds = new Set(visible.map((s) => s.id));
+  const layout = projectLayout(visible, cfg, null);
+  for (const item of layout.items) {
+    if (item.kind !== 'group') continue;
+    const expected = groupOrderOf(ALL_IDS, cfg, item.group.id).filter((id) => visibleIds.has(id));
+    expect(item.items.map((s) => s.id)).toEqual(expected);
+  }
+});
+```
+
+### Misclick-guard regression tests
+
+Dragstart on a member's pin button must not produce any reorder; the quick-bar must render no sort buttons at all (`queryByRole('button', { name: /上移|下移/ })` is null). These two tests are what keep `isInteractiveTarget` and the "centralized sorting" decision from regressing silently.
+
 ## Related
 
 - [persistent-source-order-and-visible-projection.md](./persistent-source-order-and-visible-projection.md) — the source projection layer (`sourceOrder`/`sourceHidden`) this layout layer sits on top of and deliberately does not mutate.
@@ -240,3 +344,4 @@ The bump still has a job: it advances the version stamp so `ensureSchema` treats
 - [dual-domain-storage-schema-versioning.md](./dual-domain-storage-schema-versioning.md) — the config-domain schema; the v4→v5 no-op migration here is a concrete application of its "getter-fallback keys don't need a migration" rule.
 - [serp-switch-bar-and-unified-source-model.md](./serp-switch-bar-and-unified-source-model.md) — the unified switcher contract; `projectLayout`'s `PinnedItem | GroupItem` is the new seam the switcher consumes instead of a flat `SearchSource[]`.
 - [separate-active-search-source-from-active-byok-provider.md](./separate-active-search-source-from-active-byok-provider.md) — the `SourceId = ProviderId | EngineId | SiteEngineId` union that `defaultGroupForSourceId` dispatches over.
+- [hidden-source-still-active-across-hosts.md](../ui-bugs/hidden-source-still-active-across-hosts.md) — the editor's in-group view keeps hidden sources (`groupOrderOf` retains them; `projectLayout` skips them), the layout-layer extension of cross-host hidden-source projection consistency.

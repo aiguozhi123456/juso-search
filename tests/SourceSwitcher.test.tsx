@@ -25,7 +25,7 @@ const siteSources: SearchSource[] = [
 /** 全部 source 置顶平铺（layout 只含 source 项），复刻旧的扁平渲染语义。 */
 function pinnedLayout(srcs: SearchSource[]): GroupConfig {
   const layout: SwitcherItem[] = srcs.map((s) => ({ kind: 'source', sourceId: s.id }));
-  return { groups: DEFAULT_GROUPS, layout, assignments: {} };
+  return { groups: DEFAULT_GROUPS, layout, assignments: {}, groupOrders: {} };
 }
 
 describe('SourceSwitcher — flat (pinned) layout', () => {
@@ -180,6 +180,7 @@ describe('SourceSwitcher — grouped layout', () => {
         { kind: 'group', groupId: AI_SEARCH_GROUP },
       ],
       assignments: {},
+      groupOrders: {},
     };
     render(<SourceSwitcher sources={sources} groupConfig={mixedConfig} activeId="google" onSelect={vi.fn()} />);
     // google 作为置顶平铺项直接可见

@@ -527,6 +527,49 @@ body {
   opacity: 1; color: var(--brand); background: var(--brand-soft);
 }
 .layout-member-pin:disabled { opacity: 0.3; cursor: default; }
+/* 组内移动箭头：与置顶按钮同款圆形图标钮（触屏/键盘回退，拖拽保留为增强交互） */
+.layout-member-move {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer; opacity: 0.55;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.layout-member-move:hover:not(:disabled) {
+  opacity: 1; color: var(--brand); background: var(--brand-soft);
+}
+.layout-member-move:disabled { opacity: 0.3; cursor: default; }
+
+/* ── 拖拽排序视觉：手柄常驻微提示，拖拽中半透明，drop 目标高亮描边 ── */
+.layout-drag-handle {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); cursor: grab;
+  opacity: 0.55;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+.layout-drag-handle:hover { opacity: 1; color: var(--brand); }
+.layout-row[draggable="true"],
+.layout-group-member[draggable="true"] { cursor: grab; }
+.layout-row--dragging { opacity: 0.5; }
+.layout-row--drop-target {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+/* 组内成员芯片的拖拽手柄：更小更克制，避免与置顶按钮争抢注意力 */
+.layout-member-drag {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); cursor: grab; opacity: 0.45;
+  transition: opacity var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+.layout-member-drag:hover { opacity: 1; color: var(--brand); }
+.layout-group-member--dragging { opacity: 0.5; }
+.layout-group-member--drop-target {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
 
 /* ── 操作区 ── */
 .layout-actions {

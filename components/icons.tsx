@@ -178,3 +178,17 @@ export function PlusIcon({ size }: IconProps) {
     </Base>
   );
 }
+
+/** 拖拽手柄：两列圆点（Lucide grip-vertical 风格），暗示可抓取排序。 */
+export function GripIcon({ size }: IconProps) {
+  return (
+    <Base size={size}>
+      <circle cx="9" cy="6" r="1" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="18" r="1" />
+      <circle cx="15" cy="6" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="18" r="1" />
+    </Base>
+  );
+}

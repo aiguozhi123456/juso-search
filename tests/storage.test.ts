@@ -347,6 +347,7 @@ describe('storage: groupConfig', () => {
         { kind: 'group', groupId: 'custom' },
       ],
       assignments: { tavily: 'custom', google: 'ai-search', ghost: 'custom' },
+      groupOrders: {},
     });
     const cfg = await getGroupConfig();
     // google pinned → its assignment dropped; ghost (unknown source) dropped
@@ -363,6 +364,7 @@ describe('storage: groupConfig', () => {
       groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
       layout: [{ kind: 'group', groupId: 'ai-search' }],
       assignments: {},
+      groupOrders: {},
     });
     const snap = await getProviderConfigSnapshot();
     expect(snap.groupConfig).toBeDefined();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SearchSource } from '@/lib/sources';
+import type { SearchSource, SourceId } from '@/lib/sources';
 import {
   AI_SEARCH_GROUP,
   ENGINES_GROUP,
@@ -7,6 +7,7 @@ import {
   DEFAULT_GROUPS,
   defaultGroupForSourceId,
   defaultGroupConfig,
+  groupOrderOf,
   isBuiltinGroupId,
   normalizeGroupConfig,
   pinnedSourceIds,
@@ -172,6 +173,75 @@ describe('normalizeGroupConfig', () => {
     const cfg = normalizeGroupConfig(raw, []);
     expect(cfg.groups.find((g) => g.id === 'bad')).toBeUndefined();
   });
+
+  it('defaults groupOrders to an empty map', () => {
+    const cfg = defaultGroupConfig(['tavily', 'google']);
+    expect(cfg.groupOrders).toEqual({});
+  });
+
+  it('keeps valid explicit group orders, dropping cross-group residues', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'group', groupId: AI_SEARCH_GROUP }, { kind: 'group', groupId: ENGINES_GROUP }],
+      assignments: {},
+      groupOrders: {
+        // google 归属 engines，混进 ai-search 的显式顺序 → 剔除（assignment 变更残留防护）
+        'ai-search': ['tavily', 'google', 'exa'],
+        'engines': ['baidu', 'bing'],
+      },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'exa', 'google', 'bing', 'baidu']);
+    expect(cfg.groupOrders['ai-search']).toEqual(['tavily', 'exa']);
+    expect(cfg.groupOrders['engines']).toEqual(['baidu', 'bing']);
+  });
+
+  it('drops pinned ids from groupOrders', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'source', sourceId: 'tavily' }], // tavily pinned
+      assignments: {},
+      groupOrders: { 'ai-search': ['tavily', 'exa'] },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'exa']);
+    // tavily 已置顶 → 从显式顺序剔除
+    expect(cfg.groupOrders['ai-search']).toEqual(['exa']);
+  });
+
+  it('dedupes ids in groupOrders keeping first occurrence', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [],
+      assignments: {},
+      groupOrders: { 'ai-search': ['tavily', 'exa', 'tavily'] },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'exa']);
+    expect(cfg.groupOrders['ai-search']).toEqual(['tavily', 'exa']);
+  });
+
+  it('drops unknown sources and unknown groups from groupOrders', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [],
+      assignments: {},
+      groupOrders: {
+        'ai-search': ['tavily', 'ghost'], // ghost 未知 → 剔除
+        'deleted-group': ['tavily'], // 未知组 → 整条丢弃
+      },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily']);
+    expect(cfg.groupOrders).toEqual({ 'ai-search': ['tavily'] });
+  });
+
+  it('drops empty explicit orders (fallback semantics, equivalent to absent)', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [],
+      assignments: {},
+      groupOrders: { 'ai-search': [] },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily']);
+    expect(cfg.groupOrders).toEqual({});
+  });
 });
 
 describe('pinnedSourceIds', () => {
@@ -205,6 +275,7 @@ describe('projectLayout', () => {
         { kind: 'group', groupId: ENGINES_GROUP },
       ],
       assignments: {},
+      groupOrders: {},
     };
     const layout = projectLayout(SOURCES, cfg, null);
     // google is a flat (pinned) item
@@ -222,6 +293,7 @@ describe('projectLayout', () => {
       groups: DEFAULT_GROUPS,
       layout: [{ kind: 'group', groupId: SITES_GROUP }],
       assignments: {},
+      groupOrders: {},
     };
     const noSites = SOURCES.filter((s) => s.kind !== 'site-engine');
     const layout = projectLayout(noSites, cfg, null);
@@ -252,6 +324,7 @@ describe('projectLayout', () => {
         { kind: 'group', groupId: AI_SEARCH_GROUP },
       ],
       assignments: { google: 'custom' }, // engine moved into custom group
+      groupOrders: {},
     };
     const layout = projectLayout(SOURCES, cfg, null);
     const custom = layout.items.find((i) => i.kind === 'group' && i.group.id === 'custom') as Extract<typeof layout.items[number], { kind: 'group' }>;
@@ -269,6 +342,7 @@ describe('projectLayout', () => {
         { kind: 'group', groupId: ENGINES_GROUP },
       ],
       assignments: {},
+      groupOrders: {},
     };
     const layout = projectLayout(SOURCES, cfg, null);
     const seen = new Set<string>();
@@ -293,9 +367,105 @@ describe('projectLayout', () => {
         { kind: 'group', groupId: AI_SEARCH_GROUP },
       ],
       assignments: {},
+      groupOrders: {},
     };
     // tavily is pinned but excluded from sources (e.g. key removed)
     const layout = projectLayout(SOURCES.slice(1), cfg, null);
     expect(layout.items.find((i) => i.kind === 'source')).toBeUndefined();
+  });
+
+  it('uses explicit groupOrders for within-group order', () => {
+    const cfg: GroupConfig = {
+      groups: DEFAULT_GROUPS,
+      layout: [
+        { kind: 'group', groupId: AI_SEARCH_GROUP },
+        { kind: 'group', groupId: ENGINES_GROUP },
+      ],
+      assignments: {},
+      groupOrders: {
+        'ai-search': ['stepfun', 'exa', 'tavily'],
+        'engines': ['baidu', 'google', 'bing'],
+      },
+    };
+    const layout = projectLayout(SOURCES, cfg, null);
+    const ai = layout.items.find((i) => i.kind === 'group' && i.group.id === AI_SEARCH_GROUP) as Extract<typeof layout.items[number], { kind: 'group' }>;
+    expect(ai.items.map((s) => s.id)).toEqual(['stepfun', 'exa', 'tavily']);
+    const engines = layout.items.find((i) => i.kind === 'group' && i.group.id === ENGINES_GROUP) as Extract<typeof layout.items[number], { kind: 'group' }>;
+    expect(engines.items.map((s) => s.id)).toEqual(['baidu', 'google', 'bing']);
+  });
+
+  it('falls back to sources order when groupOrders is empty/absent', () => {
+    const cfg: GroupConfig = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'group', groupId: ENGINES_GROUP }],
+      assignments: {},
+      // 空/缺省 groupOrders：回退 sources 数组顺序（google, bing, baidu）
+      groupOrders: {},
+    };
+    const layout = projectLayout(SOURCES, cfg, null);
+    const engines = layout.items.find((i) => i.kind === 'group' && i.group.id === ENGINES_GROUP) as Extract<typeof layout.items[number], { kind: 'group' }>;
+    expect(engines.items.map((s) => s.id)).toEqual(['google', 'bing', 'baidu']);
+  });
+
+  it('skips ids in explicit order that are not visible (hidden/unconfigured)', () => {
+    const cfg: GroupConfig = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'group', groupId: ENGINES_GROUP }],
+      assignments: {},
+      groupOrders: { 'engines': ['google', 'ghost', 'bing'] as SourceId[] }, // ghost 不在 sources
+    };
+    const layout = projectLayout(SOURCES, cfg, null);
+    const engines = layout.items.find((i) => i.kind === 'group' && i.group.id === ENGINES_GROUP) as Extract<typeof layout.items[number], { kind: 'group' }>;
+    // ghost 跳过；剩余成员（baidu）按 sources 顺序补尾
+    expect(engines.items.map((s) => s.id)).toEqual(['google', 'bing', 'baidu']);
+  });
+
+  it('appends remaining members after the explicit order', () => {
+    const cfg: GroupConfig = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'group', groupId: ENGINES_GROUP }],
+      assignments: {},
+      groupOrders: { 'engines': ['baidu'] }, // 只显式排了一个
+    };
+    const layout = projectLayout(SOURCES, cfg, null);
+    const engines = layout.items.find((i) => i.kind === 'group' && i.group.id === ENGINES_GROUP) as Extract<typeof layout.items[number], { kind: 'group' }>;
+    expect(engines.items.map((s) => s.id)).toEqual(['baidu', 'google', 'bing']);
+  });
+});
+
+describe('groupOrderOf vs projectLayout — 对拍一致性', () => {
+  // 同一配置下：编辑器端 groupOrderOf（管理视图，含隐藏项）过滤到可见子集后，
+  // 必须与投影层 projectLayout 的组内顺序严格一致（防止双份实现静默漂移）。
+  const ALL_IDS = SOURCES.map((s) => s.id);
+
+  // 覆盖：置顶项、跨组残留 id、重复 id、部分显式序、隐藏成员穿插。
+  const cfg: GroupConfig = {
+    groups: DEFAULT_GROUPS,
+    layout: [
+      { kind: 'source', sourceId: 'tavily' }, // 置顶
+      { kind: 'group', groupId: AI_SEARCH_GROUP },
+      { kind: 'group', groupId: ENGINES_GROUP },
+      { kind: 'group', groupId: SITES_GROUP },
+    ],
+    assignments: {},
+    groupOrders: {
+      // ai-search：显式序含跨组残留（site:docs）、置顶 id（tavily）、重复 id（stepfun）
+      [AI_SEARCH_GROUP]: ['site:docs', 'stepfun', 'exa', 'stepfun', 'tavily'],
+      [ENGINES_GROUP]: ['baidu'], // 部分显式序：google/bing 按序补尾
+    },
+  };
+
+  it.each([
+    ['全部可见', SOURCES],
+    ['baidu 与 site:docs 隐藏', SOURCES.slice(0, 5)],
+    ['仅置顶 + 单引擎可见', [SOURCES[0], SOURCES[3], SOURCES[6]]],
+  ])('%s：groupOrderOf 过滤可见后 === projectLayout 组内序', (_label, visible) => {
+    const visibleIds = new Set(visible.map((s) => s.id));
+    const layout = projectLayout(visible, cfg, null);
+    for (const item of layout.items) {
+      if (item.kind !== 'group') continue;
+      const expected = groupOrderOf(ALL_IDS, cfg, item.group.id).filter((id) => visibleIds.has(id));
+      expect(item.items.map((s) => s.id)).toEqual(expected);
+    }
   });
 });

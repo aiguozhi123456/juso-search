@@ -17,7 +17,7 @@ import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
 import { SiteEngineManager } from '@/components/SiteEngineManager';
 import { Wordmark } from '@/components/Wordmark';
-import { ChevronDownIcon, ChevronUpIcon, SearchIcon, SettingsIcon } from '@/components/icons';
+import { SearchIcon, SettingsIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
 
 function KeyIcon({ size = 16 }: { size?: number }) {
@@ -48,8 +48,6 @@ export default function App() {
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
   const [active, setActive] = useState<SourceId | null>(null);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
-  const [savingSourceOrder, setSavingSourceOrder] = useState(false);
-  const [sourceOrderError, setSourceOrderError] = useState('');
   const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
   const [savingSourceHidden, setSavingSourceHidden] = useState(false);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
@@ -150,34 +148,6 @@ export default function App() {
     }
   }
 
-  async function moveSource(sourceId: SourceId, direction: -1 | 1) {
-    const visibleIndex = configuredSources.findIndex((source) => source.id === sourceId);
-    const adjacentSource = configuredSources[visibleIndex + direction];
-    if (visibleIndex === -1 || !adjacentSource || savingSourceOrder) return;
-
-    const previousOrder = sourceOrder;
-    const nextOrder = [...sourceOrder];
-    const sourceIndex = nextOrder.indexOf(sourceId);
-    const adjacentIndex = nextOrder.indexOf(adjacentSource.id);
-    // Guard: both ids must be present in the full stored order before swapping.
-    if (sourceIndex === -1 || adjacentIndex === -1) return;
-    [nextOrder[sourceIndex], nextOrder[adjacentIndex]] = [nextOrder[adjacentIndex], nextOrder[sourceIndex]];
-
-    sourceOrderRevision.current += 1;
-    setSourceOrder(nextOrder);
-    setSavingSourceOrder(true);
-    setSourceOrderError('');
-    try {
-      await sendMessage('setSourceOrder', nextOrder);
-    } catch {
-      setSourceOrder(previousOrder);
-      setSourceOrderError(t(MSG.opts_source_order_save_failed));
-    } finally {
-      sourceOrderRevision.current += 1;
-      setSavingSourceOrder(false);
-    }
-  }
-
   async function toggleHidden(sourceId: SourceId) {
     const previous = sourceHidden;
     const isHidden = sourceHidden.includes(sourceId);
@@ -272,6 +242,18 @@ export default function App() {
             <SiteEngineManager siteEngines={siteEngines} onChange={syncConfig} />
           </section>
 
+          <SourceGroupEditor
+            sources={configuredSources}
+            groupConfig={groupConfig}
+            onChange={(next) => {
+              // 推进乐观修订：任何在本次变更之前发起、尚未返回的 getProviderConfig
+              // 都不应再用旧 groupConfig 覆盖本次编辑（同 sourceOrder/sourceHidden 守卫）。
+              groupConfigRevision.current += 1;
+              setGroupConfig(next);
+            }}
+            resolveLabel={(source) => sourceLabel(source, t)}
+          />
+
           <section data-section="quickbar">
             <h2>{t(MSG.opts_quickbar_heading)}</h2>
             <div className="bar-position-row">
@@ -280,7 +262,7 @@ export default function App() {
             </div>
             <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
             <div className="source-order-list">
-              {configuredSources.map((source, index) => {
+              {configuredSources.map((source) => {
                 const sourceName = sourceLabel(source, t);
                 const hidden = sourceHidden.includes(source.id);
                 // 不允许隐藏最后一个可见来源：至少保留一个，否则快切栏与下拉框将无可用项。
@@ -303,43 +285,12 @@ export default function App() {
                       >
                         {hidden ? t(MSG.opts_quickbar_show) : t(MSG.opts_quickbar_hide)}
                       </button>
-                      <button
-                        type="button"
-                        aria-label={t(MSG.opts_source_order_move_up, sourceName)}
-                        title={t(MSG.opts_source_order_move_up, sourceName)}
-                        disabled={savingSourceOrder || savingSourceHidden || index === 0}
-                        onClick={() => moveSource(source.id, -1)}
-                      >
-                        <ChevronUpIcon size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={t(MSG.opts_source_order_move_down, sourceName)}
-                        title={t(MSG.opts_source_order_move_down, sourceName)}
-                        disabled={savingSourceOrder || savingSourceHidden || index === configuredSources.length - 1}
-                        onClick={() => moveSource(source.id, 1)}
-                      >
-                        <ChevronDownIcon size={16} />
-                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
-            {sourceOrderError && <p className="status fail" role="alert">{sourceOrderError}</p>}
           </section>
-
-          <SourceGroupEditor
-            sources={configuredSources}
-            groupConfig={groupConfig}
-            onChange={(next) => {
-              // 推进乐观修订：任何在本次变更之前发起、尚未返回的 getProviderConfig
-              // 都不应再用旧 groupConfig 覆盖本次编辑（同 sourceOrder/sourceHidden 守卫）。
-              groupConfigRevision.current += 1;
-              setGroupConfig(next);
-            }}
-            resolveLabel={(source) => sourceLabel(source, t)}
-          />
           </>
           )}
 

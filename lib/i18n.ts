@@ -225,6 +225,8 @@ export const MSG = {
   opts_group_unpin_into: 'opts_group_unpin_into',
   opts_group_move_up: 'opts_group_move_up',
   opts_group_move_down: 'opts_group_move_down',
+  opts_group_drag_handle: 'opts_group_drag_handle',
+  opts_group_member_drag: 'opts_group_member_drag',
   opts_group_save_failed: 'opts_group_save_failed',
   opts_apikey_heading: 'opts_apikey_heading',
   opts_apikey_hint: 'opts_apikey_hint',

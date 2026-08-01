@@ -41,6 +41,8 @@ export interface GroupConfig {
   layout: SwitcherItem[];
   /** sourceId → groupId；仅对「入组」的 source 记录，置顶 source 不出现。 */
   assignments: Record<string, SourceGroupId>;
+  /** groupId → 该组显式成员顺序（仅收录「入组」且已知的 source；可缺省 = 回退 sources 顺序）。 */
+  groupOrders: Record<string, SourceId[]>;
 }
 
 /** 内置默认分组定义（i18n 标签，渲染处用 t() 解析）。 */
@@ -92,6 +94,31 @@ export function layoutGroupIds(layout: readonly SwitcherItem[]): Set<SourceGroup
   return set;
 }
 
+/**
+ * 解析某组的「管理视图」成员顺序（编辑器使用）：显式 groupOrders 优先
+ * （防御过滤：未知/置顶/归属变更 id 剔除、去重保留首现），剩余成员按
+ * `sourceIds` 顺序补尾；无显式顺序时全部按 `sourceIds` 顺序。
+ *
+ * 与 projectLayout 的组内顺序规则一致——projectLayout 作用于可见子集
+ * （跳过不可见 id），本函数作用于完整管理列表（含隐藏项）；两者对同一
+ * 可见成员序列严格同序（对拍测试见 tests/source-groups.test.ts）。
+ */
+export function groupOrderOf(
+  sourceIds: readonly SourceId[],
+  config: GroupConfig,
+  groupId: SourceGroupId,
+): SourceId[] {
+  const pinned = pinnedSourceIds(config.layout);
+  const idSet = new Set(sourceIds);
+  const members = sourceIds.filter(
+    (id) => !pinned.has(id) && resolveGroupId(id, config.assignments) === groupId,
+  );
+  const explicit = [...new Set(config.groupOrders?.[groupId] ?? [])].filter(
+    (id) => idSet.has(id) && !pinned.has(id) && resolveGroupId(id, config.assignments) === groupId,
+  );
+  return [...explicit, ...members.filter((id) => !explicit.includes(id))];
+}
+
 function isSourceLabel(raw: unknown): raw is SourceLabel {
   if (!raw || typeof raw !== 'object') return false;
   const obj = raw as Record<string, unknown>;
@@ -114,7 +141,11 @@ function isSwitcherItem(raw: unknown, knownSourceIds: Set<string>, knownGroupIds
  *   - layout：剔除未知 source/group，保留首次出现（去重），并保证「全部 source 都有归宿」——
  *     每个已知 source 要么置顶（layout 里），要么可被某分组收纳（按 assignments/defaultGroupFor）。
  *     layout 缺失/空时回退默认：仅含三个内置分组项；
- *   - assignments：剔除指向已删除分组 / 未知 source / 已置顶 source 的赋值。
+ *   - assignments：剔除指向已删除分组 / 未知 source / 已置顶 source 的赋值；
+ *   - groupOrders：在 layout 与 assignments 清洗之后做（依赖两者结果）——gid 必须存在于
+ *     清洗后的 groups；ids 逐个过滤：必须已知、未置顶、且解析归属为该 gid；去重保留首现。
+ *     过滤后为空的条目丢弃（缺省语义 = 回退 sources 顺序，等价）；属于其它分组的残留 id
+ *     （assignment 变更遗留）一并丢弃，防止位置残留。
  * 返回值保证自洽，可直接被 projectLayout 消费。
  */
 export function normalizeGroupConfig(
@@ -192,7 +223,28 @@ export function normalizeGroupConfig(
     assignments[sid] = gid;
   }
 
-  return { groups, layout, assignments };
+  // ── groupOrders ──
+  // 依赖上面已清洗的 layout（pinned 集合）与 assignments（归属解析），故放在最后。
+  const groupOrders: Record<string, SourceId[]> = {};
+  const rawGroupOrders = raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>).groupOrders === 'object' && (raw as Record<string, unknown>).groupOrders !== null
+    ? (raw as Record<string, unknown>).groupOrders as Record<string, unknown>
+    : {};
+  for (const [gid, rawIds] of Object.entries(rawGroupOrders)) {
+    if (!knownGroupIds.has(gid) || !Array.isArray(rawIds)) continue; // 未知/已删除分组
+    const ids: SourceId[] = [];
+    const seen = new Set<SourceId>();
+    for (const id of rawIds) {
+      if (typeof id !== 'string' || !knownSourceIds.has(id as SourceId)) continue; // 未知 source
+      if (pinned.has(id as SourceId)) continue; // 已置顶 → 不再属于任何组
+      if (resolveGroupId(id as SourceId, assignments) !== gid) continue; // 不属于该组（assignment 变更残留）
+      if (seen.has(id as SourceId)) continue; // 去重保留首现
+      seen.add(id as SourceId);
+      ids.push(id as SourceId);
+    }
+    if (ids.length > 0) groupOrders[gid] = ids; // 空数组丢弃：缺省 = 回退 sources 顺序
+  }
+
+  return { groups, layout, assignments, groupOrders };
 }
 
 /**
@@ -249,7 +301,8 @@ export interface ProjectedLayout {
  *     · {kind:'source'} → 找到该 source（不在 sources 里则跳过，如被隐藏/未配置）→ 置顶项；
  *     · {kind:'group'}  → 收集所有 resolveGroupId===groupId 且未被置顶的 source → 分组项；
  *       空组（无可见 source）跳过；
- *   - 组内 source 按 sources 数组顺序（即 sourceOrder）排列；
+ *   - 组内 source 顺序：显式 groupOrders 优先（仅保留可见且未置顶的成员），
+ *     其余成员按 sources 数组顺序（即 sourceOrder）补尾；无 groupOrders 时完全回退 sources 顺序；
  *   - containsActive = items.some(s => s.id === activeId)；
  *   - 置顶优先：某 source 作为 {kind:'source'} 出现后，绝不重复进任何分组。
  *
@@ -283,13 +336,30 @@ export function projectLayout(
       return resolveGroupId(s.id, safeConfig.assignments) === groupId;
     });
     if (groupItems.length === 0) continue; // 空组不渲染
+    // 组内顺序：显式 groupOrders 优先（防御层——只取存在于 sources 且未置顶的成员，
+    // 并按显式顺序排列），剩余成员按 sources 顺序补尾（保持缺省回退行为）。
+    const explicit = safeConfig.groupOrders?.[groupId] ?? [];
+    const explicitOrdered: SearchSource[] = [];
+    const explicitSeen = new Set<SourceId>();
+    for (const id of explicit) {
+      if (explicitSeen.has(id)) continue;
+      const source = sourceById.get(id);
+      if (!source || pinned.has(source.id)) continue; // 不可见（隐藏/未配置）或已置顶
+      if (resolveGroupId(source.id, safeConfig.assignments) !== groupId) continue; // 归属变更残留
+      explicitSeen.add(source.id);
+      explicitOrdered.push(source);
+    }
+    const orderedGroupItems = [
+      ...explicitOrdered,
+      ...groupItems.filter((s) => !explicitSeen.has(s.id)),
+    ];
     const group = groupDefById.get(groupId) ?? DEFAULT_GROUPS.find((g) => g.id === groupId);
     if (!group) continue;
     items.push({
       kind: 'group',
       group,
-      items: groupItems,
-      containsActive: activeId != null && groupItems.some((s) => s.id === activeId),
+      items: orderedGroupItems,
+      containsActive: activeId != null && orderedGroupItems.some((s) => s.id === activeId),
     });
   }
 
