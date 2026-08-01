@@ -1,7 +1,7 @@
 ---
 title: "SERP Switch Bar bottom-position model: fixed overlay, groups coexistence, and CSS/interaction traps"
 date: 2026-07-29
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 category: docs/solutions/architecture-patterns/
 module: SERP Switch Bar
 problem_type: architecture_pattern
@@ -130,7 +130,7 @@ const applyPositionChrome = (pos: 'top' | 'bottom', opts?: { resetScrollBaseline
 };
 ```
 
-Every position-change path calls it, then re-renders so the `bottomMode` prop enters the React tree (the flyout anchoring, outside-dismiss, and touch handlers all branch on `bottomMode`):
+Every position-change path calls it, then re-renders so the `bottomMode` prop enters the React tree (the flyout anchoring and touch handlers branch on `bottomMode`; outside-dismiss is unified across both modes since 2026-08-01 — see §4e):
 
 ```typescript
 // onMount (serp-bar.content.ts:229)
@@ -399,12 +399,13 @@ onKeyDown={(e) => {
 }}
 // ...
 onClick={(e) => {
-  // 仅底栏：点击切换（触屏主路径）；顶栏/搜索页靠 hover/focus。
-  if (!bottomMode) return;
+  // 点击切换（两模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
   e.stopPropagation();
   onToggle();
 }}
 ```
+
+> **2026-08-01: click became the unified open/pin path in both modes.** The bottom-mode-only `onClick` (above) was generalized: `onToggle` is now a three-branch state machine — collapsed → open **and pin**; transiently open (hover/focus) → **pin**; pinned → close. Hover/focus still open *transiently* via `onOpen` (which clears any other group's pin; hovering back onto a previously pinned group does not restore the pin), while `scheduleClose` skips its delayed close when the group is pinned (`pinnedRef`). So the hover/focus path is transient open; **only click pins**. Outside-dismiss (§4e), Escape, and blur all clear the pin. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).
 
 A secondary touch guard: `onMouseEnter` is suppressed on coarse pointers so a tap does not leave a sticky hover-open state after the finger lifts:
 
@@ -421,7 +422,7 @@ The lesson: **touch interaction cannot reuse desktop hover/focus patterns withou
 
 #### 4e. Shadow-safe outside dismiss — `document` capture + `composedPath()`
 
-Top mode closes the flyout on `mouseleave` (with a 120ms hover-intent delay for the trigger/flyout seam). Touch has no reliable hover-out, so bottom mode needs a pointer-down-outside dismiss. Two wrong implementations:
+Top mode closes a *transiently-open* flyout on `mouseleave` (with a 120ms hover-intent delay for the trigger/flyout seam). Touch has no reliable hover-out, and a pinned flyout (click-to-pin, §4d) has no hover-out by definition — so **both modes share one pointer-down-outside dismiss** (unified 2026-08-01; previously bottom-only). Two wrong implementations:
 
 - **`getRootNode()` / `element.contains(target)`** — only sees nodes inside the same root. A tap on the *page* (outside the shadow root) is not in `groupRef.contains`, so it would be treated as "outside" and close — but a tap *inside the shadow root but outside the group* is also not seen, and worse, retargeting across shadow boundaries means `target` is the shadow host, not the inner element, so `contains` checks are unreliable.
 - **`document.getElementById(groupId)`** — fails entirely inside a closed shadow root; the id is not queryable from the document.
@@ -429,25 +430,26 @@ Top mode closes the flyout on `mouseleave` (with a 120ms hover-intent delay for 
 **Fix: listen on `document` with `capture: true`, and test membership via `event.composedPath()`**, which returns the full retargeted path *through* shadow boundaries. `path.includes(groupRef.current)` / `path.includes(flyoutRef.current)` correctly identifies taps inside the group or flyout regardless of shadow boundaries:
 
 ```tsx
-// 底栏：点外部关闭（触屏无可靠 hover-out）。监听 document（capture），
-// 这样页面（shadow 外）的点击也能命中；composedPath 含 shadow 内后代，
-// path.includes(groupRef/flyoutRef) 判断对 shadow 内点击同样有效。
+// 点外部关闭（两种模式统一）：触屏无可靠 hover-out（底栏主路径），
+// 顶栏/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
+// 也能命中；composedPath 含 shadow 内后代，path.includes(groupRef/flyoutRef)
+// 判断对 shadow 内点击同样有效。
 useEffect(() => {
-  if (!open || !bottomMode) return;
+  if (!open) return;
   const onPointerDown = (e: Event) => {
     const path = typeof (e as PointerEvent).composedPath === 'function'
       ? (e as PointerEvent).composedPath()
       : [];
     if (groupRef.current && path.includes(groupRef.current)) return;
     if (flyoutRef.current && path.includes(flyoutRef.current)) return;
-    onClose();
+    handleClose();
   };
   document.addEventListener('pointerdown', onPointerDown, true);
   return () => document.removeEventListener('pointerdown', onPointerDown, true);
-}, [open, bottomMode, onClose]);
+}, [open, handleClose]);
 ```
 
-`capture: true` matters: it guarantees the document-level handler runs before any shadow-internal handler that might `stopPropagation`. The `pointerdown` (not `click`) event is chosen so dismiss happens on finger-down, matching native popover feel and avoiding the focus/click race from §4d.
+`capture: true` matters: it guarantees the document-level handler runs before any shadow-internal handler that might `stopPropagation`. The `pointerdown` (not `click`) event is chosen so dismiss happens on finger-down, matching native popover feel and avoiding the focus/click race from §4d. Note the handler now calls `handleClose` (the local wrapper that cancels any pending hover-intent close timer) rather than raw `onClose`, so a stale timer cannot re-fire an idempotent close afterwards.
 
 #### 4f. Scroll-hide closes the flyout — MutationObserver on `data-hidden`
 
@@ -467,7 +469,10 @@ useEffect(() => {
     : (el.closest?.('[data-position]') as HTMLElement | null);
   if (!host) return;
   const obs = new MutationObserver(() => {
-    if (host.dataset.hidden === 'true') setOpenGroupId(null);
+    if (host.dataset.hidden === 'true') {
+      setOpenGroupId(null);
+      setPinnedGroupId(null); // 固定态同样清除——scroll-hide 关闭一切展开
+    }
   });
   obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
   return () => obs.disconnect();
@@ -648,7 +653,7 @@ The stylesheet also defends against the engine-specific *host* rule that would o
 }
 ```
 
-### `onFocus` guard (before: first tap no-op; after: click-only open in bottom mode)
+### `onFocus` guard (before: first tap no-op; after: click-only open in bottom mode; later: unified click-to-pin)
 
 **Before** — `onFocus` opens unconditionally. A touch tap fires `focus` (open) then `click` (toggle → close): the first tap is a no-op.
 
@@ -658,7 +663,7 @@ onFocus={() => onOpen()}
 onClick={() => { if (bottomMode) onToggle(); }}
 ```
 
-**After** — `onFocus` returns early in `bottomMode`; `click` owns open via `onToggle`, and `Enter`/`Space` do the same for keyboard with `preventDefault` to avoid a double-toggle from synthesized click:
+**After** — `onFocus` returns early in `bottomMode`; `click` owns open via `onToggle`, and `Enter`/`Space` do the same for keyboard with `preventDefault` to avoid a double-toggle from synthesized click. (Since 2026-08-01 the `onClick` branch is no longer `bottomMode`-gated: `onToggle` runs in **both** modes and doubles as the click-to-pin state machine — collapsed → open+pin, transient → pin, pinned → close. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).)
 
 ```tsx
 onFocus={() => {
@@ -677,7 +682,7 @@ onKeyDown={(e) => {
   }
 }}
 onClick={(e) => {
-  if (!bottomMode) return;
+  // 点击切换（两模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
   e.stopPropagation();
   onToggle();
 }}
@@ -698,22 +703,22 @@ const onPointerDown = (e: PointerEvent) => {
 };
 ```
 
-**After** — listen on `document` with `capture: true`; test membership via `composedPath()`, which traverses shadow boundaries so both page taps and inner-shadow taps are correctly classified:
+**After** — listen on `document` with `capture: true`; test membership via `composedPath()`, which traverses shadow boundaries so both page taps and inner-shadow taps are correctly classified. Since 2026-08-01 the guard is **not** `bottomMode`-gated — both modes share the outside-dismiss (a pinned flyout in top/search mode has no hover-out either), and the callback routes through `handleClose` so a pending hover-intent timer cannot fire a stale close afterwards:
 
 ```tsx
 useEffect(() => {
-  if (!open || !bottomMode) return;
+  if (!open) return;
   const onPointerDown = (e: Event) => {
     const path = typeof (e as PointerEvent).composedPath === 'function'
       ? (e as PointerEvent).composedPath()
       : [];
     if (groupRef.current && path.includes(groupRef.current)) return;
     if (flyoutRef.current && path.includes(flyoutRef.current)) return;
-    onClose();
+    handleClose();
   };
   document.addEventListener('pointerdown', onPointerDown, true);
   return () => document.removeEventListener('pointerdown', onPointerDown, true);
-}, [open, bottomMode, onClose]);
+}, [open, handleClose]);
 ```
 
 ## Related

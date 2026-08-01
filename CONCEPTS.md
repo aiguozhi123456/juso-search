@@ -51,6 +51,11 @@ A pure layout layer over the projected Search Source set that decides which sour
 
 Every source is in exactly one of two states: **pinned** (a top-row flat pill) or **grouped** (folded into a group). The three built-in groups — AI search, search engines, sites — always exist, and a source with no explicit assignment falls through to its type group, so the out-of-box experience needs no persisted assignments. The config is self-healing: any value read from storage is re-normalized against the live source set before use, dropping references to deleted/hidden sources and deleted groups. It is orthogonal to Source Order, Source Visibility, and Active Source. A group's internal order is its own explicit member order (per-group `groupOrders`), decoupled from the global Source Order; a group without an explicit order falls back to the Source Order projection filtered, so pre-grouping configs behave identically. Sorting controls live only in the layout editor (drag-and-drop with arrow-button fallback for touch), not on the quick-switch bar.
 
+### Pinned Group Flyout
+A group flyout opened by clicking its group trigger, which stays open regardless of hover — as opposed to the hover/focus transient flyout that closes when the pointer leaves. The click-pin interaction is unified across the search-page top bar and the SERP bar's two position modes.
+
+Lifecycle: a click creates the pin (directly, or by converting a hover-transient flyout); only explicit actions close it — clicking the trigger again, Escape, pointerdown outside the group, selecting a source inside the flyout, or scroll-hiding the SERP bottom bar. At most one group is open at a time and a pinned group is always the open group; hovering another group clears the pin, and hovering back does not restore it.
+
 ### SERP Switch Bar
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 
@@ -145,3 +150,7 @@ A logical partition of `chrome.storage.local` that has its own schema version st
 
 ### Step Plan
 Stepfun's token-based subscription plan. Searches via the MCP channel (`web_search`) consume the user's Step Plan Credit pool (monthly, 0.04 元 per call). This is distinct from Stepfun's pay-as-you-go REST API (`/v1/search`), which is metered independently. The extension exposes both as separate providers (`stepfun` = REST, `stepfun-plan` = MCP/subscription) so the user can pick whichever match their billing arrangement.
+
+## Flagged ambiguities
+
+- "pinned" 在快切栏领域有两个独立含义：Source Group Layout 的"置顶平铺"（layout pinned —— source 直接平铺顶行，与之相对的是折叠进分组）与 Group Flyout 的"点击固定展开"（flyout pinned —— 已展开浮层不随 hover 收起）。前者决定 source 是否进分组，后者决定浮层的关闭时机，互不干扰。

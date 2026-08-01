@@ -3,6 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
+last_updated: 2026-08-01
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -60,7 +61,7 @@ export type SwitcherItem =
 
 Four deliberately independent fields:
 - **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The three builtins — `ai-search`, `engines`, `sites` — always exist.
-- **`layout`** — a single mixed sequence of top-row items. Each item is either a pinned source (rendered as a bare pill) or a group (rendered as a collapsible pill with a hover flyout). Pinned sources and groups are peers and share one ordering, so the user can interleave them freely.
+- **`layout`** — a single mixed sequence of top-row items. Each item is either a pinned source (rendered as a bare pill) or a group (rendered as a collapsible pill whose flyout opens on hover/focus as a *transient* state and pins open on click — click-to-pin, see [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md)). Pinned sources and groups are peers and share one ordering, so the user can interleave them freely.
 - **`assignments`** — `sourceId → groupId`, recorded **only** for sources that live inside a group. A pinned source does not appear in `assignments` at all; pinning is expressed by its presence in `layout`.
 - **`groupOrders`** — `groupId → explicit member order` for that group. Optional per group: when absent, the group falls back to the projected `sources` order (see section 7).
 
@@ -276,7 +277,7 @@ const layout = useMemo(
 );
 ```
 
-`layout.items` is a list of `PinnedItem | GroupItem`. The same component renders both; a `GroupItem` carries `containsActive` for the badge and its `items` become the hover flyout. The projection layer was not modified to produce this — `projectLayout` runs on top of its output.
+`layout.items` is a list of `PinnedItem | GroupItem`. The same component renders both; a `GroupItem` carries `containsActive` for the badge and its `items` become the flyout — opened transiently on hover/focus and pinned open on click (click-to-pin). The projection layer was not modified to produce this — `projectLayout` runs on top of its output.
 
 ### The `normalizeGroupConfig` builtin-ordering fix
 
