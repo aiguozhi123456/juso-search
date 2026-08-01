@@ -8,12 +8,12 @@
 
 ### 它解决什么问题
 
-日常搜索常需要在各种搜索引擎之间来回切换，或想用 AI 搜索拿到带引用的综合答案。双面搜把这些来源放进同一个搜索页，并在各搜索引擎的结果页顶部加一个「切换栏」，一键把当前查询转到其他引擎、站外搜索或 AI 搜索，无需重新输入。
+日常搜索常需要在各种搜索引擎之间来回切换，或想用 AI 搜索拿到带引用的综合答案。双面搜把这些来源放进同一个搜索页，并在各搜索引擎的结果页上（顶部或底部）加一个「切换栏」，一键把当前查询转到其他引擎、站外搜索或 AI 搜索，无需重新输入。
 
 ### 核心功能
 
 - **统一搜索入口**：聚合传统搜索引擎，以及 Tavily、Exa、Stepfun 等 AI 搜索服务。
-- **SERP 快切栏**：在受支持的搜索引擎结果页顶部，一键把当前搜索词切换到其他引擎、站外搜索，或跳转到双面搜的 AI 搜索页。
+- **SERP 快切栏**：在受支持的搜索引擎结果页上，一键把当前搜索词切换到其他引擎、站外搜索，或跳转到双面搜的 AI 搜索页；栏位可选顶部/底部/自动（窄屏自动改用页面底部的紧凑底栏）。
 - **AI 搜索接口**：支持 Tavily、Exa 和 Stepfun，将 AI 搜索能力以人类可用的搜索页形式提供。
 - **站外搜索（Site Engine）**：在扩展设置中保存多个站点，用搜索引擎原生高级搜索语法（`site:`）把搜索范围限定到该站点。创建后会出现在搜索页与 SERP 切换栏，与其他来源一样可切换。
 - **本地搜索历史**：成功的 AI 搜索会缓存在本机，可随时查看与重放，避免对同一查询重复计费。
@@ -47,12 +47,12 @@
 
 ### What it solves
 
-Daily search often means jumping between different search engines, or wanting AI search to return synthesized answers with citations. Juso puts these sources into one search page and adds a switch bar at the top of supported search-engine result pages, letting you move the current query to another engine, a site-scoped search, or AI search without retyping.
+Daily search often means jumping between different search engines, or wanting AI search to return synthesized answers with citations. Juso puts these sources into one search page and adds a switch bar to supported search-engine result pages (top or bottom), letting you move the current query to another engine, a site-scoped search, or AI search without retyping.
 
 ### Core features
 
 - **Unified search entry**: Aggregates conventional search engines and AI search services such as Tavily, Exa, and Stepfun.
-- **SERP switch bar**: At the top of supported search-engine result pages, switch the current query to another engine, a site-scoped search, or Juso's AI search page in one click.
+- **SERP switch bar**: On supported search-engine result pages, switch the current query to another engine, a site-scoped search, or Juso's AI search page in one click; the bar position is selectable (top / bottom / auto — auto uses a compact bottom bar on narrow screens).
 - **AI search interface**: Supports Tavily, Exa, and Stepfun, presenting AI search capability as a human-usable search page.
 - **Site Engine**: Save multiple sites in the extension settings and scope each search to a site with the engine's native advanced syntax (`site:`). Created entries appear in the search page and the SERP switch bar, switchable like any other source.
 - **Local search history**: Successful AI searches are cached locally so you can review or replay them without being billed twice for the same query.
