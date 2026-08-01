@@ -82,7 +82,9 @@ We inject content scripts into Google, Bing, Baidu, Douyin, Xiaohongshu, and Bil
 
 ## Open Audit
 
-The v1.2.0 examples above are already behind the live codebase: the Brave, Jina, and Doubao providers and the Yandex and DuckDuckGo engines post-date the v1.2.0 store trio; `api.search.brave.com` is missing from privacy.md's host-permissions list; and the READMEs still enumerate only four providers (Tavily, Exa, Stepfun, Stepfun Plan). This is a live instance of the audit this doc prescribes — the store docs need an enumeration pass before the next release.
+The v1.2.0 examples above were behind the live codebase: the Brave, Jina, and Doubao providers and the Yandex and DuckDuckGo engines post-dated the v1.2.0 store trio; `api.search.brave.com` was missing from privacy.md's host-permissions list; and the READMEs enumerated only four providers (Tavily, Exa, Stepfun, Stepfun Plan). This was a live instance of the audit this doc prescribes.
+
+**Status: closed by the v1.3.0 release pass.** The v1.3.0 release (2026-08-01) synced the store trio, READMEs, and DEVELOPMENT docs with the live codebase (Brave/Jina/Doubao providers, Yandex/DuckDuckGo engines, `api.search.brave.com`, source groups, per-provider maxResults, SERP bar positions), and removed the redundant bilingual `description.md` copy. One boundary was added during that pass: **engine enumeration belongs in the privacy questionnaire and privacy policy, not in the store listing description** — the v1.3.0 submission was rejected once for keyword stuffing (Yellow Argon) because the listing enumerated engine brand names; the fix and the general copy-writing constraints are recorded in [cws-listing-copy-submission-constraints.md](./cws-listing-copy-submission-constraints.md).
 
 ## Related
 

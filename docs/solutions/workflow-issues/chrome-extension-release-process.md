@@ -48,7 +48,7 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 6. **推送标签**：`git push origin v1.2.0`
 7. **GitHub Release**：创建 Release，**仅附加 dev ZIP**
 8. **CWS 提交**：将生产 ZIP 上传至 Chrome Web Store Developer Dashboard
-9. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）
+9. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）；提交被拒（如关键字垃圾、字符超限）时按 [cws-listing-copy-submission-constraints.md](cws-listing-copy-submission-constraints.md) 的文案纪律重写后重新提交
 
 ### 两个构建变体的差异
 

@@ -114,3 +114,4 @@ These are reduction-in-risk optimizations, not blockers; the default-off gate is
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — the other half of the CWS-compliance story: static injection-scope minimization. This doc is the runtime-capability counterpart.
 - `docs/solutions/architecture-patterns/config-preference-pipeline.md` — the end-to-end preference pipeline the two new switches follow (storage / schema / i18n / options UI).
 - `docs/assets/store/privacy.md` — the store-listing copy that discloses the default-off posture to reviewers; the code and the copy must stay in sync.
+- `docs/solutions/workflow-issues/cws-listing-copy-submission-constraints.md` — the copy-writing constraints behind that store-listing disclosure (no brand enumeration in listing copy, 1000-char questionnaire justifications, single source-of-truth store docs); the v1.3.0 keyword-spam rejection and its fix are recorded there.
