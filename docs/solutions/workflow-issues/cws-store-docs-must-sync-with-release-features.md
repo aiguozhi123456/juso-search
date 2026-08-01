@@ -1,7 +1,7 @@
 ---
 title: Chrome Web Store Listing and Privacy Docs Must Be Updated for Each Release
 date: 2026-07-27
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -80,8 +80,12 @@ We inject content scripts into Google, Bing, Baidu, Douyin, and Xiaohongshu resu
 **After (v1.2.0 privacy-policy.md excerpt):**
 We inject content scripts into Google, Bing, Baidu, Douyin, Xiaohongshu, and Bilibili result pages. Site Engine stores site-scoped search configurations locally to enable repeated targeted queries without an API key.
 
+## Open Audit
+
+The v1.2.0 examples above are already behind the live codebase: the Brave, Jina, and Doubao providers and the Yandex and DuckDuckGo engines post-date the v1.2.0 store trio; `api.search.brave.com` is missing from privacy.md's host-permissions list; and the READMEs still enumerate only four providers (Tavily, Exa, Stepfun, Stepfun Plan). This is a live instance of the audit this doc prescribes — the store docs need an enumeration pass before the next release.
+
 ## Related
 
 - [Chrome Extension Dual-Version Release Process](./chrome-extension-release-process.md) — the full release workflow (version bump, dual-ZIP build, tagging, GitHub Release, CWS upload)
-- [WXT Self-Contained Development Build with Stable Extension ID](./tooling-decisions/wxt-self-contained-dev-build.md) — technical background for the dev vs production ZIP distinction
+- [WXT Self-Contained Development Build with Stable Extension ID](../tooling-decisions/wxt-self-contained-dev-build.md) — technical background for the dev vs production ZIP distinction
 - [Default-off capability gating for Agent Bridge and engine-search (CWS compliance)](./architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — the two-layer opt-in gate required to pass CWS review

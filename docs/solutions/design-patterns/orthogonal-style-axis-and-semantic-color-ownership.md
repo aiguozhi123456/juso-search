@@ -11,7 +11,7 @@ applies_when:
   - Designing a colorful operational UI where color should communicate stable source and action identity
   - Applying one persisted UI preference across extension pages, tabs, and a shadow-DOM content script
   - Rendering viewport atmosphere from inside a width-constrained application root
-last_updated: 2026-07-26
+last_updated: 2026-08-01
 related_components:
   - entrypoints/shared/tokens.css
   - entrypoints/shared/page-bg.css
@@ -161,7 +161,7 @@ Color ownership should follow stable domain identifiers, not child position or t
 </div>
 ```
 
-Define one stable source-ID mapping and keep its implementations in parity across CSS ownership boundaries. Extension pages use `search/styles.css`, while the isolated SERP shadow root repeats the mapping in `serp-bar-styles.ts`. The mapping is Google blue, Bing cyan, Baidu red, Tavily violet, Exa teal, StepFun orange, and StepFun Plan green.
+Define one stable source-ID mapping and keep its implementations in parity across CSS ownership boundaries. Extension pages use `search/styles.css`, while the isolated SERP shadow root repeats the mapping in `serp-bar-styles.ts`. The mapping is Google blue, Bing cyan, Baidu red, Tavily violet, Exa teal, StepFun orange, StepFun Plan green, Jina teal, Doubao rose, and Doubao Global yellow.
 
 ```css
 [data-style="colorful"] [data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
@@ -171,6 +171,9 @@ Define one stable source-ID mapping and keep its implementations in parity acros
 [data-style="colorful"] [data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
 [data-style="colorful"] [data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
 [data-style="colorful"] [data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+[data-style="colorful"] [data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+[data-style="colorful"] [data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
+[data-style="colorful"] [data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
 ```
 
 Pass the response provider into every result card so the same data attribute drives the rail color:
@@ -276,17 +279,19 @@ Functional selectors express ownership directly rather than relying on a global 
 }
 ```
 
-The options page applies the same idea at section scale. Search-source settings are blue, the quickbar is teal, API-key state is gold, locale is orange, and configuration import/export is violet:
+The options page applies the same idea at section scale. Search-source settings are blue, site-engines are cyan, the quickbar is teal, API-key state is gold, locale is orange, and configuration import/export is violet (agent-bridge sections fall back to the default violet):
 
 ```css
+/* 未显式配色的 section（如 agent-bridge）沿用下方默认 violet。 */
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
+[data-style="colorful"] .options section[data-section="site-engines"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="config"] { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 ```
 
-Verification should cover storage defaults and invalid-value fallback, hook initialization and rollback, runtime-message synchronization, toggle accessibility, stable `data-source` and `data-active-source` attributes, and search/options integration. Add direct initializer/handoff and worker-broadcast tests when first-paint ordering or the page/secret boundary changes. The completed change passed typecheck, lint, all 419 tests, the extension build, and `git diff --check`.
+Verification should cover storage defaults and invalid-value fallback, hook initialization and rollback, runtime-message synchronization, toggle accessibility, stable `data-source` and `data-active-source` attributes, and search/options integration. Add direct initializer/handoff and worker-broadcast tests when first-paint ordering or the page/secret boundary changes. The completed change passed typecheck, lint, the full test suite, the extension build, and `git diff --check`.
 
 ## Related
 

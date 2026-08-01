@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -31,7 +31,7 @@ tags:
 
 ## Context
 
-This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
+This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan — the v1-era four; the family has since grown to eight, incl. Brave) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
 
 The extension's storage had grown organically and accumulated three latent problems:
 
@@ -49,17 +49,18 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on twelve small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on thirteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export const migrations: Migration[] = [
   // each entry: { version: N, migrate: (config) => config }
   // { version: 1, migrate: (config) => mergeDefaultHidden(config, ['douyin', 'xiaohongshu']) },
   // { version: 4, migrate: (config) => config },  // no-op: see "bump the stamp without migrating" below
+  // { version: 5, migrate: (config) => mergeDefaultHidden(config, ['yandex', 'duckduckgo']) },  // v5→v6: new engines default-hidden
 ];
 
 // lib/search-cache.ts — cache pool domain
@@ -151,6 +152,8 @@ A version bump does not always mean a data transformation. When a new config key
 // bumps the stamp to admit groupConfig into CONFIG_KEYS.
 { version: 4, migrate: (config) => config },
 ```
+
+Not every bump is a no-op: the v5→v6 migration writes real data — yandex and duckduckgo register in the engine registry but are merged into `sourceHidden` by default so the quick-switch bar does not grow out of the box (`mergeHiddenFactory(config, ['yandex', 'duckduckgo'])`). The getter-fallback shortcut applies only when the getter can synthesize the default; a default that must *hide* newly registered engines from the switcher needs a migration to materialize it, because a read-side merge into an explicit user preference list would not be idempotent.
 
 Reserve this pattern for the case where the migration would otherwise be writing a default the getter already produces. If the new key needs a *materialized* value (e.g. the v3→v4 entry that backfills an explicit empty `siteEngines` array so old installs opt into persisted Site Engines), write it in the migration as before. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the full lazy-default + no-migration decision.
 
@@ -275,7 +278,7 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export async function ensureSchema(): Promise<void> {
   const { schemaVersion: v } = await browser.storage.local.get('schemaVersion');
@@ -343,7 +346,7 @@ async function handleExportConfig() {
 - `lib/search-cache.ts` — cache-domain versioning: `CURRENT_CACHE_SCHEMA_VERSION`, `cacheMigrations`, `migrateCachePool`, `ensureCacheSchema`, `runCacheMigration`, `recoverCacheSchemaByClear`
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`
 - `lib/gateway.ts` — worker handlers and the readiness gate: `getSchemaReady`, `handleExportConfig`, `handlePreviewImport`, `handleImportConfig`
-- `lib/storage.ts` — `withProviderKeysMutation` and `withSourceOrderMutation` (serialization queues for atomic config mutations)
+- `lib/storage.ts` — `withProviderKeysMutation` and `withSourceMutation` (serialization queues for atomic config mutations)
 - [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only
 - [source-group-layout-layer](./source-group-layout-layer.md) — the v4→v5 no-op migration above is the one that introduced `groupConfig`
 - `CONCEPTS.md` — project vocabulary for the BYOK trust boundary (R7)

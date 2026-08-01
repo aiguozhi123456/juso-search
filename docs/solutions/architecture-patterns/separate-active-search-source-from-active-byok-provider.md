@@ -1,7 +1,7 @@
 ---
 title: "Separate active search source from active BYOK provider"
 date: 2026-07-09
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 category: architecture-patterns
 module: search-source-configuration
 problem_type: architecture_pattern
@@ -29,8 +29,8 @@ tags: [byok, search-sources, chrome-extension, configuration, worker-boundary]
 
 The extension has two kinds of search choices with different runtime contracts:
 
-- **BYOK providers** (`tavily`, `exa`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`) require saved API keys and flow through the background worker, `ProviderAdapter.search()`, normalized responses, and the local provider-keyed cache.
-- **Regular engines** (`google`, `bing`, `baidu`, `douyin`, `xiaohongshu`, `bilibili`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
+- **BYOK providers** (`tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`) require saved API keys and flow through the background worker, `ProviderAdapter.search()`, normalized responses, and the local provider-keyed cache.
+- **Regular engines** (`google`, `bing`, `baidu`, `douyin`, `xiaohongshu`, `bilibili`, `yandex`, `duckduckgo`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
 
 Delete-key support exposed the architecture gap. After removing provider keys, the extension was still legitimately usable through Google or Bing, but the options page selector labeled “激活的搜索引擎” listed only configured BYOK providers. Treating engines as providers would make the selector look right while allowing engine IDs to leak into provider-only code paths such as `resolveSearchProvider()`, `getAdapter()`, key lookup, and cache refresh.
 
@@ -52,8 +52,8 @@ The storage layer owns the fallback rule:
 // Effective source fallback:
 // valid stored activeSource -> activeProvider with key -> first configured provider -> google
 export async function getActiveSourceId(): Promise<SourceId> {
-  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY]);
-  // ...validate stored source/provider against known IDs and provider keys
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY]);
+  // ...validate stored source/provider against known IDs, provider keys, and site-engine definitions
 }
 ```
 
@@ -62,15 +62,11 @@ The gateway mirrors that boundary:
 ```ts
 export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
   await getSchemaReady();
-  if (isProviderId(sourceId)) {
-    await Promise.all([setActiveSourceId(sourceId), setActiveProviderId(sourceId)]);
-    return;
-  }
-  await setActiveSourceId(sourceId);
+  await selectActiveSourceId(sourceId); // validation + atomic dual-write moved into storage
 }
 ```
 
-Provider selections keep both preferences aligned. Engine selections update only `activeSource`; the last provider fallback remains available for provider-only searches.
+Provider selections keep both preferences aligned (the dual-write now lives inside `selectActiveSourceId` in the storage layer). Engine selections update only `activeSource`; the last provider fallback remains available for provider-only searches.
 
 The options page renders the selector from the view-layer source model:
 
@@ -151,5 +147,4 @@ The completed change was validated with `npm.cmd run typecheck`, `npm.cmd run li
 
 Refresh candidates surfaced by this learning:
 
-- `docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md` still describes the config domain as four keys; update it to include `activeSource`.
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` should clarify the difference between provider-only active-provider surfaces and source-level active-source/default-source surfaces.

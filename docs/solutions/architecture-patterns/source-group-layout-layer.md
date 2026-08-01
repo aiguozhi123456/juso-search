@@ -82,7 +82,7 @@ where `defaultGroupForSourceId` maps providers → `ai-search`, engines → `eng
 
 ### 3. `normalizeGroupConfig` — the self-healing boundary
 
-Any value read from storage passes through `normalizeGroupConfig(raw, allSourceIds)` before it is used or re-persisted. It is the contract that guarantees a `GroupConfig` is always self-consistent regardless of what is on disk — which matters acutely in a BYOK extension where the source set is volatile. Its guarantees:
+Any value read from storage passes through `normalizeGroupConfig(raw, allSourceIds)` before it is used. It is the contract that guarantees a `GroupConfig` is always self-consistent regardless of what is on disk — which matters acutely in a BYOK extension where the source set is volatile. Its guarantees:
 
 - **`groups`** — drops labels that fail `isSourceLabel`, dedupes by id (first wins), and **backfills the three builtin groups in `DEFAULT_GROUPS` order**.
 - **`layout`** — drops items referencing unknown sources or unknown groups (`isSwitcherItem` checks against the live source-set and the known-group-set), dedupes by key keeping first occurrence, and falls back to `[{ai-search}, {engines}, {sites}]` when layout is empty/missing.
@@ -97,7 +97,7 @@ for (const [sid, gid] of Object.entries(rawAssignments)) {
 }
 ```
 
-Because the reader (`getGroupConfig`) re-normalizes and re-persists on every read, the persisted form drifts toward correctness over time. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
+Because the reader (`getGroupConfig`) normalizes in memory only and never writes back to storage (storage.ts:372-379), every consumer sees a consistent config even when the persisted form is stale. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
 
 ### 4. `projectLayout` — defensive projection to renderable items
 
@@ -128,7 +128,7 @@ Pins-once is the key invariant: once a source appears as a pinned `{kind:'source
 
 ### 5. Schema bump without migration — lazy getter defaults
 
-Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` bumps `CURRENT_SCHEMA_VERSION` from 4 to 5, but the v4→v5 migration is a no-op:
+Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 6`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
 
 ```ts
 // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
@@ -136,7 +136,7 @@ Adding a persisted config key normally means writing a migration. Here it did no
 { version: 4, migrate: (config) => config },
 ```
 
-The comment in `CONFIG_KEYS` spells out why this is safe: `agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig 默认值由 getter 兜底，不 bump 版本（无需迁移）`. The version bump is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
+The comment in `CONFIG_KEYS` spells out why this is safe: `agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / serpBarPosition 默认值由 getter 兜底，不 bump 版本（无需迁移）`. The version bump is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
 
 ### 6. `groupConfig` folded into the existing provider-config snapshot and worker message
 
@@ -303,7 +303,7 @@ This is the kind of detail that only matters once data has been persisted and pa
 
 ### The v4→v5 no-migration decision
 
-The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing:
+The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v6 — the v5→v6 migration again writes real data, hiding yandex/duckduckgo by default — but the no-op lesson here still holds):
 
 ```ts
 // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.

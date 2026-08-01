@@ -1,6 +1,7 @@
 ---
 title: Chrome Extension Dual-Version Release Process
 date: 2026-07-26
+last_updated: 2026-08-01
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -47,6 +48,7 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 6. **推送标签**：`git push origin v1.2.0`
 7. **GitHub Release**：创建 Release，**仅附加 dev ZIP**
 8. **CWS 提交**：将生产 ZIP 上传至 Chrome Web Store Developer Dashboard
+9. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）
 
 ### 两个构建变体的差异
 
@@ -155,5 +157,5 @@ README 中涉及版本号时需区分两个来源：
 
 ## Related
 
-- [WXT Self-Contained Development Build with Stable Extension ID](./tooling-decisions/wxt-self-contained-dev-build.md) — 构建变体的技术背景（三层层级、key 门控、ID 稳定性机制）
+- [WXT Self-Contained Development Build with Stable Extension ID](../tooling-decisions/wxt-self-contained-dev-build.md) — 构建变体的技术背景（三层层级、key 门控、ID 稳定性机制）
 - [DEVELOPMENT.md](../../DEVELOPMENT.md) — 构建命令与扩展 ID 差异

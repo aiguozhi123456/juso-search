@@ -1,7 +1,7 @@
 ---
 title: Adding REST Search Providers (Jina and Brave)
 date: 2026-07-27
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 category: tooling-decisions
 module: providers
 problem_type: tooling_decision
@@ -131,7 +131,7 @@ Keep a provider's request-specific details inside its adapter. Extend `restTrans
 Append the new id to the union so the type system recognizes it everywhere:
 
 ```ts
-export type ProviderId = 'tavily' | 'exa' | 'stepfun' | 'stepfun-plan' | 'jina' | 'brave' | 'doubao' | 'doubao-global';
+export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global';
 ```
 
 ### 3. Registry (`lib/providers/registry.ts`)
@@ -145,10 +145,10 @@ import { braveAdapter } from './brave';
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
   exa: exaAdapter,
+  brave: braveAdapter,
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
   jina: jinaAdapter,
-  brave: braveAdapter,
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
 };
@@ -157,10 +157,10 @@ export function allProviders(): ProviderAdapter[] {
   return [
     adapters.tavily,
     adapters.exa,
+    adapters.brave,
     adapters.stepfun,
     adapters['stepfun-plan'],
     adapters.jina,
-    adapters.brave,
     adapters.doubao,
     adapters['doubao-global'],
   ];
@@ -200,7 +200,7 @@ The BYOK trust boundary is unchanged for every adapter: API keys are stored in `
 
 - Adding any new REST-based search provider to this extension.
 - Adding a provider whose HTTP API uses URL query parameters rather than the existing JSON POST request shape.
-- Also applies when adding an MCP-based provider, except the transport wiring uses `mcpClientTransport` instead of `restTransport`.
+- Also applies when adding an MCP-based provider, except the transport wiring uses `mcpTransport` instead of `restTransport`.
 
 ## Examples
 

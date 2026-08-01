@@ -1,6 +1,7 @@
 ---
 title: "Engine capability is layered per registry, but the shared EngineId union hides the layers"
 date: 2026-07-23
+last_updated: 2026-08-01
 category: architecture-patterns
 module: engines
 problem_type: architecture_pattern
@@ -31,7 +32,7 @@ related_components:
 
 During the v1.1.0 README update (commit `628242a`), Douyin and Xiaohongshu were added to every engine list in both README.md and README.en.md—including the agent-facing capability paragraph. The inference chain that produced the over-claim:
 
-1. `wxt.config.ts` injects `engine-extractor.js` on all 5 SERP host groups via `ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` (derived from `SERP_HOST_MATCH_PATTERNS` in `lib/engines/scopes.ts`, which includes `www.douyin.com` and `www.xiaohongshu.com`).
+1. `entrypoints/engine-extractor.content.ts` (a WXT auto-registered content script entrypoint) runs on all 5 SERP host groups via `ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` (derived from `SERP_HOST_MATCH_PATTERNS` in `lib/engines/scopes.ts`, which includes `www.douyin.com` and `www.xiaohongshu.com`).
 2. `lib/engines/registry.ts` registers all 5 engines in a `Record<EngineId, SearchEngine>` with no exclusions.
 3. The `EngineId` union in `lib/engines/types.ts` lists all 6 identifiers: `'google' | 'bing' | 'baidu' | 'douyin' | 'xiaohongshu' | 'bilibili'`.
 
@@ -116,12 +117,13 @@ As of 2026-07-31 the CLI whitelist covers all eight engines (mirroring the extra
 Source of truth: `lib/schema.ts` versioned migrations.
 
 ```ts
-// 版本化迁移：v2 添加 douyin/xiaohongshu，v3 添加 bilibili
+// 版本化迁移：v2 添加 douyin/xiaohongshu，v3 添加 bilibili，v5→v6 添加 yandex/duckduckgo
 const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'];
 const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
+const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo'];
 ```
 
-Douyin、Xiaohongshu 和 Bilibili 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v2/v3 合并到 `sourceHidden`）。用户可在设置中取消隐藏。
+Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 6`，v5→v6 迁移把 yandex/duckduckgo 并入 `sourceHidden`（schema.ts:48-49），沿用同一「新引擎开箱默认隐藏」惯例。
 
 ### The rule
 
@@ -139,7 +141,7 @@ When adding a new engine:
 - A shared identifier union (`EngineId`) implies uniform capability to anyone reading the type. The asymmetry is intentional and code-commented but invisible at the type level—TypeScript cannot distinguish "registered for navigation" from "supports extraction."
 - Doc over-claims promise agents capabilities that return `unsupported-layout` errors at runtime. An agent following the README would call `engine-search --engine douyin`, get a parse error from the CLI whitelist, or (if the whitelist were bypassed) an `unsupported-layout` from the extractor stub.
 - The three registries (extractor registry, CLI whitelist, default-hidden list) can drift independently. Adding an engine to Layer 1 without updating Layers 2–4 creates silent mismatches. The v1.1.0 incident was exactly this drift surfacing in documentation.
-- The manifest injection surface (`ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` covering all 5 hosts) is a necessary condition for extraction but not a sufficient one—it exists so the content script can receive messages on challenge/consent redirect pages, not because extraction is implemented.
+- The manifest injection surface (`ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` covering all eight engines' hosts, consumed by the auto-registered `entrypoints/engine-extractor.content.ts`) is a necessary condition for extraction but not a sufficient one—it exists so the content script can receive messages on challenge/consent redirect pages, not because extraction is implemented.
 
 ## When to Apply
 
@@ -186,7 +188,7 @@ When adding a new engine:
 | 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 8 engines | — |
 | 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 8 engines (Chinese sites added 2026-07-31) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
 | 3 — Skill CLI whitelist | `juso_search.py` `ENGINES` + `SKILL.md` | all 8 engines | — |
-| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v2), bilibili (v3) | yandex/duckduckgo default-visible |
+| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6) | google/bing/baidu are never default-hidden |
 
 ### Misleading signal that caused the incident
 

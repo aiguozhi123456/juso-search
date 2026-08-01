@@ -1,6 +1,7 @@
 ---
 title: "SERP Content Script Cannot Top-Level Navigate to an Extension Page (ERR_BLOCKED_BY_CLIENT)"
 date: 2026-07-08
+last_updated: 2026-08-01
 category: runtime-errors
 module: "serp-bar content script / background worker / messaging"
 problem_type: runtime_error
@@ -51,17 +52,19 @@ openSearchPage(deepLink: string): Promise<void>;
 
 `deepLink` 是相对路径（`search.html?provider=X&query=Y` 或 `/search.html`），与 `buildSearchDeepLink` 输出一致。
 
-**2. background 注册 handler**（`entrypoints/background.ts`），用 `sender.tab.id` 导航当前 tab：
+**2. background 注册 handler**（`entrypoints/background.ts`），用 `sender.tab.id` 导航当前 tab；`data` 不再直接交给 `runtime.getURL`，而是先经过 `buildSafeSearchUrl` 净化层（`lib/search-page-url.ts:16-28`）：
 
 ```ts
 onMessage('openSearchPage', ({ data, sender }) => {
   const tabId = sender.tab?.id;
   if (tabId === undefined) return; // 非内容脚本来源（无 tab），安全跳过
-  void browser.tabs.update(tabId, {
-    url: (browser.runtime.getURL as (p: string) => string)(data),
-  });
+  const url = buildSafeSearchUrl(data); // 净化：固定 /search.html base + provider/query 白名单
+  if (url === null) return;             // 非法/非 search.html 深链不导航（open-redirect 硬化）
+  void browser.tabs.update(tabId, { url });
 });
 ```
+
+净化层语义：handler 是唯一入参净化点（`@webext-core/messaging` 不做 origin 校验）。`buildSafeSearchUrl` 把深链收敛为固定 `/search.html` base（路径层防 open-redirect 到 options.html 等特权页），仅白名单转发 `provider`/`query` 参数，`null` → 跳过导航。
 
 **3. 内容脚本 provider 分支改走消息**（`entrypoints/serp-bar.content.ts`），engine 分支（→ https SERP）保持 `location.assign` 不变：
 

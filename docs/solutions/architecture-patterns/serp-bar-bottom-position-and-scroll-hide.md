@@ -76,7 +76,7 @@ The two positions are structurally different and must not share an anchor strate
   width: 100% !important;
   margin-left: 0 !important;
   max-width: none !important;
-  z-index: 600 !important;
+  z-index: 2147483647 !important;
   /* ...mobile polish... */
 }
 /* Explicit reset so Douyin's top:56px does not survive into bottom mode. */
@@ -133,7 +133,7 @@ const applyPositionChrome = (pos: 'top' | 'bottom', opts?: { resetScrollBaseline
 Every position-change path calls it, then re-renders so the `bottomMode` prop enters the React tree (the flyout anchoring and touch handlers branch on `bottomMode`; outside-dismiss is unified across both modes since 2026-08-01 — see §4e):
 
 ```typescript
-// onMount (serp-bar.content.ts:229)
+// onMount (serp-bar.content.ts:245)
 applyPositionChrome(state.resolvedPosition);
 
 // syncLocation — SPA nav (serp-bar.content.ts:422)
@@ -141,7 +141,7 @@ applyPositionChrome(state.resolvedPosition);
 syncAlignedHost(mountedHost, strategy);
 if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
 
-// resize — auto threshold crossing (serp-bar.content.ts:444-455)
+// resize — auto threshold crossing (serp-bar.content.ts:483-497)
 ctx.addEventListener(window, 'resize', () => {
   if (mountedHost && document.contains(mountedHost)) {
     syncAlignedHost(mountedHost, strategy);
@@ -155,7 +155,7 @@ ctx.addEventListener(window, 'resize', () => {
   }
 });
 
-// onPrefMessage — live sync from Options (serp-bar.content.ts:462-471)
+// onPrefMessage — live sync from Options (serp-bar.content.ts:504-514)
 const onPrefMessage = (message: unknown) => {
   if (!isUiPrefChangedMessage(message) || message.key !== 'serpBarPosition') return;
   state.barPositionPref = message.value;
@@ -167,6 +167,8 @@ const onPrefMessage = (message: unknown) => {
   if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
 };
 ```
+
+> **2026-08-01: the `resize` and `onPrefMessage` snippets above are superseded by §4g's teardown+remount.** A position flip changes the host's physical parent (engine anchor subtree vs `document.body`), so those two paths no longer do the in-place `applyPositionChrome` + re-render shown here: they set `state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)` (serp-bar.content.ts:483-497 for resize, :504-514 for onPrefMessage). `onMount` (:245) still calls `applyPositionChrome(state.resolvedPosition)` during the remount to restamp `data-position` and swap pad↔pageStyles. The snippets are kept as the historical in-place shape.
 
 Three discipline points:
 
@@ -329,7 +331,7 @@ With the containing-block chain clean, the flyout is `position: fixed` and its `
 :host([data-position="bottom"]) .group-flyout--fixed-up {
   position: fixed !important;
   top: auto !important;
-  z-index: 700 !important;
+  z-index: 2147483647 !important;
   padding-top: 4px !important;
   padding-bottom: 6px !important;
   box-shadow: 0 -6px 20px rgba(0,0,0,0.15) !important;
@@ -558,7 +560,7 @@ The generalizable lesson: **a `position:fixed` overlay's containing block is det
 `serpBarPosition` is a persisted pref that must survive config export/import, so it has to be in the config-domain whitelist. But like `groupConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, and `providerMaxResults` before it, its default is supplied by a **getter** (`getBarPositionPref` normalizes any missing/unknown value to `'auto'`). A missing key is therefore safe without a migration: there is nothing to transform, just a default to fall back to. So it is added to `CONFIG_KEYS` **without** bumping `CURRENT_SCHEMA_VERSION` and **without** a migration entry:
 
 ```typescript
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。

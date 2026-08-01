@@ -1,7 +1,7 @@
 ---
 title: "Engine-Specific SERP Bar Injection Anchors for Google and Bing"
 date: 2026-07-09
-last_updated: 2026-07-17
+last_updated: 2026-08-01
 category: ui-bugs
 module: "serp-bar / content-script"
 problem_type: ui_bug
@@ -191,6 +191,8 @@ function syncAlignedHost(host: HTMLElement, strategy: AnchorStrategy): void {
 }
 ```
 
+Note: the current `syncAlignedHost` (`serp-bar.content.ts:608-609`) also writes `--juso-serp-left` — the align target's **viewport** content left — added for the Douyin `position: fixed` host, which needs a viewport coordinate rather than a parent-relative offset.
+
 `calculateAlignedHostLayout` is a DOM-independent helper. Parent and target rectangles both remain in viewport coordinates; the helper computes the target content box relative to the actual host-parent content origin:
 
 ```typescript
@@ -232,6 +234,8 @@ const syncLocation = (url: string) => {
   }
   if (mountedHost) syncAlignedHost(mountedHost, strategy);
 };
+
+The snippet is a simplification of the current version (`serp-bar.content.ts:422-466`): `syncLocation` is now `async` — on SPA navigation it refreshes the bar's config snapshot (site definitions, source order/hidden, persisted active source, group layout) via `loadBarState`, re-renders, and re-arms the detach/upgrade watchers, rather than only resyncing host geometry.
 
 ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => {
   syncLocation(newUrl.href);

@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-07-25
+last_updated: 2026-08-01
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -27,7 +27,7 @@ tags:
 
 ## Context
 
-Juso stores provider keys in `chrome.storage.local` and permits only the background worker to read them. A local Agent also needs provider search, provider discovery, and natural-result search on the extraction-capable engine subset (currently Google/Bing/Baidu — registered engines without a real extractor, such as login-walled SPAs, are excluded; see `engine-capability-is-per-registry-not-per-id-union.md`) without receiving those keys.
+Juso stores provider keys in `chrome.storage.local` and permits only the background worker to read them. A local Agent also needs provider search, provider discovery, and natural-result search on the extraction-capable engine subset (currently all eight registered engines — google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo — each ship a real extractor; see `engine-capability-is-per-registry-not-per-id-union.md`) without receiving those keys.
 
 A Chrome MV3 extension cannot directly act as a general MCP stdio server: it has no Agent-controlled stdin/stdout, cannot listen on a local server socket, and its service worker lifecycle belongs to Chrome. A separate process also cannot safely or portably parse an extension profile to read `chrome.storage.local`; doing so would break the worker-only BYOK boundary.
 

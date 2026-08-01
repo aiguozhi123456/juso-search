@@ -1,7 +1,7 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
@@ -47,7 +47,7 @@ cheaply" ergonomics, but which were standardized at different times and had
 drifted into opposite shapes:
 
 - **Providers** (`lib/providers/`): AI search adapters — `tavily`, `exa`,
-  `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global` — each behind a
+  `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global` — each behind a
   `ProviderAdapter.search(query, opts, key)` contract, BYOK keys, return
   `{ answer?, results }`.
 - **Engines** (`lib/engines/`): navigation-only SERP targets — `google`,
@@ -206,7 +206,7 @@ export interface SearchEngine {
   buildHomeUrl(): string;
   matches(url: string): boolean;
   extractQuery(url: string): string | null;
-  readonly anchor: AnchorStrategy;
+  readonly anchors: AnchorStrategy[];
 }
 ```
 
@@ -217,7 +217,10 @@ import { isGoogleSerpHostname, isSerpUrl } from './scopes';
 const SERP_URL_TEMPLATE = 'https://www.google.com/search?q={q}';
 const SERP_URL = new URL(SERP_URL_TEMPLATE);
 const QUERY_PARAM = 'q';
-const ANCHOR: AnchorStrategy = { selector: '#rcnt', append: 'before', alignTo: '#center_col' };
+const ANCHORS: AnchorStrategy[] = [
+  { selector: '#rcnt', append: 'before', alignTo: '#center_col' },
+  { selector: '#center_col', append: 'first' },
+];
 
 export const googleEngine: SearchEngine = {
   id: 'google',
@@ -227,7 +230,7 @@ export const googleEngine: SearchEngine = {
   buildHomeUrl()      { return SERP_URL.origin + '/'; },
   matches(url)        { try { return isSerpUrl(new URL(url), isGoogleSerpHostname); } catch { return false; } },
   extractQuery(url)   { try { return new URL(url).searchParams.get(QUERY_PARAM); } catch { return null; } },
-  anchor: ANCHOR,
+  anchors: ANCHORS,
 };
 ```
 
@@ -246,11 +249,10 @@ presence is not required for a URL to belong to an engine's canonical route.
 // lib/engines/baidu.ts — route-specific engine contract
 const SERP_URL_TEMPLATE = 'https://www.baidu.com/s?wd={q}';
 const QUERY_PARAM = 'wd';
-const ANCHOR: AnchorStrategy = {
-  selector: '#content_left',
-  append: 'before',
-  alignTo: '#content_left',
-};
+const ANCHORS: AnchorStrategy[] = [
+  { selector: '#container', append: 'first' },
+  { selector: '#content_left', append: 'before', alignTo: '#content_left' },
+];
 
 export const baiduEngine: SearchEngine = {
   id: 'baidu',
@@ -268,7 +270,7 @@ export const baiduEngine: SearchEngine = {
     try { return new URL(url).searchParams.get(QUERY_PARAM); }
     catch { return null; }
   },
-  anchor: ANCHOR,
+  anchors: ANCHORS,
 };
 ```
 
@@ -281,8 +283,9 @@ stricter runtime trust decision and rejects HTTP, custom ports, forged hosts,
 and prefix paths such as `/something`.
 
 Delete the `serp-anchor.ts` switch file entirely; the per-engine strategy now
-lives as `engine.anchor`, with `anchorFor(engine|null)` + `DEFAULT_ANCHOR`
-preserving the "google is the safe default" project knowledge.
+lives as `engine.anchors` (an `AnchorStrategy[]` cascade), with
+`anchorsFor(engine|null)` + `DEFAULT_ANCHORS` preserving the "google is the
+safe default" project knowledge.
 
 `allEngines()` becomes `Object.values(engines)`:
 
@@ -295,6 +298,8 @@ const engines: Record<EngineId, SearchEngine> = {
   douyin: douyinEngine,
   xiaohongshu: xiaohongshuEngine,
   bilibili: bilibiliEngine,
+  yandex: yandexEngine,
+  duckduckgo: duckduckgoEngine,
 };
 
 export function allEngines(): SearchEngine[] { return Object.values(engines); }
@@ -539,7 +544,7 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
   `ProviderId`/`EngineId`" v2 decision this learning preserves and refines.
 - `docs/solutions/ui-bugs/serp-bar-engine-specific-anchors.md`
   — the engine anchor rationale, now relocated from the deleted
-  `lib/engines/serp-anchor.ts` into per-engine `anchor` fields.
+  `lib/engines/serp-anchor.ts` into per-engine `anchors` fields.
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`
   — centralizes approved SERP hosts across engine recognition, static content
   scripts, resource exposure, and SPA mount/remove behavior.

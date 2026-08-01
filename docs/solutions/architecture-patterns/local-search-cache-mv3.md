@@ -1,6 +1,7 @@
 ---
 title: "Local Search Cache for Repeat-Billing Avoidance in an MV3 Extension"
 date: 2026-07-07
+last_updated: 2026-08-01
 category: architecture-patterns
 module: "storage / gateway / messaging"
 problem_type: architecture_pattern
@@ -71,7 +72,7 @@ different search object from an Exa result for "hello".
 
 Cap each entry to prevent unbounded storage growth:
 
-- Max 10 results per entry
+- Max 20 results per entry (matches `MAX_CACHED_RESULTS` in `lib/search-cache.ts`)
 - No `content` field (the expandable full text — omit from cache)
 - Answer text <= 2000 characters
 - Citations <= 10
@@ -121,7 +122,11 @@ If the requested provider is no longer configured, the worker returns
 ### Mutation serialization
 
 Cache mutations are serialized through a module-level promise queue to prevent
-read-modify-write races on the shared index:
+read-modify-write races on the shared index. The queue
+(`withSearchCacheMutation`) lives in `lib/storage.ts` alongside the other
+storage mutation queues (`withProviderKeysMutation`, `withSourceMutation`,
+etc.) — not in `lib/search-cache.ts`, which owns the pure cache read/write
+helpers:
 
 ```typescript
 let searchCacheMutationQueue = Promise.resolve();
@@ -168,6 +173,11 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 
 Pages receive only typed `uiPrefChanged` messages with validated scalar values.
 The `providerKeys` change object never enters page memory.
+
+Since this doc was written, the broadcast covers **four** UI prefs, not the two
+shown above: `themePref`, `localePref`, `stylePref`, and `serpBarPosition`
+(`entrypoints/background.ts`). The pattern is unchanged — validated scalars
+only, never the `providerKeys` change object.
 
 ## Why This Matters
 

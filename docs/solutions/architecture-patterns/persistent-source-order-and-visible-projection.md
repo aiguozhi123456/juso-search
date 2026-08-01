@@ -1,7 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -61,12 +61,14 @@ Juso 的快切栏同时包含需要 BYOK key 的 AI provider 和始终可用的�
 
 ```ts
 normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
-// ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu']
+// ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']
 ```
 
 `allSources(configuredProviderIds, sourceOrder)` 先遍历规范化后的完整顺序，最后才过滤未配置 provider；engine 始终保留。不要先构造可见列表再排序，否则隐藏项的位置已经丢失。
 
-### 在完整顺序中交换相邻可见来源
+### 在完整顺序中交换相邻可见来源（历史指引）
+
+> 注：本节描述的「设置页移动按钮」UI 已不存在——`moveSource`/`savingSourceOrder`/`sourceOrderError` 已从 `entrypoints/options/App.tsx` 移除，快切栏管理列表不再提供排序控件；顺序调节现在只发生在**布局编辑器**（Source Group Layout，见 [source-group-layout-layer.md](./source-group-layout-layer.md)），且组内成员顺序写入 `groupConfig.groupOrders`、不再写 `sourceOrder`。本节保留的只有那个仍然成立的不变量：**必须修改完整顺序，绝不可只改可见列表**——该不变量至今仍由 `mergeImport` 与 `normalizeSourceOrder` 强制（导入合并与规范化入口始终以完整数组为操作对象）。
 
 设置页展示可见投影，但移动操作必须修改完整顺序：
 
@@ -77,28 +79,28 @@ normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
 例如仅 Exa 已配置时，完整顺序可能是：
 
 ```ts
-['tavily', 'stepfun', 'exa', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'bing', 'baidu']
+['tavily', 'stepfun', 'exa', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']
 ```
 
-可见顺序是 `exa, google, bing, baidu`。将 Exa 下移时，应交换完整数组中的 `exa` 与 `google`：
+可见顺序是 `exa, google, bing, baidu, douyin, xiaohongshu, bilibili, yandex, duckduckgo`。将 Exa 下移时，应交换完整数组中的 `exa` 与 `google`：
 
 ```ts
-['tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'jina', 'doubao', 'doubao-global', 'bing', 'baidu']
+['tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'jina', 'doubao', 'doubao-global', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']
 ```
 
 隐藏 provider 仍保留在偏好中，重新配置后会按用户原有位置意图重新出现。
 
-移动控件还应具备完整交互状态：本地化 `aria-label` 和 `title`；首项上移、末项下移禁用；保存 pending 时禁用所有移动按钮；点击后乐观更新；写入失败时回滚到 `previousOrder`，并用 `role="alert"` 告知用户。
+（历史 UI 细节，控件已移除：移动控件曾要求完整交互状态——本地化 `aria-label` 和 `title`；首项上移、末项下移禁用；保存 pending 时禁用所有移动按钮；点击后乐观更新；写入失败时回滚到 `previousOrder`，并用 `role="alert"` 告知用户。）
 
 ### 将读写留在 worker，并让所有宿主同源消费
 
 页面不直接读写 `sourceOrder`。它作为 `ProviderConfigReply` 脱敏配置快照的一部分返回，`setSourceOrder` 消息由 background 路由到 gateway，再由 storage helper 规范化并持久化。这延续了 BYOK worker-only 边界，不会让页面接触 `providerKeys` 或已存明文 key；主题、语言等非敏感 UI 偏好仍可通过各自 helper 精确读写。
 
-`getSourceOrder` 精确读取自身键：
+`getSourceOrder` 精确读取自身键与 site-engine 定义（规范化补尾需要完整定义集）：
 
 ```ts
-const got = await browser.storage.local.get(SOURCE_ORDER_KEY);
-return normalizeSourceOrder(got[SOURCE_ORDER_KEY]);
+const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_ENGINES_KEY]);
+return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]));
 ```
 
 不要用 `get(null)` 读取一个偏好；那会把敏感 key 和缓存池等无关数据读入同一个 record。`sourceOrder` 同时属于 config storage domain 白名单。
@@ -149,7 +151,7 @@ const hasSourceOrder = Object.prototype.hasOwnProperty.call(obj, 'sourceOrder');
 - 新旧配置导入、严格显式字段校验、preview/apply 语义和导入/移动串行顺序。
 - 仅顺序变化时也进入偏好确认，并在导入报告中显示该偏好。
 
-本次最终验证：`npm test` 通过 32 个测试文件、342 项测试；`npm run typecheck`、`npm run lint` 与 `npm run build` 均通过。
+本次最终验证：`npm test` 通过 35 个测试文件、342 项测试；`npm run typecheck`、`npm run lint` 与 `npm run build` 均通过。
 
 ## Why This Matters
 

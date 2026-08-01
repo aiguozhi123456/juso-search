@@ -1,6 +1,7 @@
 ---
 title: Default-off capability gating for Agent Bridge and engine-search (CWS compliance)
 date: 2026-07-25
+last_updated: 2026-08-01
 category: docs/solutions/architecture-patterns
 module: Agent Bridge / background worker
 problem_type: architecture_pattern
@@ -109,7 +110,7 @@ These are reduction-in-risk optimizations, not blockers; the default-off gate is
 
 ## Related
 
-- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — the Agent Bridge architecture this gate plugs into. Its handler description (inject the engine-search executor after sender validation) is now incomplete: the total-switch check precedes injection, and the executor is wrapped by the sub-switch. **Refresh candidate** — backfill the gating note and cross-reference this doc.
+- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — the Agent Bridge architecture this gate plugs into. It already describes the same two-layer gating (the total-switch check precedes injection, and the executor is wrapped by the sub-switch) and cross-references this doc.
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — the other half of the CWS-compliance story: static injection-scope minimization. This doc is the runtime-capability counterpart.
 - `docs/solutions/architecture-patterns/config-preference-pipeline.md` — the end-to-end preference pipeline the two new switches follow (storage / schema / i18n / options UI).
 - `docs/assets/store/privacy.md` — the store-listing copy that discloses the default-off posture to reviewers; the code and the copy must stay in sync.

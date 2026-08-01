@@ -1,7 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
-last_updated: 2026-07-28
+last_updated: 2026-08-01
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -32,7 +32,7 @@ tags:
 
 ## Context
 
-A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate seven AI search providers — Tavily, Exa, Stepfun REST, Stepfun MCP, Jina, Doubao, and Doubao Global — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
+A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate eight AI search providers — Tavily, Exa, Brave, Stepfun REST, Stepfun MCP, Jina, Doubao, and Doubao Global — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
 
 ## Guidance
 
@@ -103,6 +103,7 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
   id: 'tavily',
   label: 'provider_tavily',
   supportsAnswer: true,
+  favicon: '/icons/tavily.svg',
   transport: restTransport({
     endpoint: 'https://api.tavily.com/search',
     label: 'provider_tavily',
@@ -130,6 +131,7 @@ The worker reads the BYOK key and passes it into `adapter.search(query, opts, ke
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
   exa: exaAdapter,
+  brave: braveAdapter,
   stepfun: stepfunAdapter,
   'stepfun-plan': stepfunPlanAdapter,
   jina: jinaAdapter,
@@ -159,7 +161,7 @@ function SearchResults({ response }: { response: NormalizedSearchResponse }) {
 
 ```ts
 // lib/storage.ts — never imported by UI entrypoints
-export async function getKey(provider: string): Promise<string> {
+export async function getKey(provider: string): Promise<string | null> {
   const data = await chrome.storage.local.get(providerKey(provider))
   return data[providerKey(provider)] ?? ''
 }

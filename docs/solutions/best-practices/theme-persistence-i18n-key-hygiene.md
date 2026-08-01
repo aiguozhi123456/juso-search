@@ -1,7 +1,7 @@
 ---
 title: "Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension"
 date: 2026-07-04
-last_updated: 2026-07-19
+last_updated: 2026-08-01
 category: best-practices
 module: "theme / i18n / storage layer / provider config messaging"
 problem_type: best_practice
@@ -98,6 +98,8 @@ export type ProtocolMap = {
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
 };
 ```
+
+Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has 7 fields (`siteEngines`, `providerMaxResults`, and `groupConfig` were added later); see `lib/messaging.ts`.
 
 Then implement the storage reads and writes only in the background gateway:
 
@@ -236,6 +238,8 @@ const listener = (message: unknown) => {
 browser.runtime.onMessage.addListener(listener);
 return () => browser.runtime.onMessage.removeListener(listener);
 ```
+
+The worker broadcast now covers four preference keys: `themePref`, `localePref`, `stylePref`, and `serpBarPosition`.
 
 Tests should capture the worker's storage listener separately from each hook's runtime listener. Fire typed `uiPrefChanged` messages to verify valid updates, invalid-value rejection, and cleanup; worker tests should also prove that unrelated storage changes are not broadcast.
 

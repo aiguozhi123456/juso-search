@@ -12,10 +12,13 @@ The shared data model returned by every ProviderAdapter, collapsing each provide
 
 ## Search Source (v2)
 
+### ProviderId / EngineId / SourceId
+The three parallel identity sets of the source model: provider ids (key-backed API integrations), engine ids (keyless navigable search engines), and source ids (the union of both plus user-defined Site Engines). The sets deliberately stay separate — provider-backed execution and engine navigation never share an id — and the only cross-cutting merge is SourceId, the composition point that the UI, storage, and the SERP Switch Bar all speak.
+
 ### Search Engine
 A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, …) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and remains parallel to providers rather than joining their execution contract.
 
-Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Engines whose results render through async interfaces behind login walls ship a placeholder extraction path that reports an unsupported layout instead of results, and the Agent-facing search surface exposes only the extraction-capable subset. Adding an engine is therefore several independent decisions — navigation registration, extraction support or deliberate non-support, Agent-surface inclusion, and default visibility — not one.
+Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Every registered engine now ships a real Engine Extractor (the placeholder path is retained but unused), and the Agent-facing search surface mirrors the full engine list through its allowlist; default visibility in the quick-switch bar remains the per-engine gate. Adding an engine is therefore several independent decisions — navigation registration, extraction support, Agent-surface inclusion, and default visibility — not one.
 
 Each engine must emit its true canonical SERP URL (verified against the address the engine itself settles on after a real navigation): a non-canonical form that triggers a host-side redirect is an antifraud signal on engines like Yandex and can turn every navigation into a verification wall. The companion agent-bridge client (Python skill) carries its own engine allowlist that must mirror the worker's, so a newly extraction-capable engine is exposed to agents only when both lists agree.
 
@@ -63,7 +66,7 @@ It appears before the engine's complete result experience while aligning with th
 
 On slow SPA SERPs, the bar re-resolves ordered placement anchors on each mount, remounts with a budget when the host is detached by the page, and upgrades placement only from a last-resort fallback—not between intermediate anchors—so the control does not jump vertically as optional shells appear later.
 
-The bar has two positioning models, selected by a user preference (auto/top/bottom). The **top** model is per-engine inline insertion: the shadow host is a sibling of a persistent results container, horizontally aligned to the engine's main content column. The **bottom** model is a universal fixed viewport overlay (`position: fixed; bottom: 0`) with a page-padding shim so the fixed bar does not cover content; it ignores per-engine anchors entirely. In `auto` mode the bar resolves to bottom on narrow viewports and top otherwise. The bottom variant supports scroll-to-hide (the bar slides out on downward scroll and returns on upward scroll or near page top) and mobile polish (safe-area insets, horizontal chip scroll, active-chip centering).
+The bar has two positioning models, selected by a user preference (auto/top/bottom). The **top** model is per-engine inline insertion: the shadow host is a sibling of a persistent results container, horizontally aligned to the engine's main content column. The **bottom** model is a universal fixed viewport overlay (`position: fixed; bottom: 0`) with a page-padding shim so the fixed bar does not cover content; it ignores per-engine anchors entirely and mounts the shadow host to `document.body` to escape site stacking and containing-block contexts. In `auto` mode the bar resolves to bottom on narrow viewports and top otherwise. The bottom variant supports scroll-to-hide (the bar slides out on downward scroll and returns on upward scroll or near page top) and mobile polish (safe-area insets, horizontal chip scroll, active-chip centering).
 
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
@@ -78,7 +81,7 @@ A `search.html?provider=X&query=Y` URL that drops the user into the Juso search 
 ### Agent Bridge
 A short-lived, loopback-only capability channel that lets a local Agent invoke selected extension-worker actions without receiving the extension's stored secrets.
 
-Each invocation uses a new local port, token, and request identity. The bridge grants one bounded request, validates both request and response against that action, and disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
+Each invocation uses a new local port, token, and request identity. The protocol is a claim/complete pair: the agent claims a single bounded request on the loopback endpoint, the worker validates sender and request, executes the one action, and reports completion. The bridge disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
 
 The bridge ships disabled by default behind a two-layer opt-in: a total switch gates the entire bridge, and a separate sub-switch gates only the engine-search action, which can drive the browser to load third-party search-engine pages and extract their public results. A capability that silently loads third-party pages on an external process's behalf must be opt-in, not default-on.
 
@@ -92,11 +95,14 @@ A structured failure returned by browser-powered Search Engine search when no us
 
 Page-state kinds mean “do not trust this page’s organic list as empty success.” Orchestration kinds mean “the tab or handshake failed before a trustworthy page-state decision.” Collapsing orchestration into `unsupported-layout` misroutes recovery (for example treating a user-closed tab as a DOM-layout bug).
 
+### Engine Extractor
+The per-engine DOM reader that turns a rendered Search Engine result page into natural result metadata (title, url, snippet). Each Search Engine registers exactly one extractor; they run in the content-script context of the temporary search tab and are pure DOM functions over the live page. A failure to produce usable results surfaces as an Engine Extraction Error, never as an empty success.
+
 ### BYOK
 Bring Your Own Key. The extension stores the user's API keys exclusively in `chrome.storage.local` (`providerKeys` map). Stored keys are read only by the background service worker via worker-side storage helpers. UI pages may temporarily hold the newly typed key a user is saving, but they do not read the stored key map back from storage; they receive only sanitized provider configuration status through worker messages. Key values are never logged, telemetered, sent to third parties, or committed.
 
 ### Provider Configuration Status
-The declassified status the UI needs to render provider and source choices without reading stored API keys. It includes configured provider identities, the provider-only Active Provider, the user-facing Active Source, and Source Order, returned by the background worker through messaging.
+The declassified status the UI needs to render provider and source choices without reading stored API keys. It includes configured provider identities, the provider-only Active Provider, the user-facing Active Source, and the source-bar preferences the UI projects — Source Order, Source Visibility, Source Group Layout, and per-provider settings such as result count — returned by the background worker through messaging.
 
 Provider execution surfaces hide unconfigured providers; source selection surfaces project visible choices from Source Order; API-key configuration surfaces still list all known providers so users can add new keys.
 
@@ -131,7 +137,7 @@ A top-level partition of the options page that shows only a related subset of se
 Groups are an information-architecture shell: they do not replace individual preference keys or worker messaging. Switching groups changes which sections mount; it does not scroll a single long form.
 
 ### Answer Capability Degradation (R5)
-When the active provider does not support synthesized answers (Stepfun), the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this. Tavily and Exa support answers; Stepfun, Jina, and Doubao do not.
+When the active provider does not support synthesized answers, the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this: only providers whose adapter declares answer support render the section, so the capability list is owned by the adapters, not by any fixed enumeration.
 
 ### Local Search Cache
 The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query, so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
@@ -149,7 +155,10 @@ A logical partition of `chrome.storage.local` that has its own schema version st
 ## Billing
 
 ### Step Plan
-Stepfun's token-based subscription plan. Searches via the MCP channel (`web_search`) consume the user's Step Plan Credit pool (monthly, 0.04 元 per call). This is distinct from Stepfun's pay-as-you-go REST API (`/v1/search`), which is metered independently. The extension exposes both as separate providers (`stepfun` = REST, `stepfun-plan` = MCP/subscription) so the user can pick whichever match their billing arrangement.
+Stepfun's token-based subscription plan. Searches via the MCP channel (`web_search`) consume the user's monthly Step Plan Credit pool, metered per call. This is distinct from Stepfun's pay-as-you-go REST API (`/v1/search`), which is metered independently. The extension exposes both as separate providers (`stepfun` = REST, `stepfun-plan` = MCP/subscription) so the user can pick whichever matches their billing arrangement.
+
+### Dual-provider pattern
+Shipping one provider brand as two adapters that share a single icon, label family, and error mapping when the brand has two billing or API surfaces (pay-as-you-go REST vs. a subscription channel): Stepfun/Stepfun Plan and Doubao/Global are both built this way. The adapters stay separate providers so the user picks whichever matches their billing arrangement; the shared identity is presentation only.
 
 ## Flagged ambiguities
 

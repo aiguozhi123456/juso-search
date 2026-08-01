@@ -1,6 +1,7 @@
 ---
 title: "Site Engine as third Search Source with safe persistence invariants"
 date: 2026-07-26
+last_updated: 2026-08-01
 category: architecture-patterns
 module: "site-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -177,11 +178,11 @@ async function createSiteEngine(input: NewSiteEngine): Promise<Result> {
 **Before (stale navigate):**
 
 ```ts
-// SERP onSelect
+// SERP onSelect (pre-fix sketch: pre-write resolve, then navigate)
 const config = await getConfig();
-const resolved = resolveSiteEngine(config, id); // pre-write
+const resolved = resolveCurrentSiteEngineHandoff(id, query, config.siteEngines ?? []); // pre-write
 await setActiveSource(id);
-location.assign(resolved.searchUrl); // may be deleted/stale after concurrent write
+location.assign(resolved.url); // may be deleted/stale after concurrent write
 ```
 
 **After (shared post-write decision):**
@@ -191,7 +192,7 @@ location.assign(resolved.searchUrl); // may be deleted/stale after concurrent wr
 const gen = ++selectGen; // race guard (with switchReqIdRef on search)
 await setActiveSource(id); // before any navigation decision completes
 const configAfter = await getConfig(); // re-read after write path
-const decision = decidePostWriteSiteEngineNavigation(configAfter, id);
+const decision = decidePostWriteSiteEngineNavigation(id, query, configAfter.siteEngines ?? [], preWriteNavigateUrl);
 
 if (gen !== selectGen) return; // stale
 
@@ -200,21 +201,29 @@ if (decision.kind === "unresolved") {
   return;
 }
 
-location.assign(decision.searchUrl); // post-write URL only
+location.assign(decision.url); // post-write URL only
 ```
 
-Helper sketch:
+Helper sketch（真实签名）：
 
 ```ts
 function decidePostWriteSiteEngineNavigation(
-  config: AppConfig,
-  sourceId: string,
-): { kind: "navigate"; searchUrl: string } | { kind: "unresolved" } {
-  const engine = resolveSiteSource(config, sourceId);
-  if (!engine) return { kind: "unresolved" };
-  return { kind: "navigate", searchUrl: buildSiteScopedUrl(engine, config.query) };
+  siteId: SourceId,
+  query: string,
+  postWriteSiteEngines: readonly SiteEngineDefinition[] | null,
+  preWriteNavigateUrl: string,
+): { kind: "navigate"; url: string } | { kind: "unresolved" } {
+  if (postWriteSiteEngines == null) {
+    // Post-write config read failed; the write already succeeded — keep the pre-write URL.
+    return { kind: "navigate", url: preWriteNavigateUrl };
+  }
+  const handoff = resolveCurrentSiteEngineHandoff(siteId, query, postWriteSiteEngines);
+  if (handoff?.kind === "navigate") return handoff;
+  return { kind: "unresolved" };
 }
 ```
+
+实际辅助函数名为 `resolveCurrentSiteEngineHandoff`（按最新定义重解析站点引擎跳转）与 `buildSiteEngineQuery`（构造 `site:` 作用域查询）；早期草稿中的 `resolveSiteEngine` / `buildSiteScopedUrl` 并不存在。
 
 ### Related product rules (non-code)
 

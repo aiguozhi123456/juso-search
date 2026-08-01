@@ -1,7 +1,7 @@
 ---
 title: "Unified Source Model and Shadow-DOM SERP Switch Bar for Cross-Engine Quick-Switching"
 date: 2026-07-08
-last_updated: 2026-07-30
+last_updated: 2026-08-01
 category: architecture-patterns
 module: "engines / sources / content-script / search page"
 problem_type: architecture_pattern
@@ -50,13 +50,13 @@ v1 shipped a single-select AI provider switcher on a standalone extension page. 
 
 2. **Introduce a `SearchSource` view layer** (`lib/sources.ts`) that projects configured providers + all engines (and user-defined site engines) into one homogeneous `{ id, kind, label, supportsAnswer, favicon?, ... }` shape — the place where "configured providers only" (v1 rule) and "all engines always" meet, and where `isEngineId`/`isProviderId` guards narrow a `SourceId` back to the typed registry at the call site. Note: as of the source-group layout layer, this flat `SearchSource[]` is **no longer the seam the switcher renders**. `SourceSwitcher` now takes `sources` plus a `groupConfig` and projects a mixed `PinnedItem | GroupItem` sequence via `projectLayout` (`lib/source-groups.ts`); the flat `SearchSource[]` is the projection that layout layer consumes. Grouping is purely a layout layer over the same sources — it never re-hides or re-orders them. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the layout seam.
 
-3. **One switcher component, two hosts.** `SourceSwitcher` is presentational (`{ sources, activeId, onSelect, disabled }`); the host decides what selection *means*. On the Juso search page, a provider selection does the v1 serialized-write + re-search, and an engine selection does a current-tab `location.assign`. On the injected SERP bar, any selection is a current-tab navigation (engine → that SERP/home; provider → Juso search page deep link).
+3. **One switcher component, two hosts.** `SourceSwitcher` is presentational (`{ sources, activeId, onSelect, disabled }`); the host decides what selection *means*. On the Juso search page, a provider selection does the v1 serialized-write + re-search, and an engine selection does a current-tab `location.assign`. On the injected SERP bar, an engine selection is still a direct current-tab `location.assign` (engine → that SERP/home); a provider selection is **worker-mediated** — the bar sends an `openSearchPage` deep-link message to the background worker, which navigates the current tab via `browser.tabs.update` (a web page cannot `location.assign` to a `chrome-extension://` URL, `ERR_BLOCKED_BY_CLIENT`).
 
 4. **SERP bar in a shadow DOM.** `createShadowRootUi` (WXT) isolates the bar's CSS from the host page and vice versa. Because the shadow root cannot read the extension's `tokens.css`, the bar ships its own self-contained token set (`entrypoints/shared/serp-bar-styles.ts`) keyed by `data-theme` on the shadow host, resolved from the user's `themePref` (auto resolves via `prefers-color-scheme`). The mount-time `data-engine` host attribute similarly carries engine-specific host integration into the shadow stylesheet, notably stacking behavior; see [Engine-Specific Shadow DOM Anchors for SERP SourceSwitcher](../ui-bugs/serp-bar-engine-specific-anchors.md) for the authoritative details.
 
-5. **Deep link as the SERP→Juso handoff.** `search.html?provider=X&query=Y` (`lib/deep-link.ts`) carries state across the current-tab navigation. The search page mount effect parses it: `provider` is honored only if configured (else falls back to active), and a present `query` pre-fills and auto-fires one search. This avoids needing cross-tab messaging for the handoff.
+5. **Deep link as the SERP→Juso handoff.** `search.html?provider=X&query=Y` (`lib/deep-link.ts`) carries state across the current-tab navigation. The search page mount effect parses it: `provider` is honored only if configured (else falls back to active), and a present `query` pre-fills and auto-fires one search. The handoff is **worker-mediated but stays in the current tab**: the SERP bar sends `openSearchPage` with the deep link to the background worker, which navigates the sender's tab via `browser.tabs.update` (`entrypoints/background.ts`) — no new tab, no page-to-page messaging. Engine choices still navigate directly via `location.assign`.
 
-6. **Manifest surface stays minimal.** `lib/engines/scopes.ts` centralizes approved SERP hosts across six engines（Google 5 个区域域名 + `www.bing.com` / `cn.bing.com` + `www.baidu.com` + `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com`）用于静态 content-script 和 favicon-resource 匹配。搜索主机不进 `host_permissions`；只有 provider API 主机需要这些权限，且不需要 `scripting`/`activeTab` 权限。
+6. **Manifest surface stays minimal.** `lib/engines/scopes.ts` centralizes approved SERP hosts across eight engines（Google 5 个区域域名 + `www.bing.com` / `cn.bing.com` + `www.baidu.com` + `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com` + `yandex.com` / `yandex.ru` + `duckduckgo.com`）用于静态 content-script 和 favicon-resource 匹配。搜索主机不进 `host_permissions`；只有 provider API 主机需要这些权限，且不需要 `scripting`/`activeTab` 权限。
 
 ## Consequences
 
