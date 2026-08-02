@@ -324,11 +324,12 @@ describe('storage: source order', () => {
 describe('storage: groupConfig', () => {
   it('returns the default group config when unset (all sources grouped by type)', async () => {
     const cfg = await getGroupConfig();
-    expect(cfg.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites']);
+    expect(cfg.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites', 'custom']);
     expect(cfg.layout).toEqual([
       { kind: 'group', groupId: 'ai-search' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'custom' },
     ]);
     expect(cfg.assignments).toEqual({});
   });
@@ -352,10 +353,13 @@ describe('storage: groupConfig', () => {
     const cfg = await getGroupConfig();
     // google pinned → its assignment dropped; ghost (unknown source) dropped
     expect(cfg.assignments).toEqual({ tavily: 'custom' });
+    // 持久化 layout 缺 engines/sites；normalize 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(cfg.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
       { kind: 'group', groupId: 'custom' },
+      { kind: 'group', groupId: 'engines' },
+      { kind: 'group', groupId: 'sites' },
     ]);
   });
 
@@ -368,10 +372,16 @@ describe('storage: groupConfig', () => {
     });
     const snap = await getProviderConfigSnapshot();
     expect(snap.groupConfig).toBeDefined();
-    // missing builtin groups (engines, sites) filled into groups in DEFAULT_GROUPS order;
-    // the persisted ai-search is reordered into its canonical position. Layout preserved as stored.
-    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites']);
-    expect(snap.groupConfig.layout).toEqual([{ kind: 'group', groupId: 'ai-search' }]);
+    // missing builtin groups (engines, sites, custom) filled into groups in DEFAULT_GROUPS order;
+    // the persisted ai-search is reordered into its canonical position. The layout's missing builtin
+    // groups (engines, sites, custom) are appended at the end so the new groups render persistently.
+    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['ai-search', 'engines', 'sites', 'custom']);
+    expect(snap.groupConfig.layout).toEqual([
+      { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'engines' },
+      { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'custom' },
+    ]);
   });
 });
 
@@ -527,6 +537,61 @@ describe('storage: Site Engines', () => {
     await deletion;
     await expect(selection).rejects.toThrow('invalid_source');
     expect((await browser.storage.local.get('activeSource')).activeSource).not.toBe(site.id);
+  });
+});
+
+describe('storage: site engine CRUD preserves custom-engine source graph (H1 regression)', () => {
+  // A custom engine that is ordered in a NON-tail position AND hidden, alongside a
+  // visible usable engine (google) so the hidden state stays stable across mutations.
+  const custom = { id: 'custom:alpha' as const, name: 'Alpha', urlTemplate: 'https://alpha.com/search?q=%s' };
+  const site = { id: 'site:coexist' as const, name: 'Coexist', target: 'https://coexist.example.com/', engineId: 'google' as const };
+
+  async function seed(): Promise<void> {
+    await browser.storage.local.set({
+      customEngines: [custom],
+      sourceOrder: ['custom:alpha', 'bing', 'google'],
+      sourceHidden: ['custom:alpha'],
+    });
+  }
+
+  it('createSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+    await seed();
+    await createSiteEngineDefinition(site);
+    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    // sanity: the site engine was actually created
+    expect((got.siteEngines as { id: string }[]).some((s) => s.id === site.id)).toBe(true);
+    // H1: custom id still present, still in its non-tail position (not dropped, not jumped to tail)
+    expect(got.sourceOrder).toContain('custom:alpha');
+    expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);
+    expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBeLessThan((got.sourceOrder as string[]).indexOf('bing'));
+    // H1: custom id still hidden
+    expect(got.sourceHidden).toContain('custom:alpha');
+  });
+
+  it('updateSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+    await seed();
+    await createSiteEngineDefinition(site);
+    await updateSiteEngineDefinition(site.id, { ...site, name: 'Renamed' });
+    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    // sanity: the update actually applied
+    expect((got.siteEngines as { name: string }[]).some((s) => s.name === 'Renamed')).toBe(true);
+    // H1: custom id survives the update in position and hidden state
+    expect(got.sourceOrder).toContain('custom:alpha');
+    expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);
+    expect(got.sourceHidden).toContain('custom:alpha');
+  });
+
+  it('deleteSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+    await seed();
+    await createSiteEngineDefinition(site);
+    await deleteSiteEngineDefinition(site.id);
+    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    // sanity: the site engine was actually removed
+    expect((got.siteEngines as { id: string }[]).some((s) => s.id === site.id)).toBe(false);
+    // H1: custom id survives the delete (not dropped from order/hidden)
+    expect(got.sourceOrder).toContain('custom:alpha');
+    expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);
+    expect(got.sourceHidden).toContain('custom:alpha');
   });
 });
 

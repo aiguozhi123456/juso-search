@@ -12,11 +12,13 @@
 
 import type { SearchSource, SourceId } from './sources';
 import { isProviderId, isEngineId } from './sources';
+import { isCustomEngineId } from './custom-engines';
 
-/** 内置分组 id：AI 搜索 / 搜索引擎 / 站点。 */
+/** 内置分组 id：AI 搜索 / 搜索引擎 / 站点 / 自定义。 */
 export const AI_SEARCH_GROUP = 'ai-search';
 export const ENGINES_GROUP = 'engines';
 export const SITES_GROUP = 'sites';
+export const CUSTOM_GROUP = 'custom';
 
 export type SourceGroupId = string;
 
@@ -50,18 +52,21 @@ export const DEFAULT_GROUPS: SourceGroup[] = [
   { id: AI_SEARCH_GROUP, label: { kind: 'i18n', key: 'group_ai_search' } },
   { id: ENGINES_GROUP, label: { kind: 'i18n', key: 'group_engines' } },
   { id: SITES_GROUP, label: { kind: 'i18n', key: 'group_sites' } },
+  { id: CUSTOM_GROUP, label: { kind: 'i18n', key: 'group_custom' } },
 ];
 
 const BUILTIN_GROUP_IDS: ReadonlySet<string> = new Set([
   AI_SEARCH_GROUP,
   ENGINES_GROUP,
   SITES_GROUP,
+  CUSTOM_GROUP,
 ]);
 
 /** 按 source 的 kind 推导缺省分组 id（不查 assignments，仅按类型）。 */
 export function defaultGroupForSourceId(sourceId: SourceId): SourceGroupId {
   if (isProviderId(sourceId)) return AI_SEARCH_GROUP;
   if (isEngineId(sourceId)) return ENGINES_GROUP;
+  if (isCustomEngineId(sourceId)) return CUSTOM_GROUP;
   return SITES_GROUP; // site:*
 }
 
@@ -140,7 +145,8 @@ function isSwitcherItem(raw: unknown, knownSourceIds: Set<string>, knownGroupIds
  *   - groups：剔除非法 label 与重复 id（保留首现），内置三组缺失则补齐；
  *   - layout：剔除未知 source/group，保留首次出现（去重），并保证「全部 source 都有归宿」——
  *     每个已知 source 要么置顶（layout 里），要么可被某分组收纳（按 assignments/defaultGroupFor）。
- *     layout 缺失/空时回退默认：仅含三个内置分组项；
+ *     layout 缺失/空时回退默认：全部内置分组项；非空时把缺失的内置组按 DEFAULT_GROUPS 顺序追加到
+ *     末尾（用户自建组不自动加，已存在的内置组不重复），保证升级新增的内置组（如 custom）位置持久化；
  *   - assignments：剔除指向已删除分组 / 未知 source / 已置顶 source 的赋值；
  *   - groupOrders：在 layout 与 assignments 清洗之后做（依赖两者结果）——gid 必须存在于
  *     清洗后的 groups；ids 逐个过滤：必须已知、未置顶、且解析归属为该 gid；去重保留首现。
@@ -203,11 +209,20 @@ export function normalizeGroupConfig(
     seenLayoutKeys.add(key);
     layout.push(item);
   }
-  // layout 空/缺失 → 默认：三个内置分组项（按 DEFAULT_GROUPS 顺序）。
+  // layout 空/缺失 → 默认：全部内置分组项（按 DEFAULT_GROUPS 顺序）。
   if (layout.length === 0) {
     for (const g of DEFAULT_GROUPS) {
       layout.push({ kind: 'group', groupId: g.id });
     }
+  }
+  // 补齐缺失的内置分组到 layout 末尾：升级新增内置组（如 custom）后，老用户的非空 layout 不含该组，
+  // 否则该组只能靠 projectLayout 的兜底扫描渲染（位置不可控、不持久化）。这里把缺失的内置组按
+  // DEFAULT_GROUPS 顺序追加到末尾，使其位置持久化、用户可控。规则：
+  //   - 仅补内置组（DEFAULT_GROUPS）——用户自建组不自动进 layout，须由用户显式添加；
+  //   - 已存在于 layout 的内置组不重复追加；既有顺序保持不变，仅在末尾追加。
+  const presentGroupIds = layoutGroupIds(layout);
+  for (const g of DEFAULT_GROUPS) {
+    if (!presentGroupIds.has(g.id)) layout.push({ kind: 'group', groupId: g.id });
   }
 
   // ── assignments ──

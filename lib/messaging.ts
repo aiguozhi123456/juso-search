@@ -5,6 +5,7 @@ import type { GroupConfig } from './source-groups';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 import type { SiteEngineDefinition, SiteEngineEngineId, SiteEngineId } from './site-engines';
+import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 
 export type SearchRequest = {
   query: string;
@@ -40,6 +41,7 @@ export type ProviderConfigReply = {
   sourceOrder: SourceId[];
   sourceHidden: SourceId[];
   siteEngines: SiteEngineDefinition[];
+  customEngines: CustomEngineDefinition[];
   /** 每个 provider 的搜索结果条数设置（已显式配置过的 id 才出现；缺省由适配器默认）。 */
   providerMaxResults: Partial<Record<ProviderId, number>>;
   /** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */
@@ -72,6 +74,10 @@ export type ProtocolMap = {
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;
+  createCustomEngine(data: { name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
+  updateCustomEngine(data: { id: CustomEngineId; name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
+  deleteCustomEngine(id: CustomEngineId): Promise<void>;
+  openNewTab(url: string): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
   deleteProviderKey(providerId: ProviderId): Promise<void>;
   setProviderMaxResults(data: { providerId: ProviderId; maxResults: number }): Promise<void>;

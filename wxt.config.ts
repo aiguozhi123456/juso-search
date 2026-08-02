@@ -61,6 +61,7 @@ export default defineConfig({
           'icons/doubao.svg',
           'icons/jina.svg',
           'icons/site.svg',
+          'icons/custom-engine.svg',
         ],
         matches: SERP_HOST_MATCH_PATTERNS,
       },

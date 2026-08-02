@@ -10,9 +10,11 @@ import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
 import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
 import { isSiteEngineId } from './site-engines';
+import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
+import { isCustomEngineId } from './custom-engines';
 
-export type SourceKind = 'provider' | 'engine' | 'site-engine';
-export type SourceId = ProviderId | EngineId | SiteEngineId;
+export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine';
+export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId;
 
 /** A label which is either an i18n message key or a user-supplied literal. */
 export type SourceLabel =
@@ -32,6 +34,8 @@ export interface SearchSource {
   favicon?: string;
   /** Execution descriptor for a dynamic site-scoped engine. */
   siteEngine?: SiteEngineDefinition;
+  /** Execution descriptor for a user-defined custom engine. */
+  customEngine?: CustomEngineDefinition;
 }
 
 const ENGINE_IDS: ReadonlySet<string> = new Set(allEngines().map((e) => e.id));
@@ -41,14 +45,15 @@ const DEFAULT_SOURCE_ORDER: SourceId[] = [
 ];
 
 /**
- * 当前已知的全部 source id（provider + engine + 给定 site-engine 定义），
+ * 当前已知的全部 source id（provider + engine + 给定 site-engine 定义 + 给定 custom-engine 定义），
  * 供 normalizeGroupConfig 等校验逻辑使用。单一定义点，避免各调用方各自硬编码 engine 列表导致漂移。
  */
-export function allKnownSourceIds(siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+export function allKnownSourceIds(siteDefinitions: readonly SiteEngineDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = []): SourceId[] {
   return [
     ...allProviders().map((provider) => provider.id),
     ...allEngines().map((engine) => engine.id),
     ...siteDefinitions.map((definition) => definition.id),
+    ...customDefinitions.map((definition) => definition.id),
   ];
 }
 
@@ -71,13 +76,14 @@ export function isProviderId(id: string): id is ProviderId {
 /**
  * 规范化用户保存的完整来源顺序：保留已知 id 的首次出现，遗漏项按默认 registry 顺序补尾。
  */
-export function normalizeSourceOrder(order: unknown, siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+export function normalizeSourceOrder(order: unknown, siteDefinitions: readonly SiteEngineDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = []): SourceId[] {
   const siteIds = new Set(siteDefinitions.map((site) => site.id));
+  const customIds = new Set(customDefinitions.map((c) => c.id));
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id);
     normalized.push(id);
   }
@@ -87,17 +93,21 @@ export function normalizeSourceOrder(order: unknown, siteDefinitions: readonly S
   for (const id of siteDefinitions.map((site) => site.id)) {
     if (!seen.has(id)) normalized.push(id);
   }
+  for (const id of customDefinitions.map((c) => c.id)) {
+    if (!seen.has(id)) normalized.push(id);
+  }
   return normalized;
 }
 
 /** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。 */
-export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteEngineDefinition[] = []): SourceId[] {
+export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteEngineDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = []): SourceId[] {
   const siteIds = new Set(siteDefinitions.map((site) => site.id));
+  const customIds = new Set(customDefinitions.map((c) => c.id));
   const list = Array.isArray(ids) ? ids : [];
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -107,6 +117,11 @@ export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly Si
 /** A dynamic Site Engine ID is known only when there is a saved definition for it. */
 export function isKnownSiteEngineId(id: string, siteDefinitions: readonly SiteEngineDefinition[]): id is SiteEngineId {
   return isSiteEngineId(id) && new Set(siteDefinitions.map((site) => site.id)).has(id);
+}
+
+/** A dynamic Custom Engine ID is known only when there is a saved definition for it. */
+export function isKnownCustomEngineId(id: string, customDefinitions: readonly CustomEngineDefinition[]): id is CustomEngineId {
+  return isCustomEngineId(id) && new Set(customDefinitions.map((c) => c.id)).has(id);
 }
 
 /**
@@ -120,12 +135,14 @@ export function allSources(
   sourceOrder?: readonly SourceId[],
   hiddenSourceIds?: readonly SourceId[],
   siteDefinitions: readonly SiteEngineDefinition[] = [],
+  customDefinitions: readonly CustomEngineDefinition[] = [],
 ): SearchSource[] {
   const hidden = hiddenSourceIds && hiddenSourceIds.length > 0 ? new Set(hiddenSourceIds) : null;
   const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
   const enginesById = new Map(allEngines().map((engine) => [engine.id, engine]));
   const sitesById = new Map(siteDefinitions.map((site) => [site.id, site]));
-  return normalizeSourceOrder(sourceOrder, siteDefinitions).flatMap((id): SearchSource[] => {
+  const customsById = new Map(customDefinitions.map((c) => [c.id, c]));
+  return normalizeSourceOrder(sourceOrder, siteDefinitions, customDefinitions).flatMap((id): SearchSource[] => {
     if (hidden && hidden.has(id)) return [];
     const provider = providersById.get(id as ProviderId);
     if (provider) {
@@ -144,10 +161,16 @@ export function allSources(
       labelDescriptor: { kind: 'i18n', key: engine.label }, supportsAnswer: false, favicon: engine.favicon,
     }];
     const site = sitesById.get(id as SiteEngineId);
-    return site ? [{
+    if (site) return [{
       id: site.id, kind: 'site-engine', label: site.name,
       labelDescriptor: { kind: 'literal', value: site.name }, supportsAnswer: false, favicon: '/icons/site.svg',
       siteEngine: site,
+    }];
+    const custom = customsById.get(id as CustomEngineId);
+    return custom ? [{
+      id: custom.id, kind: 'custom-engine', label: custom.name,
+      labelDescriptor: { kind: 'literal', value: custom.name }, supportsAnswer: false, favicon: '/icons/custom-engine.svg',
+      customEngine: custom,
     }] : [];
   });
 }

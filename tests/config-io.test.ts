@@ -115,9 +115,13 @@ describe('buildExportPayload', () => {
     });
     const payload = await buildExportPayload();
     expect(payload.groupConfig).toBeDefined();
+    // 持久化 layout 缺 engines/sites/custom；normalizeGroupConfig 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(payload.groupConfig?.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'engines' },
+      { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'custom' },
     ]);
   });
 
@@ -208,6 +212,19 @@ describe('parseImportPayload', () => {
     const payload = validPayload({ schemaVersion: 4 });
     const parsed = parseImportPayload(payload);
     expect(parsed.ok).toBe(true);
+  });
+
+  // 回归（M1）：导入接受连续支持区间 [MIN_SUPPORTED, CURRENT]，而非硬编码版本列表——
+  // 否则下次 bump（如 v6→v7）会静默拒绝仍有效的 v6 备份。覆盖区间内每个版本（含此前漏掉的 v5）。
+  it.each([3, 4, 5, CURRENT_SCHEMA_VERSION])('accepts schema version %i within the supported range', (version) => {
+    expect(parseImportPayload(validPayload({ schemaVersion: version })).ok).toBe(true);
+  });
+
+  it.each([2, CURRENT_SCHEMA_VERSION + 1])('rejects schema version %i outside the supported range', (version) => {
+    expect(parseImportPayload(validPayload({ schemaVersion: version }))).toEqual({
+      ok: false,
+      error: 'schema_version_mismatch',
+    });
   });
 
   it('rejects non-object', () => {

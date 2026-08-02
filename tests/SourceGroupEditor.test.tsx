@@ -118,7 +118,7 @@ describe('SourceGroupEditor — persist rollback', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
     // 最后一次 onChange 是回滚（previous：仍是默认配置，无自定义分组）。
     const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-    expect(lastCall.groups.every((g: { id: string }) => g.id === 'ai-search' || g.id === 'engines' || g.id === 'sites')).toBe(true);
+    expect(lastCall.groups.every((g: { id: string }) => g.id === 'ai-search' || g.id === 'engines' || g.id === 'sites' || g.id === 'custom')).toBe(true);
     // 错误提示可见。
     expect(await screen.findByText(LABEL.saveFailed())).toBeInTheDocument();
   });
@@ -288,15 +288,18 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     );
     const dt = dragDataTransfer();
     const rows = Array.from(container.querySelectorAll('.layout-row--group')) as HTMLElement[];
-    expect(rows).toHaveLength(2);
+    // orderedGroupConfig 的 layout 只有 ai-search/engines；组件内 normalizeGroupConfig 把缺失的
+    // 内置组（sites/custom）追加到末尾（L4），故编辑器渲染 4 行。
+    expect(rows).toHaveLength(4);
     fireEvent.dragStart(rows[0], { dataTransfer: dt });
     fireEvent.dragOver(rows[1], { dataTransfer: dt });
     fireEvent.drop(rows[1], { dataTransfer: dt });
     fireEvent.dragEnd(rows[0], { dataTransfer: dt });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
     const next = onChange.mock.calls[0][0] as GroupConfig;
+    // 拖动 row[0](ai-search) 到 row[1](engines)：remove+insert 交换两者，末尾追加的 sites/custom 位置不变。
     expect(next.layout.map((item) => item.kind === 'group' ? item.groupId : item.sourceId))
-      .toEqual(['engines', 'ai-search']);
+      .toEqual(['engines', 'ai-search', 'sites', 'custom']);
   });
 
   it('does not reorder across groups (cross-group member drag is a no-op)', async () => {

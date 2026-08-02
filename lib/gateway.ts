@@ -4,6 +4,7 @@ import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } fr
 import type { SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { isSiteEngineId, type SiteEngineDefinition, type SiteEngineEngineId, type SiteEngineId } from './site-engines';
+import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
 import type { AgentListProvidersReply } from './agent-bridge';
@@ -31,6 +32,9 @@ import {
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
+  createCustomEngineDefinition,
+  updateCustomEngineDefinition,
+  deleteCustomEngineDefinition,
 } from './storage';
 import { t, MSG } from './i18n';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
@@ -188,6 +192,23 @@ export async function handleDeleteSiteEngine(siteId: SiteEngineId): Promise<void
   await getSchemaReady();
   if (!isSiteEngineId(siteId)) throw new Error('invalid_site_engine');
   await deleteSiteEngineDefinition(siteId);
+}
+
+export async function handleCreateCustomEngine(data: { name: string; urlTemplate: string }): Promise<CustomEngineDefinition> {
+  await getSchemaReady();
+  return createCustomEngineDefinition({ ...data, id: `custom:${crypto.randomUUID()}` });
+}
+
+export async function handleUpdateCustomEngine(data: { id: CustomEngineId; name: string; urlTemplate: string }): Promise<CustomEngineDefinition> {
+  await getSchemaReady();
+  if (!isCustomEngineId(data.id)) throw new Error('invalid_custom_engine');
+  return updateCustomEngineDefinition(data.id, data);
+}
+
+export async function handleDeleteCustomEngine(id: CustomEngineId): Promise<void> {
+  await getSchemaReady();
+  if (!isCustomEngineId(id)) throw new Error('invalid_custom_engine');
+  await deleteCustomEngineDefinition(id);
 }
 
 export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {

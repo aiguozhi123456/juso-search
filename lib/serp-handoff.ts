@@ -16,6 +16,8 @@ import { buildSearchDeepLink } from './deep-link';
 import type { EngineId } from './engines/types';
 import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
 import { buildSiteEngineQuery, isSiteEngineEngineId, matchSiteEngineQuery } from './site-engines';
+import type { CustomEngineDefinition } from './custom-engines';
+import { buildCustomEngineUrl } from './custom-engines';
 
 export type SerpHandoff =
   | { kind: 'navigate'; url: string } // engine：当前 tab location.assign 到 https URL
@@ -79,6 +81,11 @@ export function nextQueryAfterSerpContext(
 /** 解析 chip 选中后的跳转意图；不识别的源返回 null。 */
 export function resolveSerpHandoff(source: SearchSource, query: string): SerpHandoff | null {
   const trimmed = query.trim();
+  if (source.kind === 'custom-engine' && source.customEngine) {
+    const url = trimmed ? buildCustomEngineUrl(source.customEngine.urlTemplate, trimmed) : null;
+    if (!url) return null;
+    return { kind: 'navigate', url };
+  }
   if (source.kind === 'site-engine' && source.siteEngine) {
     const scopedQuery = buildSiteEngineQuery(source.siteEngine, trimmed);
     if (!scopedQuery) return null;
@@ -112,6 +119,23 @@ export function resolveCurrentSiteEngineHandoff(
     label: siteEngine.name,
     supportsAnswer: false,
     siteEngine,
+  }, query);
+}
+
+/** Resolves a Custom Engine handoff from a freshly read definition. */
+export function resolveCurrentCustomEngineHandoff(
+  customId: SourceId,
+  query: string,
+  customDefinitions: readonly CustomEngineDefinition[],
+): SerpHandoff | null {
+  const customEngine = customDefinitions.find((d) => d.id === customId);
+  if (!customEngine) return null;
+  return resolveSerpHandoff({
+    id: customEngine.id,
+    kind: 'custom-engine',
+    label: customEngine.name,
+    supportsAnswer: false,
+    customEngine,
   }, query);
 }
 

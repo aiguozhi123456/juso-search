@@ -54,22 +54,24 @@ describe('resolveGroupId', () => {
 });
 
 describe('isBuiltinGroupId', () => {
-  it('recognizes the three built-in groups', () => {
+  it('recognizes the four built-in groups', () => {
     expect(isBuiltinGroupId(AI_SEARCH_GROUP)).toBe(true);
     expect(isBuiltinGroupId(ENGINES_GROUP)).toBe(true);
     expect(isBuiltinGroupId(SITES_GROUP)).toBe(true);
-    expect(isBuiltinGroupId('custom')).toBe(false);
+    expect(isBuiltinGroupId('custom')).toBe(true);
+    expect(isBuiltinGroupId('user-group')).toBe(false);
   });
 });
 
 describe('defaultGroupConfig', () => {
-  it('returns three builtin groups in layout, empty assignments', () => {
+  it('returns four builtin groups in layout, empty assignments', () => {
     const cfg = defaultGroupConfig(['tavily', 'google']);
-    expect(cfg.groups).toHaveLength(3);
+    expect(cfg.groups).toHaveLength(4);
     expect(cfg.layout).toEqual([
       { kind: 'group', groupId: AI_SEARCH_GROUP },
       { kind: 'group', groupId: ENGINES_GROUP },
       { kind: 'group', groupId: SITES_GROUP },
+      { kind: 'group', groupId: 'custom' },
     ]);
     expect(cfg.assignments).toEqual({});
   });
@@ -78,7 +80,7 @@ describe('defaultGroupConfig', () => {
 describe('normalizeGroupConfig', () => {
   it('returns default config for null/undefined/invalid raw', () => {
     const cfg = normalizeGroupConfig(undefined, ['tavily']);
-    expect(cfg.layout).toHaveLength(3); // three builtin groups
+    expect(cfg.layout).toHaveLength(4); // four builtin groups
     expect(cfg.groups).toEqual(DEFAULT_GROUPS);
   });
 
@@ -94,9 +96,13 @@ describe('normalizeGroupConfig', () => {
       assignments: {},
     };
     const cfg = normalizeGroupConfig(raw, ['tavily', 'google']);
+    // 清洗后剩 [tavily, engines]；缺失的内置组（ai-search/sites/custom）按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(cfg.layout).toEqual([
       { kind: 'source', sourceId: 'tavily' },
       { kind: 'group', groupId: ENGINES_GROUP },
+      { kind: 'group', groupId: AI_SEARCH_GROUP },
+      { kind: 'group', groupId: SITES_GROUP },
+      { kind: 'group', groupId: 'custom' },
     ]);
   });
 
@@ -159,6 +165,77 @@ describe('normalizeGroupConfig', () => {
     const cfg = normalizeGroupConfig(raw, []);
     // 内置三组按 DEFAULT_GROUPS 顺序在前，自定义组随后
     expect(cfg.groups.map((g) => g.id)).toEqual([AI_SEARCH_GROUP, ENGINES_GROUP, SITES_GROUP, 'custom']);
+  });
+
+  // 回归（L4）：升级新增内置组（custom）后，老用户已有非空 layout（如 [ai-search, engines, sites]）
+  // 不含该组。normalize 须把缺失的内置组追加到 layout 末尾，否则 custom 组只能靠 projectLayout 的
+  // 兜底扫描渲染（位置不可控、不持久化）。
+  it('appends missing builtin groups to the end of a non-empty layout, preserving order', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [
+        { kind: 'group', groupId: AI_SEARCH_GROUP },
+        { kind: 'group', groupId: ENGINES_GROUP },
+        { kind: 'group', groupId: SITES_GROUP },
+      ], // 缺 custom（升级前的持久化布局）
+      assignments: {},
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'google']);
+    expect(cfg.layout).toEqual([
+      { kind: 'group', groupId: AI_SEARCH_GROUP },
+      { kind: 'group', groupId: ENGINES_GROUP },
+      { kind: 'group', groupId: SITES_GROUP },
+      { kind: 'group', groupId: 'custom' }, // 追加到末尾，恰好一次
+    ]);
+    expect(cfg.layout.filter((i) => i.kind === 'group' && i.groupId === 'custom')).toHaveLength(1);
+  });
+
+  it('does not duplicate a builtin group already present in layout', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [
+        { kind: 'group', groupId: ENGINES_GROUP },
+        { kind: 'group', groupId: AI_SEARCH_GROUP },
+      ],
+      assignments: {},
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'google']);
+    // 已存在的 engines/ai-search 保持原位不重复；缺失的 sites/custom 按 DEFAULT_GROUPS 顺序追加到末尾。
+    expect(cfg.layout).toEqual([
+      { kind: 'group', groupId: ENGINES_GROUP },
+      { kind: 'group', groupId: AI_SEARCH_GROUP },
+      { kind: 'group', groupId: SITES_GROUP },
+      { kind: 'group', groupId: 'custom' },
+    ]);
+    expect(cfg.layout.filter((i) => i.kind === 'group' && i.groupId === ENGINES_GROUP)).toHaveLength(1);
+    expect(cfg.layout.filter((i) => i.kind === 'group' && i.groupId === AI_SEARCH_GROUP)).toHaveLength(1);
+  });
+
+  it('does not auto-add user-defined groups to layout (only builtins)', () => {
+    const raw = {
+      groups: [
+        ...DEFAULT_GROUPS,
+        { id: 'my-group', label: { kind: 'literal', value: 'My Group' } },
+      ],
+      layout: [
+        { kind: 'group', groupId: AI_SEARCH_GROUP },
+        { kind: 'group', groupId: ENGINES_GROUP },
+        { kind: 'group', groupId: SITES_GROUP },
+        { kind: 'group', groupId: 'custom' },
+      ], // 四个内置组均已在 layout；my-group 是用户自建组
+      assignments: {},
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily']);
+    // 用户自建组不自动进 layout（须由用户显式添加）；内置组已全部存在，不重复追加。
+    expect(cfg.layout).toEqual([
+      { kind: 'group', groupId: AI_SEARCH_GROUP },
+      { kind: 'group', groupId: ENGINES_GROUP },
+      { kind: 'group', groupId: SITES_GROUP },
+      { kind: 'group', groupId: 'custom' },
+    ]);
+    expect(cfg.layout.some((i) => i.kind === 'group' && i.groupId === 'my-group')).toBe(false);
+    // my-group 仍保留在 groups 定义里（只是不进 layout）
+    expect(cfg.groups.map((g) => g.id)).toContain('my-group');
   });
 
   it('strips groups with invalid labels', () => {

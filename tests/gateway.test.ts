@@ -33,6 +33,9 @@ vi.mock('@/lib/storage', () => ({
   createSiteEngineDefinition: vi.fn(),
   updateSiteEngineDefinition: vi.fn(),
   deleteSiteEngineDefinition: vi.fn(),
+  createCustomEngineDefinition: vi.fn(),
+  updateCustomEngineDefinition: vi.fn(),
+  deleteCustomEngineDefinition: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/registry', () => ({
@@ -67,7 +70,9 @@ import {
   handleClearSearchCache,
   handleClearProviderMaxResults,
   handleCreateSiteEngine,
+  handleCreateCustomEngine,
   handleDeleteSiteEngine,
+  handleDeleteCustomEngine,
   handleDeleteCachedSearch,
   handleDeleteProviderKey,
   handleExportConfig,
@@ -85,6 +90,7 @@ import {
   handleSetGroupConfig,
   handleTestKey,
   handleUpdateSiteEngine,
+  handleUpdateCustomEngine,
 } from '@/lib/gateway';
 import {
   clearKey,
@@ -113,6 +119,9 @@ import {
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
+  createCustomEngineDefinition,
+  updateCustomEngineDefinition,
+  deleteCustomEngineDefinition,
 } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
 import { buildExportPayload, parseImportPayload, mergeImport } from '@/lib/config-io';
@@ -144,6 +153,9 @@ const mockedClearProviderMaxResults = vi.mocked(clearProviderMaxResults);
 const mockedCreateSiteEngineDefinition = vi.mocked(createSiteEngineDefinition);
 const mockedUpdateSiteEngineDefinition = vi.mocked(updateSiteEngineDefinition);
 const mockedDeleteSiteEngineDefinition = vi.mocked(deleteSiteEngineDefinition);
+const mockedCreateCustomEngineDefinition = vi.mocked(createCustomEngineDefinition);
+const mockedUpdateCustomEngineDefinition = vi.mocked(updateCustomEngineDefinition);
+const mockedDeleteCustomEngineDefinition = vi.mocked(deleteCustomEngineDefinition);
 const mockedGetAdapter = vi.mocked(getAdapter);
 const mockedBuildExportPayload = vi.mocked(buildExportPayload);
 const mockedParseImportPayload = vi.mocked(parseImportPayload);
@@ -431,14 +443,14 @@ describe('handleTestKey', () => {
 
 describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
+    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
       activeProviderId: 'exa',
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
-      sourceHidden: [], siteEngines: [],
+      sourceHidden: [], siteEngines: [], customEngines: [],
       providerMaxResults: {},
       groupConfig: defaultGroupConfig([]),
     });
@@ -567,6 +579,58 @@ describe('Site Engine gateway handlers', () => {
   });
 });
 
+describe('Custom Engine gateway handlers', () => {
+  const created = { id: 'custom:worker-id' as const, name: 'My Engine', urlTemplate: 'https://example.com/search?q=%s' };
+
+  it('creates with a worker-generated id and delegates to storage', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'worker-id' });
+    mockedCreateCustomEngineDefinition.mockResolvedValue(created);
+    await expect(handleCreateCustomEngine({ name: ' My Engine ', urlTemplate: 'https://example.com/search?q=%s' })).resolves.toEqual(created);
+    expect(mockedCreateCustomEngineDefinition).toHaveBeenCalledWith({ ...created, name: ' My Engine ' });
+  });
+
+  it('rejects when storage rejects an invalid urlTemplate', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'worker-id' });
+    mockedCreateCustomEngineDefinition.mockRejectedValue(new Error('invalid_custom_engine'));
+    await expect(handleCreateCustomEngine({ name: 'Bad', urlTemplate: 'https://example.com/no-placeholder' })).rejects.toThrow('invalid_custom_engine');
+  });
+
+  it('rejects when storage rejects a duplicate urlTemplate', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'dup-id' });
+    mockedCreateCustomEngineDefinition.mockRejectedValue(new Error('invalid_custom_engine'));
+    await expect(handleCreateCustomEngine({ name: 'Dup', urlTemplate: 'https://example.com/search?q=%s' })).rejects.toThrow('invalid_custom_engine');
+  });
+
+  it('rejects when storage rejects over capacity', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'cap-id' });
+    mockedCreateCustomEngineDefinition.mockRejectedValue(new Error('invalid_custom_engine'));
+    await expect(handleCreateCustomEngine({ name: 'Over', urlTemplate: 'https://over.com/%s' })).rejects.toThrow('invalid_custom_engine');
+  });
+
+  it('updates name and urlTemplate using the existing id', async () => {
+    const updated = { ...created, name: 'Changed', urlTemplate: 'https://changed.com/%s' };
+    mockedUpdateCustomEngineDefinition.mockResolvedValue(updated);
+    await handleUpdateCustomEngine(updated);
+    expect(mockedUpdateCustomEngineDefinition).toHaveBeenCalledWith(created.id, updated);
+  });
+
+  it('rejects update for an unknown id', async () => {
+    mockedUpdateCustomEngineDefinition.mockRejectedValue(new Error('invalid_custom_engine'));
+    await expect(handleUpdateCustomEngine({ id: 'custom:unknown' as never, name: 'X', urlTemplate: 'https://x.com/%s' })).rejects.toThrow('invalid_custom_engine');
+  });
+
+  it('deletes an existing custom engine', async () => {
+    mockedDeleteCustomEngineDefinition.mockResolvedValue(undefined);
+    await handleDeleteCustomEngine(created.id);
+    expect(mockedDeleteCustomEngineDefinition).toHaveBeenCalledWith(created.id);
+  });
+
+  it('rejects delete for an invalid id format', async () => {
+    await expect(handleDeleteCustomEngine('not-custom' as never)).rejects.toThrow('invalid_custom_engine');
+    expect(mockedDeleteCustomEngineDefinition).not.toHaveBeenCalled();
+  });
+});
+
 describe('search cache handlers', () => {
   it('returns cache summaries', async () => {
     mockedGetSearchCacheSummaries.mockResolvedValue([
@@ -650,7 +714,7 @@ describe('handleImportConfig', () => {
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
       serpBarPositionOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
@@ -669,7 +733,7 @@ describe('handleImportConfig', () => {
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
       serpBarPositionOverridden: false,
-      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });

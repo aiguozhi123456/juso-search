@@ -5,6 +5,7 @@ import {
   migrateConfig,
   CURRENT_SCHEMA_VERSION,
   SCHEMA_VERSION_KEY,
+  CONFIG_KEYS,
   migrations,
   type Migration,
 } from '@/lib/schema';
@@ -42,6 +43,15 @@ function installStorage(seed: Record<string, unknown> = {}, hooks: { beforeSet?:
 
 beforeEach(() => {
   installStorage();
+});
+
+describe('CONFIG_KEYS whitelist', () => {
+  // 回归（L1）：Custom Engine 功能新增 customEngines 存储键，须纳入 CONFIG_KEYS 白名单，
+  // 否则未来迁移读写 config 域时会静默漏掉它（getter 仍兜底 []，故无需 bump 版本/迁移）。
+  it('includes customEngines alongside siteEngines', () => {
+    expect(CONFIG_KEYS).toContain('customEngines');
+    expect(CONFIG_KEYS).toContain('siteEngines');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

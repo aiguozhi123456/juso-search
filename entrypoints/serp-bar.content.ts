@@ -14,6 +14,7 @@ import type { AnchorStrategy } from '@/lib/engines/types';
 import {
   decidePostWriteSiteEngineNavigation,
   nextQueryAfterSerpContext,
+  resolveCurrentCustomEngineHandoff,
   resolveCurrentSiteEngineHandoff,
   resolveSerpContext,
   resolveSerpHandoff,
@@ -136,6 +137,7 @@ export default defineContentScript({
         config.sourceOrder,
         config.sourceHidden,
         config.siteEngines ?? [],
+        config.customEngines ?? [],
       );
       const rawQuery = readQuery(state.engine, window.location.href);
       const context = resolveSerpContext(
@@ -542,7 +544,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     getStylePref(),
     getBarPositionPref(),
   ]);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? []);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? [], config.customEngines ?? []);
   const rawQuery = readQuery(engine, url);
   const context = resolveSerpContext(
     engine.id,
@@ -631,7 +633,7 @@ function parsePx(value: string): number {
 async function onSelect(
   source: SearchSource,
   query: string,
-  onUnresolvedSiteEngine?: (config: ProviderConfigReply) => void,
+  onUnresolvedSource?: (config: ProviderConfigReply) => void,
   isCurrent: () => boolean = () => true,
 ): Promise<void> {
   if (source.kind === 'site-engine') {
@@ -647,7 +649,7 @@ async function onSelect(
     const handoff = resolveCurrentSiteEngineHandoff(source.id, query, config.siteEngines ?? []);
     if (!handoff || handoff.kind !== 'navigate') {
       // Deleted / unresolved: drop the stale chip from local bar state; no navigation.
-      onUnresolvedSiteEngine?.(config);
+      onUnresolvedSource?.(config);
       return;
     }
     // Persist active source before navigating so a failed write does not leave
@@ -680,7 +682,35 @@ async function onSelect(
       return;
     }
     // Deleted between write and re-read: refresh local bar chips; do not navigate.
-    onUnresolvedSiteEngine?.(config);
+    onUnresolvedSource?.(config);
+    return;
+  }
+  if (source.kind === 'custom-engine') {
+    let config: ProviderConfigReply;
+    try {
+      // A Custom Engine chip contains a render-time snapshot. Re-resolve it so
+      // Options edits/deletions cannot open a stale template URL in a new tab.
+      config = await sendMessage('getProviderConfig', undefined);
+    } catch {
+      return;
+    }
+    if (!isCurrent()) return;
+    const handoff = resolveCurrentCustomEngineHandoff(source.id, query, config.customEngines ?? []);
+    // A null handoff is ambiguous: the resolver returns null for BOTH an empty
+    // query and a deleted/invalid definition. Distinguish them (mirroring the
+    // search page) so an empty-query click on a valid chip skips the needless
+    // snapshot round-trip + re-render.
+    const stillDefined = (config.customEngines ?? []).some((d) => d.id === source.id);
+    if (!handoff || handoff.kind !== 'navigate') {
+      // Empty query on a still-defined chip: no navigation, no re-render.
+      if (stillDefined) return;
+      // Deleted / invalid: drop the stale chip from local bar state; no navigation.
+      onUnresolvedSource?.(config);
+      return;
+    }
+    // Intentionally no setActiveSource: consistent with built-in engines, the SERP
+    // bar does not persist the active source for custom engines.
+    void sendMessage('openNewTab', handoff.url);
     return;
   }
   if (!isCurrent()) return;

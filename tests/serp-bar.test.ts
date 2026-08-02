@@ -8,12 +8,14 @@ import { describe, it, expect } from 'vitest';
 import {
   decidePostWriteSiteEngineNavigation,
   nextQueryAfterSerpContext,
+  resolveCurrentCustomEngineHandoff,
   resolveCurrentSiteEngineHandoff,
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
 import type { SearchSource } from '@/lib/sources';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
+import type { CustomEngineDefinition } from '@/lib/custom-engines';
 
 const tavily: SearchSource = {
   id: 'tavily',
@@ -103,6 +105,32 @@ describe('resolveSerpHandoff — Site Engine chip', () => {
   });
 });
 
+describe('resolveSerpHandoff — Custom Engine chip', () => {
+  const customDef: CustomEngineDefinition = { id: 'custom:ddg', name: 'DDG', urlTemplate: 'https://duckduckgo.com/?q=%s' };
+  const customSource: SearchSource = {
+    id: 'custom:ddg', kind: 'custom-engine', label: 'DDG', supportsAnswer: false,
+    customEngine: customDef,
+  };
+
+  it('navigates to the built URL with the query encoded', () => {
+    expect(resolveSerpHandoff(customSource, 'hello world')).toEqual({
+      kind: 'navigate',
+      url: 'https://duckduckgo.com/?q=hello%20world',
+    });
+  });
+
+  it('returns null for an empty query (no navigation)', () => {
+    expect(resolveSerpHandoff(customSource, '   ')).toBeNull();
+  });
+
+  it('encodes CJK and special characters in the URL', () => {
+    expect(resolveSerpHandoff(customSource, '中文&a=b')).toEqual({
+      kind: 'navigate',
+      url: 'https://duckduckgo.com/?q=%E4%B8%AD%E6%96%87%26a%3Db',
+    });
+  });
+});
+
 describe('resolveCurrentSiteEngineHandoff', () => {
   it('uses the fresh definition instead of a stale Site Engine projection', () => {
     expect(resolveCurrentSiteEngineHandoff('site:docs', 'install', [{
@@ -115,6 +143,41 @@ describe('resolveCurrentSiteEngineHandoff', () => {
 
   it('does not hand off a deleted Site Engine', () => {
     expect(resolveCurrentSiteEngineHandoff('site:docs', 'install', [])).toBeNull();
+  });
+});
+
+describe('resolveCurrentCustomEngineHandoff (M1 regression — stale navigation)', () => {
+  const defs: CustomEngineDefinition[] = [
+    { id: 'custom:ddg', name: 'DDG', urlTemplate: 'https://duckduckgo.com/?q=%s' },
+  ];
+
+  it('resolves a fresh definition to a navigate intent with the query encoded', () => {
+    expect(resolveCurrentCustomEngineHandoff('custom:ddg', 'hello world', defs)).toEqual({
+      kind: 'navigate',
+      url: 'https://duckduckgo.com/?q=hello%20world',
+    });
+  });
+
+  it('re-reads an edited template rather than navigating a stale one', () => {
+    const edited: CustomEngineDefinition[] = [
+      { id: 'custom:ddg', name: 'DDG', urlTemplate: 'https://new.example.com/search?q=%s' },
+    ];
+    expect(resolveCurrentCustomEngineHandoff('custom:ddg', 'install', edited)).toEqual({
+      kind: 'navigate',
+      url: 'https://new.example.com/search?q=install',
+    });
+  });
+
+  it('returns null for an empty/whitespace query (no navigation)', () => {
+    expect(resolveCurrentCustomEngineHandoff('custom:ddg', '   ', defs)).toBeNull();
+  });
+
+  it('does not hand off a deleted Custom Engine even with a query', () => {
+    expect(resolveCurrentCustomEngineHandoff('custom:gone', 'install', defs)).toBeNull();
+  });
+
+  it('does not hand off when the definitions list is empty', () => {
+    expect(resolveCurrentCustomEngineHandoff('custom:ddg', 'install', [])).toBeNull();
   });
 });
 

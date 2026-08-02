@@ -22,7 +22,9 @@ import { defaultGroupConfig } from '@/lib/source-groups';
 import { parseSearchDeepLink } from '@/lib/deep-link';
 import { isSiteEngineId } from '@/lib/site-engines';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
-import { resolveCurrentSiteEngineHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
+import type { CustomEngineDefinition } from '@/lib/custom-engines';
+import { isCustomEngineId } from '@/lib/custom-engines';
+import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteEngineHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
 
@@ -33,6 +35,7 @@ export default function App() {
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>([]);
   const [sourceHidden, setSourceHidden] = useState<SourceId[]>([]);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
+  const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,7 @@ export default function App() {
       setSourceOrder(config.sourceOrder ?? []);
       setSourceHidden(config.sourceHidden ?? []);
       setSiteEngines(config.siteEngines ?? []);
+      setCustomEngines(config.customEngines ?? []);
       setGroupConfig(config.groupConfig);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认；query 预填并立即触发一次搜索。
@@ -67,6 +71,7 @@ export default function App() {
         config.sourceOrder ?? [],
         config.sourceHidden ?? [],
         config.siteEngines ?? [],
+        config.customEngines ?? [],
       );
       // Query-only links honor the persisted source unless it is hidden from
       // the current projection. This executes a visible fallback without
@@ -102,16 +107,22 @@ export default function App() {
       return;
     }
     let selectedSource = opts.selectedSource ?? (source ? sources.find((candidate) => candidate.id === source) : undefined);
-    // A manual submit must not navigate using the Site Engine definition embedded
-    // in a chip: Options may have edited or deleted it since this page rendered.
-    // Do this inline rather than re-entering handleSearch, so there is precisely
-    // one fresh read and a deleted source can execute its fresh visible fallback.
+    // A manual submit must not navigate using the dynamic (Site/Custom Engine)
+    // definition embedded in a chip: Options may have edited or deleted it since
+    // this page rendered. Do this inline rather than re-entering handleSearch, so
+    // there is precisely one fresh read and a deleted source can execute its fresh
+    // visible fallback.
     const isManualSiteEngineSubmit = !opts.forceRefresh
       && !opts.providerId
       && !opts.sourceId
       && !opts.selectedSource
       && Boolean(source && (selectedSource?.kind === 'site-engine' || isSiteEngineId(source)));
-    if (isManualSiteEngineSubmit) {
+    const isManualCustomEngineSubmit = !opts.forceRefresh
+      && !opts.providerId
+      && !opts.sourceId
+      && !opts.selectedSource
+      && Boolean(source && (selectedSource?.kind === 'custom-engine' || isCustomEngineId(source)));
+    if (isManualSiteEngineSubmit || isManualCustomEngineSubmit) {
       try {
         const refreshed = await loadSourceSnapshot();
         const refreshedSources = allSources(
@@ -119,6 +130,7 @@ export default function App() {
           refreshed.sourceOrder ?? [],
           refreshed.sourceHidden ?? [],
           refreshed.siteEngines ?? [],
+          refreshed.customEngines ?? [],
         );
         const freshSelectedSource = refreshedSources.find((candidate) => candidate.id === source);
         // If the selected Site Engine disappeared (or is no longer visible), run
@@ -140,6 +152,7 @@ export default function App() {
         refreshed.sourceOrder ?? [],
         refreshed.sourceHidden ?? [],
         refreshed.siteEngines ?? [],
+        refreshed.customEngines ?? [],
       );
       selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
       source = selectedSource?.id ?? null;
@@ -214,6 +227,7 @@ export default function App() {
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
+            config.customEngines ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -267,6 +281,7 @@ export default function App() {
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
+            config.customEngines ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -290,6 +305,124 @@ export default function App() {
         applySourceSnapshot(config);
         // The search surface only navigates an engine after a query is present.
         if (nextQuery) location.assign(postWriteHandoff.url);
+        return;
+      } finally {
+        if (switchReqId === switchReqIdRef.current) setSwitching(false);
+      }
+    }
+    if (source.kind === 'custom-engine') {
+      // Mirror the site-engine path: a chip carries a render-time snapshot, so
+      // re-read config and re-resolve before navigating; Options may have edited
+      // or deleted the engine since this page rendered.
+      if (loading || switching) return;
+      const switchReqId = ++switchReqIdRef.current;
+      setSwitching(true);
+      try {
+        const nextQuery = query.trim();
+        let config: ProviderConfigReply;
+        try {
+          config = await sendMessage('getProviderConfig', undefined);
+        } catch {
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Resolve the clicked id from the fresh snapshot. The chip's embedded
+        // definition may have been edited or deleted in Options. Note the custom
+        // resolver also yields null for an empty query, so gate the stale-chip
+        // fallback on the definition being gone — an empty-query selection still
+        // persists the source (consistent with built-in/site engines), it just
+        // does not navigate.
+        const handoff = resolveCurrentCustomEngineHandoff(source.id, nextQuery, config.customEngines ?? []);
+        const stillDefined = (config.customEngines ?? []).some((d) => d.id === source.id);
+        if (!stillDefined) {
+          // Drop the stale chip from local UI. Execution-only fallback: do not
+          // persist a new active source on the user's behalf.
+          applySourceSnapshot(config);
+          if (!nextQuery) return;
+          const fallbackSources = allSources(
+            config.configuredProviderIds,
+            config.sourceOrder ?? [],
+            config.sourceHidden ?? [],
+            config.siteEngines ?? [],
+            config.customEngines ?? [],
+          );
+          const fallback = fallbackSources[0];
+          if (!fallback) {
+            setError({ message: t(MSG.search_failed_retry), needKey: false });
+            return;
+          }
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          if (fallbackHandoff?.kind === 'navigate') {
+            if (switchReqId !== switchReqIdRef.current) return;
+            location.assign(fallbackHandoff.url);
+            return;
+          }
+          if (isProviderId(fallback.id)) {
+            if (switchReqId !== switchReqIdRef.current) return;
+            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
+            return;
+          }
+          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          return;
+        }
+        try {
+          await sendMessage('setActiveSource', source.id);
+        } catch {
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Prefer one post-write read so definitions/order/hidden/active match storage.
+        try {
+          config = await sendMessage('getProviderConfig', undefined);
+        } catch {
+          // Write succeeded; keep navigating with the pre-write handoff URL.
+          if (switchReqId !== switchReqIdRef.current) return;
+          setActive(source.id);
+          if (nextQuery && handoff?.kind === 'navigate') location.assign(handoff.url);
+          return;
+        }
+        if (switchReqId !== switchReqIdRef.current) return;
+        // Re-resolve from the post-write snapshot: Options may have edited the
+        // same Custom Engine between the pre-write and post-write reads.
+        const postWriteHandoff = resolveCurrentCustomEngineHandoff(
+          source.id,
+          nextQuery,
+          config.customEngines ?? [],
+        );
+        const postWriteDefined = (config.customEngines ?? []).some((d) => d.id === source.id);
+        if (!postWriteDefined) {
+          // Deleted between write and re-read: apply snapshot + execution-only fallback.
+          applySourceSnapshot(config);
+          if (!nextQuery) return;
+          const fallbackSources = allSources(
+            config.configuredProviderIds,
+            config.sourceOrder ?? [],
+            config.sourceHidden ?? [],
+            config.siteEngines ?? [],
+            config.customEngines ?? [],
+          );
+          const fallback = fallbackSources[0];
+          if (!fallback) {
+            setError({ message: t(MSG.search_failed_retry), needKey: false });
+            return;
+          }
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          if (fallbackHandoff?.kind === 'navigate') {
+            if (switchReqId !== switchReqIdRef.current) return;
+            location.assign(fallbackHandoff.url);
+            return;
+          }
+          if (isProviderId(fallback.id)) {
+            if (switchReqId !== switchReqIdRef.current) return;
+            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
+            return;
+          }
+          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          return;
+        }
+        applySourceSnapshot(config);
+        // The search surface only navigates an engine after a query is present.
+        if (nextQuery && postWriteHandoff?.kind === 'navigate') location.assign(postWriteHandoff.url);
         return;
       } finally {
         if (switchReqId === switchReqIdRef.current) setSwitching(false);
@@ -373,6 +506,7 @@ export default function App() {
     setSourceOrder(config.sourceOrder ?? []);
     setSourceHidden(config.sourceHidden ?? []);
     setSiteEngines(config.siteEngines ?? []);
+    setCustomEngines(config.customEngines ?? []);
     setGroupConfig(config.groupConfig);
     setActive(config.activeSourceId);
   }
@@ -382,7 +516,7 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines);
+  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines);
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，

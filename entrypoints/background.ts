@@ -5,6 +5,9 @@ import {
   handleDeleteProviderKey,
   handleDeleteSiteEngine,
   handleCreateSiteEngine,
+  handleCreateCustomEngine,
+  handleUpdateCustomEngine,
+  handleDeleteCustomEngine,
   handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
@@ -30,6 +33,7 @@ import { getSchemaReady } from '@/lib/gateway';
 import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
 import { runEngineSearch } from '@/lib/engine-search';
 import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
+import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
 
 export default defineBackground(() => {
   // 预热 schema 迁移：worker 启动即触发 ensureSchema+ensureCacheSchema（懒加载 memoized），
@@ -52,6 +56,22 @@ export default defineBackground(() => {
   onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
   onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));
   onMessage('deleteSiteEngine', ({ data }) => handleDeleteSiteEngine(data));
+  onMessage('createCustomEngine', ({ data }) => handleCreateCustomEngine(data));
+  onMessage('updateCustomEngine', ({ data }) => handleUpdateCustomEngine(data));
+  onMessage('deleteCustomEngine', ({ data }) => handleDeleteCustomEngine(data));
+  onMessage('openNewTab', ({ data, sender }) => {
+    // sender.tab 只保证存在一个 tab 上下文——内容脚本与「在标签页打开的扩展页」都有 tab，
+    // 故此检查并不用于区分内容脚本。真正的安全边界是 sanitizeOpenNewTabUrl 内的 http/https
+    // 协议白名单（并拒绝凭据）；此处仅先确保有 tab 可导航。
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return;
+    const target = sanitizeOpenNewTabUrl(data);
+    if (!target) {
+      console.warn('[openNewTab] rejected URL', data);
+      return;
+    }
+    void browser.tabs.create({ url: target }).catch((e) => console.warn('[openNewTab] tabs.create failed', e));
+  });
   onMessage('saveProviderKey', ({ data }) => handleSaveProviderKey(data.providerId, data.key));
   onMessage('deleteProviderKey', ({ data }) => handleDeleteProviderKey(data));
   onMessage('setProviderMaxResults', ({ data }) => handleSetProviderMaxResults(data.providerId, data.maxResults));
