@@ -801,6 +801,135 @@ describe('search page', () => {
     }
   });
 
+  // ── v2 深链：provider 实例 id（inst:exa:...，SourceId 边界） ─────────────
+  it('deep links to a provider instance and searches with the instance id', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa',
+          providerInstances: [{ id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'deep', provider: 'exa', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?provider=inst%3Aexa%3Aresearch&query=deep');
+    try {
+      render(<App />);
+      // configured 判定按 base provider（exa）通过；实例 id 原样透传给 worker 解析。
+      await waitFor(() =>
+        expect(mockedSend).toHaveBeenCalledWith('search', { query: 'deep', forceRefresh: undefined, providerId: 'inst:exa:research' }),
+      );
+      expect(screen.getByLabelText('搜索词')).toHaveValue('deep');
+    } finally {
+      restore();
+    }
+  });
+
+  it('ignores a deep-linked instance whose base provider is not configured', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+          providerInstances: [{ id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'x', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    const { restore } = stubLocation('?provider=inst%3Aexa%3Aresearch&query=x');
+    try {
+      render(<App />);
+      // base provider（exa）未配置 → 深链实例被忽略，回退到 active tavily 执行。
+      await waitFor(() =>
+        expect(mockedSend).toHaveBeenCalledWith('search', { query: 'x', forceRefresh: undefined, providerId: 'tavily' }),
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  it('switching to a provider instance writes the instance id and searches with it', async () => {
+    const instance = { id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} } as const;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa',
+          providerInstances: [instance],
+          // 实例 id 置顶平铺，便于直接点击（有实例的 provider 不再投影裸 exa pill）。
+          groupConfig: pinnedGroupConfig(['inst:exa:research', 'google', 'bing', 'baidu']),
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'world', provider: 'exa', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'world' } });
+    fireEvent.click(await screen.findByRole('button', { name: /AI 研究/ }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'inst:exa:research'));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'world', forceRefresh: undefined, providerId: 'inst:exa:research' }));
+  });
+
+  it('selecting a cached instance entry restores the instance id as the active source (BUG-1)', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa',
+          providerInstances: [{ id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'inst:exa:research:cached query', query: 'cached query', normalizedQuery: 'cached query', providerId: 'exa', instanceId: 'inst:exa:research', createdAt: 1, lastAccessedAt: 1, resultPreviews: [{ title: 'Cached result', url: 'https://cached.test' }], resultCount: 1 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'cache-1',
+          cacheKey: 'inst:exa:research:cached query',
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'exa',
+          instanceId: 'inst:exa:research',
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: { query: 'cached query', provider: 'exa', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('getCachedSearchEntry', 'cache-1'));
+    expect(await screen.findByText('Cached result')).toBeInTheDocument();
+    // 激活源恢复为实例 id（而非裸 provider id，后者会因「等于当前 active」而完全不切换）。
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'inst:exa:research'));
+  });
+
+  it('refresh uses the instance id when the active source is a provider instance (BUG-2)', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'inst:exa:research',
+          providerInstances: [{ id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, cache: { hit: true, entryId: 'cache-1', createdAt: Date.now() - 60_000 }, response: { query: 'hello', provider: 'exa', results: [{ title: 'Cached', url: 'https://cached.test', snippet: 'cached' }] } });
+    }) as never);
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'hello' } });
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+
+    // 响应 provider 是 base id，激活源是实例：刷新按钮应显示，且刷新携带实例 id。
+    const refreshBtn = await screen.findByRole('button', { name: '重新搜索' });
+    fireEvent.click(refreshBtn);
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', { query: 'hello', forceRefresh: true, providerId: 'inst:exa:research' }));
+  });
+
   it('uses the initial config snapshot for a deep-linked active Site Engine', async () => {
     let configReads = 0;
     mockedSend.mockImplementation(((type: string) => {

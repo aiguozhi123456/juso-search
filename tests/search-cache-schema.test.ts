@@ -3,9 +3,12 @@ import {
   ensureCacheSchema,
   readCacheSchemaVersion,
   migrateCachePool,
+  makeSearchCacheKey,
   CURRENT_CACHE_SCHEMA_VERSION,
   CACHE_SCHEMA_VERSION_KEY,
+  SEARCH_CACHE_INDEX_KEY,
   emptySearchCacheIndex,
+  searchCacheEntryKey,
   type CacheMigration,
   type SearchCacheEntry,
   type SearchCacheIndex,
@@ -184,6 +187,66 @@ describe('migrateCachePool (pure migration runner)', () => {
     ];
     const out = migrateCachePool({ index: indexWith([withAnswer]), entries: [withAnswer] }, 1, 2, chain);
     expect((out.entries[0].response as { answer?: { parts?: string[] } }).answer?.parts).toEqual(['hello']);
+  });
+});
+
+describe('makeSearchCacheKey: instance-aware keys (IU6)', () => {
+  it('two instances of the same provider with the same query get different keys', () => {
+    const keyA = makeSearchCacheKey('inst:exa:aaa', 'transformers');
+    const keyB = makeSearchCacheKey('inst:exa:bbb', 'transformers');
+    expect(keyA).toBe('inst:exa:aaa:transformers');
+    expect(keyB).toBe('inst:exa:bbb:transformers');
+    expect(keyA).not.toBe(keyB);
+  });
+
+  it('an instance search and its bare provider with the same query get different keys', () => {
+    expect(makeSearchCacheKey('inst:exa:aaa', 'transformers')).toBe('inst:exa:aaa:transformers');
+    expect(makeSearchCacheKey('exa', 'transformers')).toBe('exa:transformers');
+    expect(makeSearchCacheKey('inst:exa:aaa', 'transformers')).not.toBe(makeSearchCacheKey('exa', 'transformers'));
+  });
+
+  it('still normalizes the query and keeps the old provider-only shape for bare providers', () => {
+    expect(makeSearchCacheKey('tavily', ' hello   world ')).toBe('tavily:hello world');
+  });
+});
+
+describe('cacheMigrations: v1 → v2 (IU6)', () => {
+  it('drops all cached entries and empties the index', () => {
+    const a = entry('a');
+    const b = entry('b');
+    const out = migrateCachePool({ index: indexWith([a, b]), entries: [a, b] }, 1, 2);
+    expect(out.entries).toEqual([]);
+    expect(out.dropEntryIds).toEqual(['a', 'b']);
+    expect(out.index.order).toEqual([]);
+    expect(Object.keys(out.index.summaries)).toHaveLength(0);
+    expect(Object.keys(out.index.byKey)).toHaveLength(0);
+  });
+
+  it('is idempotent when run on an already-migrated pool', () => {
+    const a = entry('a');
+    const first = migrateCachePool({ index: indexWith([a]), entries: [a] }, 1, 2);
+    const second = migrateCachePool(first, 1, 2);
+    // 迁移后的池（index/entries）保持不变；dropEntryIds 是"本次要删"的 diff，重跑时无条目可删 → 空。
+    expect(second.entries).toEqual(first.entries);
+    expect(second.index).toEqual(first.index);
+    expect(second.entries).toEqual([]);
+    expect(second.dropEntryIds).toEqual([]);
+  });
+
+  it('ensureCacheSchema migrates stored v1 state: drops all entries and stamps v2', async () => {
+    const old = entry('a');
+    installStorage({
+      [CACHE_SCHEMA_VERSION_KEY]: 1,
+      [SEARCH_CACHE_INDEX_KEY]: indexWith([old]),
+      [searchCacheEntryKey(old.id)]: old,
+    });
+
+    await ensureCacheSchema();
+
+    expect(await readCacheSchemaVersion()).toBe(CURRENT_CACHE_SCHEMA_VERSION);
+    const got = await browser.storage.local.get([SEARCH_CACHE_INDEX_KEY, searchCacheEntryKey(old.id)]);
+    expect(got[SEARCH_CACHE_INDEX_KEY]).toMatchObject({ version: 1, order: [], byKey: {}, summaries: {} });
+    expect(got[searchCacheEntryKey(old.id)]).toBeUndefined();
   });
 });
 

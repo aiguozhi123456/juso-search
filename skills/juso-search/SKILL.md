@@ -4,7 +4,7 @@ description: Search through configured Juso providers or supported browser searc
 compatibility: Python 3.11+, Chromium-family browser with the Juso extension installed and enabled
 metadata:
   author: Juso
-  version: "1"
+  version: "2"
 ---
 
 # Juso Search
@@ -38,6 +38,20 @@ For `xiaohongshu`, results are scraped from `www.xiaohongshu.com/search_result` 
 For `douyin`, results are scraped from `www.douyin.com/search/{keyword}` in the user's logged-in profile. Douyin is heavily obfuscated: cards have no `<a>` links (navigation is JS-routed), so the result `url` is synthesized from the card id as `https://www.douyin.com/video/{id}` (videos) or `/note/{id}` (image posts). There is no title element — `title` is the full caption text and `snippet` is `作者: … · 点赞: …` parsed from it. User-aggregate / related-searches cards (no duration or `图文` prefix) are skipped.
 
 > **`douyin` headless limitation (2026-07-31):** the extractor code is correct (verified: the same selectors return 25 cards when the tab is open and visible), but in the automated `engine-search` flow — which opens the SERP as a programmatically-created tab — Douyin's anti-bot frequently returns `no-results` (cards not rendered) or `challenge` (captcha/slider). This is a site anti-bot reaction to the automated tab, not an extraction bug. Retry, or treat `douyin` as best-effort; `bilibili` and `xiaohongshu` are reliable in the same flow.
+
+### Provider instances
+
+Providers that support custom instances (currently Exa) can have multiple tuned variants — e.g. one Exa instance for AI research (category=publication), another for startup news (category=news). Each instance is a first-class search target with its own options.
+
+Use `list-providers` to discover which providers have instances (the `hasInstances` field). Use `list-instances` to list all instances with their ids and labels. Use `search-instance` to search through a specific instance.
+
+```bash
+python scripts/juso_search.py list-providers          # check hasInstances field
+python scripts/juso_search.py list-instances           # list all provider instances
+python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
+```
+
+`--instance-id` is required for `search-instance`. Instance ids are opaque strings starting with `inst:` — obtain them from `list-instances`.
 
 ### Browser path, profile, and extension id
 

@@ -36,6 +36,11 @@ vi.mock('@/lib/storage', () => ({
   createCustomEngineDefinition: vi.fn(),
   updateCustomEngineDefinition: vi.fn(),
   deleteCustomEngineDefinition: vi.fn(),
+  getProviderInstances: vi.fn(),
+  createProviderInstance: vi.fn(),
+  updateProviderInstance: vi.fn(),
+  deleteProviderInstance: vi.fn(),
+  ensureDefaultInstance: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/registry', () => ({
@@ -91,6 +96,13 @@ import {
   handleTestKey,
   handleUpdateSiteEngine,
   handleUpdateCustomEngine,
+  resolveInstance,
+  handleSearchInstance,
+  handleListAgentInstances,
+  handleListAgentProviders,
+  handleCreateProviderInstance,
+  handleUpdateProviderInstance,
+  handleDeleteProviderInstance,
 } from '@/lib/gateway';
 import {
   clearKey,
@@ -122,6 +134,11 @@ import {
   createCustomEngineDefinition,
   updateCustomEngineDefinition,
   deleteCustomEngineDefinition,
+  getProviderInstances,
+  createProviderInstance,
+  updateProviderInstance,
+  deleteProviderInstance,
+  ensureDefaultInstance,
 } from '@/lib/storage';
 import { getAdapter } from '@/lib/providers/registry';
 import { buildExportPayload, parseImportPayload, mergeImport } from '@/lib/config-io';
@@ -156,6 +173,11 @@ const mockedDeleteSiteEngineDefinition = vi.mocked(deleteSiteEngineDefinition);
 const mockedCreateCustomEngineDefinition = vi.mocked(createCustomEngineDefinition);
 const mockedUpdateCustomEngineDefinition = vi.mocked(updateCustomEngineDefinition);
 const mockedDeleteCustomEngineDefinition = vi.mocked(deleteCustomEngineDefinition);
+const mockedGetProviderInstances = vi.mocked(getProviderInstances);
+const mockedCreateProviderInstance = vi.mocked(createProviderInstance);
+const mockedUpdateProviderInstance = vi.mocked(updateProviderInstance);
+const mockedDeleteProviderInstance = vi.mocked(deleteProviderInstance);
+const mockedEnsureDefaultInstance = vi.mocked(ensureDefaultInstance);
 const mockedGetAdapter = vi.mocked(getAdapter);
 const mockedBuildExportPayload = vi.mocked(buildExportPayload);
 const mockedParseImportPayload = vi.mocked(parseImportPayload);
@@ -175,6 +197,7 @@ function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter 
 beforeEach(() => {
   vi.clearAllMocks();
   mockedGetCachedSearch.mockResolvedValue(null);
+  mockedGetProviderInstances.mockResolvedValue([]);
   mockedSaveCachedSearch.mockImplementation(async (response) => ({
     id: 'cache-1',
     cacheKey: `${response.provider}:${response.query}`,
@@ -201,7 +224,7 @@ describe('handleSearch', () => {
     expect(mockedGetCachedSearch).toHaveBeenCalledWith('tavily', 'hello');
     expect(mockedGetAdapter).toHaveBeenCalledWith('tavily');
     expect(adapter.search).toHaveBeenCalledWith('hello', {}, 'tvly-k');
-    expect(mockedSaveCachedSearch).toHaveBeenCalledWith({ query: 'q', provider: 'tavily', results: [] });
+    expect(mockedSaveCachedSearch).toHaveBeenCalledWith({ query: 'q', provider: 'tavily', results: [] }, 'tavily');
     expect(reply.ok).toBe(true);
     if (reply.ok) {
       expect(reply.response.provider).toBe('tavily');
@@ -443,14 +466,14 @@ describe('handleTestKey', () => {
 
 describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
+    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
       activeProviderId: 'exa',
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
-      sourceHidden: [], siteEngines: [], customEngines: [],
+      sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [],
       providerMaxResults: {},
       groupConfig: defaultGroupConfig([]),
     });
@@ -488,6 +511,47 @@ describe('handleSaveProviderKey', () => {
     await handleSaveProviderKey('tavily', 'tvly-abc');
 
     expect(mockedSetKey).toHaveBeenCalledWith('tavily', 'tvly-abc');
+  });
+
+  it('auto-creates a default instance when saving a key for an instance-supporting provider with no instances', async () => {
+    mockedSetKey.mockResolvedValue(undefined);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleSaveProviderKey('exa', 'exa-k');
+
+    // 名字 = 适配器 label 经 t() 解析（provider_exa → Exa）；读-判-建委托给 ensureDefaultInstance（队列内原子）。
+    expect(mockedEnsureDefaultInstance).toHaveBeenCalledWith('exa', 'Exa');
+  });
+
+  it('does not auto-create an instance for a provider without instance options (tavily)', async () => {
+    mockedSetKey.mockResolvedValue(undefined);
+
+    await handleSaveProviderKey('tavily', 'tvly-abc');
+
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-create a second instance when one already exists for the provider', async () => {
+    mockedSetKey.mockResolvedValue(undefined);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleSaveProviderKey('exa', 'exa-k');
+
+    // 「已有实例则 no-op」在 storage 的 ensureDefaultInstance 内判定（并发下仍在队列内原子化）；
+    // gateway 层仅委托。
+    expect(mockedEnsureDefaultInstance).toHaveBeenCalledWith('exa', 'Exa');
+  });
+
+  it('keeps the key save as the primary operation when the best-effort auto-create fails', async () => {
+    mockedSetKey.mockResolvedValue(undefined);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+    mockedEnsureDefaultInstance.mockRejectedValue(new Error('storage boom'));
+
+    await expect(handleSaveProviderKey('exa', 'exa-k')).resolves.toBeUndefined();
+    expect(mockedSetKey).toHaveBeenCalledWith('exa', 'exa-k');
+    expect(mockedEnsureDefaultInstance).toHaveBeenCalledWith('exa', 'Exa');
   });
 });
 
@@ -631,6 +695,196 @@ describe('Custom Engine gateway handlers', () => {
   });
 });
 
+describe('resolveInstance', () => {
+  const instance = { id: 'inst:exa:abc' as const, baseProviderId: 'exa' as const, name: 'AI Research', options: { category: 'news' } };
+
+  it('resolves an instance id to base provider + options', async () => {
+    mockedGetProviderInstances.mockResolvedValue([instance]);
+
+    await expect(resolveInstance('inst:exa:abc')).resolves.toEqual({
+      providerId: 'exa',
+      providerSettings: { category: 'news' },
+      cacheKeyId: 'inst:exa:abc',
+    });
+  });
+
+  it('returns bare provider id without options for a bare ProviderId', async () => {
+    await expect(resolveInstance('tavily')).resolves.toEqual({ providerId: 'tavily', cacheKeyId: 'tavily' });
+  });
+
+  it('returns null for undefined and unknown source ids', async () => {
+    mockedGetProviderInstances.mockResolvedValue([instance]);
+
+    await expect(resolveInstance(undefined)).resolves.toBeNull();
+    await expect(resolveInstance('inst:exa:nope')).resolves.toBeNull();
+    await expect(resolveInstance('not-a-source' as never)).resolves.toBeNull();
+  });
+});
+
+describe('handleSearch instance resolution', () => {
+  const instance = { id: 'inst:exa:abc' as const, baseProviderId: 'exa' as const, name: 'AI Research', options: { category: 'news' } };
+
+  it('injects per-instance options via providerSettings when the request carries an instance id', async () => {
+    const adapter = fakeAdapter({ id: 'exa', search: vi.fn().mockResolvedValue({ query: 'q', provider: 'exa', results: [] }) });
+    mockedGetProviderInstances.mockResolvedValue([instance]);
+    mockedGetKey.mockResolvedValue('exa-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearch({ query: 'q', providerId: 'inst:exa:abc' as never });
+
+    expect(mockedGetCachedSearch).toHaveBeenCalledWith('inst:exa:abc', 'q');
+    expect(mockedGetAdapter).toHaveBeenCalledWith('exa');
+    expect(adapter.search).toHaveBeenCalledWith('q', { providerSettings: { category: 'news' } }, 'exa-k');
+    expect(reply.ok).toBe(true);
+  });
+
+  it('routes a bare provider id with instances to the first instance options (default instance)', async () => {
+    const adapter = fakeAdapter({ id: 'exa', search: vi.fn().mockResolvedValue({ query: 'q', provider: 'exa', results: [] }) });
+    mockedGetConfigured.mockResolvedValue(['exa']);
+    mockedGetProviderInstances.mockResolvedValue([
+      { id: 'inst:exa:first', baseProviderId: 'exa', name: 'First', options: { category: 'publication' } },
+      { id: 'inst:exa:second', baseProviderId: 'exa', name: 'Second', options: { category: 'news' } },
+    ]);
+    mockedGetKey.mockResolvedValue('exa-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearch({ query: 'q', providerId: 'exa' });
+
+    expect(adapter.search).toHaveBeenCalledWith('q', { providerSettings: { category: 'publication' } }, 'exa-k');
+    expect(reply.ok).toBe(true);
+  });
+
+  it('does not inject providerSettings for a bare provider without instances', async () => {
+    const adapter = fakeAdapter();
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetProviderInstances.mockResolvedValue([]);
+    mockedGetKey.mockResolvedValue('tvly-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    await handleSearch({ query: 'q' });
+
+    expect(adapter.search).toHaveBeenCalledWith('q', {}, 'tvly-k');
+  });
+});
+
+describe('handleSearchInstance (agent v2)', () => {
+  const instance = { id: 'inst:exa:abc' as const, baseProviderId: 'exa' as const, name: 'AI Research', options: { category: 'news' } };
+
+  it('resolves the instance and searches with its options', async () => {
+    const adapter = fakeAdapter({ id: 'exa', search: vi.fn().mockResolvedValue({ query: 'q', provider: 'exa', results: [] }) });
+    mockedGetProviderInstances.mockResolvedValue([instance]);
+    mockedGetKey.mockResolvedValue('exa-k');
+    mockedGetAdapter.mockReturnValue(adapter);
+
+    const reply = await handleSearchInstance({ action: 'search-instance', query: 'q', instanceId: 'inst:exa:abc' });
+
+    expect(adapter.search).toHaveBeenCalledWith('q', { providerSettings: { category: 'news' } }, 'exa-k');
+    expect(mockedSaveCachedSearch).toHaveBeenCalled();
+    expect(reply.ok).toBe(true);
+  });
+
+  it('returns keyMissing for an unknown instance id', async () => {
+    mockedGetProviderInstances.mockResolvedValue([]);
+
+    const reply = await handleSearchInstance({ action: 'search-instance', query: 'q', instanceId: 'inst:exa:nope' });
+
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');
+    expect(mockedGetAdapter).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleListAgentProviders (agent v1)', () => {
+  it('marks hasInstances on providers that own at least one instance', async () => {
+    mockedGetProviderInstances.mockResolvedValue([
+      { id: 'inst:exa:abc', baseProviderId: 'exa', name: 'AI Research', options: { category: 'news' } },
+      { id: 'inst:exa:def', baseProviderId: 'exa', name: '创业资讯', options: { category: 'publication' } },
+    ]);
+    mockedGetConfigured.mockResolvedValue(['exa', 'tavily']);
+
+    const reply = await handleListAgentProviders();
+    const exa = reply.providers.find((p) => p.id === 'exa');
+    const tavily = reply.providers.find((p) => p.id === 'tavily');
+    expect(exa?.hasInstances).toBe(true);
+    expect(exa?.configured).toBe(true);
+    expect(tavily?.hasInstances).toBeUndefined();
+    expect(tavily?.configured).toBe(true);
+  });
+
+  it('omits hasInstances entirely when no provider has instances', async () => {
+    mockedGetProviderInstances.mockResolvedValue([]);
+    mockedGetConfigured.mockResolvedValue(['exa']);
+
+    const reply = await handleListAgentProviders();
+    for (const provider of reply.providers) {
+      expect(provider.hasInstances).toBeUndefined();
+    }
+    expect(reply.providers.length).toBeGreaterThan(0);
+  });
+});
+
+describe('handleListAgentInstances (agent v2)', () => {
+  it('maps instances to AgentInstance shape with configured flag', async () => {
+    mockedGetProviderInstances.mockResolvedValue([
+      { id: 'inst:exa:abc', baseProviderId: 'exa', name: 'AI Research', options: { category: 'publication' } },
+      { id: 'inst:exa:def', baseProviderId: 'exa', name: '创业资讯', options: { category: 'news' } },
+    ]);
+    mockedGetConfigured.mockResolvedValue(['exa']);
+
+    await expect(handleListAgentInstances()).resolves.toEqual({
+      instances: [
+        { id: 'inst:exa:abc', providerId: 'exa', label: 'AI Research', description: '', configured: true },
+        { id: 'inst:exa:def', providerId: 'exa', label: '创业资讯', description: '', configured: true },
+      ],
+    });
+  });
+
+  it('marks configured false when the base provider has no key', async () => {
+    mockedGetProviderInstances.mockResolvedValue([
+      { id: 'inst:exa:abc', baseProviderId: 'exa', name: 'AI Research', options: {} },
+    ]);
+    mockedGetConfigured.mockResolvedValue(['tavily']);
+
+    await expect(handleListAgentInstances()).resolves.toEqual({
+      instances: [{ id: 'inst:exa:abc', providerId: 'exa', label: 'AI Research', description: '', configured: false }],
+    });
+  });
+});
+
+describe('Provider Instance gateway handlers', () => {
+  const created = { id: 'inst:exa:worker-id' as const, baseProviderId: 'exa' as const, name: 'AI Research', options: { category: 'publication' } };
+
+  it('creates an instance delegating to storage', async () => {
+    mockedCreateProviderInstance.mockResolvedValue(created);
+
+    await expect(handleCreateProviderInstance({ baseProviderId: 'exa', name: 'AI Research', options: { category: 'publication' } })).resolves.toEqual(created);
+    expect(mockedCreateProviderInstance).toHaveBeenCalledWith('exa', 'AI Research', { category: 'publication' });
+  });
+
+  it('updates an instance delegating to storage', async () => {
+    const updated = { ...created, name: 'Renamed' };
+    mockedUpdateProviderInstance.mockResolvedValue(updated);
+
+    await expect(handleUpdateProviderInstance({ id: created.id, patch: { name: 'Renamed' } })).resolves.toEqual(updated);
+    expect(mockedUpdateProviderInstance).toHaveBeenCalledWith(created.id, { name: 'Renamed' });
+  });
+
+  it('deletes an instance and clears the search cache', async () => {
+    mockedDeleteProviderInstance.mockResolvedValue(undefined);
+    mockedClearSearchCache.mockResolvedValue(undefined);
+
+    await handleDeleteProviderInstance(created.id);
+
+    expect(mockedDeleteProviderInstance).toHaveBeenCalledWith(created.id);
+    expect(mockedClearSearchCache).toHaveBeenCalled();
+  });
+
+  it('rejects delete for an invalid id format', async () => {
+    await expect(handleDeleteProviderInstance('not-inst' as never)).rejects.toThrow('invalid_provider_instance');
+    expect(mockedDeleteProviderInstance).not.toHaveBeenCalled();
+  });
+});
+
 describe('search cache handlers', () => {
   it('returns cache summaries', async () => {
     mockedGetSearchCacheSummaries.mockResolvedValue([
@@ -714,7 +968,7 @@ describe('handleImportConfig', () => {
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
       serpBarPositionOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
@@ -733,7 +987,7 @@ describe('handleImportConfig', () => {
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
       serpBarPositionOverridden: false,
-      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });

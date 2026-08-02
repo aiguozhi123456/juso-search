@@ -8,15 +8,20 @@ import {
   handleCreateCustomEngine,
   handleUpdateCustomEngine,
   handleDeleteCustomEngine,
+  handleCreateProviderInstance,
+  handleUpdateProviderInstance,
+  handleDeleteProviderInstance,
   handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
   handleGetSearchCacheSummaries,
   handleImportConfig,
+  handleListAgentInstances,
   handleListAgentProviders,
   handlePreviewImport,
   handleSaveProviderKey,
   handleSearch,
+  handleSearchInstance,
   handleSetActiveProvider,
   handleSetActiveSource,
   handleClearProviderMaxResults,
@@ -59,6 +64,9 @@ export default defineBackground(() => {
   onMessage('createCustomEngine', ({ data }) => handleCreateCustomEngine(data));
   onMessage('updateCustomEngine', ({ data }) => handleUpdateCustomEngine(data));
   onMessage('deleteCustomEngine', ({ data }) => handleDeleteCustomEngine(data));
+  onMessage('createProviderInstance', ({ data }) => handleCreateProviderInstance(data));
+  onMessage('updateProviderInstance', ({ data }) => handleUpdateProviderInstance(data));
+  onMessage('deleteProviderInstance', ({ data }) => handleDeleteProviderInstance(data));
   onMessage('openNewTab', ({ data, sender }) => {
     // sender.tab 只保证存在一个 tab 上下文——内容脚本与「在标签页打开的扩展页」都有 tab，
     // 故此检查并不用于区分内容脚本。真正的安全边界是 sanitizeOpenNewTabUrl 内的 http/https
@@ -112,6 +120,8 @@ export default defineBackground(() => {
       fetch: (...args) => fetch(...args),
       handleSearch,
       listProviders: handleListAgentProviders,
+      handleSearchInstance: handleSearchInstance,
+      listInstances: handleListAgentInstances,
       handleEngineSearch: async (request, signal) => {
         if (!(await getEngineSearchEnabled())) {
           return { engine: request.engineId, query: request.query, error: 'extract-failed' };

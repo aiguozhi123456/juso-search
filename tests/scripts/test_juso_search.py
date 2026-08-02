@@ -49,7 +49,7 @@ class BridgeServerTests(unittest.TestCase):
         self.assertTrue(self.state.claimed.is_set())
         self.assertEqual(self.request("/v1/claim", content_type=False)[0], 200)
         self.assertTrue(self.state.claimed.is_set())
-        complete = {"protocol": 1, "requestId": "request-1", "reply": {"ok": False, "error": {"kind": "unknown", "message": "safe"}}}
+        complete = {"protocol": 2, "requestId": "request-1", "reply": {"ok": False, "error": {"kind": "unknown", "message": "safe"}}}
         self.assertEqual(self.request("/v1/complete", complete)[0], 204)
         self.assertTrue(self.state.completed.is_set())
         self.assertEqual(self.request("/v1/complete", complete)[0], 409)
@@ -70,7 +70,7 @@ class BridgeServerTests(unittest.TestCase):
     def test_rejects_bad_token_host_request_id_and_path(self):
         self.assertEqual(self.request("/v1/claim", token="wrong", content_type=False)[0], 401)
         self.assertEqual(self.request("/v1/claim", host="localhost:1", content_type=False)[0], 400)
-        self.assertEqual(self.request("/v1/complete", {"protocol": 1, "requestId": "wrong", "reply": {}})[0], 400)
+        self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "wrong", "reply": {}})[0], 400)
         self.assertEqual(self.request("/nope", self.state.claim)[0], 404)
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
         try:
@@ -83,11 +83,11 @@ class BridgeServerTests(unittest.TestCase):
 
     def test_rejects_reply_for_the_wrong_claim_action_or_shape(self):
         provider_reply = {"providers": [{"id": "tavily", "supportsAnswer": True, "configured": False}]}
-        self.assertEqual(self.request("/v1/complete", {"protocol": 1, "requestId": "request-1", "reply": provider_reply})[0], 400)
-        self.assertEqual(self.request("/v1/complete", {"protocol": 1, "requestId": "request-1", "reply": {"ok": True}})[0], 400)
+        self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": provider_reply})[0], 400)
+        self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": {"ok": True}})[0], 400)
         self.state.claim = juso_search.make_claim("list-providers", None, None, False, "request-1")
-        self.assertEqual(self.request("/v1/complete", {"protocol": 1, "requestId": "request-1", "reply": {"providers": [{"id": "tavily", "supportsAnswer": True, "configured": False, "extra": True}]}})[0], 400)
-        self.assertEqual(self.request("/v1/complete", {"protocol": 1, "requestId": "request-1", "reply": provider_reply})[0], 204)
+        self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": {"providers": [{"id": "tavily", "supportsAnswer": True, "configured": False, "extra": True}]}})[0], 400)
+        self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": provider_reply})[0], 204)
 
     def test_incomplete_body_times_out_and_does_not_block_shutdown(self):
         token = "a" * 43
@@ -147,6 +147,10 @@ class PureFunctionTests(unittest.TestCase):
         engine_args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "engine-search", "hello", "--engine", "google", "--max-results", "2"])
         self.assertEqual((engine_args.engine, engine_args.max_results), ("google", 2))
         self.assertEqual(juso_search.make_claim("engine-search", "hello", None, False, "id", "google", 2)["request"], {"action": "engine-search", "query": "hello", "engineId": "google", "maxResults": 2})
+        instance_args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-instance", "hello", "--instance-id", "inst:exa:abc123"])
+        self.assertEqual(instance_args.instance_id, "inst:exa:abc123")
+        self.assertEqual(juso_search.make_claim("search-instance", "hello", None, False, "id", instance_id="inst:exa:abc123")["request"], {"action": "search-instance", "query": "hello", "instanceId": "inst:exa:abc123"})
+        self.assertEqual(juso_search.make_claim("list-instances", None, None, False, "id")["request"], {"action": "list-instances"})
         for value in ("nan", "inf", "-inf"):
             with self.assertRaises(Exception):
                 juso_search.positive_timeout(value)
@@ -206,6 +210,14 @@ class PureFunctionTests(unittest.TestCase):
         self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "challenge"}))
         self.assertFalse(juso_search.is_valid_reply(engine_claim, {"engine": "bing", "query": "hello", "error": "challenge"}))
         self.assertFalse(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "other", "error": "challenge"}))
+        providers_claim = juso_search.make_claim("list-providers", None, None, False, "request-1")
+        self.assertTrue(juso_search.is_valid_reply(providers_claim, {"providers": [{"id": "exa", "supportsAnswer": True, "configured": True, "hasInstances": True}]}))
+        self.assertFalse(juso_search.is_valid_reply(providers_claim, {"providers": [{"id": "exa", "supportsAnswer": True, "configured": True, "extra": True}]}))
+        instances_claim = juso_search.make_claim("list-instances", None, None, False, "request-1")
+        instance_reply = {"instances": [{"id": "inst:exa:abc123", "providerId": "exa", "label": "AI research", "description": "category=publication", "configured": True}]}
+        self.assertTrue(juso_search.is_valid_reply(instances_claim, instance_reply))
+        search_instance_claim = juso_search.make_claim("search-instance", "hello", None, False, "request-1", instance_id="inst:exa:abc123")
+        self.assertTrue(juso_search.is_valid_reply(search_instance_claim, error_reply))
         self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "challenge"}), 1)
         self.assertEqual(juso_search.result_status({"engine": "google", "query": "hello", "error": "no-results"}), 1)
         self.assertTrue(juso_search.is_valid_reply(engine_claim, {"engine": "google", "query": "hello", "error": "tab-closed"}))

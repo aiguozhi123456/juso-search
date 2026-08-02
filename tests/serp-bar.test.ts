@@ -13,7 +13,7 @@ import {
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
-import type { SearchSource } from '@/lib/sources';
+import type { SearchSource, SourceId } from '@/lib/sources';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 
@@ -86,6 +86,36 @@ describe('resolveSerpHandoff — provider chip (回归 ERR_BLOCKED_BY_CLIENT)', 
       kind: 'openSearchPage',
       deepLink: '/search.html',
     });
+  });
+});
+
+describe('resolveSerpHandoff — provider-instance chip', () => {
+  const researchSource: SearchSource = {
+    id: 'inst:exa:research',
+    kind: 'provider-instance',
+    label: 'AI 研究',
+    supportsAnswer: true,
+    favicon: '/icons/exa.svg',
+    providerInstance: { id: 'inst:exa:research', baseProviderId: 'exa', name: 'AI 研究', options: {} },
+  };
+
+  it('yields an openSearchPage deep link carrying the instance id + query (not a navigate)', () => {
+    expect(resolveSerpHandoff(researchSource, 'hello world')).toEqual({
+      kind: 'openSearchPage',
+      deepLink: '/search.html?provider=inst%3Aexa%3Aresearch&query=hello+world',
+    });
+  });
+
+  it('falls back to the search home deep link for an empty query', () => {
+    expect(resolveSerpHandoff(researchSource, '   ')).toEqual({
+      kind: 'openSearchPage',
+      deepLink: '/search.html',
+    });
+  });
+
+  it('does not hand off an instance source with a malformed instance id', () => {
+    const broken: SearchSource = { id: 'inst:unknown:abc' as SourceId, kind: 'provider-instance', label: 'X', supportsAnswer: true };
+    expect(resolveSerpHandoff(broken, 'hello')).toBeNull();
   });
 });
 

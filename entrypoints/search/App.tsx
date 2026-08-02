@@ -24,9 +24,18 @@ import { isSiteEngineId } from '@/lib/site-engines';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import { isCustomEngineId } from '@/lib/custom-engines';
+import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
+import { isProviderInstanceId } from '@/lib/provider-instances';
 import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteEngineHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
+
+/** 深链 provider 参数（裸 provider id 或实例 id）是否已配置：实例按 base provider 判定。 */
+function isLinkSourceConfigured(provider: ProviderId | ProviderInstanceId, configured: readonly ProviderId[]): boolean {
+  if (isProviderId(provider)) return configured.includes(provider);
+  if (isProviderInstanceId(provider)) return configured.includes(provider.split(':')[1] as ProviderId);
+  return false;
+}
 
 export default function App() {
   const providers = allProviders();
@@ -36,6 +45,7 @@ export default function App() {
   const [sourceHidden, setSourceHidden] = useState<SourceId[]>([]);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
+  const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
@@ -60,11 +70,15 @@ export default function App() {
       setSourceHidden(config.sourceHidden ?? []);
       setSiteEngines(config.siteEngines ?? []);
       setCustomEngines(config.customEngines ?? []);
+      setProviderInstances(config.providerInstances ?? []);
       setGroupConfig(config.groupConfig);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
-      // provider 必须已配置才认；query 预填并立即触发一次搜索。
+      // provider 必须已配置才认（实例 id 按 base provider 判定，configuredProviderIds 是 ProviderId[]）；
+      // query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
-      const linkProvider = link.provider && config.configuredProviderIds.includes(link.provider) ? link.provider : null;
+      const linkProvider = link.provider && isLinkSourceConfigured(link.provider, config.configuredProviderIds)
+        ? link.provider
+        : null;
       const initialSource = linkProvider ?? config.activeSourceId;
       const initialSources = allSources(
         config.configuredProviderIds,
@@ -72,6 +86,7 @@ export default function App() {
         config.sourceHidden ?? [],
         config.siteEngines ?? [],
         config.customEngines ?? [],
+        config.providerInstances ?? [],
       );
       // Query-only links honor the persisted source unless it is hidden from
       // the current projection. This executes a visible fallback without
@@ -95,7 +110,7 @@ export default function App() {
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
-  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
+  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
     const query = rawQuery.trim();
     if (!query) return;
     let source: SourceId | null;
@@ -131,6 +146,7 @@ export default function App() {
           refreshed.sourceHidden ?? [],
           refreshed.siteEngines ?? [],
           refreshed.customEngines ?? [],
+          refreshed.providerInstances ?? [],
         );
         const freshSelectedSource = refreshedSources.find((candidate) => candidate.id === source);
         // If the selected Site Engine disappeared (or is no longer visible), run
@@ -153,6 +169,7 @@ export default function App() {
         refreshed.sourceHidden ?? [],
         refreshed.siteEngines ?? [],
         refreshed.customEngines ?? [],
+        refreshed.providerInstances ?? [],
       );
       selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
       source = selectedSource?.id ?? null;
@@ -162,8 +179,10 @@ export default function App() {
       location.assign(handoff.url);
       return;
     }
-    if (!source || !isProviderId(source)) return;
-    const providerId = source;
+    if (!source || (!isProviderId(source) && !isProviderInstanceId(source))) return;
+    // 实例 id 走 SourceId 边界透传给 worker（gateway 在边界解析为 base provider + options），
+    // wire 字段仍为 ProviderId 类型——与 SearchRequest.providerId 承载实例 id 的既定约定一致。
+    const providerId = source as ProviderId;
     const isRefresh = opts.forceRefresh === true;
     const hadResponse = response !== null;
     const reqId = ++reqIdRef.current;
@@ -228,6 +247,7 @@ export default function App() {
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
             config.customEngines ?? [],
+            config.providerInstances ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -282,6 +302,7 @@ export default function App() {
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
             config.customEngines ?? [],
+            config.providerInstances ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -345,6 +366,7 @@ export default function App() {
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
             config.customEngines ?? [],
+            config.providerInstances ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -400,6 +422,7 @@ export default function App() {
             config.sourceHidden ?? [],
             config.siteEngines ?? [],
             config.customEngines ?? [],
+            config.providerInstances ?? [],
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -448,7 +471,9 @@ export default function App() {
       }
       return;
     }
-    if (!isProviderId(source.id)) return;
+    // 实例 chip 与裸 provider chip 同路径：序列化写 active source（实例 id）并用实例 id 搜索
+    // （gateway 在边界解析实例 → base provider + per-instance options，KTD2/R8）。
+    if (!isProviderId(source.id) && !isProviderInstanceId(source.id)) return;
     const id = source.id;
     if (loading || switching) return;
     if (id === active) return;
@@ -478,12 +503,14 @@ export default function App() {
     setCacheMeta({ hit: true, entryId: entry.id, createdAt: entry.createdAt });
     setError(null);
     setRefreshError(null);
-    if (configuredProviderIds.includes(entry.providerId) && entry.providerId !== active) {
+    // 缓存条目可能是实例搜索的产物：激活态恢复优先用 instanceId，裸 provider 搜索回退 providerId。
+    const activeId = (entry.instanceId ?? entry.providerId) as SourceId;
+    if (configuredProviderIds.includes(entry.providerId) && activeId !== active) {
       const switchReqId = ++switchReqIdRef.current;
       setSwitching(true);
-      void sendMessage('setActiveSource', entry.providerId)
+      void sendMessage('setActiveSource', activeId)
         .then(() => {
-          if (switchReqId === switchReqIdRef.current) setActive(entry.providerId);
+          if (switchReqId === switchReqIdRef.current) setActive(activeId);
         })
         .finally(() => {
           if (switchReqId === switchReqIdRef.current) setSwitching(false);
@@ -492,7 +519,10 @@ export default function App() {
   }
 
   async function handleRefresh() {
-    await handleSearch(response?.query ?? query, { forceRefresh: true, providerId: response?.provider });
+    // 实例搜索的响应 provider 是 base ProviderId；刷新必须回到产出该结果的实例，
+    // 否则会路由到默认实例（KTD5）而非用户选择的那一个（BUG-2）。
+    const providerId = (active && isProviderInstanceId(active)) ? active : response?.provider;
+    await handleSearch(response?.query ?? query, { forceRefresh: true, providerId });
   }
 
   async function loadSourceSnapshot() {
@@ -507,6 +537,7 @@ export default function App() {
     setSourceHidden(config.sourceHidden ?? []);
     setSiteEngines(config.siteEngines ?? []);
     setCustomEngines(config.customEngines ?? []);
+    setProviderInstances(config.providerInstances ?? []);
     setGroupConfig(config.groupConfig);
     setActive(config.activeSourceId);
   }
@@ -516,7 +547,7 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines);
+  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances);
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，
@@ -553,7 +584,7 @@ export default function App() {
             {cacheMeta?.hit && (
               <div className="cache-notice">
                 <span>{t(MSG.cache_hit_notice, [providerLabel(response.provider, providers), cacheMeta.createdAt ? relativeTime(cacheMeta.createdAt) : ''])}</span>
-                {response.provider === active && <button type="button" onClick={() => void handleRefresh()}>{t(MSG.cache_refresh)}</button>}
+                {isActiveSourceForProvider(active, response.provider) && <button type="button" onClick={() => void handleRefresh()}>{t(MSG.cache_refresh)}</button>}
                 {refreshError && <span className="cache-error">{refreshError}</span>}
               </div>
             )}
@@ -581,4 +612,11 @@ function relativeTime(timestamp: number): string {
 function providerLabel(providerId: ProviderId, providers: ReturnType<typeof allProviders>): string {
   const provider = providers.find((candidate) => candidate.id === providerId);
   return provider ? t(provider.label) : providerId;
+}
+
+/** 刷新按钮显隐：激活源是响应 provider 本身，或是该 provider 的实例（响应来自该 provider）。 */
+function isActiveSourceForProvider(active: SourceId | null, provider: ProviderId): boolean {
+  if (!active) return false;
+  if (active === provider) return true;
+  return isProviderInstanceId(active) && active.split(':')[1] === provider;
 }

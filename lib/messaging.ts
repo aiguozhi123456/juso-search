@@ -6,6 +6,7 @@ import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 import type { SiteEngineDefinition, SiteEngineEngineId, SiteEngineId } from './site-engines';
 import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
+import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
 
 export type SearchRequest = {
   query: string;
@@ -46,6 +47,12 @@ export type ProviderConfigReply = {
   providerMaxResults: Partial<Record<ProviderId, number>>;
   /** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */
   groupConfig: GroupConfig;
+  /**
+   * 用户定义的 provider 实例；UI/SERP-bar 宿主据此把实例投影进快切栏。
+   * 当前为可选：IU2 的 `getProviderConfigSnapshot` 落地填充前，worker 快照暂不携带该字段。
+   * IU2/IU4 落地后应收紧为必填（`ProviderInstance[]`）。
+   */
+  providerInstances?: ProviderInstance[];
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -77,6 +84,10 @@ export type ProtocolMap = {
   createCustomEngine(data: { name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
   updateCustomEngine(data: { id: CustomEngineId; name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
   deleteCustomEngine(id: CustomEngineId): Promise<void>;
+  // Provider 实例 CRUD（worker 持久化；实例 id 属 SourceId 边界，绝不用作 ProviderId）。
+  createProviderInstance(input: { baseProviderId: ProviderId; name: string; options: Record<string, unknown> }): Promise<ProviderInstance>;
+  updateProviderInstance(input: { id: ProviderInstanceId; patch: { name?: string; options?: Record<string, unknown> } }): Promise<ProviderInstance | null>;
+  deleteProviderInstance(id: ProviderInstanceId): Promise<void>;
   openNewTab(url: string): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
   deleteProviderKey(providerId: ProviderId): Promise<void>;

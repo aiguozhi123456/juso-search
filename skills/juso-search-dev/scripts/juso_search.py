@@ -22,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-PROTOCOL = 1
+PROTOCOL = 2
 DEFAULT_EXTENSION_ID = "pdklefhommhabbhkglgkgomeibeibmcl"
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
@@ -112,11 +112,29 @@ def is_provider_list_reply(reply: Any) -> bool:
         return False
     return all(
         isinstance(provider, dict)
-        and set(provider) == {"id", "supportsAnswer", "configured"}
+        and set(provider) >= {"id", "supportsAnswer", "configured"}  # subset, not equality
+        and set(provider) <= {"id", "supportsAnswer", "configured", "hasInstances"}  # no unknown fields
         and provider["id"] in PROVIDERS
         and isinstance(provider["supportsAnswer"], bool)
         and isinstance(provider["configured"], bool)
+        and ("hasInstances" not in provider or isinstance(provider["hasInstances"], bool))
         for provider in reply["providers"]
+    )
+
+
+def is_instance_list_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or set(reply) != {"instances"} or not isinstance(reply["instances"], list):
+        return False
+    return all(
+        isinstance(instance, dict)
+        and set(instance) == {"id", "providerId", "label", "description", "configured"}
+        and isinstance(instance["id"], str)
+        and instance["id"].startswith("inst:")
+        and instance["providerId"] in PROVIDERS
+        and isinstance(instance["label"], str)
+        and isinstance(instance["description"], str)
+        and isinstance(instance["configured"], bool)
+        for instance in reply["instances"]
     )
 
 
@@ -150,6 +168,10 @@ def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:
         return is_search_reply(reply)
     if request.get("action") == "list-providers":
         return is_provider_list_reply(reply)
+    if request.get("action") == "list-instances":
+        return is_instance_list_reply(reply)
+    if request.get("action") == "search-instance":
+        return is_search_reply(reply)  # same reply shape as search
     if request.get("action") == "engine-search":
         return (
             is_engine_search_reply(reply)
@@ -318,7 +340,7 @@ def make_handler(state: BridgeState):
     return BridgeHandler
 
 
-def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None) -> dict[str, Any]:
+def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None, instance_id: str | None = None) -> dict[str, Any]:
     request: dict[str, Any] = {"action": action}
     if action == "search":
         request.update(query=query, providerId=provider)
@@ -328,6 +350,11 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
         request.update(query=query, engineId=engine)
         if max_results is not None:
             request["maxResults"] = max_results
+    if action == "search-instance":
+        request.update(query=query, instanceId=instance_id)
+        if force_refresh:
+            request["forceRefresh"] = True
+    # list-providers and list-instances have no extra fields
     return {"protocol": PROTOCOL, "requestId": request_id, "request": request}
 
 
@@ -347,6 +374,12 @@ def parser() -> argparse.ArgumentParser:
     engine_search.add_argument("--engine", required=True, choices=ENGINES)
     engine_search.add_argument("--max-results", type=int, choices=range(1, 21))
     commands.add_parser("list-providers")
+    commands.add_parser("list-instances")
+
+    search_instance = commands.add_parser("search-instance")
+    search_instance.add_argument("query", type=search_query)
+    search_instance.add_argument("--instance-id", required=True)
+    search_instance.add_argument("--force-refresh", action="store_true")
     return argument_parser
 
 
@@ -368,12 +401,21 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
         }
     token, request_id = secrets.token_urlsafe(32), str(uuid.uuid4())
     state = BridgeState(token, request_id)
-    state.claim = make_claim(args.command, getattr(args, "query", None), getattr(args, "provider", None), getattr(args, "force_refresh", False), request_id, getattr(args, "engine", None), getattr(args, "max_results", None))
+    state.claim = make_claim(
+        args.command,
+        getattr(args, "query", None),
+        getattr(args, "provider", None),
+        getattr(args, "force_refresh", False),
+        request_id,
+        getattr(args, "engine", None),
+        getattr(args, "max_results", None),
+        getattr(args, "instance_id", None),
+    )
     server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     try:
-        url = f"chrome-extension://{args.extension_id}/bridge.html#v=1&p={server.server_port}&t={token}"
+        url = f"chrome-extension://{args.extension_id}/bridge.html#v=2&p={server.server_port}&t={token}"
         command = [chrome, url]
         if args.profile:
             command.insert(1, f"--profile-directory={args.profile}")

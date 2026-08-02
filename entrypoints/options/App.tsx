@@ -5,6 +5,7 @@ import type { SourceId } from '@/lib/sources';
 import { allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
+import type { ProviderInstance } from '@/lib/provider-instances';
 import type { GroupConfig } from '@/lib/source-groups';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import { SourceGroupEditor } from '@/components/SourceGroupEditor';
@@ -18,6 +19,7 @@ import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
 import { SiteEngineManager } from '@/components/SiteEngineManager';
 import { CustomEngineManager } from '@/components/CustomEngineManager';
+import { ProviderInstanceManager } from '@/components/ProviderInstanceManager';
 import { Wordmark } from '@/components/Wordmark';
 import { SearchIcon, SettingsIcon } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
@@ -54,6 +56,7 @@ export default function App() {
   const [savingSourceHidden, setSavingSourceHidden] = useState(false);
   const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
+  const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const configRequestEpoch = useRef(0);
   const sourceOrderRevision = useRef(0);
@@ -111,6 +114,7 @@ export default function App() {
       setSiteEngines(engines);
       const customs = config.customEngines ?? [];
       setCustomEngines(customs);
+      setProviderInstances(config.providerInstances ?? []);
       // 与 sourceOrder/sourceHidden 同构：仅当请求期间没有本地 groupConfig 乐观变更时才采纳响应，
       // 避免在途的旧配置覆盖 SourceGroupEditor.persist 刚写入的乐观态。
       if (groupRevisionAtRequest === groupConfigRevision.current) {
@@ -126,10 +130,10 @@ export default function App() {
     })();
   }
 
-  const configuredSources = allSources(configuredProviderIds, sourceOrder, undefined, siteEngines, customEngines);
+  const configuredSources = allSources(configuredProviderIds, sourceOrder, undefined, siteEngines, customEngines, providerInstances);
   // 激活态下拉框只列可见来源（已隐藏项不出现在下拉框）。
   // 注意：快切栏管理列表仍用 configuredSources（不过滤），否则隐藏项无法再「显示」。
-  const visibleSources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines);
+  const visibleSources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances);
   // active 被隐藏时，下拉框渲染回退到首个可见源；active 本身在 toggleHidden
   // 隐藏当前激活项时已被持久化重选（见 toggleHidden），这里只兜底初次加载的不一致。
   const activeVisible = active == null
@@ -161,7 +165,7 @@ export default function App() {
     // 隐藏当前激活项：把激活态重选到首个仍可见来源并持久化，避免下拉框落到
     // 已隐藏的值上。仅隐藏分支需要；显示分支恢复原激活项由渲染兜底。
     const reselectTo = !isHidden && active === sourceId
-      ? allSources(configuredProviderIds, sourceOrder, next, siteEngines, customEngines).find((s) => s.id !== sourceId)?.id
+      ? allSources(configuredProviderIds, sourceOrder, next, siteEngines, customEngines, providerInstances).find((s) => s.id !== sourceId)?.id
       : undefined;
 
     sourceHiddenRevision.current += 1;
@@ -305,6 +309,7 @@ export default function App() {
           )}
 
           {activeGroup === 'keys' && (
+          <>
           <section data-section="api-keys">
             <h2>{t(MSG.opts_apikey_heading)}</h2>
             <p className="hint">{t(MSG.opts_apikey_hint)}</p>
@@ -329,6 +334,12 @@ export default function App() {
               />
             ))}
           </section>
+
+          <section data-section="provider-instances">
+            <h2>{t(MSG.opts_instances_heading)}</h2>
+            <ProviderInstanceManager />
+          </section>
+          </>
           )}
 
           {activeGroup === 'general' && (

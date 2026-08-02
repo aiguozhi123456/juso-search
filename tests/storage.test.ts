@@ -38,6 +38,11 @@ import {
   deleteSiteEngineDefinition,
   getGroupConfig,
   setGroupConfig,
+  getProviderInstances,
+  createProviderInstance,
+  updateProviderInstance,
+  deleteProviderInstance,
+  ensureDefaultInstance,
 } from '@/lib/storage';
 import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
@@ -195,6 +200,35 @@ describe('storage: active source', () => {
     expect(await getActiveSourceId()).toBe('google');
     await setKey('exa', 'exa-x');
     expect(await getActiveSourceId()).toBe('exa');
+  });
+
+  it('maps a bare provider activeSource to the first instance id when instances exist (BUG-1)', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    // handleSaveProviderKey 自动建默认实例后，activeSource 仍可能存为裸 provider id（'exa'）。
+    await browser.storage.local.set({ activeSource: 'exa', activeProvider: 'exa' });
+    expect(await getActiveSourceId()).toBe(created.id);
+  });
+
+  it('keeps a bare provider activeSource when no instances exist (BUG-1)', async () => {
+    await setKey('exa', 'exa-key');
+    await browser.storage.local.set({ activeSource: 'exa', activeProvider: 'exa' });
+    expect(await getActiveSourceId()).toBe('exa');
+  });
+
+  it('returns an instance activeSource whose base provider has a key (BUG-1)', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await selectActiveSourceId(created.id);
+    expect(await getActiveSourceId()).toBe(created.id);
+  });
+
+  it('maps a bare provider activeSource to the first instance id in the config snapshot (BUG-1)', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await browser.storage.local.set({ activeSource: 'exa', activeProvider: 'exa' });
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.activeSourceId).toBe(created.id);
   });
 });
 
@@ -595,6 +629,208 @@ describe('storage: site engine CRUD preserves custom-engine source graph (H1 reg
   });
 });
 
+describe('storage: Provider Instances', () => {
+  it('creates, lists, updates, and deletes an instance', async () => {
+    const created = await createProviderInstance('exa', ' AI Research ', { category: 'publication', includeDomains: ['arxiv.org'] });
+    expect(created.id).toMatch(/^inst:exa:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(created).toEqual({
+      id: created.id,
+      baseProviderId: 'exa',
+      name: 'AI Research',
+      options: { category: 'publication', includeDomains: ['arxiv.org'] },
+    });
+    expect(await getProviderInstances()).toEqual([created]);
+
+    const updated = await updateProviderInstance(created.id, { name: 'Research v2', options: { category: 'news' } });
+    expect(updated).toEqual({ id: created.id, baseProviderId: 'exa', name: 'Research v2', options: { category: 'news' } });
+    expect(await getProviderInstances()).toEqual([updated]);
+
+    // 第二个实例让删除不再命中「独苗保护」。
+    const second = await createProviderInstance('exa', 'Research v3', {});
+    await deleteProviderInstance(created.id);
+    // created/updated 是同一个 id；删除后仅 second 保留。
+    expect(await getProviderInstances()).toEqual([second]);
+  });
+
+  it('rejects deleting the sole instance of a provider (default instance protection)', async () => {
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await expect(deleteProviderInstance(created.id)).rejects.toThrow('cannot_delete_sole_instance');
+    // 定义保留（未被删除）。
+    expect(await getProviderInstances()).toEqual([created]);
+  });
+
+  it('deletes an instance when more than one exists for the same provider', async () => {
+    const a = await createProviderInstance('exa', 'Instance A', {});
+    const b = await createProviderInstance('exa', 'Instance B', {});
+    await deleteProviderInstance(a.id);
+    expect(await getProviderInstances()).toEqual([b]);
+  });
+
+  it('updateProviderInstance returns null for an unknown id', async () => {
+    expect(await updateProviderInstance('inst:exa:nope', { name: 'x' })).toBeNull();
+  });
+
+  it('normalizes malformed persisted instances defensively', async () => {
+    await browser.storage.local.set({
+      providerInstances: [
+        { id: 'inst:exa:abc', baseProviderId: 'exa', name: '  Good  ', options: {} },
+        { id: 'inst:exa:abc', baseProviderId: 'exa', name: 'duplicate', options: {} },
+        { id: 'inst:ghost:abc', baseProviderId: 'ghost', name: 'unknown base', options: {} },
+        { id: 'inst:tavily:abc', baseProviderId: 'exa', name: 'mismatch', options: {} },
+        { id: 'not-an-instance', baseProviderId: 'exa', name: 'bad id', options: {} },
+        { id: 'inst:jina:abc', baseProviderId: 'jina', name: 'bad options', options: [] },
+      ],
+    });
+    expect(await getProviderInstances()).toEqual([{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Good', options: {} }]);
+  });
+
+  it('selectActiveSourceId with an instance id sets activeSource and dual-writes the base provider', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', { category: 'publication' });
+    await selectActiveSourceId(created.id);
+    const got = await browser.storage.local.get(['activeSource', 'activeProvider']);
+    expect(got.activeSource).toBe(created.id);
+    expect(got.activeProvider).toBe('exa');
+    expect(await getActiveSourceId()).toBe(created.id);
+  });
+
+  it('selectActiveSourceId rejects an instance whose base provider has no key', async () => {
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await expect(selectActiveSourceId(created.id)).rejects.toThrow('invalid_source');
+  });
+
+  it('selectActiveSourceId rejects an unknown instance id', async () => {
+    await setKey('exa', 'exa-key');
+    await expect(selectActiveSourceId('inst:exa:does-not-exist')).rejects.toThrow('invalid_source');
+  });
+
+  it('clearing the base provider key makes the instance unusable but keeps its definition', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await selectActiveSourceId(created.id);
+    expect(await getActiveSourceId()).toBe(created.id);
+
+    await clearKey('exa');
+    expect(await getProviderInstances()).toEqual([created]);
+    expect(await getActiveSourceId()).toBe('google');
+  });
+
+  it('ensureDefaultInstance creates a default instance with empty options when none exist (BUG-3)', async () => {
+    await setKey('exa', 'exa-key');
+    await ensureDefaultInstance('exa', 'Exa');
+    const instances = await getProviderInstances();
+    expect(instances).toHaveLength(1);
+    expect(instances[0]).toMatchObject({ baseProviderId: 'exa', name: 'Exa', options: {} });
+    expect(instances[0]?.id).toMatch(/^inst:exa:/);
+    // 新实例 id 追加进 sourceOrder（镜像 createProviderInstance）。
+    const got = await browser.storage.local.get('sourceOrder');
+    expect(got.sourceOrder as string[]).toContain(instances[0]?.id);
+  });
+
+  it('ensureDefaultInstance no-ops when an instance already exists (BUG-3)', async () => {
+    await setKey('exa', 'exa-key');
+    const existing = await createProviderInstance('exa', 'AI Research', {});
+    await ensureDefaultInstance('exa', 'Exa');
+    expect(await getProviderInstances()).toEqual([existing]);
+  });
+
+  it('ensureDefaultInstance serializes concurrent calls so only one default instance is created (BUG-3)', async () => {
+    await setKey('exa', 'exa-key');
+    await Promise.all([ensureDefaultInstance('exa', 'Exa'), ensureDefaultInstance('exa', 'Exa')]);
+    expect(await getProviderInstances()).toHaveLength(1);
+  });
+
+  it('getProviderConfigSnapshot includes providerInstances and an instance active source', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', { category: 'publication' });
+    await selectActiveSourceId(created.id);
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.providerInstances).toEqual([created]);
+    expect(snap.activeSourceId).toBe(created.id);
+    expect(snap.activeProviderId).toBe('exa');
+  });
+
+  it('deleting the active instance falls back to a valid source', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    // 第二个实例使删除合法（不被独苗保护拦截）。
+    const second = await createProviderInstance('exa', 'AI Research 2', {});
+    await selectActiveSourceId(created.id);
+    await deleteProviderInstance(created.id);
+    const got = await browser.storage.local.get(['providerInstances', 'activeSource', 'activeProvider']);
+    expect(got.providerInstances).toEqual([second]);
+    expect(got.activeSource).not.toBe(created.id);
+    expect(await getActiveSourceId()).not.toBe(created.id);
+    // 双写残余仍指向可用 provider（getActiveProviderId 回退路径可用）
+    expect(got.activeProvider).toBe('exa');
+  });
+});
+
+describe('storage: provider instances in the source graph (IU7)', () => {
+  it('setSourceOrder preserves instance ids (not stripped)', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await setSourceOrder([created.id, 'bing']);
+    const order = await getSourceOrder();
+    expect(order).toContain(created.id);
+    expect(order[0]).toBe(created.id);
+  });
+
+  it('setSourceHidden preserves instance ids (not stripped)', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await setSourceHidden([created.id]);
+    expect(await getSourceHidden()).toContain(created.id);
+  });
+
+  it('setGroupConfig preserves instance ids in layout and assignments', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    // pinned in layout
+    await setGroupConfig({
+      groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
+      layout: [{ kind: 'source', sourceId: created.id }, { kind: 'group', groupId: 'ai-search' }],
+      assignments: {},
+      groupOrders: {},
+    });
+    const cfg = await getGroupConfig();
+    expect(cfg.layout).toContainEqual({ kind: 'source', sourceId: created.id });
+    // assigned to a group
+    await setGroupConfig({
+      groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
+      layout: [{ kind: 'group', groupId: 'ai-search' }],
+      assignments: { [created.id]: 'ai-search' },
+      groupOrders: {},
+    });
+    const cfg2 = await getGroupConfig();
+    expect(cfg2.assignments[created.id]).toBe('ai-search');
+  });
+
+  it('createProviderInstance appends the new instance id to SOURCE_ORDER_KEY', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    const got = await browser.storage.local.get('sourceOrder');
+    expect((got.sourceOrder as string[])).toContain(created.id);
+  });
+
+  it('getProviderConfigSnapshot preserves instance ids in sourceOrder/sourceHidden/groupConfig', async () => {
+    await setKey('exa', 'exa-key');
+    const created = await createProviderInstance('exa', 'AI Research', {});
+    await setSourceOrder([created.id]);
+    await setSourceHidden([created.id]);
+    await setGroupConfig({
+      groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
+      layout: [{ kind: 'group', groupId: 'ai-search' }],
+      assignments: { [created.id]: 'ai-search' },
+      groupOrders: {},
+    });
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.sourceOrder).toContain(created.id);
+    expect(snap.sourceHidden).toContain(created.id);
+    expect(snap.groupConfig.assignments[created.id]).toBe('ai-search');
+  });
+});
+
 describe('storage: local search cache', () => {
   it('returns null on cache miss', async () => {
     expect(await getCachedSearch('tavily', 'hello')).toBeNull();
@@ -666,6 +902,49 @@ describe('storage: local search cache', () => {
 
     expect(await getSearchCacheSummaries()).toEqual([]);
     expect(await getCachedSearch('tavily', 'one')).toBeNull();
+  });
+
+  it('keys instance searches by instanceId: no collision between instances or with the bare provider', async () => {
+    await saveCachedSearch(responseFixture({ query: 'transformers' }), 'inst:exa:aaa');
+    await saveCachedSearch(responseFixture({ query: 'transformers' }), 'inst:exa:bbb');
+    const bare = await saveCachedSearch(responseFixture({ query: 'transformers' }));
+
+    const hitA = await getCachedSearch('inst:exa:aaa', 'transformers');
+    const hitB = await getCachedSearch('inst:exa:bbb', 'transformers');
+    const hitBare = await getCachedSearch('tavily', 'transformers');
+
+    // 三个查询各自命中自己写入的条目（cache key 互不碰撞）
+    expect(hitA).not.toBeNull();
+    expect(hitB).not.toBeNull();
+    expect(hitBare).not.toBeNull();
+    expect(hitA?.id).not.toBe(hitB?.id);
+    expect(hitA?.id).not.toBe(bare.id);
+  });
+
+  it('round-trips the instanceId field on entries and summaries (instance only)', async () => {
+    await saveCachedSearch(responseFixture({ query: 'transformers' }), 'inst:exa:aaa');
+    await saveCachedSearch(responseFixture({ query: 'transformers' }));
+
+    const hit = await getCachedSearch('inst:exa:aaa', 'transformers');
+    const summaries = await getSearchCacheSummaries();
+    const instanceSummary = summaries.find((s) => s.cacheKey.startsWith('inst:exa:aaa:'));
+    const bareSummary = summaries.find((s) => s.cacheKey.startsWith('tavily:'));
+
+    expect(hit?.instanceId).toBe('inst:exa:aaa');
+    expect(hit?.cacheKey).toBe('inst:exa:aaa:transformers');
+    expect(instanceSummary?.instanceId).toBe('inst:exa:aaa');
+    expect(bareSummary?.instanceId).toBeUndefined();
+  });
+
+  it('instance cache keys carry the inst: prefix so a delete-instance cleanup can target them', async () => {
+    await saveCachedSearch(responseFixture({ query: 'transformers' }), 'inst:exa:aaa');
+    await saveCachedSearch(responseFixture({ query: 'transformers' }));
+
+    const summaries = await getSearchCacheSummaries();
+    const instanceKey = summaries.find((s) => s.cacheKey.startsWith('inst:exa:aaa:'))?.cacheKey;
+    expect(instanceKey).toBe('inst:exa:aaa:transformers');
+    // 裸 provider 条目保持 provider 前缀，不被实例清理误伤
+    expect(summaries.find((s) => s.cacheKey.startsWith('tavily:'))?.cacheKey).toBe('tavily:transformers');
   });
 
   it('enforces the cache capacity', async () => {

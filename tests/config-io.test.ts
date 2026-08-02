@@ -10,6 +10,7 @@ import { CURRENT_SCHEMA_VERSION } from '@/lib/schema';
 import { setSourceOrder } from '@/lib/storage';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import type { SourceId } from '@/lib/sources';
+import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
 
 // 内存版 chrome.storage.local，支持 get(string | string[] | null) + set + remove。
 function installStorage(
@@ -56,6 +57,17 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
     localePref: 'auto',
     serpBarPosition: 'auto',
     siteEngines: [],
+    ...overrides,
+  };
+}
+
+/** 构造一个合法 Provider Instance（Exa base，options 为 plain object）。 */
+function makeInstance(id: string, overrides: Partial<ProviderInstance> = {}): ProviderInstance {
+  return {
+    id: id as ProviderInstanceId,
+    baseProviderId: 'exa',
+    name: 'AI Research',
+    options: { category: 'publication' },
     ...overrides,
   };
 }
@@ -179,6 +191,51 @@ describe('buildExportPayload', () => {
       sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
       sourceHidden: [site.id],
     });
+  });
+
+  it('exports populated Provider Instances', async () => {
+    const instances = [
+      makeInstance('inst:exa:abc'),
+      makeInstance('inst:exa:def', { name: 'Startup News', options: { category: 'news' } }),
+    ];
+    installStorage({ providerInstances: instances });
+    const payload = await buildExportPayload();
+    expect(payload.providerInstances).toEqual(instances);
+  });
+
+  it('exports an empty Provider Instance list when none are stored', async () => {
+    installStorage({});
+    const payload = await buildExportPayload();
+    expect(payload.providerInstances).toEqual([]);
+  });
+
+  it('exports an instance id in sourceOrder', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { exa: 'exa-1' }, providerInstances: [instance], sourceOrder: [instance.id, 'bing'] });
+    const payload = await buildExportPayload();
+    expect(payload.sourceOrder?.[0]).toBe(instance.id);
+    expect(payload.sourceOrder).toContain(instance.id);
+    expect(payload.providerInstances).toEqual([instance]);
+  });
+
+  it('exports an instance id as activeSource', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { exa: 'exa-1' }, providerInstances: [instance], activeSource: instance.id });
+    const payload = await buildExportPayload();
+    expect(payload.activeSource).toBe(instance.id);
+  });
+
+  it('maps a bare provider activeSource to the first instance id when instances exist (BUG-1)', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({
+      providerKeys: { exa: 'exa-1' },
+      providerInstances: [instance],
+      activeProvider: 'exa',
+      // handleSaveProviderKey 自动建默认实例后 activeSource 仍可能存为裸 provider id。
+      activeSource: 'exa',
+    });
+    const payload = await buildExportPayload();
+    expect(payload.activeSource).toBe(instance.id);
   });
 });
 
@@ -357,6 +414,110 @@ describe('parseImportPayload', () => {
     const result = parseImportPayload(payload);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.serpBarPosition).toBeUndefined();
+  });
+
+  it('accepts valid Provider Instances in an import payload', () => {
+    const instance = makeInstance('inst:exa:abc');
+    const result = parseImportPayload(validPayload({ providerInstances: [instance] }));
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.value.providerInstances).toEqual([instance]);
+  });
+
+  it('accepts an import payload without Provider Instances (legacy/partial export)', () => {
+    const result = parseImportPayload(validPayload());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.providerInstances).toBeUndefined();
+  });
+
+  it('accepts an instance id in sourceOrder and preserves it', () => {
+    const instance = makeInstance('inst:exa:abc');
+    const result = parseImportPayload(validPayload({
+      providerInstances: [instance],
+      sourceOrder: [instance.id, 'bing'],
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.sourceOrder?.[0]).toBe(instance.id);
+      expect(result.value.sourceOrder).toContain(instance.id);
+    }
+  });
+
+  it('rejects a dangling instance id in sourceOrder (not in providerInstances)', () => {
+    const result = parseImportPayload(validPayload({ sourceOrder: ['inst:exa:abc'] as never }));
+    expect(result).toEqual({ ok: false, error: 'invalid_source_order' });
+  });
+
+  it('accepts an instance id as activeSource', () => {
+    const instance = makeInstance('inst:exa:abc');
+    const result = parseImportPayload(validPayload({
+      providerInstances: [instance],
+      activeSource: instance.id,
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.activeSource).toBe(instance.id);
+  });
+
+  it('preserves a Provider Instance assignment in groupConfig across import', () => {
+    const instance = makeInstance('inst:exa:abc');
+    const result = parseImportPayload(validPayload({
+      providerInstances: [instance],
+      groupConfig: {
+        groups: [{ id: 'ai-search', label: { kind: 'i18n', key: 'group_ai_search' } }],
+        layout: [{ kind: 'source', sourceId: 'google' }, { kind: 'group', groupId: 'ai-search' }],
+        assignments: { [instance.id]: 'ai-search' },
+        groupOrders: {},
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.groupConfig?.assignments[instance.id]).toBe('ai-search');
+  });
+
+  it('rejects Provider Instances with an invalid id', () => {
+    const result = parseImportPayload(validPayload({
+      providerInstances: [{ id: 'bogus', baseProviderId: 'exa', name: 'X', options: {} }] as never,
+    }));
+    expect(result).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects Provider Instances with an unknown base provider', () => {
+    const result = parseImportPayload(validPayload({
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'ghost', name: 'X', options: {} }] as never,
+    }));
+    expect(result).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects Provider Instances with non-object options', () => {
+    expect(parseImportPayload(validPayload({
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'X', options: 'nope' }] as never,
+    }))).toEqual({ ok: false, error: 'invalid_provider_instances' });
+    expect(parseImportPayload(validPayload({
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'X', options: [] }] as never,
+    }))).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects Provider Instances with an over-length name', () => {
+    const result = parseImportPayload(validPayload({
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'X'.repeat(41), options: {} }] as never,
+    }));
+    expect(result).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects a Provider Instance collection with any invalid record', () => {
+    const instances = [
+      makeInstance('inst:exa:abc'),
+      { id: 'inst:exa:def', baseProviderId: 'ghost', name: 'Bad', options: {} },
+    ] as never;
+    expect(parseImportPayload(validPayload({ providerInstances: instances }))).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects an oversized Provider Instance collection', () => {
+    const instances = Array.from({ length: 51 }, (_, i) => makeInstance(`inst:exa:${i}`));
+    expect(parseImportPayload(validPayload({ providerInstances: instances }))).toEqual({ ok: false, error: 'invalid_provider_instances' });
+  });
+
+  it('rejects a Provider Instance collection that exceeds the byte budget', () => {
+    const instances = [makeInstance('inst:exa:abc', { options: { big: 'x'.repeat(150 * 1024) } })];
+    expect(parseImportPayload(validPayload({ providerInstances: instances }))).toEqual({ ok: false, error: 'invalid_provider_instances' });
   });
 });
 
@@ -571,6 +732,65 @@ describe('mergeImport', () => {
 
     expect(store.get('sourceOrder')).toEqual(movedOrder);
   });
+
+  it('treats Provider Instances as apply-preferences data (whole-array overwrite)', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerInstances: [instance] });
+    const payload = validPayload({ providerInstances: [] });
+
+    const skipped = await mergeImport(payload);
+    expect(skipped.providerInstancesOverridden).toBe(false);
+    expect((await browser.storage.local.get('providerInstances')).providerInstances).toEqual([instance]);
+
+    const report = await mergeImport(payload, { applyPrefs: true });
+    expect(report.providerInstancesOverridden).toBe(true);
+    expect((await browser.storage.local.get('providerInstances')).providerInstances).toEqual([]);
+  });
+
+  it('overwrites existing Provider Instances with valid imported ones', async () => {
+    const oldInstance = makeInstance('inst:exa:old', { name: 'Old' });
+    const newInstance = makeInstance('inst:exa:new', { name: 'New', options: { category: 'news' } });
+    installStorage({ providerInstances: [oldInstance] });
+    const report = await mergeImport(validPayload({ providerInstances: [newInstance] }), { applyPrefs: true });
+    expect(report.providerInstancesOverridden).toBe(true);
+    expect((await browser.storage.local.get('providerInstances')).providerInstances).toEqual([newInstance]);
+  });
+
+  it('preserves existing Provider Instances when the import omits them', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerInstances: [instance] });
+    const report = await mergeImport(validPayload(), { applyPrefs: true });
+    expect(report.providerInstancesOverridden).toBe(false);
+    expect((await browser.storage.local.get('providerInstances')).providerInstances).toEqual([instance]);
+  });
+
+  it('does not mark providerInstances overridden when the imported array is identical', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerInstances: [instance] });
+    const report = await mergeImport(validPayload({ providerInstances: [instance] }), { applyPrefs: true });
+    expect(report.providerInstancesOverridden).toBe(false);
+    expect((await browser.storage.local.get('providerInstances')).providerInstances).toEqual([instance]);
+  });
+
+  it('AE5 round trip: export → import restores instance ids in activeSource and sourceOrder', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { exa: 'exa-1' }, providerInstances: [instance], activeSource: instance.id, sourceOrder: [instance.id, 'bing'] });
+    const exported = await buildExportPayload();
+    expect(exported.activeSource).toBe(instance.id);
+    expect(exported.sourceOrder).toContain(instance.id);
+
+    const parsed = parseImportPayload(exported);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    installStorage({}); // 全新导入目标
+    const report = await mergeImport(parsed.value, { applyPrefs: true });
+    expect(report.activeSourceOverridden).toBe(true);
+    const got = await browser.storage.local.get(['activeSource', 'sourceOrder', 'providerInstances']);
+    expect(got.activeSource).toBe(instance.id);
+    expect(got.sourceOrder).toContain(instance.id);
+    expect(got.providerInstances).toEqual([instance]);
+  });
 });
 
 describe('previewImport (dry-run)', () => {
@@ -674,5 +894,30 @@ describe('previewImport (dry-run)', () => {
     });
     const preview = await previewImport(validPayload({ serpBarPosition: 'bottom' }));
     expect(preview.prefDiffs).toEqual([{ key: 'serpBarPosition', from: 'auto', to: 'bottom' }]);
+  });
+
+  it('includes Provider Instance changes in the preference diff', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', providerInstances: [instance] });
+    const preview = await previewImport(validPayload({ providerInstances: [] }));
+    expect(preview.prefDiffs).toContainEqual({
+      key: 'providerInstances',
+      from: 'inst:exa:abc:exa:AI Research:{"category":"publication"}',
+      to: '',
+    });
+  });
+
+  it('reports no Provider Instance diff when the imported array matches current', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', providerInstances: [instance] });
+    const preview = await previewImport(validPayload({ providerInstances: [instance] }));
+    expect(preview.prefDiffs.find((d) => d.key === 'providerInstances')).toBeUndefined();
+  });
+
+  it('omits the Provider Instance diff when the import payload omits the field', async () => {
+    const instance = makeInstance('inst:exa:abc');
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', providerInstances: [instance] });
+    const preview = await previewImport(validPayload());
+    expect(preview.prefDiffs.find((d) => d.key === 'providerInstances')).toBeUndefined();
   });
 });

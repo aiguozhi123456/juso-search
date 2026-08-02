@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { SearchSource, SourceId } from '@/lib/sources';
+import { resolveIconUrl, type SearchSource, type SourceId } from '@/lib/sources';
 import type {
   GroupConfig,
   SourceGroup,
@@ -46,6 +46,20 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   const [renamingValue, setRenamingValue] = useState('');
   /** 防止重命名提交被 Enter + 卸载-on-Blur 触发两次。 */
   const renameCommittedRef = useRef(false);
+
+  /** 来源品牌图标：与 SourceSwitcher 同款渲染（解析扩展内相对路径、加载失败隐藏）。 */
+  function sourceFavicon(source: SearchSource | undefined) {
+    return source?.favicon ? (
+      <img
+        className="layout-source-icon"
+        src={resolveIconUrl(source.favicon)}
+        alt=""
+        width={14}
+        height={14}
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+      />
+    ) : null;
+  }
 
   // ── 拖拽排序状态 ──
   // 数据走 ref（drop 时读取，jsdom 测试友好）；视觉高亮走 state。
@@ -366,6 +380,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
                   <GripIcon size={16} />
                 </span>
                 <span className="layout-tag layout-tag--source">{t(MSG.opts_group_item_source)}</span>
+                {sourceFavicon(source)}
                 <span className="layout-name">{name}</span>
                 <div className="layout-actions">
                   <label className="layout-fold">
@@ -533,6 +548,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
                       >
                         <GripIcon size={12} />
                       </span>
+                      {sourceFavicon(s)}
                       <span className="layout-member-name">{resolveLabel(s)}</span>
                       {/* 组内箭头：触屏/键盘回退（HTML5 拖拽在触摸设备上不生效）。 */}
                       <button
@@ -581,6 +597,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
           .filter((s) => !cfg.layout.some((it) => it.kind === 'group' && resolveGroupId(s.id, cfg.assignments) === it.groupId))
           .map((s) => (
             <div className="layout-row layout-row--source layout-row--orphan" key={`o:${s.id}`}>
+              {sourceFavicon(s)}
               <span className="layout-name">{resolveLabel(s)}</span>
               <div className="layout-actions">
                 <button type="button" className="layout-btn" disabled={saving} onClick={() => pinSource(s.id)}>

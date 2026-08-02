@@ -41,6 +41,11 @@ describe('defaultGroupForSourceId', () => {
     expect(defaultGroupForSourceId('google')).toBe(ENGINES_GROUP);
     expect(defaultGroupForSourceId('site:docs')).toBe(SITES_GROUP);
   });
+
+  it('provider instance → ai-search', () => {
+    expect(defaultGroupForSourceId('inst:exa:ai-research')).toBe(AI_SEARCH_GROUP);
+    expect(defaultGroupForSourceId('inst:exa:startup-news')).toBe(AI_SEARCH_GROUP);
+  });
 });
 
 describe('resolveGroupId', () => {
@@ -318,6 +323,36 @@ describe('normalizeGroupConfig', () => {
     };
     const cfg = normalizeGroupConfig(raw, ['tavily']);
     expect(cfg.groupOrders).toEqual({});
+  });
+
+  it('recognizes provider instance ids in layout, assignments and groupOrders', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [
+        { kind: 'source', sourceId: 'inst:exa:ai-research' }, // 置顶实例
+        { kind: 'group', groupId: AI_SEARCH_GROUP },
+      ],
+      assignments: { 'inst:exa:startup-news': AI_SEARCH_GROUP },
+      groupOrders: { 'ai-search': ['inst:exa:startup-news'] },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily', 'inst:exa:ai-research', 'inst:exa:startup-news']);
+    // 实例 id 已知 → 不被当作未知 source 剔除
+    expect(cfg.layout.some((i) => i.kind === 'source' && i.sourceId === 'inst:exa:ai-research')).toBe(true);
+    expect(cfg.assignments).toEqual({ 'inst:exa:startup-news': AI_SEARCH_GROUP });
+    expect(cfg.groupOrders['ai-search']).toEqual(['inst:exa:startup-news']);
+  });
+
+  it('drops unknown provider instance ids', () => {
+    const raw = {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'source', sourceId: 'inst:exa:ghost' }, { kind: 'group', groupId: AI_SEARCH_GROUP }],
+      assignments: { 'inst:exa:ghost': AI_SEARCH_GROUP },
+      groupOrders: { 'ai-search': ['inst:exa:ghost'] },
+    };
+    const cfg = normalizeGroupConfig(raw, ['tavily']);
+    expect(cfg.layout.some((i) => i.kind === 'source' && i.sourceId === 'inst:exa:ghost')).toBe(false);
+    expect(cfg.assignments).toEqual({});
+    expect(cfg.groupOrders['ai-search']).toBeUndefined();
   });
 });
 

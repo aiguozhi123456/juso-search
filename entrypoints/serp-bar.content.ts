@@ -138,6 +138,7 @@ export default defineContentScript({
         config.sourceHidden,
         config.siteEngines ?? [],
         config.customEngines ?? [],
+        config.providerInstances ?? [],
       );
       const rawQuery = readQuery(state.engine, window.location.href);
       const context = resolveSerpContext(
@@ -544,7 +545,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     getStylePref(),
     getBarPositionPref(),
   ]);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? [], config.customEngines ?? []);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? [], config.customEngines ?? [], config.providerInstances ?? []);
   const rawQuery = readQuery(engine, url);
   const context = resolveSerpContext(
     engine.id,

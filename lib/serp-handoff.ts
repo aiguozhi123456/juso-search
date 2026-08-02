@@ -11,6 +11,7 @@
 import type { SearchSource } from './sources';
 import type { SourceId } from './sources';
 import { isEngineId, isProviderId } from './sources';
+import { isProviderInstanceId } from './provider-instances';
 import { getEngine } from './engines/registry';
 import { buildSearchDeepLink } from './deep-link';
 import type { EngineId } from './engines/types';
@@ -95,6 +96,14 @@ export function resolveSerpHandoff(source: SearchSource, query: string): SerpHan
   if (source.kind === 'engine' && isEngineId(source.id)) {
     const engine = getEngine(source.id);
     return { kind: 'navigate', url: trimmed ? engine.buildSerpUrl(trimmed) : engine.buildHomeUrl() };
+  }
+  if (source.kind === 'provider-instance' && isProviderInstanceId(source.id)) {
+    // 实例与裸 provider 同语义：委托 background 打开搜索页深链，deep link 携带实例 id
+    // （搜索页按 base provider 做 configured 检查并透传给 worker 解析，KTD2/R8）。
+    return {
+      kind: 'openSearchPage',
+      deepLink: trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html',
+    };
   }
   if (isProviderId(source.id)) {
     return {

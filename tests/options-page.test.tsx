@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
+import { t, MSG } from '@/lib/i18n';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
@@ -339,7 +340,8 @@ describe('options page', () => {
     await screen.findAllByText(/已配置/);
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('deleteProviderKey', 'exa'));
-    await waitFor(() => expect(mockedSend.mock.calls.filter(([type]) => type === 'getProviderConfig')).toHaveLength(2));
+    // App 挂载(1) + ProviderInstanceManager 挂载(2) + 删除后刷新(3)
+    await waitFor(() => expect(mockedSend.mock.calls.filter(([type]) => type === 'getProviderConfig')).toHaveLength(3));
     confirmSpy.mockRestore();
   });
 
@@ -482,5 +484,160 @@ describe('options page', () => {
     await waitFor(() => expect(configCalls).toBeGreaterThan(initialCalls));
     // The import success banner (with siteEngines override report) confirms the round-trip.
     expect(await screen.findByText(/已覆盖：站外搜索/)).toBeInTheDocument();
+  });
+
+  it('renders the provider instance manager in the keys tab with an empty state', async () => {
+    render(<App />);
+    openTab('密钥');
+    expect(screen.getByRole('heading', { name: 'Provider 实例' })).toBeInTheDocument();
+    expect(screen.getByText('还没有实例。新增一个即可为 provider 创建调好参数的预设。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '新增实例' })).toBeInTheDocument();
+  });
+
+  it('creates a provider instance via the createProviderInstance message', async () => {
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    // 默认 base provider 取已配置的 exa，Exa 参数表单随之出现
+    expect(screen.getByLabelText('底层 Provider')).toHaveValue('exa');
+    expect(screen.getByText('搜索类型')).toBeInTheDocument();
+    expect(screen.getByText('内容类别')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: 'AI 研究' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'exa',
+        name: 'AI 研究',
+        options: expect.objectContaining({ searchType: 'auto', category: '', includeDomains: [], excludeDomains: [] }),
+      }),
+    );
+  });
+
+  it('disables add-instance and hints when no configured provider supports instance options', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        // Tavily is configured but has no per-instance options form (Phase 1: only Exa).
+        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    // No instanceable provider → button stays disabled and a dedicated hint shows.
+    expect(addBtn).toBeDisabled();
+    expect(screen.getByText('暂无已配置的 provider 支持自定义实例。')).toBeInTheDocument();
+    // The create form (and its base-provider dropdown) never opens.
+    expect(screen.queryByLabelText('底层 Provider')).not.toBeInTheDocument();
+  });
+
+  it('lists only instance-option-supporting providers in the base-provider dropdown', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        // Both Tavily and Exa configured; only Exa supports per-instance options.
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    const baseSelect = screen.getByLabelText('底层 Provider') as HTMLSelectElement;
+    // Exa is offered; Tavily (no options form) is filtered out.
+    expect(Array.from(baseSelect.options).map((o) => o.value)).toEqual(['exa']);
+    expect(baseSelect).toHaveValue('exa');
+    // Exa options form appears for the only instanceable provider.
+    expect(screen.getByText('搜索类型')).toBeInTheDocument();
+  });
+
+  it('edits a provider instance via the updateProviderInstance message', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究',
+            options: { searchType: 'auto', category: 'publication', numResults: 5, includeDomains: [], excludeDomains: [], textMaxCharacters: null, highlightsMaxCharacters: null },
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('AI 研究');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    // 编辑时预填名称与 Exa 参数（category 从实例 options 恢复）
+    expect((screen.getByPlaceholderText('如「AI 研究」') as HTMLInputElement).value).toBe('AI 研究');
+    expect(screen.getByText('学术文献')).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '创业资讯' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('updateProviderInstance', {
+        id: 'inst:exa:abc123',
+        patch: {
+          name: '创业资讯',
+          options: expect.objectContaining({ searchType: 'auto', category: 'publication' }),
+        },
+      }),
+    );
+  });
+
+  it('deletes a provider instance after inline confirmation', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [
+            { id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究', options: {} },
+            // 第二个实例使删除不命中「独苗保护」（否则删除按钮会被禁用）。
+            { id: 'inst:exa:def456', baseProviderId: 'exa', name: 'AI 研究 2', options: {} },
+          ],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('AI 研究');
+    const row = screen.getByText('AI 研究').closest('.provider-instance-row') as HTMLElement;
+    fireEvent.click(within(row).getByRole('button', { name: '删除' }));
+    // 行内确认：出现确认文案，再点一次「删除」真正提交
+    expect(await screen.findByText('确定删除实例「AI 研究」吗？')).toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '删除' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('deleteProviderInstance', 'inst:exa:abc123'));
+  });
+
+  it('disables the delete button for the sole instance of a provider', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究', options: {},
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('AI 研究');
+    const row = screen.getByText('AI 研究').closest('.provider-instance-row') as HTMLElement;
+    // 独苗实例不可删：删除按钮禁用，且带解释 tooltip。
+    const deleteBtn = within(row).getByRole('button', { name: '删除' });
+    expect(deleteBtn).toBeDisabled();
+    expect(deleteBtn).toHaveAttribute('title', t(MSG.opts_instance_cannot_delete_default));
+    // 点击被禁用按钮不会进入行内确认态。
+    fireEvent.click(deleteBtn);
+    expect(screen.queryByText(t(MSG.opts_instance_delete_confirm, 'AI 研究'))).not.toBeInTheDocument();
+    // 编辑仍可用。
+    expect(within(row).getByRole('button', { name: '编辑' })).not.toBeDisabled();
   });
 });

@@ -1,10 +1,12 @@
 import type { SearchReply, SearchRequest } from './messaging';
 import { isProviderId } from './sources';
+import { isProviderInstanceId } from './provider-instances';
+import type { ProviderInstanceId } from './provider-instances';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
 import type { EngineExtractionResult } from './engines/extractors';
 
-export const AGENT_BRIDGE_PROTOCOL = 1;
+export const AGENT_BRIDGE_PROTOCOL = 2;
 export const AGENT_BRIDGE_MAX_BODY_BYTES = 64 * 1024;
 export const AGENT_BRIDGE_DEADLINE_MS = 30_000;
 export const AGENT_BRIDGE_COMPLETE_DEADLINE_MS = 5_000;
@@ -13,16 +15,36 @@ export type BridgeCredentials = { port: number; token: string };
 export type AgentSearchRequest = { action: 'search'; query: string; providerId: ProviderId; forceRefresh?: boolean };
 export type AgentListProvidersRequest = { action: 'list-providers' };
 export type AgentEngineSearchRequest = { action: 'engine-search'; query: string; engineId: EngineId; maxResults?: number };
-export type AgentRequest = AgentSearchRequest | AgentListProvidersRequest | AgentEngineSearchRequest;
-export type AgentProvider = { id: ProviderId; supportsAnswer: boolean; configured: boolean };
+export interface AgentSearchInstanceRequest {
+  action: 'search-instance';
+  query: string;
+  instanceId: ProviderInstanceId;
+  forceRefresh?: boolean;
+}
+export interface AgentListInstancesRequest {
+  action: 'list-instances';
+}
+export type AgentV2Request = AgentSearchInstanceRequest | AgentListInstancesRequest;
+export type AgentRequest = AgentSearchRequest | AgentListProvidersRequest | AgentEngineSearchRequest | AgentV2Request;
+export type AgentProvider = { id: ProviderId; supportsAnswer: boolean; configured: boolean; hasInstances?: boolean };
+export interface AgentInstance {
+  id: ProviderInstanceId;
+  providerId: ProviderId;
+  label: string;
+  description: string;
+  configured: boolean;
+}
 export type AgentListProvidersReply = { providers: AgentProvider[] };
-export type AgentClaim = { protocol: 1; requestId: string; request: AgentRequest };
-export type AgentComplete = { protocol: 1; requestId: string; reply: SearchReply | AgentListProvidersReply | EngineExtractionResult };
+export type AgentListInstancesReply = { instances: AgentInstance[] };
+export type AgentClaim = { protocol: 1 | 2; requestId: string; request: AgentRequest };
+export type AgentComplete = { protocol: 1 | 2; requestId: string; reply: SearchReply | AgentListProvidersReply | AgentListInstancesReply | EngineExtractionResult };
 export type AgentBridgeDeps = {
   fetch: typeof fetch;
   handleSearch: (request: SearchRequest, signal?: AbortSignal) => Promise<SearchReply>;
   listProviders: () => Promise<AgentListProvidersReply>;
   handleEngineSearch: (request: AgentEngineSearchRequest, signal?: AbortSignal) => Promise<EngineExtractionResult>;
+  handleSearchInstance?: (request: AgentSearchInstanceRequest, signal?: AbortSignal) => Promise<SearchReply>;
+  listInstances?: () => Promise<AgentListInstancesReply>;
   deadlineMs?: number;
 };
 
@@ -62,14 +84,16 @@ export function buildAgentEndpoint(port: number, pathname: '/v1/claim' | '/v1/co
 }
 
 export function parseAgentClaim(payload: unknown): ParseResult<AgentClaim> {
-  if (!isRecord(payload) || !hasOnlyKeys(payload, ['protocol', 'requestId', 'request']) || payload.protocol !== AGENT_BRIDGE_PROTOCOL) {
+  // Protocol 1 claims stay accepted so pre-v2 skills keep working; the bridge
+  // replies on the same protocol the claim used.
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ['protocol', 'requestId', 'request']) || (payload.protocol !== AGENT_BRIDGE_PROTOCOL && payload.protocol !== 1)) {
     return { ok: false, error: 'invalid claim' };
   }
   if (typeof payload.requestId !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(payload.requestId)) {
     return { ok: false, error: 'invalid request id' };
   }
   const request = parseSearchRequest(payload.request);
-  return request.ok ? { ok: true, value: { protocol: 1, requestId: payload.requestId, request: request.value } } : request;
+  return request.ok ? { ok: true, value: { protocol: payload.protocol as 1 | 2, requestId: payload.requestId, request: request.value } } : request;
 }
 
 export async function runAgentBridge(credentials: BridgeCredentials, deps: AgentBridgeDeps): Promise<{ ok: boolean }> {
@@ -90,11 +114,15 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
     }
     const claim = parseAgentClaim(rawClaim);
     if (!claim.ok) return { ok: false };
-    let reply: SearchReply | AgentListProvidersReply | EngineExtractionResult;
+    let reply: AgentComplete['reply'];
     try {
       reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.value.request, actionController.signal)
         : claim.value.request.action === 'engine-search' ? await deps.handleEngineSearch(claim.value.request, actionController.signal)
-          : await deps.listProviders();
+          : claim.value.request.action === 'search-instance'
+            ? (await deps.handleSearchInstance?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+            : claim.value.request.action === 'list-instances'
+              ? (await deps.listInstances?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+              : await deps.listProviders();
     } catch (error) {
       reply = claim.value.request.action === 'engine-search'
         ? {
@@ -106,7 +134,7 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
     }
     clearTimeout(actionTimeout);
     const completeUrl = buildAgentEndpoint(credentials.port, '/v1/complete')!;
-    const complete: AgentComplete = { protocol: 1, requestId: claim.value.requestId, reply };
+    const complete: AgentComplete = { protocol: claim.value.protocol, requestId: claim.value.requestId, reply };
     const completeController = new AbortController();
     const completeTimeout = setTimeout(() => completeController.abort(), AGENT_BRIDGE_COMPLETE_DEADLINE_MS);
     try {
@@ -176,6 +204,18 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     const query = value.query.trim();
     if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20))) return { ok: false, error: 'invalid engine search request' };
     return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }) } };
+  }
+  if (value.action === 'list-instances') {
+    return hasOnlyKeys(value, ['action'])
+      ? { ok: true, value: { action: 'list-instances' } }
+      : { ok: false, error: 'invalid list instances request' };
+  }
+  if (value.action === 'search-instance') {
+    if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };
+    const query = value.query.trim();
+    if (!query || query.length > 8192 || typeof value.instanceId !== 'string' || !isProviderInstanceId(value.instanceId)) return { ok: false, error: 'invalid search instance request' };
+    if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search instance request' };
+    return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }) } };
   }
   if (value.action !== 'search' || !hasOnlyKeys(value, ['action', 'query', 'providerId', 'forceRefresh']) || typeof value.query !== 'string') {
     return { ok: false, error: 'invalid search request' };

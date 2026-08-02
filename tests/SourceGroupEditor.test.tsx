@@ -77,6 +77,42 @@ describe('SourceGroupEditor — render', () => {
     // AI 搜索 / 搜索引擎 / 站点 的分组标签经 i18n 解析后应可见（这里只断言重命名按钮存在）。
     expect(screen.getAllByRole('button', { name: LABEL.rename() }).length).toBeGreaterThan(0);
   });
+
+  it('renders a favicon for provider-instance and engine sources (pinned rows + group members)', () => {
+    const instanceSource: SearchSource = {
+      id: 'inst:exa:abc123',
+      kind: 'provider-instance',
+      label: 'AI Research',
+      labelDescriptor: { kind: 'literal', value: 'AI Research' },
+      supportsAnswer: true,
+      favicon: '/icons/exa.svg',
+      providerInstance: { id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI Research', options: {} },
+    };
+    const cfg: GroupConfig = {
+      groups: DEFAULT_GROUPS,
+      layout: [
+        { kind: 'source', sourceId: 'inst:exa:abc123' },
+        { kind: 'group', groupId: 'engines' },
+      ],
+      assignments: {},
+      groupOrders: { engines: ['google', 'bing'] },
+    };
+    const { container } = render(
+      <SourceGroupEditor
+        sources={[instanceSource, ...multiSources]}
+        groupConfig={cfg}
+        onChange={vi.fn()}
+        resolveLabel={resolveLabel}
+      />,
+    );
+    // 置顶实例行(exa) + engines 组内 google/bing 成员；tavily/exa provider 无 favicon 不渲染。
+    const imgs = container.querySelectorAll('img.layout-source-icon');
+    expect(imgs).toHaveLength(3);
+    const srcs = Array.from(imgs).map((img) => img.getAttribute('src'));
+    expect(srcs).toContain('/icons/exa.svg');
+    expect(srcs).toContain('/icons/google.svg');
+    expect(srcs).toContain('/icons/bing.svg');
+  });
 });
 
 describe('SourceGroupEditor — persist success', () => {

@@ -13,6 +13,7 @@
 import type { SearchSource, SourceId } from './sources';
 import { isProviderId, isEngineId } from './sources';
 import { isCustomEngineId } from './custom-engines';
+import { isProviderInstanceId } from './provider-instances';
 
 /** 内置分组 id：AI 搜索 / 搜索引擎 / 站点 / 自定义。 */
 export const AI_SEARCH_GROUP = 'ai-search';
@@ -64,7 +65,7 @@ const BUILTIN_GROUP_IDS: ReadonlySet<string> = new Set([
 
 /** 按 source 的 kind 推导缺省分组 id（不查 assignments，仅按类型）。 */
 export function defaultGroupForSourceId(sourceId: SourceId): SourceGroupId {
-  if (isProviderId(sourceId)) return AI_SEARCH_GROUP;
+  if (isProviderId(sourceId) || isProviderInstanceId(sourceId)) return AI_SEARCH_GROUP;
   if (isEngineId(sourceId)) return ENGINES_GROUP;
   if (isCustomEngineId(sourceId)) return CUSTOM_GROUP;
   return SITES_GROUP; // site:*

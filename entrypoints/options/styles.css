@@ -559,6 +559,215 @@ body {
 }
 .custom-engine-form-actions button:disabled { opacity: 0.5; cursor: default; }
 
+/* ── Provider Instances 管理 ─────────────────────────── */
+.provider-instance-manager { display: flex; flex-direction: column; gap: var(--space-2); }
+.provider-instance-manager > .hint { margin: 0; }
+.provider-instance-manager .provider-instance-form .status { font-size: var(--text-xs); }
+
+.provider-instance-add-btn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm); font-family: inherit; font-weight: 500;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent; color: var(--fg); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.provider-instance-add-btn:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand); background: var(--brand-soft);
+}
+.provider-instance-add-btn:disabled { opacity: 0.5; cursor: default; }
+
+.provider-instances-list {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border-soft);
+}
+.provider-instances-empty {
+  margin: 0; padding: var(--space-3) 0;
+  color: var(--muted); font-size: var(--text-sm);
+}
+.provider-instance-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-3); min-height: 38px;
+  border-bottom: 1px solid var(--border-soft);
+  padding: 0;
+  font-size: var(--text-md);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.provider-instance-row:hover { background: var(--bg); }
+.provider-instance-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.provider-instance-row-title {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-width: 0;
+}
+.provider-instance-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-instance-default-badge {
+  flex: none;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.provider-instance-provider {
+  font-size: var(--text-xs); color: var(--muted);
+}
+.provider-instance-row-actions { display: flex; gap: var(--space-2); align-items: center; }
+.provider-instance-row-actions button {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: var(--space-1) var(--space-2);
+  min-height: 28px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--fg); cursor: pointer;
+  font-size: var(--text-sm); font-family: inherit;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.provider-instance-row-actions button:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand);
+}
+.provider-instance-row-actions button.danger:hover:not(:disabled) {
+  color: var(--error); border-color: var(--error);
+}
+.provider-instance-row-actions button:disabled { opacity: 0.5; cursor: default; }
+.provider-instance-confirm-text {
+  font-size: var(--text-xs); color: var(--error);
+}
+
+/* 表单 */
+.provider-instance-form {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border); border-left: 3px solid var(--section-color, var(--brand));
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+}
+.provider-instance-form-row {
+  display: grid; grid-template-columns: 96px 1fr auto;
+  gap: var(--space-2); align-items: center;
+}
+.provider-instance-form-row label {
+  font-size: var(--text-sm); color: var(--muted); font-weight: 500;
+}
+.provider-instance-field-count {
+  font-size: var(--text-xs); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 64px; text-align: right;
+}
+.provider-instance-form input[type="text"],
+.provider-instance-form select {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-md); font-family: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  /* background-color（非 background 简写）：保留全局 .options select 的 chevron 背景图。 */
+  background-color: var(--bg); color: var(--fg);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+}
+.provider-instance-form input:hover:not(:disabled),
+.provider-instance-form select:hover:not(:disabled) { border-color: var(--muted); }
+.provider-instance-form input:focus,
+.provider-instance-form select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  outline: none;
+}
+
+.provider-instance-form-actions { display: flex; gap: var(--space-2); }
+.provider-instance-form-actions button {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm); font-family: inherit; font-weight: 500;
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.provider-instance-form-actions button:hover:not(:disabled) {
+  color: var(--brand); border-color: var(--brand);
+}
+.provider-instance-form-actions button.primary {
+  background: var(--brand); color: var(--brand-on); border-color: var(--brand);
+}
+.provider-instance-form-actions button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 88%, black);
+  border-color: color-mix(in srgb, var(--brand) 88%, black);
+  color: var(--brand-on);
+}
+.provider-instance-form-actions button:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Exa 参数表单（Provider Instance 内的子表单） ── */
+.exa-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.exa-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3) var(--space-4);
+}
+.exa-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.exa-field--wide {
+  grid-column: 1 / -1;
+}
+.exa-field-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+}
+.exa-field select,
+.exa-field input,
+.exa-field textarea {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  /* background-color（非 background 简写）+ 已定义令牌：
+     · 保留全局 .options select 的 chevron（select 才有，input/textarea 本就无）；
+     · 修复原先误用未定义的 --bg-card 导致 background 简写在计算期失效、
+       背景退化为 transparent 的缺陷。 */
+  background-color: var(--bg);
+  color: var(--fg);
+  font-size: var(--text-md);
+  font-family: inherit;
+}
+.exa-field select:focus,
+.exa-field input:focus,
+.exa-field textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+}
+.exa-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* 隐藏 Exa 数值输入的原生 spinner（与 key-row 自定义步进器同款约定）：
+   原生上下箭头在此紧凑栅格里显得多余且在曾因 --bg-card 失效而透明时被用户
+   报为「莫名小箭头」；改为纯键入，min/max 由 onChange 钳制。 */
+.exa-field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.exa-field input[type="number"]::-webkit-inner-spin-button,
+.exa-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .source-order-row {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3); min-height: 38px;
@@ -639,6 +848,17 @@ body {
 .layout-name {
   flex: 1; min-width: 0; display: flex; align-items: center;
   gap: var(--space-2); word-break: break-word;
+}
+/* 来源品牌图标（与 SourceSwitcher 的 source-icon 同尺寸约定） */
+.layout-source-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+/* 分组内成员芯片里的图标：不参与换行，随 chip 垂直居中 */
+.layout-group-member .layout-source-icon {
+  display: inline-flex;
 }
 /* 分组标题略重，建立层级 */
 .layout-group-title { font-weight: 600; }
@@ -1196,6 +1416,7 @@ body {
 [data-style="colorful"] .options section[data-section="custom-engines"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
+[data-style="colorful"] .options section[data-section="provider-instances"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="config"] { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 [data-style="colorful"] .options section h2 { color: var(--section-color); }

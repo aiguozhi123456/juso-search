@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { allSources, isEngineId, isProviderId, isKnownCustomEngineId, normalizeSourceHidden, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
+import { allSources, allKnownSourceIds, isEngineId, isProviderId, isKnownCustomEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, sourceLabel } from '@/lib/sources';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
+import type { ProviderInstance } from '@/lib/provider-instances';
 
 // sourceOrder 默认补尾顺序：provider(registry) → engine(registry)。
 // registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo。
@@ -234,5 +235,140 @@ describe('type guards', () => {
     expect(isProviderId('tavily')).toBe(true);
     expect(isProviderId('stepfun-plan')).toBe(true);
     expect(isProviderId('google')).toBe(false);
+  });
+});
+
+describe('Provider Instance source projection', () => {
+  const instances: ProviderInstance[] = [
+    { id: 'inst:exa:ai-research', baseProviderId: 'exa', name: 'AI 研究', options: { category: 'publication' } },
+    { id: 'inst:exa:startup-news', baseProviderId: 'exa', name: '创业资讯', options: { category: 'news' } },
+  ];
+
+  it('projects instance pills instead of the bare provider pill when instances exist', () => {
+    const sources = allSources(['exa'], undefined, undefined, [], [], instances);
+    const ids = sources.map((s) => s.id);
+    expect(ids).not.toContain('exa'); // 无裸 provider pill
+    expect(ids).toContain('inst:exa:ai-research');
+    expect(ids).toContain('inst:exa:startup-news');
+    const instanceSources = sources.filter((s) => s.kind === 'provider-instance');
+    expect(instanceSources).toHaveLength(2);
+  });
+
+  it('projects the bare provider pill when a provider has no instances', () => {
+    const sources = allSources(['tavily', 'exa'], undefined, undefined, [], [], instances);
+    const ids = sources.map((s) => s.id);
+    expect(ids).toContain('tavily');
+    const tavilySource = sources.find((s) => s.id === 'tavily');
+    expect(tavilySource && tavilySource.kind).toBe('provider');
+    expect(ids).not.toContain('exa');
+  });
+
+  it('carries literal label, base-adapter favicon and supportsAnswer on instance sources', () => {
+    const sources = allSources(['exa'], undefined, undefined, [], [], instances);
+    const instance = sources.find((s) => s.id === 'inst:exa:ai-research');
+    expect(instance).toMatchObject({
+      kind: 'provider-instance',
+      label: 'AI 研究',
+      labelDescriptor: { kind: 'literal', value: 'AI 研究' },
+      favicon: '/icons/exa.svg',
+      supportsAnswer: true, // 继承 base adapter
+      providerInstance: instances[0],
+    });
+  });
+
+  it('keeps instance labels literal even when they look like an i18n key', () => {
+    const weird = { id: 'inst:exa:weird', baseProviderId: 'exa', name: 'engine_google', options: {} } as ProviderInstance;
+    const source = allSources(['exa'], undefined, undefined, [], [], [weird]).find((s) => s.id === 'inst:exa:weird');
+    expect(source && sourceLabel(source, (key) => `translated:${key}`)).toBe('engine_google');
+  });
+
+  it('projects same-provider instances adjacent within the provider block', () => {
+    const sources = allSources(['tavily', 'exa', 'brave'], undefined, undefined, [], [], instances);
+    const ids = sources.map((s) => s.id);
+    const i1 = ids.indexOf('inst:exa:ai-research');
+    const i2 = ids.indexOf('inst:exa:startup-news');
+    expect(i1).toBeGreaterThan(ids.indexOf('tavily'));
+    expect(Math.abs(i1 - i2)).toBe(1); // 相邻
+    expect(i2).toBeLessThan(ids.indexOf('brave')); // 仍位于 provider 块内
+  });
+
+  it('orders instances within a provider group by sourceOrder', () => {
+    const sources = allSources(['exa'], ['inst:exa:startup-news', 'inst:exa:ai-research'], undefined, [], [], instances);
+    const instanceIds = sources.filter((s) => s.kind === 'provider-instance').map((s) => s.id);
+    expect(instanceIds).toEqual(['inst:exa:startup-news', 'inst:exa:ai-research']);
+  });
+
+  it('dedupes instance ids spread across sourceOrder', () => {
+    const sources = allSources(['exa'], ['inst:exa:ai-research', 'google', 'inst:exa:startup-news'], undefined, [], [], instances);
+    const instanceIds = sources.filter((s) => s.kind === 'provider-instance').map((s) => s.id);
+    // 组内相对顺序按 sourceOrder（ai-research 在 startup-news 前），且各只出现一次
+    expect(instanceIds).toEqual(['inst:exa:ai-research', 'inst:exa:startup-news']);
+  });
+
+  it('hides a provider instance listed in hiddenSourceIds', () => {
+    const sources = allSources(['exa'], undefined, ['inst:exa:startup-news'], [], [], instances);
+    const ids = sources.map((s) => s.id);
+    expect(ids).toContain('inst:exa:ai-research');
+    expect(ids).not.toContain('inst:exa:startup-news');
+  });
+
+  it('drops instances whose base provider is unconfigured', () => {
+    const sources = allSources([], undefined, undefined, [], [], instances);
+    expect(sources.some((s) => s.kind === 'provider-instance')).toBe(false);
+  });
+
+  it('allKnownSourceIds includes provider instance ids', () => {
+    const known = allKnownSourceIds([], [], instances);
+    expect(known).toContain('inst:exa:ai-research');
+    expect(known).toContain('inst:exa:startup-news');
+  });
+
+  it('normalizeSourceOrder preserves known instance ids and appends missing ones', () => {
+    const order = normalizeSourceOrder(['inst:exa:startup-news', 'google'], [], [], instances);
+    expect(order.indexOf('inst:exa:startup-news')).toBeLessThan(order.indexOf('google'));
+    expect(order).toContain('inst:exa:ai-research'); // 缺失实例按定义顺序补尾
+    expect(order).not.toContain('inst:unknown:ghost');
+  });
+
+  it('normalizeSourceHidden recognizes known instance ids', () => {
+    expect(normalizeSourceHidden(['inst:exa:ai-research', 'inst:unknown:ghost', 'google'], [], [], instances)).toEqual(['inst:exa:ai-research', 'google']);
+  });
+});
+
+describe('resolveEffectiveActiveSource', () => {
+  const instances: ProviderInstance[] = [
+    { id: 'inst:exa:ai-research', baseProviderId: 'exa', name: 'AI 研究', options: {} },
+  ];
+
+  it('maps a bare provider id to the first instance id when instances exist (BUG-1)', () => {
+    expect(resolveEffectiveActiveSource('exa', { exa: 'key' }, [], [], instances)).toBe('inst:exa:ai-research');
+  });
+
+  it('keeps a bare provider id when no instances exist (BUG-1)', () => {
+    expect(resolveEffectiveActiveSource('exa', { exa: 'key' }, [], [], [])).toBe('exa');
+  });
+
+  it('returns an instance id whose base provider has a key (BUG-1)', () => {
+    expect(resolveEffectiveActiveSource('inst:exa:ai-research', { exa: 'key' }, [], [], instances)).toBe('inst:exa:ai-research');
+  });
+
+  it('returns engine / site / custom sources as-is', () => {
+    const site: SiteEngineDefinition = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' };
+    const custom: CustomEngineDefinition = { id: 'custom:alpha', name: 'Alpha', urlTemplate: 'https://alpha.com/%s' };
+    expect(resolveEffectiveActiveSource('google', {}, [], [], [])).toBe('google');
+    expect(resolveEffectiveActiveSource('site:docs', {}, [site], [], [])).toBe('site:docs');
+    expect(resolveEffectiveActiveSource('custom:alpha', {}, [], [custom], [])).toBe('custom:alpha');
+  });
+
+  it('falls back to the first configured provider with the same instance mapping', () => {
+    expect(resolveEffectiveActiveSource(null, { exa: 'key' }, [], [], instances)).toBe('inst:exa:ai-research');
+    expect(resolveEffectiveActiveSource(null, { exa: 'key' }, [], [], [])).toBe('exa');
+    expect(resolveEffectiveActiveSource('ghost' as never, { exa: 'key' }, [], [], [])).toBe('exa');
+  });
+
+  it('returns undefined when nothing is configured', () => {
+    expect(resolveEffectiveActiveSource(null, {}, [], [], [])).toBeUndefined();
+    expect(resolveEffectiveActiveSource('tavily', {}, [], [], [])).toBeUndefined();
+    expect(resolveEffectiveActiveSource(undefined, {}, [], [], [])).toBeUndefined();
   });
 });

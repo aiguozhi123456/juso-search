@@ -25,6 +25,17 @@ describe('parseSearchDeepLink', () => {
     expect(parseSearchDeepLink('?provider=nope&query=x')).toEqual({ query: 'x' });
   });
 
+  it('parses a provider-instance id (SourceId boundary)', () => {
+    expect(parseSearchDeepLink('?provider=inst%3Aexa%3Aresearch&query=hello')).toEqual({
+      provider: 'inst:exa:research',
+      query: 'hello',
+    });
+  });
+
+  it('rejects a malformed instance id (unknown base provider)', () => {
+    expect(parseSearchDeepLink('?provider=inst%3Aunknownprovider%3Aabc&query=x')).toEqual({ query: 'x' });
+  });
+
   it('returns empty for no params', () => {
     expect(parseSearchDeepLink('')).toEqual({});
   });
@@ -39,5 +50,14 @@ describe('buildSearchDeepLink', () => {
     expect(buildSearchDeepLink('tavily', 'hello world')).toBe(
       '/search.html?provider=tavily&query=hello+world',
     );
+  });
+
+  it('round-trips a provider-instance id through build + parse', () => {
+    const deepLink = buildSearchDeepLink('inst:exa:research', 'hello world');
+    expect(deepLink).toBe('/search.html?provider=inst%3Aexa%3Aresearch&query=hello+world');
+    expect(parseSearchDeepLink(deepLink.slice(deepLink.indexOf('?')))).toEqual({
+      provider: 'inst:exa:research',
+      query: 'hello world',
+    });
   });
 });

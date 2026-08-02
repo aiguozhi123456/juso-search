@@ -9,6 +9,7 @@
 // 安全（R7）：本模块只在 worker 上下文调用（由 gateway handler 触发），不进入页面代码。
 
 import type { BarPositionPref, LocalePref, ThemePref } from './storage';
+import { PROVIDER_INSTANCES_KEY } from './storage';
 import {
   ACTIVE_KEY,
   ACTIVE_SOURCE_KEY,
@@ -29,12 +30,14 @@ import {
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, type SourceId } from './sources';
+import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 import type { SiteEngineDefinition } from './site-engines';
 import { isBoundedSiteEngineCollection, isSiteEngineId, normalizeSiteEngineDefinitions } from './site-engines';
+import type { ProviderInstance } from './provider-instances';
+import { isBoundedProviderInstanceCollection, isProviderInstanceId, normalizeProviderInstances } from './provider-instances';
 import type { CustomEngineDefinition } from './custom-engines';
 import { isBoundedCustomEngineCollection, isCustomEngineId, normalizeCustomEngineDefinitions } from './custom-engines';
 
@@ -64,6 +67,8 @@ export interface ConfigExport {
   siteEngines?: SiteEngineDefinition[];
   /** Absent in legacy exports; absence preserves local Custom Engines. */
   customEngines?: CustomEngineDefinition[];
+  /** Absent in legacy exports; absence preserves local Provider Instances. */
+  providerInstances?: ProviderInstance[];
   /** 每个 provider 的搜索结果条数（仅含已显式设置的 id）。 */
   providerMaxResults?: Partial<Record<ProviderId, number>>;
   /** 来源分组与顶层布局（导入文件可选；缺失则保留本地配置）。 */
@@ -72,18 +77,25 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
+  const providerInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
   const active = KNOWN_PROVIDER_IDS.has(activeRaw as ProviderId) ? (activeRaw as ProviderId) : null;
-  const activeSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], active, providerKeys, siteEngines, customEngines);
+  const activeSource = resolveEffectiveActiveSource(
+    (typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null) ?? active,
+    providerKeys,
+    siteEngines,
+    customEngines,
+    providerInstances,
+  ) ?? DEFAULT_ENGINE_ID;
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   const barPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
-  const knownSourceIds = allKnownSourceIds(siteEngines, customEngines);
+  const knownSourceIds = allKnownSourceIds(siteEngines, customEngines, providerInstances);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
@@ -94,10 +106,11 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     themePref: theme,
     localePref: locale,
     serpBarPosition: barPosition,
-    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines, customEngines),
-    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines, customEngines),
+    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines, customEngines, providerInstances),
+    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines, customEngines, providerInstances),
     siteEngines,
     customEngines,
+    providerInstances,
     providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
     groupConfig: got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
       ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], knownSourceIds)
@@ -159,8 +172,16 @@ export function parseImportPayload(raw: unknown): ParseResult {
     customEngines = normalizeCustomEngineDefinitions(obj.customEngines);
     if (!Array.isArray(obj.customEngines) || customEngines.length !== obj.customEngines.length) return { ok: false, error: 'invalid_custom_engines' };
   }
+  // Provider Instances 是新增字段：缺失（legacy/部分导出）保留本地实例；存在时必须整体合法且受预算约束。
+  const hasProviderInstances = Object.prototype.hasOwnProperty.call(obj, 'providerInstances');
+  let providerInstances: ProviderInstance[] | undefined;
+  if (hasProviderInstances) {
+    if (!isBoundedProviderInstanceCollection(obj.providerInstances)) return { ok: false, error: 'invalid_provider_instances' };
+    providerInstances = normalizeProviderInstances(obj.providerInstances);
+    if (!Array.isArray(obj.providerInstances) || providerInstances.length !== obj.providerInstances.length) return { ok: false, error: 'invalid_provider_instances' };
+  }
   const activeSource = obj.activeSource;
-  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteEngines, customEngines, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
+  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteEngines, customEngines, providerInstances, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
   const theme = obj.themePref;
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
@@ -174,7 +195,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceOrder)) return { ok: false, error: 'invalid_source_order' };
     const seen = new Set<SourceId>();
     for (const sourceId of sourceOrder) {
-      if (!isKnownSource(sourceId, siteEngines, customEngines, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
+      if (!isKnownSource(sourceId, siteEngines, customEngines, providerInstances, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
       seen.add(sourceId);
     }
   }
@@ -184,7 +205,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceHidden)) return { ok: false, error: 'invalid_source_hidden' };
     const seenHidden = new Set<SourceId>();
     for (const sourceId of sourceHidden) {
-      if (!isKnownSource(sourceId, siteEngines, customEngines, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
+      if (!isKnownSource(sourceId, siteEngines, customEngines, providerInstances, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
       seenHidden.add(sourceId);
     }
   }
@@ -194,7 +215,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
   let groupConfig: GroupConfig | undefined;
   if (hasGroupConfig) {
     // normalizeGroupConfig 容错：非法结构会被规整为默认配置，不阻断导入。
-    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteEngines ?? [], customEngines ?? []));
+    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteEngines ?? [], customEngines ?? [], providerInstances ?? []));
   }
   return {
     ok: true,
@@ -208,10 +229,11 @@ export function parseImportPayload(raw: unknown): ParseResult {
       themePref: theme as ThemePref,
       localePref: locale as LocalePref,
       serpBarPosition: hasBarPosition ? barPosition as BarPositionPref : undefined,
-      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines, customEngines) : undefined,
-      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines, customEngines) : undefined,
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines, customEngines, providerInstances) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines, customEngines, providerInstances) : undefined,
       siteEngines,
       customEngines,
+      providerInstances,
       providerMaxResults,
       groupConfig,
     },
@@ -243,6 +265,8 @@ export interface ImportReport {
   siteEnginesOverridden: boolean;
   /** 是否覆盖了 Custom Engine definitions。 */
   customEnginesOverridden: boolean;
+  /** 是否覆盖了 Provider Instance definitions。 */
+  providerInstancesOverridden: boolean;
   /** 是否覆盖了 providerMaxResults。 */
   providerMaxResultsOverridden: boolean;
   /** 是否覆盖了 groupConfig（来源分组与顶层布局）。 */
@@ -251,7 +275,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'customEngines' | 'providerMaxResults' | 'groupConfig';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -272,7 +296,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -291,11 +315,17 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   }
   const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const currentCustoms = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
+  const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, payload.siteEngines)) {
     prefDiffs.push({ key: 'siteEngines', from: siteEnginesSummary(currentSites), to: siteEnginesSummary(payload.siteEngines) });
   }
   if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, payload.customEngines)) {
     prefDiffs.push({ key: 'customEngines', from: customEnginesSummary(currentCustoms), to: customEnginesSummary(payload.customEngines) });
+  }
+  if (payload.providerInstances !== undefined) {
+    if (!sameProviderInstances(currentInstances, payload.providerInstances)) {
+      prefDiffs.push({ key: 'providerInstances', from: providerInstancesSummary(currentInstances), to: providerInstancesSummary(payload.providerInstances) });
+    }
   }
   const currentKeys = normalizeProviderKeys(current);
   const mergedKeys = mergeProviderKeys(currentKeys, payload.providerKeys);
@@ -331,7 +361,7 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (payload.groupConfig !== undefined) {
     const curGroupRaw = got[GROUP_CONFIG_KEY];
     const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-      ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms))
+      ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances))
       : undefined;
     if (!sameGroupConfig(curGroup, payload.groupConfig)) {
       prefDiffs.push({ key: 'groupConfig', from: groupConfigSummary(curGroup), to: groupConfigSummary(payload.groupConfig) });
@@ -368,7 +398,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -402,16 +432,21 @@ export async function mergeImport(
     let sourceHiddenOverridden = false;
     let siteEnginesOverridden = false;
     let customEnginesOverridden = false;
+    let providerInstancesOverridden = false;
     let providerMaxResultsOverridden = false;
     let groupConfigOverridden = false;
     if (applyPrefs) {
       const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
       const currentCustoms = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
+      const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
+      const importedInstances = payload.providerInstances ?? currentInstances;
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
       const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, normalizeProviderKeys(current), mergedKeys, curActive);
       const { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden } = sourcePreferences;
       if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, importedSites)) { setObj[SITE_ENGINES_KEY] = importedSites; siteEnginesOverridden = true; }
       if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, importedCustoms)) { setObj[CUSTOM_ENGINES_KEY] = importedCustoms; customEnginesOverridden = true; }
+      // 整数组覆盖（pref 语义，同 siteEngines）：导入文件显式包含 providerInstances 时整体替换。
+      if (payload.providerInstances !== undefined && !sameProviderInstances(currentInstances, payload.providerInstances)) { setObj[PROVIDER_INSTANCES_KEY] = payload.providerInstances; providerInstancesOverridden = true; }
       if (curActive !== payload.activeProvider) {
         setObj[ACTIVE_KEY] = payload.activeProvider;
         activeOverridden = true;
@@ -454,10 +489,10 @@ export async function mergeImport(
       if (payload.groupConfig !== undefined) {
         const curGroupRaw = got[GROUP_CONFIG_KEY];
         const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-          ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms))
+          ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances))
           : undefined;
         // 用导入的 site/custom engines 视角重新规范化导入的 groupConfig，确保赋值合法。
-        const newGroup = normalizeGroupConfig(payload.groupConfig, allKnownSourceIds(importedSites, importedCustoms));
+        const newGroup = normalizeGroupConfig(payload.groupConfig, allKnownSourceIds(importedSites, importedCustoms, importedInstances));
         if (!sameGroupConfig(curGroup, newGroup)) {
           setObj[GROUP_CONFIG_KEY] = newGroup;
           groupConfigOverridden = true;
@@ -478,6 +513,7 @@ export async function mergeImport(
       sourceHiddenOverridden,
       siteEnginesOverridden,
       customEnginesOverridden,
+      providerInstancesOverridden,
       providerMaxResultsOverridden,
       groupConfigOverridden,
     };
@@ -528,7 +564,15 @@ function resolveImportedSourcePreferences(
   // preserves local Site Engines and all dependent preferences.
   const importedSites = payload.siteEngines ?? currentSites;
   const importedCustoms = payload.customEngines ?? currentCustoms;
-  const curActiveSource = effectiveActiveSource(got[ACTIVE_SOURCE_KEY], currentActive, currentKeys, currentSites, currentCustoms);
+  const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
+  const importedInstances = payload.providerInstances ?? currentInstances;
+  const curActiveSource = resolveEffectiveActiveSource(
+    (typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null) ?? currentActive,
+    currentKeys,
+    currentSites,
+    currentCustoms,
+    currentInstances,
+  ) ?? DEFAULT_ENGINE_ID;
   // Preserve the current active source when it is a dynamic id whose collection
   // is absent from the import (i.e. preserved from current storage). Each dynamic
   // type is checked independently so an older backup with siteEngines but no
@@ -536,38 +580,27 @@ function resolveImportedSourcePreferences(
   const preserveSite = payload.siteEngines === undefined && isKnownSiteEngineId(curActiveSource, currentSites);
   const preserveCustom = payload.customEngines === undefined && isKnownCustomEngineId(curActiveSource, currentCustoms);
   const preferredActiveSource = (preserveSite || preserveCustom) ? curActiveSource : payload.activeSource;
-  const newActiveSource = effectiveActiveSource(preferredActiveSource, payload.activeProvider, mergedKeys, importedSites, importedCustoms);
-  const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], currentSites, currentCustoms);
-  const newSourceOrder = normalizeSourceOrder(payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder, importedSites, importedCustoms);
-  const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms);
+  const newActiveSource = resolveEffectiveActiveSource(
+    preferredActiveSource ?? payload.activeProvider,
+    mergedKeys,
+    importedSites,
+    importedCustoms,
+    importedInstances,
+  ) ?? DEFAULT_ENGINE_ID;
+  const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], currentSites, currentCustoms, currentInstances);
+  const newSourceOrder = normalizeSourceOrder(payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder, importedSites, importedCustoms, importedInstances);
+  const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms, currentInstances);
   const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
   const hiddenInput = payload.siteEngines === undefined && payload.customEngines === undefined
     ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteEngineId(id) || isCustomEngineId(id))]
     : importedHidden;
-  const newSourceHidden = ensureVisibleUsable(normalizeSourceHidden(hiddenInput, importedSites, importedCustoms), newSourceOrder, mergedKeys, importedSites, importedCustoms);
+  const newSourceHidden = ensureVisibleUsable(normalizeSourceHidden(hiddenInput, importedSites, importedCustoms, importedInstances), newSourceOrder, mergedKeys, importedSites, importedCustoms, importedInstances);
   return { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden };
 }
 
-function isKnownSource(value: unknown, siteEngines: readonly SiteEngineDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], allowUnresolvedSite = false): value is SourceId {
+function isKnownSource(value: unknown, siteEngines: readonly SiteEngineDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false): value is SourceId {
   return typeof value === 'string'
-    && (isProviderId(value) || isEngineId(value) || isKnownSiteEngineId(value, siteEngines) || isKnownCustomEngineId(value, customEngines) || (allowUnresolvedSite && (isSiteEngineId(value) || isCustomEngineId(value))));
-}
-
-function effectiveActiveSource(
-  storedSource: unknown,
-  activeProvider: ProviderId | null,
-  providerKeys: Record<string, string>,
-  siteEngines: readonly SiteEngineDefinition[] = [],
-  customEngines: readonly CustomEngineDefinition[] = [],
-): SourceId {
-  if (typeof storedSource === 'string') {
-    if (isEngineId(storedSource)) return storedSource;
-    if (isKnownSiteEngineId(storedSource, siteEngines)) return storedSource;
-    if (isKnownCustomEngineId(storedSource, customEngines)) return storedSource;
-    if (isProviderId(storedSource) && providerKeys[storedSource]) return storedSource;
-  }
-  if (activeProvider && providerKeys[activeProvider]) return activeProvider;
-  return allProviders().find((p) => providerKeys[p.id])?.id ?? DEFAULT_ENGINE_ID;
+    && (isProviderId(value) || isEngineId(value) || isKnownSiteEngineId(value, siteEngines) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteEngineId(value) || isCustomEngineId(value))));
 }
 
 function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly SiteEngineDefinition[]): boolean {
@@ -575,6 +608,10 @@ function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly 
 }
 
 function sameCustomEngines(left: readonly CustomEngineDefinition[], right: readonly CustomEngineDefinition[]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameProviderInstances(left: readonly ProviderInstance[], right: readonly ProviderInstance[]): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -605,14 +642,19 @@ function customEnginesSummary(definitions: readonly CustomEngineDefinition[]): s
   return definitions.map((definition) => `${definition.id}:${definition.urlTemplate}:${definition.name}`).join(' | ');
 }
 
-function visibleUsableSource(order: readonly SourceId[], hidden: readonly SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = []): SourceId | undefined {
-  const hiddenSet = new Set(hidden);
-  return order.find((id) => !hiddenSet.has(id) && (isEngineId(id) || isKnownSiteEngineId(id, sites) || isKnownCustomEngineId(id, customs) || (isProviderId(id) && !!providerKeys[id])));
+/** Deterministic compact diff value for provider instances (options included to distinguish same-sized lists). */
+function providerInstancesSummary(instances: readonly ProviderInstance[]): string {
+  return instances.map((instance) => `${instance.id}:${instance.baseProviderId}:${instance.name}:${JSON.stringify(instance.options)}`).join(' | ');
 }
 
-function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = []): SourceId[] {
-  if (visibleUsableSource(order, hidden, providerKeys, sites, customs)) return hidden;
-  const fallback = visibleUsableSource(order, [], providerKeys, sites, customs);
+function visibleUsableSource(order: readonly SourceId[], hidden: readonly SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId | undefined {
+  const hiddenSet = new Set(hidden);
+  return order.find((id) => !hiddenSet.has(id) && (isEngineId(id) || isKnownSiteEngineId(id, sites) || isKnownCustomEngineId(id, customs) || (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!providerKeys[instance.baseProviderId])) || (isProviderId(id) && !!providerKeys[id])));
+}
+
+function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {
+  if (visibleUsableSource(order, hidden, providerKeys, sites, customs, instances)) return hidden;
+  const fallback = visibleUsableSource(order, [], providerKeys, sites, customs, instances);
   return fallback ? hidden.filter((id) => id !== fallback) : hidden;
 }
 

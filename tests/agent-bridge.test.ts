@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildAgentEndpoint, isTrustedBridgeSender, parseAgentClaim, parseBridgeFragment, runAgentBridge } from '@/lib/agent-bridge';
+import { AGENT_BRIDGE_PROTOCOL, buildAgentEndpoint, isTrustedBridgeSender, parseAgentClaim, parseBridgeFragment, runAgentBridge } from '@/lib/agent-bridge';
 
 const token = 'a'.repeat(24);
 const claim = { protocol: 1, requestId: 'request-1', request: { action: 'search', query: ' hello ', providerId: 'tavily' } };
@@ -25,6 +25,45 @@ describe('agent bridge input validation', () => {
     expect(parseAgentClaim({ protocol: 1, requestId: 'providers', request: { action: 'list-providers' } })).toMatchObject({ ok: true });
     expect(parseAgentClaim({ protocol: 1, requestId: 'providers', request: { action: 'list-providers', query: 'x' } })).toMatchObject({ ok: false });
     expect(parseAgentClaim({ ...claim, extra: true })).toMatchObject({ ok: false });
+  });
+});
+
+describe('agent bridge v2 actions', () => {
+  it('bumps the protocol version to 2', () => {
+    expect(AGENT_BRIDGE_PROTOCOL).toBe(2);
+  });
+
+  it('keeps v1 search claims parsing unchanged (backward compatibility)', () => {
+    const v1 = { protocol: 1, requestId: 'v1', request: { action: 'search', query: ' hello ', providerId: 'exa' } };
+    expect(parseAgentClaim(v1)).toMatchObject({ ok: true, value: { protocol: 1, request: { action: 'search', query: 'hello', providerId: 'exa' } } });
+  });
+
+  it('parses a v2 search-instance claim with a valid instance id', () => {
+    const claim = { protocol: 2, requestId: 'v2', request: { action: 'search-instance', query: ' hello ', instanceId: 'inst:exa:abc123', forceRefresh: true } };
+    expect(parseAgentClaim(claim)).toMatchObject({ ok: true, value: { protocol: 2, request: { action: 'search-instance', query: 'hello', instanceId: 'inst:exa:abc123', forceRefresh: true } } });
+  });
+
+  it('rejects a v2 search-instance claim with an invalid instance id', () => {
+    const unknownProvider = { protocol: 2, requestId: 'v2', request: { action: 'search-instance', query: 'x', instanceId: 'inst:unknown:abc' } };
+    expect(parseAgentClaim(unknownProvider)).toMatchObject({ ok: false });
+    const malformed = { protocol: 2, requestId: 'v2', request: { action: 'search-instance', query: 'x', instanceId: 'exa:abc' } };
+    expect(parseAgentClaim(malformed)).toMatchObject({ ok: false });
+  });
+
+  it('rejects a v2 search-instance claim with a missing query', () => {
+    const missingQuery = { protocol: 2, requestId: 'v2', request: { action: 'search-instance', instanceId: 'inst:exa:abc123' } };
+    expect(parseAgentClaim(missingQuery)).toMatchObject({ ok: false });
+    const emptyQuery = { protocol: 2, requestId: 'v2', request: { action: 'search-instance', query: '', instanceId: 'inst:exa:abc123' } };
+    expect(parseAgentClaim(emptyQuery)).toMatchObject({ ok: false });
+  });
+
+  it('parses a v2 list-instances claim', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'list-instances' } })).toMatchObject({ ok: true, value: { request: { action: 'list-instances' } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'list-instances', query: 'x' } })).toMatchObject({ ok: false });
+  });
+
+  it('rejects unknown actions', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'teleport', query: 'x' } })).toMatchObject({ ok: false });
   });
 });
 
@@ -98,5 +137,37 @@ describe('agent bridge protocol', () => {
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
     expect(fetchMock.mock.calls[1][1].signal).not.toBe(handleEngineSearch.mock.calls[0][1]);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { engine: 'google', query: 'hello', error: 'aborted' } });
+  });
+});
+
+describe('agent bridge v2 dispatch', () => {
+  it('dispatches a v2 search-instance claim to handleSearchInstance', async () => {
+    const v2Claim = { protocol: 2, requestId: 'v2-search', request: { action: 'search-instance', query: 'hello', instanceId: 'inst:exa:abc123' } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(v2Claim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const searchReply = { ok: false, error: { kind: 'unknown', message: 'safe' } };
+    const handleSearchInstance = vi.fn().mockResolvedValue(searchReply);
+    const listInstances = vi.fn();
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchInstance, listInstances })).resolves.toEqual({ ok: true });
+    expect(handleSearchInstance).toHaveBeenCalledTimes(1);
+    expect(handleSearchInstance.mock.calls[0][0]).toMatchObject({ action: 'search-instance', query: 'hello', instanceId: 'inst:exa:abc123' });
+    expect(handleSearchInstance.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
+    expect(listInstances).not.toHaveBeenCalled();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: searchReply });
+  });
+
+  it('dispatches a v2 list-instances claim to listInstances', async () => {
+    const v2Claim = { protocol: 2, requestId: 'v2-list', request: { action: 'list-instances' } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(v2Claim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const instancesReply = { instances: [{ id: 'inst:exa:abc123', providerId: 'exa', label: 'Default', description: '', configured: true }] };
+    const listInstances = vi.fn().mockResolvedValue(instancesReply);
+    const handleSearchInstance = vi.fn();
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchInstance, listInstances })).resolves.toEqual({ ok: true });
+    expect(listInstances).toHaveBeenCalledTimes(1);
+    expect(handleSearchInstance).not.toHaveBeenCalled();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: instancesReply });
   });
 });

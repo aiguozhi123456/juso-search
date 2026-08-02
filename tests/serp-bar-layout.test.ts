@@ -71,6 +71,14 @@ describe('SERP bar shadow-host layout', () => {
     expect(bottomFlyoutRule).not.toBeNull();
   });
 
+  it('forwards provider instances from the config reply into allSources projections', async () => {
+    // 两处 allSources 调用点（loadBarState + applyConfigSnapshot）都必须把 providerInstances
+    // 作为第 6 参传入——有实例的 provider 才能投影出实例 pill（IU7 投影 + IU9 接线）。
+    const source = await readFile(resolve(process.cwd(), 'entrypoints/serp-bar.content.ts'), 'utf8');
+    const forwards = source.match(/config\.providerInstances\s*\?\?\s*\[\]/g);
+    expect(forwards?.length).toBe(2);
+  });
+
   it('aligns the Bing host to the target content box', () => {
     const layout = calculateAlignedHostLayout(
       { left: 0, width: 1096.667 },

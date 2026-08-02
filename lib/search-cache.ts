@@ -10,7 +10,7 @@ export const SEARCH_CACHE_CAP = 50;
 // ⚠️ 修改本文件的 migrateCachePool version 比较逻辑时，同步检查 schema.ts 的 migrateConfig，
 //    两处共享同构的 version-skip 语义。
 export const CACHE_SCHEMA_VERSION_KEY = 'cacheSchemaVersion';
-export const CURRENT_CACHE_SCHEMA_VERSION = 1;
+export const CURRENT_CACHE_SCHEMA_VERSION = 2;
 
 // 缓存迁移：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 // 接收整个缓存池快照（index + 全部 entries），返回迁移后的快照。
@@ -24,10 +24,23 @@ export type CacheMigration = {
   };
 };
 
-// 迁移注册表：按 version 升序。首版为空（CURRENT_CACHE_SCHEMA_VERSION === 1）。
-// 未来加版本两步：(1) 向此数组 append 一条 CacheMigration；(2) bump CURRENT_CACHE_SCHEMA_VERSION。
+// 迁移注册表：按 version 升序。加版本两步：(1) 向此数组 append 一条 CacheMigration；
+// (2) bump CURRENT_CACHE_SCHEMA_VERSION。
 // ⚠️ 若迁移改变 SearchCacheIndex 形状，同步更新 isSearchCacheIndex 校验。
-export const cacheMigrations: CacheMigration[] = [];
+export const cacheMigrations: CacheMigration[] = [
+  {
+    // v1 → v2：缓存 key 从 `${providerId}:${query}` 改为 `${id}:${query}`（id 可为 ProviderInstanceId）。
+    // 旧格式下同 provider 多实例同 query 的条目共用同一 key（碰撞，P0）。缓存可重生，
+    // 直接丢弃全部条目与索引，避免旧 key 条目以新形状被误命中。
+    // 版本戳由框架在 runCacheMigration 的 commit 点盖章，此处只需返回空池 + drop 全部 entry id。
+    version: 1,
+    migrate: ({ entries }) => ({
+      index: emptySearchCacheIndex(),
+      entries: [],
+      dropEntryIds: entries.map((entry) => entry.id),
+    }),
+  },
+];
 
 const MAX_CACHED_RESULTS = 20;
 const MAX_CACHED_ANSWER_CHARS = 2000;
@@ -47,6 +60,8 @@ export interface SearchCacheSummary {
   query: string;
   normalizedQuery: string;
   providerId: ProviderId;
+  /** 当缓存条目来自某个 provider 实例时存在（IU6）；裸 provider 搜索则缺省。 */
+  instanceId?: string;
   createdAt: number;
   lastAccessedAt: number;
   answerPreview?: string;
@@ -67,6 +82,8 @@ export interface SearchCacheEntry {
   query: string;
   normalizedQuery: string;
   providerId: ProviderId;
+  /** 当缓存条目来自某个 provider 实例时存在（IU6）；裸 provider 搜索则缺省。 */
+  instanceId?: string;
   createdAt: number;
   lastAccessedAt: number;
   response: NormalizedSearchResponse;
@@ -80,8 +97,8 @@ export function normalizeSearchQuery(query: string): string {
   return query.trim().replace(/\s+/g, ' ');
 }
 
-export function makeSearchCacheKey(providerId: ProviderId, query: string): string {
-  return `${providerId}:${normalizeSearchQuery(query)}`;
+export function makeSearchCacheKey(id: string, query: string): string {
+  return `${id}:${normalizeSearchQuery(query)}`;
 }
 
 export function searchCacheEntryKey(id: string): string {
@@ -97,16 +114,17 @@ export function isSearchCacheIndex(value: unknown): value is SearchCacheIndex {
     && isPlainRecord(candidate.summaries);
 }
 
-export function buildSearchCacheEntry(response: NormalizedSearchResponse, now = Date.now()): SearchCacheEntry {
+export function buildSearchCacheEntry(response: NormalizedSearchResponse, instanceId?: string, now = Date.now()): SearchCacheEntry {
   const id = createCacheId();
   const normalizedQuery = normalizeSearchQuery(response.query);
-  const cacheKey = makeSearchCacheKey(response.provider, normalizedQuery);
+  const cacheKey = makeSearchCacheKey(instanceId ?? response.provider, normalizedQuery);
   return {
     id,
     cacheKey,
     query: response.query,
     normalizedQuery,
     providerId: response.provider,
+    ...(instanceId ? { instanceId } : {}),
     createdAt: now,
     lastAccessedAt: now,
     response: slimSearchResponse(response),
@@ -121,6 +139,7 @@ export function buildSearchCacheSummary(entry: SearchCacheEntry): SearchCacheSum
     query: entry.query,
     normalizedQuery: entry.normalizedQuery,
     providerId: entry.providerId,
+    ...(entry.instanceId ? { instanceId: entry.instanceId } : {}),
     createdAt: entry.createdAt,
     lastAccessedAt: entry.lastAccessedAt,
     answerPreview,

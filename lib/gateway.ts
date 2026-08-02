@@ -1,13 +1,14 @@
-import type { ProviderId } from './providers/types';
+import type { ProviderId, SearchOptions } from './providers/types';
 import { ProviderError } from './providers/types';
 import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
-import type { SourceId } from './sources';
+import { isProviderId, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { isSiteEngineId, type SiteEngineDefinition, type SiteEngineEngineId, type SiteEngineId } from './site-engines';
 import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
+import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
-import type { AgentListProvidersReply } from './agent-bridge';
+import type { AgentInstance, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
 import {
   clearKey,
   clearProviderMaxResults,
@@ -35,6 +36,11 @@ import {
   createCustomEngineDefinition,
   updateCustomEngineDefinition,
   deleteCustomEngineDefinition,
+  getProviderInstances,
+  createProviderInstance,
+  updateProviderInstance,
+  deleteProviderInstance,
+  ensureDefaultInstance,
 } from './storage';
 import { t, MSG } from './i18n';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
@@ -64,41 +70,25 @@ export function getSchemaReady(): Promise<void> {
 type SearchErrorReply = Extract<SearchReply, { ok: false }>;
 
 /** 搜索：优先复用本地缓存；forceRefresh 时 worker 读 key → 调激活 provider → 写缓存。
- *  providerId 绑定 UI 视图（避免跨标签 active 漂移导致搜/缓存到错误 provider）。 */
+ *  providerId 绑定 UI 视图（避免跨标签 active 漂移导致搜/缓存到错误 provider）。
+ *  providerId 可能承载实例 id（SourceId 边界）：在网关边界解析为 base provider + options，
+ *  此后只有 ProviderId 流入 getAdapter/getKey（KTD2/R8）。 */
 export async function handleSearch(request: SearchRequest, signal?: AbortSignal): Promise<SearchReply> {
   await getSchemaReady();
   try {
     const query = request.query.trim();
-    const providerId = await resolveSearchProvider(request.providerId);
-    if (!providerId) {
-      if (request.providerId) {
+    const resolution = await resolveSearchSource(request.providerId);
+    if (!resolution) {
+      if (request.providerId && !isProviderInstanceId(request.providerId)) {
         const adapter = getAdapter(request.providerId);
         return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
       }
       return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_no_provider_key) } };
     }
-    if (!request.forceRefresh) {
-      const cached = await getCachedSearch(providerId, query);
-      if (cached) {
-        return {
-          ok: true,
-          response: cached.response,
-          cache: { hit: true, entryId: cached.id, createdAt: cached.createdAt },
-        };
-      }
-    }
-    const adapter = getAdapter(providerId);
-    const key = await getKey(providerId);
-    if (!key) {
-      return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
-    }
-    const maxResults = await getProviderMaxResults(providerId);
-    const response = await adapter.search(query, { signal, ...(maxResults !== null ? { maxResults } : {}) }, key);
-    if (signal?.aborted) {
-      throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-    const cached = await saveCachedSearch(response).catch(() => null);
-    return { ok: true, response, cache: { hit: false, entryId: cached?.id, createdAt: cached?.createdAt } };
+    // 必须 await 再返回：直接 `return runProviderSearch(...)` 会让 adapter 的 rejection
+    // 绕过本函数 try/catch（return 不吞 promise rejection），导致错误逃逸到消息层。
+    const reply = await runProviderSearch(query, resolution, request.forceRefresh, signal);
+    return reply;
   } catch (e) {
     return toSearchError(e);
   }
@@ -132,21 +122,67 @@ export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   return getProviderConfigSnapshot();
 }
 
-/** Agent bridge 的脱敏 provider 清单：只公开能力和是否已配置，绝不返回 key。 */
+/** Agent bridge 的脱敏 provider 清单：只公开能力、是否已配置与是否有实例，绝不返回 key。 */
 export async function handleListAgentProviders(): Promise<AgentListProvidersReply> {
-  const { configuredProviderIds } = await handleGetProviderConfig();
+  await getSchemaReady();
+  const [instances, configured] = await Promise.all([getProviderInstances(), getConfiguredProviderIds()]);
+  const providersWithInstances = new Set(instances.map((i) => i.baseProviderId));
   return {
     providers: allProviders().map((provider) => ({
       id: provider.id,
       supportsAnswer: provider.supportsAnswer,
-      configured: configuredProviderIds.includes(provider.id),
+      configured: configured.includes(provider.id),
+      ...(providersWithInstances.has(provider.id) ? { hasInstances: true } : {}),
     })),
   };
+}
+
+/** Agent bridge v2：实例清单（脱敏，绝不返回 key）。实例无描述字段，Phase 1 label = name、description = ''。 */
+export async function handleListAgentInstances(): Promise<{ instances: AgentInstance[] }> {
+  await getSchemaReady();
+  const [instances, configured] = await Promise.all([getProviderInstances(), getConfiguredProviderIds()]);
+  const configuredSet = new Set(configured);
+  return {
+    instances: instances.map((instance) => ({
+      id: instance.id,
+      providerId: instance.baseProviderId,
+      label: instance.name,
+      description: '',
+      configured: configuredSet.has(instance.baseProviderId),
+    })),
+  };
+}
+
+/** Agent bridge v2：按实例 id 解析并搜索（注入该实例的 per-instance options）。 */
+export async function handleSearchInstance(request: AgentSearchInstanceRequest, signal?: AbortSignal): Promise<SearchReply> {
+  await getSchemaReady();
+  try {
+    const query = request.query.trim();
+    const resolution = await resolveInstance(request.instanceId);
+    if (!resolution) {
+      return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_no_provider_key) } };
+    }
+    const reply = await runProviderSearch(query, resolution, request.forceRefresh, signal);
+    return reply;
+  } catch (e) {
+    return toSearchError(e);
+  }
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
   await getSchemaReady();
   await setKey(providerId, key);
+  // 统一实例模型（KTD5）：带 per-instance options 的 provider 配置 key 时自动创建默认实例，
+  // 保证「有实例的 provider 永远 ≥1 个实例」（不出现裸 pill）。ensureDefaultInstance 在实例变更
+  // 队列内完成读-判-建，天然串行——并发 save key 不会双双读到空列表而重复创建（BUG-3）；
+  // 用户清 key 后重配时已有实例则 no-op。best-effort：失败不影响 key 保存（主操作）。
+  if (PROVIDERS_WITH_INSTANCE_OPTIONS.has(providerId)) {
+    try {
+      await ensureDefaultInstance(providerId, t(getAdapter(providerId).label));
+    } catch {
+      // ignore — key save is the primary operation
+    }
+  }
 }
 
 export async function handleDeleteProviderKey(providerId: ProviderId): Promise<void> {
@@ -209,6 +245,29 @@ export async function handleDeleteCustomEngine(id: CustomEngineId): Promise<void
   await getSchemaReady();
   if (!isCustomEngineId(id)) throw new Error('invalid_custom_engine');
   await deleteCustomEngineDefinition(id);
+}
+
+export async function handleCreateProviderInstance(data: { baseProviderId: ProviderId; name: string; options: Record<string, unknown> }): Promise<ProviderInstance> {
+  await getSchemaReady();
+  return createProviderInstance(data.baseProviderId, data.name, data.options);
+}
+
+export async function handleUpdateProviderInstance(data: { id: ProviderInstanceId; patch: { name?: string; options?: Record<string, unknown> } }): Promise<ProviderInstance | null> {
+  await getSchemaReady();
+  const updated = await updateProviderInstance(data.id, data.patch);
+  // 实例 options 变更后，旧缓存条目的结果已过时（cache key 不含 options），
+  // 清空缓存避免命中返回旧 options 的响应（per-provider-config-worker-injection 先例）。
+  await clearSearchCache();
+  return updated;
+}
+
+export async function handleDeleteProviderInstance(id: ProviderInstanceId): Promise<void> {
+  await getSchemaReady();
+  if (!isProviderInstanceId(id)) throw new Error('invalid_provider_instance');
+  await deleteProviderInstance(id);
+  // 缓存现已按 instanceId 键控（IU6），可精确清理该实例条目；但保守清空整个缓存池
+  // （可重生）与 maxResults/delete 先例一致，且避免索引扫描的复杂度。
+  await clearSearchCache();
 }
 
 export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {
@@ -324,14 +383,92 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
   await browser.downloads.download({ url, filename, saveAs: true });
 }
 
-/** 解析搜索所用 provider：UI 显式传入且已配置则采用，否则回退到 worker active 态。 */
-async function resolveSearchProvider(requested: ProviderId | undefined): Promise<ProviderId | null> {
-  if (requested) {
-    const configured = await getConfiguredProviderIds();
-    if (configured.includes(requested)) return requested;
-    return null;
+/** 执行一次已解析 provider 的搜索：缓存 → key → options（maxResults/providerSettings 均由
+ *  worker 从 storage 读并注入 SearchOptions，消息不携带——per-provider-config-worker-injection 先例）。 */
+async function runProviderSearch(
+  query: string,
+  resolution: { providerId: ProviderId; providerSettings?: Record<string, unknown>; cacheKeyId: string },
+  forceRefresh: boolean | undefined,
+  signal?: AbortSignal,
+): Promise<SearchReply> {
+  const { providerId, providerSettings, cacheKeyId } = resolution;
+  if (!forceRefresh) {
+    const cached = await getCachedSearch(cacheKeyId, query);
+    if (cached) {
+      return {
+        ok: true,
+        response: cached.response,
+        cache: { hit: true, entryId: cached.id, createdAt: cached.createdAt },
+      };
+    }
   }
-  return getActiveProviderId();
+  const adapter = getAdapter(providerId);
+  const key = await getKey(providerId);
+  if (!key) {
+    return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
+  }
+  const maxResults = await getProviderMaxResults(providerId);
+  const options: SearchOptions = {
+    signal,
+    ...(maxResults !== null ? { maxResults } : {}),
+    ...(providerSettings !== undefined ? { providerSettings } : {}),
+  };
+  const response = await adapter.search(query, options, key);
+  if (signal?.aborted) {
+    throw new DOMException('The operation was aborted.', 'AbortError');
+  }
+  const cached = await saveCachedSearch(response, cacheKeyId).catch(() => null);
+  return { ok: true, response, cache: { hit: false, entryId: cached?.id, createdAt: cached?.createdAt } };
+}
+
+/**
+ * 实例解析边界（KTD2/R8）：`ProviderInstanceId → { baseProviderId, options }`。
+ * 此后只有 ProviderId 流入 getAdapter/getKey——实例 id 绝不进入 BYOK 路径。
+ * - 实例 id：查实例定义，命中返回 base provider + per-instance options；未知返回 null；
+ * - 裸 provider id：返回 `{ providerId }`（无 options；默认实例路由在 resolveSearchSource）；
+ * - undefined / 未知来源：null。
+ */
+export async function resolveInstance(sourceId: SourceId | undefined): Promise<{
+  providerId: ProviderId;
+  providerSettings?: Record<string, unknown>;
+  cacheKeyId: string;
+} | null> {
+  if (!sourceId) return null;
+  if (isProviderInstanceId(sourceId)) {
+    const instances = await getProviderInstances();
+    const instance = instances.find((item) => item.id === sourceId);
+    if (!instance) return null;
+    return { providerId: instance.baseProviderId, providerSettings: instance.options, cacheKeyId: sourceId };
+  }
+  return isProviderId(sourceId) ? { providerId: sourceId, cacheKeyId: sourceId } : null;
+}
+
+/** 解析搜索所用 provider：UI 显式传入（可为实例 id，SourceId 边界）且已配置则采用，
+ *  否则回退到 worker active 态。裸 provider id 有实例时路由到第一个（默认实例，KTD5）并注入其 options（R4）。 */
+async function resolveSearchSource(requested: ProviderId | undefined): Promise<{
+  providerId: ProviderId;
+  providerSettings?: Record<string, unknown>;
+  cacheKeyId: string;
+} | null> {
+  if (requested) {
+    if (isProviderInstanceId(requested)) return resolveInstance(requested);
+    const configured = await getConfiguredProviderIds();
+    if (!configured.includes(requested)) return null;
+    return resolveBareProvider(requested);
+  }
+  const active = await getActiveProviderId();
+  if (!active) return null;
+  return resolveBareProvider(active);
+}
+
+/** 裸 provider：若该 provider 有实例，则返回第一个实例的 options（默认实例 = 隐式第一个，KTD5）。
+ *  cacheKeyId 用默认实例 id（使 v1 search 与 v2 search-instance 命中同一缓存条目）；无实例时用 provider id。 */
+async function resolveBareProvider(providerId: ProviderId): Promise<{ providerId: ProviderId; providerSettings?: Record<string, unknown>; cacheKeyId: string }> {
+  const instances = await getProviderInstances();
+  const defaultInstance = instances.find((instance) => instance.baseProviderId === providerId);
+  return defaultInstance
+    ? { providerId, providerSettings: defaultInstance.options, cacheKeyId: defaultInstance.id }
+    : { providerId, cacheKeyId: providerId };
 }
 
 function toSearchError(e: unknown): SearchErrorReply {
