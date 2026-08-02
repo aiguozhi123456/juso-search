@@ -1,7 +1,7 @@
 ---
 title: "Site Engine as third Search Source with safe persistence invariants"
 date: 2026-07-26
-last_updated: 2026-08-01
+last_updated: 2026-08-02
 category: architecture-patterns
 module: "site-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -235,6 +235,7 @@ function decidePostWriteSiteEngineNavigation(
 
 ## Related
 
+- [Custom Engine as fourth Search Source](./custom-engine-arbitrary-url-source-type.md) — the fourth source class (arbitrary-URL template, new-tab SERP handoff); shares these persistence invariants
 - [Unified Source Model and Shadow-DOM SERP Switch Bar](./serp-switch-bar-and-unified-source-model.md) — foundational Search Source composition Site Engine extends
 - [Separate active search source from active BYOK provider](./separate-active-search-source-from-active-byok-provider.md) — non-BYOK source boundary
 - [Persistent source order and visible projection](./persistent-source-order-and-visible-projection.md) — related normalize invariants for source lists
