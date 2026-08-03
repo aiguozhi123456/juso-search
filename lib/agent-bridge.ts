@@ -69,6 +69,23 @@ export function parseBridgeFragment(fragment: string): ParseResult<BridgeCredent
   return { ok: true, value: { port, token: tokens[0] } };
 }
 
+/**
+ * Best-effort loose extraction of port+token from a bridge fragment, used to
+ * notify the Python server when strict {@link parseBridgeFragment} fails (e.g.
+ * version mismatch). Returns null when port or token are missing/malformed —
+ * in that case there is no way to reach the server and the skill must wait for
+ * its own timeout.
+ */
+export function extractLooseBridgeCredentials(fragment: string): BridgeCredentials | null {
+  const params = new URLSearchParams(fragment.startsWith('#') ? fragment.slice(1) : fragment);
+  const portStr = params.get('p');
+  const token = params.get('t');
+  if (!portStr || !token) return null;
+  const port = parsePort(portStr);
+  if (port === null || !isBase64UrlToken(token)) return null;
+  return { port, token };
+}
+
 export function isTrustedBridgeSender(sender: { id?: string; url?: string }, extensionId: string): boolean {
   if (sender.id !== extensionId || !sender.url) return false;
   try {

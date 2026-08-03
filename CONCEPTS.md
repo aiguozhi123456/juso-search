@@ -91,7 +91,7 @@ A `search.html?provider=X&query=Y` URL that drops the user into the Juso search 
 ### Agent Bridge
 A short-lived, loopback-only capability channel that lets a local Agent invoke selected extension-worker actions without receiving the extension's stored secrets.
 
-Each invocation uses a new local port, token, and request identity. The protocol is a claim/complete pair: the agent claims a single bounded request on the loopback endpoint, the worker validates sender and request, executes the one action, and reports completion. The bridge disappears after completion or timeout; it is not a persistent local API or a source of long-term identity.
+Each invocation uses a new local port, token, and request identity. The protocol is a claim/complete/abort triple: the agent claims a single bounded request on the loopback endpoint, the worker validates sender and request, executes the one action, and reports completion; if the bridge page cannot process the fragment (e.g. version mismatch), it sends an abort so the skill fails fast instead of waiting for timeout. The bridge disappears after completion, abort, or timeout; it is not a persistent local API or a source of long-term identity.
 
 The bridge ships disabled by default behind a two-layer opt-in: a total switch gates the entire bridge, and a separate sub-switch gates only the engine-search action, which can drive the browser to load third-party search-engine pages and extract their public results. A capability that silently loads third-party pages on an external process's behalf must be opt-in, not default-on.
 

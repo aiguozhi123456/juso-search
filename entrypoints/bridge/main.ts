@@ -1,4 +1,4 @@
-import { parseBridgeFragment } from '@/lib/agent-bridge';
+import { extractLooseBridgeCredentials, parseBridgeFragment } from '@/lib/agent-bridge';
 import { sendMessage } from '@/lib/messaging';
 
 const root = document.getElementById('root');
@@ -15,6 +15,9 @@ void connect();
 async function connect(): Promise<void> {
   const credentials = parseBridgeFragment(fragment);
   if (!credentials.ok) {
+    // Fragment 解析失败（如版本不匹配）时，尽力通知 Python 快速失败，
+    // 避免 skill 卡到超时。宽松提取 port+token，向 /v1/abort 发信号。
+    await notifyAbort(fragment);
     setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
     return closeTab();
   }
@@ -28,6 +31,22 @@ async function connect(): Promise<void> {
     setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
   }
   closeTab();
+}
+
+async function notifyAbort(fragment: string): Promise<void> {
+  const loose = extractLooseBridgeCredentials(fragment);
+  if (!loose) return;
+  try {
+    await fetch(`http://127.0.0.1:${loose.port}/v1/abort`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${loose.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'invalid_fragment' }),
+      redirect: 'error',
+      cache: 'no-store',
+    });
+  } catch {
+    // Python server 可能已关闭或凭据不可读——忽略，skill 会走自己的超时路径
+  }
 }
 
 function setStatus(chinese: string, english: string): void {

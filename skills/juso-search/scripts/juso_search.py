@@ -22,11 +22,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+# Windows 控制台默认 GBK，ensure_ascii=False 的 JSON 输出遇到非 GBK 字符（如 €）会
+# UnicodeEncodeError。强制 stdout/stderr 用 UTF-8，保证搜索结果总能输出给 Agent。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8')
+
 PROTOCOL = 2
 DEFAULT_EXTENSION_ID = "illmhdnglkjfcenboepdgopaeejdgoji"
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
-PROVIDERS = ("tavily", "exa", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global")
+PROVIDERS = ("tavily", "exa", "brave", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global")
 ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")
 EXTENSION_ID_RE = re.compile(r"^[a-p]{32}$")
 
@@ -195,6 +201,8 @@ class BridgeState:
         self.reply: Any = None
         self.claimed = threading.Event()
         self.completed = threading.Event()
+        self.aborted = False
+        self.abort_reason = ""
         self.lock = threading.Lock()
 
     def valid_token(self, value: str | None) -> bool:
@@ -274,6 +282,14 @@ def make_handler(state: BridgeState):
                 if body is None:
                     return
                 self._complete(body)
+            elif self.path == "/v1/abort":
+                if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+                    self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "invalid_content_type")
+                    return
+                body = self._body()
+                if body is None:
+                    return
+                self._abort(body)
             else:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
 
@@ -316,6 +332,17 @@ def make_handler(state: BridgeState):
                     self._error(HTTPStatus.CONFLICT, "already_completed")
                     return
                 state.reply = payload["reply"]
+                state.completed.set()
+            self._empty(HTTPStatus.NO_CONTENT)
+
+        def _abort(self, payload: dict[str, Any]) -> None:
+            reason = payload.get("reason")
+            with state.lock:
+                if state.completed.is_set():
+                    self._error(HTTPStatus.CONFLICT, "already_completed")
+                    return
+                state.aborted = True
+                state.abort_reason = reason if isinstance(reason, str) and reason else "unknown"
                 state.completed.set()
             self._empty(HTTPStatus.NO_CONTENT)
 
@@ -414,18 +441,22 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
     server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
+    process: subprocess.Popen | None = None
     try:
-        url = f"chrome-extension://{args.extension_id}/bridge.html#v=2&p={server.server_port}&t={token}"
+        url = f"chrome-extension://{args.extension_id}/bridge.html#v=1&p={server.server_port}&t={token}"
         command = [chrome, url]
         if args.profile:
             command.insert(1, f"--profile-directory={args.profile}")
-        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             completed = state.completed.wait(args.timeout)
         except Exception as error:
             return 1, {"ok": False, "error": {"kind": "wait_failed", "message": str(error)}}
         if not completed:
             return 1, wait_failure(state)
+        if state.aborted:
+            kind = "extension_did_not_complete" if state.claimed.is_set() else "extension_did_not_claim"
+            return 1, {"ok": False, "error": {"kind": kind, "message": f"bridge aborted: {state.abort_reason}; {RECOVERY_HINT}"}}
         return result_status(state.reply), state.reply
     except OSError as error:
         return 1, {
@@ -438,6 +469,12 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
     finally:
         server.shutdown()
         server.server_close()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
 
 
 def main() -> int:

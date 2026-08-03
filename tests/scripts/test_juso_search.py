@@ -8,7 +8,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 SCRIPT = Path(__file__).parents[2] / "skills" / "juso-search" / "scripts" / "juso_search.py"
@@ -88,6 +88,28 @@ class BridgeServerTests(unittest.TestCase):
         self.state.claim = juso_search.make_claim("list-providers", None, None, False, "request-1")
         self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": {"providers": [{"id": "tavily", "supportsAnswer": True, "configured": False, "extra": True}]}})[0], 400)
         self.assertEqual(self.request("/v1/complete", {"protocol": 2, "requestId": "request-1", "reply": provider_reply})[0], 204)
+
+    def test_abort_signals_fast_failure(self):
+        """/v1/abort lets the bridge notify the skill to fail fast instead of waiting for timeout."""
+        self.assertFalse(self.state.aborted)
+        self.assertFalse(self.state.completed.is_set())
+        status, _ = self.request("/v1/abort", {"reason": "invalid_fragment"})
+        self.assertEqual(status, 204)
+        self.assertTrue(self.state.aborted)
+        self.assertEqual(self.state.abort_reason, "invalid_fragment")
+        self.assertTrue(self.state.completed.is_set())
+        # A second abort after completion is a conflict
+        self.assertEqual(self.request("/v1/abort", {"reason": "again"})[0], 409)
+
+    def test_abort_requires_auth_and_host(self):
+        self.assertEqual(self.request("/v1/abort", {"reason": "x"}, token="wrong")[0], 401)
+        self.assertEqual(self.request("/v1/abort", {"reason": "x"}, host="localhost:1")[0], 400)
+        self.assertFalse(self.state.aborted)
+
+    def test_abort_without_reason_defaults_to_unknown(self):
+        status, _ = self.request("/v1/abort", {})
+        self.assertEqual(status, 204)
+        self.assertEqual(self.state.abort_reason, "unknown")
 
     def test_incomplete_body_times_out_and_does_not_block_shutdown(self):
         token = "a" * 43
@@ -367,6 +389,75 @@ class RunLifecycleTests(unittest.TestCase):
             status, payload = juso_search.run(self._namespace(timeout=2.0))
         self.assertEqual(status, 0)
         self.assertEqual(payload, reply)
+
+    def test_run_aborts_fast_on_bridge_abort_signal(self):
+        """When the bridge sends /v1/abort, run() returns immediately with a classified error."""
+        abort_event = threading.Event()
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # process still running
+        mock_proc.wait.side_effect = juso_search.subprocess.TimeoutExpired(cmd="chrome", timeout=2)
+
+        def abort_and_return_proc(command, **_kwargs):
+            url = command[-1]
+            fragment = url.split("#", 1)[1]
+            parts = dict(item.split("=", 1) for item in fragment.split("&"))
+            port, token = int(parts["p"]), parts["t"]
+            connection = http.client.HTTPConnection("127.0.0.1", port)
+            try:
+                headers = {
+                    "Host": f"127.0.0.1:{port}",
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                }
+                connection.request("POST", "/v1/abort", json.dumps({"reason": "invalid_fragment"}), headers)
+                response = connection.getresponse()
+                self.assertEqual(response.status, 204)
+                response.read()
+                abort_event.set()
+            finally:
+                connection.close()
+            return mock_proc
+
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", side_effect=abort_and_return_proc),
+        ):
+            status, payload = juso_search.run(self._namespace(timeout=5.0))
+        self.assertTrue(abort_event.is_set())
+        self.assertEqual(status, 1)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
+        self.assertIn("bridge aborted", payload["error"]["message"])
+        self.assertIn("invalid_fragment", payload["error"]["message"])
+        # Process cleanup: terminate then kill (wait timed out)
+        mock_proc.terminate.assert_called_once()
+        mock_proc.kill.assert_called_once()
+
+    def test_run_terminates_browser_on_timeout(self):
+        """On timeout, run() terminates the lingering browser process."""
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None  # still running
+        mock_proc.wait.return_value = 0  # terminate succeeds
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", return_value=mock_proc),
+        ):
+            status, payload = juso_search.run(self._namespace(timeout=0.15))
+        self.assertEqual(status, 1)
+        self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
+        mock_proc.terminate.assert_called_once()
+        mock_proc.kill.assert_not_called()
+
+    def test_run_does_not_terminate_already_exited_browser(self):
+        """If the browser process already exited (e.g. forwarded to running instance), don't terminate."""
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = 0  # already exited
+        with (
+            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.subprocess, "Popen", return_value=mock_proc),
+        ):
+            status, _ = juso_search.run(self._namespace(timeout=0.15))
+        self.assertEqual(status, 1)
+        mock_proc.terminate.assert_not_called()
 
 
 if __name__ == "__main__":
