@@ -78,6 +78,8 @@ export type ProtocolMap = {
   setSourceOrder(sourceOrder: SourceId[]): Promise<void>;
   setSourceHidden(sourceHidden: SourceId[]): Promise<void>;
   setGroupConfig(config: GroupConfig): Promise<void>;
+  /** AI 注入可见性门控：该 AI engine 是否对用户可见（未被 sourceHidden 收录）。content script 在 fillAndSubmit 前查询，fail-closed。 */
+  aiInjectAllowed(engineId: SourceId): Promise<boolean>;
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;

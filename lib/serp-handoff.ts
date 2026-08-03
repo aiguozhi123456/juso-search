@@ -19,6 +19,7 @@ import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
 import { buildSiteEngineQuery, isSiteEngineEngineId, matchSiteEngineQuery } from './site-engines';
 import type { CustomEngineDefinition } from './custom-engines';
 import { buildCustomEngineUrl } from './custom-engines';
+import { getAiEngine, isRegisteredAiEngineId } from './ai-engines/registry';
 
 export type SerpHandoff =
   | { kind: 'navigate'; url: string } // engine：当前 tab location.assign 到 https URL
@@ -96,6 +97,10 @@ export function resolveSerpHandoff(source: SearchSource, query: string): SerpHan
   if (source.kind === 'engine' && isEngineId(source.id)) {
     const engine = getEngine(source.id);
     return { kind: 'navigate', url: trimmed ? engine.buildSerpUrl(trimmed) : engine.buildHomeUrl() };
+  }
+  if (source.kind === 'ai-engine' && isRegisteredAiEngineId(source.id)) {
+    const aiEngine = getAiEngine(source.id);
+    return { kind: 'navigate', url: trimmed ? aiEngine.buildUrl(trimmed) : aiEngine.buildHomeUrl() };
   }
   if (source.kind === 'provider-instance' && isProviderInstanceId(source.id)) {
     // 实例与裸 provider 同语义：委托 background 打开搜索页深链，deep link 携带实例 id

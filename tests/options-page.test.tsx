@@ -101,7 +101,7 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
-    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书[\s\S]*哔哩哔哩[\s\S]*Yandex[\s\S]*DuckDuckGo/);
   });
 
@@ -425,7 +425,8 @@ describe('options page', () => {
           activeProviderId: null,
           activeSourceId: 'google',
           // Hide all engines except google → only one visible source remains.
-          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
+          // AI engines default hidden (schema v6→v7)，测试未跑迁移，需显式加入 sourceHidden。
+          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
         });
       }
       return Promise.resolve(undefined);

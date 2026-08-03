@@ -4,17 +4,19 @@ import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
 
-// sourceOrder 默认补尾顺序：provider(registry) → engine(registry)。
-// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo。
-// 注：默认隐藏（douyin / xiaohongshu / bilibili / yandex / duckduckgo）是 schema 迁移写入 sourceHidden 的结果，
+// sourceOrder 默认补尾顺序：provider(registry) → engine(registry) → ai-engine(registry)。
+// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo；
+// AI engine 顺序为 ai:grok → ai:chatgpt → ai:deepseek → ai:doubao → ai:gemini（全部位于 duckduckgo 之后）。
+// 注：默认隐藏（douyin / xiaohongshu / bilibili / yandex / duckduckgo / 5 个 AI engine）是 schema 迁移写入 sourceHidden 的结果，
 //     不由 allSources 投影层决定——本文件测的是投影函数本身。
 const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] as const;
+const AI_ENGINE_ORDER = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] as const;
 
 describe('allSources', () => {
   it('lists configured providers first, then all engines', () => {
     const sources = allSources(['tavily']);
     const ids = sources.map((s) => s.id);
-    expect(ids).toEqual(['tavily', ...DEFAULT_ENGINE_ORDER]);
+    expect(ids).toEqual(['tavily', ...DEFAULT_ENGINE_ORDER, ...AI_ENGINE_ORDER]);
   });
 
   it('filters out unconfigured providers but keeps all engines', () => {
@@ -27,8 +29,18 @@ describe('allSources', () => {
 
   it('with no configured providers, only engines remain', () => {
     const sources = allSources([]);
-    expect(sources.map((s) => s.id)).toEqual([...DEFAULT_ENGINE_ORDER]);
-    expect(sources.every((s) => s.kind === 'engine')).toBe(true);
+    expect(sources.map((s) => s.id)).toEqual([...DEFAULT_ENGINE_ORDER, ...AI_ENGINE_ORDER]);
+    expect(sources.every((s) => s.kind === 'engine' || s.kind === 'ai-engine')).toBe(true);
+  });
+
+  it('projects AI engines as ai-engine sources with supportsAnswer=false', () => {
+    const sources = allSources([]);
+    const aiEngineIds = sources.filter((s) => s.kind === 'ai-engine').map((s) => s.id);
+    expect(aiEngineIds).toEqual([...AI_ENGINE_ORDER]);
+    for (const source of sources.filter((s) => s.kind === 'ai-engine')) {
+      expect(source.supportsAnswer).toBe(false);
+      expect(source.favicon).toBeTruthy();
+    }
   });
 
   it('preserves provider registry order', () => {
@@ -64,22 +76,22 @@ describe('allSources', () => {
 
   it('projects configured providers and engines in a custom mixed order', () => {
     expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'])
-      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER]);
   });
 
   it('normalizes unknown, duplicate, and omitted source ids', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
-      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
+      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER,
     ]);
   });
 
   it('filters out hidden providers and engines', () => {
     const sources = allSources(['tavily', 'exa'], undefined, ['tavily', 'baidu']);
-    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER]);
   });
 
   it('ignores an empty hidden list', () => {
-    expect(allSources(['tavily'], undefined, []).map((s) => s.id)).toEqual(['tavily', ...DEFAULT_ENGINE_ORDER]);
+    expect(allSources(['tavily'], undefined, []).map((s) => s.id)).toEqual(['tavily', ...DEFAULT_ENGINE_ORDER, ...AI_ENGINE_ORDER]);
   });
 });
 

@@ -451,7 +451,7 @@ export default function App() {
         if (switchReqId === switchReqIdRef.current) setSwitching(false);
       }
     }
-    if (source.kind === 'engine') {
+    if (source.kind === 'engine' || source.kind === 'ai-engine') {
       // Same generation guard as provider/site-engine so concurrent switches
       // cannot race navigations; write failures still select optimistically.
       if (loading || switching) return;

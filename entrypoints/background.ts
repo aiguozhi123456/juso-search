@@ -1,5 +1,6 @@
 import { onMessage } from '@/lib/messaging';
 import {
+  handleAiInjectAllowed,
   handleClearSearchCache,
   handleDeleteCachedSearch,
   handleDeleteProviderKey,
@@ -57,6 +58,7 @@ export default defineBackground(() => {
   onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
   onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
   onMessage('setSourceHidden', ({ data }) => handleSetSourceHidden(data));
+  onMessage('aiInjectAllowed', ({ data }) => handleAiInjectAllowed(data));
   onMessage('setGroupConfig', ({ data }) => handleSetGroupConfig(data));
   onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
   onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));

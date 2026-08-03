@@ -12,6 +12,9 @@ import { defaultGroupConfig } from '@/lib/source-groups';
 import type { SourceId } from '@/lib/sources';
 import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
 
+// 5 个预置 AI engine（registry 顺序固定），sourceOrder 归一化补尾追加在 duckduckgo 之后。
+const AI_ENGINE_IDS = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] as const;
+
 // 内存版 chrome.storage.local，支持 get(string | string[] | null) + set + remove。
 function installStorage(
   seed: Record<string, unknown> = {},
@@ -127,10 +130,11 @@ describe('buildExportPayload', () => {
     });
     const payload = await buildExportPayload();
     expect(payload.groupConfig).toBeDefined();
-    // 持久化 layout 缺 engines/sites/custom；normalizeGroupConfig 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
+    // 持久化 layout 缺 ai-engines/engines/sites/custom；normalizeGroupConfig 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(payload.groupConfig?.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
       { kind: 'group', groupId: 'custom' },
@@ -166,7 +170,7 @@ describe('buildExportPayload', () => {
   it('exports a normalized complete source order', async () => {
     installStorage({ sourceOrder: ['bing', 'exa', 'ghost', 'bing'] });
     await expect(buildExportPayload()).resolves.toMatchObject({
-      sourceOrder: ['bing', 'exa', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
+      sourceOrder: ['bing', 'exa', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS],
     });
   });
 
@@ -188,7 +192,7 @@ describe('buildExportPayload', () => {
     await expect(buildExportPayload()).resolves.toMatchObject({
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
       activeSource: site.id,
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS],
       sourceHidden: [site.id],
     });
   });
@@ -346,7 +350,21 @@ describe('parseImportPayload', () => {
   it('normalizes a valid partial sourceOrder by appending missing sources', () => {
     const result = parseImportPayload(validPayload({ sourceOrder: ['bing', 'tavily'] }));
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    if (result.ok) expect(result.value.sourceOrder).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+  });
+
+  it('accepts ai:* ids in sourceOrder and sourceHidden (regression: isKnownSource knows ai-engine ids)', () => {
+    const result = parseImportPayload(validPayload({
+      sourceOrder: ['bing', 'ai:grok', 'tavily', 'ai:gemini'],
+      sourceHidden: ['ai:chatgpt', 'ai:deepseek', 'ai:doubao'],
+    }));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // normalizeSourceOrder 按 registry 补全缺失的 AI engine id，并保留已有顺序。
+    expect(result.value.sourceOrder).toContain('ai:grok');
+    expect(result.value.sourceOrder).toContain('ai:gemini');
+    expect(result.value.sourceOrder).toEqual(['bing', 'ai:grok', 'tavily', 'ai:gemini', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao']);
+    expect(result.value.sourceHidden).toEqual(['ai:chatgpt', 'ai:deepseek', 'ai:doubao']);
   });
 
   it.each([
@@ -617,7 +635,7 @@ describe('mergeImport', () => {
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
-    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] });
+    const payload = validPayload({ sourceOrder: ['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS] });
     await mergeImport(payload);
     expect((await browser.storage.local.get('sourceOrder')).sourceOrder).toBeUndefined();
 
@@ -713,8 +731,8 @@ describe('mergeImport', () => {
     let signalImportSet!: () => void;
     const importSet = new Promise<void>((resolve) => { releaseImportSet = resolve; });
     const importSetStarted = new Promise<void>((resolve) => { signalImportSet = resolve; });
-    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo'];
-    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo'];
+    const importedOrder: SourceId[] = ['bing', 'exa', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS];
+    const movedOrder: SourceId[] = ['exa', 'bing', 'google', 'tavily', 'brave', 'stepfun', 'stepfun-plan', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'jina', 'doubao', 'doubao-global', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS];
     const { store } = installStorage({}, {
       beforeSet: async (items) => {
         if (items.providerKeys && items.sourceOrder) {
@@ -779,9 +797,12 @@ describe('mergeImport', () => {
     expect(exported.activeSource).toBe(instance.id);
     expect(exported.sourceOrder).toContain(instance.id);
 
+    // v7 导出的 sourceOrder 含 5 个 AI engine id；parseImportPayload 的 isKnownSource 已认识 ai:* id，
+    // 完整 payload（含 AI engine id）必须能原样导入。
     const parsed = parseImportPayload(exported);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
+    expect(parsed.value.sourceOrder?.filter((id) => id.startsWith('ai:'))).toEqual([...AI_ENGINE_IDS]);
 
     installStorage({}); // 全新导入目标
     const report = await mergeImport(parsed.value, { applyPrefs: true });
@@ -854,8 +875,8 @@ describe('previewImport (dry-run)', () => {
       key: 'siteEngines', from: 'site:docs:google:https://docs.example.com/:Docs', to: '',
     }, {
       key: 'sourceOrder',
-      from: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo > site:docs',
-      to: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
+      from: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo > ai:grok > ai:chatgpt > ai:deepseek > ai:doubao > ai:gemini > site:docs',
+      to: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo > ai:grok > ai:chatgpt > ai:deepseek > ai:doubao > ai:gemini',
     }]));
   });
 
@@ -873,8 +894,8 @@ describe('previewImport (dry-run)', () => {
     }));
     expect(preview.prefDiffs).toEqual([{
       key: 'sourceOrder',
-      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
-      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo',
+      from: 'bing > tavily > exa > stepfun > stepfun-plan > google > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo > ai:grok > ai:chatgpt > ai:deepseek > ai:doubao > ai:gemini',
+      to: 'tavily > exa > stepfun > stepfun-plan > google > bing > baidu > brave > jina > doubao > doubao-global > douyin > xiaohongshu > bilibili > yandex > duckduckgo > ai:grok > ai:chatgpt > ai:deepseek > ai:doubao > ai:gemini',
     }]);
   });
 

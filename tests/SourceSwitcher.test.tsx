@@ -129,8 +129,8 @@ describe('SourceSwitcher — grouped layout', () => {
 
   it('renders group trigger pills (not flat source buttons) by default', () => {
     render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />);
-    // 两个分组 trigger：AI 搜索 / 搜索引擎（站点组为空不渲染）
-    expect(screen.getByRole('button', { name: /AI 搜索/ })).toBeInTheDocument();
+    // 两个分组 trigger：API 搜索 / 搜索引擎（站点组为空不渲染）
+    expect(screen.getByRole('button', { name: /API 搜索/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /搜索引擎/ })).toBeInTheDocument();
     // 收起态下不渲染组内 source 按钮
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
@@ -138,7 +138,7 @@ describe('SourceSwitcher — grouped layout', () => {
 
   it('shows a badge on the group that contains the active source', () => {
     render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId="tavily" onSelect={vi.fn()} />);
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     expect(aiTrigger.querySelector('.group-badge')).toBeTruthy();
     const enginesTrigger = screen.getByRole('button', { name: /搜索引擎/ });
     expect(enginesTrigger.querySelector('.group-badge')).toBeNull();
@@ -146,7 +146,7 @@ describe('SourceSwitcher — grouped layout', () => {
 
   it('expands the flyout on hover and renders inner source buttons', () => {
     render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />);
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.mouseEnter(aiTrigger.parentElement!); // hover 整个 .switcher-group
     // 浮层展开后，组内 source 可见
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe('SourceSwitcher — grouped layout', () => {
   it('closes the flyout after selecting a source inside it', () => {
     const onSelect = vi.fn();
     render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={onSelect} />);
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.mouseEnter(aiTrigger.parentElement!);
     fireEvent.click(screen.getByRole('button', { name: /Tavily/ }));
     // 选择后浮层应关闭：Tavily 按钮不再存在
@@ -185,8 +185,8 @@ describe('SourceSwitcher — grouped layout', () => {
     render(<SourceSwitcher sources={sources} groupConfig={mixedConfig} activeId="google" onSelect={vi.fn()} />);
     // google 作为置顶平铺项直接可见
     expect(screen.getByRole('button', { name: /Google/ })).toBeInTheDocument();
-    // AI 搜索作为分组 trigger
-    expect(screen.getByRole('button', { name: /AI 搜索/ })).toBeInTheDocument();
+    // API 搜索作为分组 trigger
+    expect(screen.getByRole('button', { name: /API 搜索/ })).toBeInTheDocument();
   });
 
   // 回归 #2：鼠标从 trigger 穿过视觉缝隙进入浮层时，浮层不应在抵达前被收回。
@@ -256,7 +256,7 @@ describe('SourceSwitcher — grouped layout', () => {
       expect(enginesTrigger).not.toHaveAttribute('data-indicator-target');
       expect(enginesTrigger).not.toHaveClass('active');
       expect(container.querySelector('.switcher-indicator')).toBeNull();
-      expect(screen.getByRole('button', { name: /AI 搜索/ }).querySelector('.group-badge')).toBeNull();
+      expect(screen.getByRole('button', { name: /API 搜索/ }).querySelector('.group-badge')).toBeNull();
 
       // 展开后：只有实际选中的 Google source 获得 active 亮态。
       fireEvent.mouseEnter(enginesTrigger.parentElement!);
@@ -282,7 +282,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
       render(
         <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
       );
-      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
       fireEvent.click(aiTrigger);
       expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
       // 点击固定后移开鼠标并超过 hover-intent 延迟窗口，浮层仍保持展开
@@ -304,7 +304,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
       render(
         <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
       );
-      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
       fireEvent.mouseEnter(aiTrigger.parentElement!); // hover 瞬态展开
       expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
       fireEvent.click(aiTrigger); // 点击 → 固定（不得关闭）
@@ -320,7 +320,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.click(aiTrigger);
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     aiTrigger.focus();
@@ -333,7 +333,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.click(aiTrigger);
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     const outside = document.createElement('div');
@@ -350,7 +350,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
       render(
         <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
       );
-      const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+      const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
       const enginesGroup = screen.getByRole('button', { name: /搜索引擎/ }).parentElement!;
       fireEvent.click(aiTrigger); // 固定 AI
       expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.mouseEnter(aiTrigger.parentElement!);
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     const outside = document.createElement('div');
@@ -388,7 +388,7 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.click(aiTrigger);
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     // trigger 上 pointerdown → path 含 groupRef，不关闭
@@ -414,7 +414,7 @@ describe('SourceSwitcher — bottomMode', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     // 收起：组内 source 不可见
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
     fireEvent.click(aiTrigger);
@@ -428,7 +428,7 @@ describe('SourceSwitcher — bottomMode', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
   });
@@ -438,7 +438,7 @@ describe('SourceSwitcher — bottomMode', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
     fireEvent.keyDown(aiTrigger, { key: 'Enter' });
@@ -449,7 +449,7 @@ describe('SourceSwitcher — bottomMode', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
     fireEvent.keyDown(aiTrigger, { key: ' ' });
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
@@ -460,7 +460,7 @@ describe('SourceSwitcher — bottomMode', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
     );
-    const aiTrigger = screen.getByRole('button', { name: /AI 搜索/ });
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.click(aiTrigger);
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     // 在 document 上派发一个落在分组之外的 pointerdown（capture 监听应捕获并关闭）。

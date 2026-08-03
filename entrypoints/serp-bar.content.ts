@@ -714,6 +714,16 @@ async function onSelect(
     void sendMessage('openNewTab', handoff.url);
     return;
   }
+  if (source.kind === 'ai-engine') {
+    // AI engines are preset (not editable in Options), so no re-resolve needed.
+    // SERP bar opens a new tab to preserve the current results page; no setActiveSource.
+    if (!isCurrent()) return;
+    const handoff = resolveSerpHandoff(source, query);
+    if (handoff?.kind === 'navigate') {
+      void sendMessage('openNewTab', handoff.url);
+    }
+    return;
+  }
   if (!isCurrent()) return;
   const handoff = resolveSerpHandoff(source, query);
   if (!handoff) return;

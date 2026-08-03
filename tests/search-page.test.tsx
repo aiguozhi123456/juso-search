@@ -543,7 +543,8 @@ describe('search page', () => {
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
           sourceOrder: ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'],
-          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'],
+          // AI engines default hidden（schema v6→v7）；测试未跑迁移，显式隐藏以免多出「AI 搜索」分组。
+          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
           groupConfig: pinnedGroupConfig(['bing', 'exa', 'google', 'tavily', 'baidu']),
         }));
       }

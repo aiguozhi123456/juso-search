@@ -30,7 +30,7 @@ import {
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, type SourceId } from './sources';
+import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -40,6 +40,7 @@ import type { ProviderInstance } from './provider-instances';
 import { isBoundedProviderInstanceCollection, isProviderInstanceId, normalizeProviderInstances } from './provider-instances';
 import type { CustomEngineDefinition } from './custom-engines';
 import { isBoundedCustomEngineCollection, isCustomEngineId, normalizeCustomEngineDefinitions } from './custom-engines';
+import { isRegisteredAiEngineId } from './ai-engines/registry';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
@@ -600,7 +601,7 @@ function resolveImportedSourcePreferences(
 
 function isKnownSource(value: unknown, siteEngines: readonly SiteEngineDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false): value is SourceId {
   return typeof value === 'string'
-    && (isProviderId(value) || isEngineId(value) || isKnownSiteEngineId(value, siteEngines) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteEngineId(value) || isCustomEngineId(value))));
+    && (isProviderId(value) || isEngineId(value) || isRegisteredAiEngineId(value) || isKnownSiteEngineId(value, siteEngines) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteEngineId(value) || isCustomEngineId(value))));
 }
 
 function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly SiteEngineDefinition[]): boolean {
@@ -645,11 +646,6 @@ function customEnginesSummary(definitions: readonly CustomEngineDefinition[]): s
 /** Deterministic compact diff value for provider instances (options included to distinguish same-sized lists). */
 function providerInstancesSummary(instances: readonly ProviderInstance[]): string {
   return instances.map((instance) => `${instance.id}:${instance.baseProviderId}:${instance.name}:${JSON.stringify(instance.options)}`).join(' | ');
-}
-
-function visibleUsableSource(order: readonly SourceId[], hidden: readonly SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId | undefined {
-  const hiddenSet = new Set(hidden);
-  return order.find((id) => !hiddenSet.has(id) && (isEngineId(id) || isKnownSiteEngineId(id, sites) || isKnownCustomEngineId(id, customs) || (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!providerKeys[instance.baseProviderId])) || (isProviderId(id) && !!providerKeys[id])));
 }
 
 function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {

@@ -2,7 +2,8 @@ import type { EngineId } from './engines/types';
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { SourceId } from './sources';
-import { allKnownSourceIds, isEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource } from './sources';
+import { allKnownSourceIds, isEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource } from './sources';
+import { isRegisteredAiEngineId } from './ai-engines/registry';
 import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig, defaultGroupConfig } from './source-groups';
@@ -300,7 +301,7 @@ export async function selectActiveSourceId(id: EffectiveSourceId): Promise<void>
       await browser.storage.local.set({ [ACTIVE_KEY]: instance.baseProviderId, [ACTIVE_SOURCE_KEY]: id });
       return;
     }
-    if (!isEngineId(id) && !definitions.some((definition) => definition.id === id) && !customDefinitions.some((definition) => definition.id === id)) throw new Error('invalid_source');
+    if (!isEngineId(id) && !isRegisteredAiEngineId(id) && !definitions.some((definition) => definition.id === id) && !customDefinitions.some((definition) => definition.id === id)) throw new Error('invalid_source');
     await browser.storage.local.set({ [ACTIVE_SOURCE_KEY]: id });
   });
 }
@@ -400,7 +401,7 @@ export async function setSourceHidden(ids: SourceId[]): Promise<void> {
     const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
-    const hidden = ensureVisibleUsable(normalizeSourceHidden(ids, definitions, customDefinitions, instances), normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances), got[KEYS_KEY], definitions, customDefinitions, instances);
+    const hidden = ensureVisibleUsable(normalizeSourceHidden(ids, definitions, customDefinitions, instances), normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances), (got[KEYS_KEY] ?? {}) as Record<string, string>, definitions, customDefinitions, instances);
     await browser.storage.local.set({ [SOURCE_HIDDEN_KEY]: hidden });
   });
 }
@@ -663,16 +664,11 @@ export async function deleteProviderInstance(id: ProviderInstanceId): Promise<vo
   }));
 }
 
-function visibleUsableSource(order: readonly SourceId[], hidden: readonly SourceId[], rawKeys: unknown, definitions: readonly SiteEngineDefinition[], customDefinitions: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId | undefined {
-  const keys = (rawKeys ?? {}) as Record<string, string>;
-  const hiddenSet = new Set(hidden);
-  return order.find((source) => !hiddenSet.has(source) && (isEngineId(source) || definitions.some((item) => item.id === source) || customDefinitions.some((item) => item.id === source) || (isProviderInstanceId(source) && instances.some((item) => item.id === source && !!keys[item.baseProviderId])) || (isKnownProvider(source) && !!keys[source])));
-}
-
 /** Normalizes a proposal rather than persisting a switcher with no usable item. */
 function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], keys: unknown, definitions: readonly SiteEngineDefinition[], customDefinitions: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {
-  if (visibleUsableSource(order, hidden, keys, definitions, customDefinitions, instances)) return hidden;
-  const fallback = visibleUsableSource(order, [], keys, definitions, customDefinitions, instances);
+  const keyMap = (keys ?? {}) as Record<string, string>;
+  if (visibleUsableSource(order, hidden, keyMap, definitions, customDefinitions, instances)) return hidden;
+  const fallback = visibleUsableSource(order, [], keyMap, definitions, customDefinitions, instances);
   return fallback ? hidden.filter((id) => id !== fallback) : hidden;
 }
 

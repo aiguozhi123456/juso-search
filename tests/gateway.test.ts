@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { ProviderAdapter } from '@/lib/providers/types';
 import { ProviderError } from '@/lib/providers/types';
 import { defaultGroupConfig } from '@/lib/source-groups';
+import type { SourceId } from '@/lib/sources';
 
 vi.mock('@/lib/storage', () => ({
   clearKey: vi.fn(),
@@ -84,6 +85,7 @@ import {
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
   handleGetSearchCacheSummaries,
+  handleAiInjectAllowed,
   handleImportConfig,
   handleSaveProviderKey,
   handleSearch,
@@ -485,6 +487,23 @@ describe('handleSetSourceHidden', () => {
     mockedSetSourceHidden.mockResolvedValue(undefined);
     await handleSetSourceHidden(['baidu']);
     expect(mockedSetSourceHidden).toHaveBeenCalledWith(['baidu']);
+  });
+});
+
+describe('handleAiInjectAllowed', () => {
+  it('returns false when the engine is in sourceHidden', async () => {
+    mockedGetSourceHidden.mockResolvedValue(['ai:deepseek']);
+    await expect(handleAiInjectAllowed('ai:deepseek')).resolves.toBe(false);
+  });
+
+  it('returns true when the engine is visible (not in sourceHidden)', async () => {
+    mockedGetSourceHidden.mockResolvedValue(['ai:doubao']);
+    await expect(handleAiInjectAllowed('ai:deepseek')).resolves.toBe(true);
+  });
+
+  it('returns false for an unregistered engine id', async () => {
+    mockedGetSourceHidden.mockResolvedValue([]);
+    await expect(handleAiInjectAllowed('ai:nonexistent' as SourceId)).resolves.toBe(false);
   });
 });
 

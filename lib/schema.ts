@@ -12,8 +12,10 @@
 //   - 升级（落后）：读 config 域 → 跑迁移链 → 只写 diff 键，一次性。
 // handler 顶部 `await ensureSchema()` 实现迁移窗口阻塞；worker 启动 `void ensureSchema()` 预热。
 
+import { DEFAULT_HIDDEN_AI_ENGINE_IDS } from './ai-engines/registry';
+
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
@@ -59,6 +61,8 @@ export const migrations: Migration[] = [
   { version: 4, migrate: (config) => config },
   // v5→v6: Yandex / DuckDuckGo 引擎加入——两者默认隐藏（出现在管理 UI 但不进快切栏，用户手动显示）。
   { version: 5, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V4) },
+  // v6→v7: AI 对话引擎加入（DeepSeek / ChatGPT / Gemini / 豆包 / Grok）——全部默认隐藏（需登录）。
+  { version: 6, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_AI_ENGINE_IDS) },
 ];
 
 /**

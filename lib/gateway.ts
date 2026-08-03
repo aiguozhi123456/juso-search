@@ -8,6 +8,7 @@ import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } fr
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
+import { isRegisteredAiEngineId } from './ai-engines/registry';
 import type { AgentInstance, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
 import {
   clearKey,
@@ -22,6 +23,7 @@ import {
   getProviderMaxResults,
   getSearchCacheSummaries,
   getProviderConfigSnapshot,
+  getSourceHidden,
   saveCachedSearch,
   setActiveProviderAndSourceId,
   selectActiveSourceId,
@@ -278,6 +280,16 @@ export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<voi
 export async function handleSetSourceHidden(sourceHidden: SourceId[]): Promise<void> {
   await getSchemaReady();
   await setSourceHidden(sourceHidden);
+}
+
+/** AI 注入可见性门控：仅当该 AI engine 已注册且未被 sourceHidden 收录时允许注入。
+ *  只读 source 图配置（getSourceHidden 读 4 键归一化；不碰 BYOK key）。
+ *  content script 在 fillAndSubmit 前调用。 */
+export async function handleAiInjectAllowed(engineId: SourceId): Promise<boolean> {
+  await getSchemaReady();
+  if (!isRegisteredAiEngineId(engineId)) return false;
+  const hidden = await getSourceHidden();
+  return !hidden.includes(engineId);
 }
 
 export async function handleSetGroupConfig(config: GroupConfig): Promise<void> {

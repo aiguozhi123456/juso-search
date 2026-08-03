@@ -45,6 +45,9 @@ beforeEach(() => {
   installStorage();
 });
 
+// v6→v7 迁移引入的 5 个预置 AI engine（registry 顺序固定）。
+const AI_ENGINE_IDS = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'];
+
 describe('CONFIG_KEYS whitelist', () => {
   // 回归（L1）：Custom Engine 功能新增 customEngines 存储键，须纳入 CONFIG_KEYS 白名单，
   // 否则未来迁移读写 config 域时会静默漏掉它（getter 仍兜底 []，故无需 bump 版本/迁移）。
@@ -100,31 +103,32 @@ describe('ensureSchema: downgrade tolerance', () => {
 describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(5);
+      expect(mod.migrations).toHaveLength(6);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
       expect(mod.migrations[2].version).toBe(3);
       expect(mod.migrations[3].version).toBe(4);
       expect(mod.migrations[4].version).toBe(5);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(6);
+      expect(mod.migrations[5].version).toBe(6);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(7);
     });
   });
 
-  it('full chain v1->current merges douyin/xiaohongshu (v2), bilibili (v3) and yandex/duckduckgo (v6) into sourceHidden (idempotent)', () => {
+  it('full chain v1->current merges douyin/xiaohongshu (v2), bilibili (v3), yandex/duckduckgo (v6) and AI engines (v7) into sourceHidden (idempotent)', () => {
     const once = migrateConfig({ sourceHidden: ['bing'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
     const twice = migrateConfig(once, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
     expect(twice).toEqual(once);
   });
 
   it('full chain v1->current initializes sourceHidden when absent', () => {
     const out = migrateConfig({ providerKeys: {} }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
   });
 
   it('full chain v1->current does not duplicate ids already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['douyin', 'baidu'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
   });
 
   it('v1->v2 alone (target v2) adds douyin/xiaohongshu but NOT bilibili', () => {
@@ -133,28 +137,40 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     expect(out.sourceHidden).not.toContain('bilibili');
   });
 
-  it('v2->v3 migration merges bilibili into sourceHidden (idempotent)', () => {
+  it('v2->current chain merges bilibili (v3), yandex/duckduckgo (v6) and AI engines (v7) into sourceHidden (idempotent)', () => {
     const once = migrateConfig({ sourceHidden: ['douyin', 'xiaohongshu'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
     const twice = migrateConfig(once, 2, CURRENT_SCHEMA_VERSION, migrations);
-    expect(once.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(once.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
     expect(twice).toEqual(once);
   });
 
-  it('v2->v3 migration does not duplicate bilibili if already hidden', () => {
+  it('v2->current chain does not duplicate bilibili if already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['bilibili', 'douyin'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['bilibili', 'douyin', 'yandex', 'duckduckgo']);
+    expect(out.sourceHidden).toEqual(['bilibili', 'douyin', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
   });
 
   it('v5->v6 migration merges yandex/duckduckgo into sourceHidden (idempotent)', () => {
-    const once = migrateConfig({ sourceHidden: ['baidu'] }, 5, CURRENT_SCHEMA_VERSION, migrations);
-    const twice = migrateConfig(once, 5, CURRENT_SCHEMA_VERSION, migrations);
+    const once = migrateConfig({ sourceHidden: ['baidu'] }, 5, 6, migrations);
+    const twice = migrateConfig(once, 5, 6, migrations);
     expect(once.sourceHidden).toEqual(['baidu', 'yandex', 'duckduckgo']);
     expect(twice).toEqual(once);
   });
 
   it('v5->v6 migration does not duplicate yandex/duckduckgo if already hidden', () => {
-    const out = migrateConfig({ sourceHidden: ['duckduckgo', 'yandex'] }, 5, CURRENT_SCHEMA_VERSION, migrations);
+    const out = migrateConfig({ sourceHidden: ['duckduckgo', 'yandex'] }, 5, 6, migrations);
     expect(out.sourceHidden).toEqual(['duckduckgo', 'yandex']);
+  });
+
+  it('v6->v7 migration merges AI engines into sourceHidden after duckduckgo (idempotent)', () => {
+    const once = migrateConfig({ sourceHidden: ['baidu'] }, 6, 7, migrations);
+    const twice = migrateConfig(once, 6, 7, migrations);
+    expect(once.sourceHidden).toEqual(['baidu', ...AI_ENGINE_IDS]);
+    expect(twice).toEqual(once);
+  });
+
+  it('v6->v7 migration does not duplicate AI engines already hidden', () => {
+    const out = migrateConfig({ sourceHidden: ['ai:grok', 'ai:gemini'] }, 6, 7, migrations);
+    expect(out.sourceHidden).toEqual(['ai:grok', 'ai:gemini', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao']);
   });
 
   it('v3->v4 adds explicit empty Site Engine definitions', () => {

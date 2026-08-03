@@ -14,9 +14,11 @@ import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import { isCustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
 import { isProviderInstanceId } from './provider-instances';
+import type { AiEngineId } from './ai-engines/types';
+import { allAiEngines, allAiEngineIds, isRegisteredAiEngineId } from './ai-engines/registry';
 
-export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance';
-export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId;
+export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance' | 'ai-engine';
+export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId;
 
 /** A label which is either an i18n message key or a user-supplied literal. */
 export type SourceLabel =
@@ -46,6 +48,7 @@ const ENGINE_IDS: ReadonlySet<string> = new Set(allEngines().map((e) => e.id));
 const DEFAULT_SOURCE_ORDER: SourceId[] = [
   ...allProviders().map((provider) => provider.id),
   ...allEngines().map((engine) => engine.id),
+  ...allAiEngines().map((engine) => engine.id),
 ];
 
 /**
@@ -61,6 +64,7 @@ export function allKnownSourceIds(
   return [
     ...allProviders().map((provider) => provider.id),
     ...allEngines().map((engine) => engine.id),
+    ...allAiEngineIds(),
     ...siteDefinitions.map((definition) => definition.id),
     ...customDefinitions.map((definition) => definition.id),
     ...providerInstances.map((instance) => instance.id),
@@ -99,7 +103,7 @@ export function normalizeSourceOrder(
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -127,7 +131,7 @@ export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly Si
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -165,6 +169,7 @@ export function allSources(
   const hidden = hiddenSourceIds && hiddenSourceIds.length > 0 ? new Set(hiddenSourceIds) : null;
   const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
   const enginesById = new Map(allEngines().map((engine) => [engine.id, engine]));
+  const aiEnginesById = new Map(allAiEngines().map((engine) => [engine.id, engine]));
   const sitesById = new Map(siteDefinitions.map((site) => [site.id, site]));
   const customsById = new Map(customDefinitions.map((c) => [c.id, c]));
   // 实例按 base provider 分组；组内顺序 = 实例数组顺序（即创建/sourceOrder 补尾顺序）。
@@ -229,6 +234,11 @@ export function allSources(
       id: engine.id, kind: 'engine', label: engine.label,
       labelDescriptor: { kind: 'i18n', key: engine.label }, supportsAnswer: false, favicon: engine.favicon,
     }];
+    const aiEngine = aiEnginesById.get(id as AiEngineId);
+    if (aiEngine) return [{
+      id: aiEngine.id, kind: 'ai-engine', label: aiEngine.label,
+      labelDescriptor: { kind: 'i18n', key: aiEngine.label }, supportsAnswer: false, favicon: aiEngine.favicon,
+    }];
     const site = sitesById.get(id as SiteEngineId);
     if (site) return [{
       id: site.id, kind: 'site-engine', label: site.name,
@@ -272,6 +282,7 @@ export function resolveEffectiveActiveSource(
 ): SourceId | undefined {
   if (storedSource) {
     if (isEngineId(storedSource)) return storedSource;
+    if (isRegisteredAiEngineId(storedSource)) return storedSource;
     if (isKnownSiteEngineId(storedSource, siteDefinitions)) return storedSource;
     if (isKnownCustomEngineId(storedSource, customDefinitions)) return storedSource;
     if (isProviderInstanceId(storedSource) && instances.some((instance) => instance.id === storedSource && keys[instance.baseProviderId])) return storedSource;
@@ -286,6 +297,31 @@ export function resolveEffectiveActiveSource(
     return firstInstance ? firstInstance.id : firstConfigured.id;
   }
   return undefined;
+}
+
+/**
+ * 找出 order 中第一个「可见且可用」的 source：常规 engine / 已注册 AI engine 恒可用，
+ * 动态 site-engine / custom-engine 仅在存在对应定义时可用，provider / provider-instance
+ * 仅在已配置 key（对应 base provider）时可用。storage 的 delete* 回退与 config-io 的
+ * 导入预览共用（单一定义点，避免两处拷贝漂移）。
+ */
+export function visibleUsableSource(
+  order: readonly SourceId[],
+  hidden: readonly SourceId[],
+  keys: Record<string, string>,
+  siteDefinitions: readonly SiteEngineDefinition[],
+  customDefinitions: readonly CustomEngineDefinition[],
+  instances: readonly ProviderInstance[],
+): SourceId | undefined {
+  const hiddenSet = new Set(hidden);
+  return order.find((id) => !hiddenSet.has(id) && (
+    isEngineId(id) ||
+    isRegisteredAiEngineId(id) ||
+    isKnownSiteEngineId(id, siteDefinitions) ||
+    isKnownCustomEngineId(id, customDefinitions) ||
+    (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId])) ||
+    (isProviderId(id) && !!keys[id])
+  ));
 }
 
 /** 解析 engine favicon 为扩展可访问 URL（测试/非扩展上下文回退原路径）。 */

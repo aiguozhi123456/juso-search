@@ -14,9 +14,11 @@ import type { SearchSource, SourceId } from './sources';
 import { isProviderId, isEngineId } from './sources';
 import { isCustomEngineId } from './custom-engines';
 import { isProviderInstanceId } from './provider-instances';
+import { isRegisteredAiEngineId } from './ai-engines/registry';
 
-/** 内置分组 id：AI 搜索 / 搜索引擎 / 站点 / 自定义。 */
+/** 内置分组 id：API 搜索 / AI 搜索 / 搜索引擎 / 站点 / 自定义。 */
 export const AI_SEARCH_GROUP = 'ai-search';
+export const AI_ENGINES_GROUP = 'ai-engines';
 export const ENGINES_GROUP = 'engines';
 export const SITES_GROUP = 'sites';
 export const CUSTOM_GROUP = 'custom';
@@ -51,6 +53,7 @@ export interface GroupConfig {
 /** 内置默认分组定义（i18n 标签，渲染处用 t() 解析）。 */
 export const DEFAULT_GROUPS: SourceGroup[] = [
   { id: AI_SEARCH_GROUP, label: { kind: 'i18n', key: 'group_ai_search' } },
+  { id: AI_ENGINES_GROUP, label: { kind: 'i18n', key: 'group_ai_engines' } },
   { id: ENGINES_GROUP, label: { kind: 'i18n', key: 'group_engines' } },
   { id: SITES_GROUP, label: { kind: 'i18n', key: 'group_sites' } },
   { id: CUSTOM_GROUP, label: { kind: 'i18n', key: 'group_custom' } },
@@ -58,6 +61,7 @@ export const DEFAULT_GROUPS: SourceGroup[] = [
 
 const BUILTIN_GROUP_IDS: ReadonlySet<string> = new Set([
   AI_SEARCH_GROUP,
+  AI_ENGINES_GROUP,
   ENGINES_GROUP,
   SITES_GROUP,
   CUSTOM_GROUP,
@@ -66,6 +70,7 @@ const BUILTIN_GROUP_IDS: ReadonlySet<string> = new Set([
 /** 按 source 的 kind 推导缺省分组 id（不查 assignments，仅按类型）。 */
 export function defaultGroupForSourceId(sourceId: SourceId): SourceGroupId {
   if (isProviderId(sourceId) || isProviderInstanceId(sourceId)) return AI_SEARCH_GROUP;
+  if (isRegisteredAiEngineId(sourceId)) return AI_ENGINES_GROUP;
   if (isEngineId(sourceId)) return ENGINES_GROUP;
   if (isCustomEngineId(sourceId)) return CUSTOM_GROUP;
   return SITES_GROUP; // site:*

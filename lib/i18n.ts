@@ -158,6 +158,7 @@ export const MSG = {
   // provider 切换器
   tooltip_supports_answer: 'tooltip_supports_answer',
   tooltip_no_answer: 'tooltip_no_answer',
+  tooltip_ai_engine: 'tooltip_ai_engine',
   provider_no_answer_badge: 'provider_no_answer_badge',
   // 结果卡片
   collapse: 'collapse',

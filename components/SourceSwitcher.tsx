@@ -253,11 +253,13 @@ function SourceButton({
   /** 该 pill 是否为指示器锚定目标（仅置顶源可能为 true；浮层内项恒为 false）。 */
   indicatorTarget?: boolean;
 }) {
-  const tooltip = source.kind === 'site-engine'
-    ? t(MSG.tooltip_site_engine)
-    : source.supportsAnswer
-      ? t(MSG.tooltip_supports_answer)
-      : t(MSG.tooltip_no_answer);
+  const tooltip = source.kind === 'ai-engine'
+    ? t(MSG.tooltip_ai_engine)
+    : source.kind === 'site-engine'
+      ? t(MSG.tooltip_site_engine)
+      : source.supportsAnswer
+        ? t(MSG.tooltip_supports_answer)
+        : t(MSG.tooltip_no_answer);
   const label = sourceLabel(source, t);
   return (
     <button
