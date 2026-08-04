@@ -3,6 +3,7 @@ import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
 import { allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
+import { compareByPinyin } from '@/lib/pinyin-sort';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
@@ -276,7 +277,10 @@ export default function App() {
             </div>
             <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
             <div className="source-order-list">
-              {configuredSources.map((source) => {
+              {/* 展示按拼音排序（仅展示，不写入 sourceOrder；实际顺序在「来源布局」中拖动调整）。 */}
+              {[...configuredSources]
+                .sort((a, b) => compareByPinyin(sourceLabel(a, t), sourceLabel(b, t)))
+                .map((source) => {
                 const sourceName = sourceLabel(source, t);
                 const hidden = sourceHidden.includes(source.id);
                 // 不允许隐藏最后一个可见来源：至少保留一个，否则快切栏与下拉框将无可用项。

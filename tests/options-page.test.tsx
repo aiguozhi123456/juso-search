@@ -89,7 +89,7 @@ describe('options page', () => {
     expect(select).not.toHaveTextContent('Stepfun');
   });
 
-  it('uses the saved non-default source order for the select and quick-switch list', async () => {
+  it('uses the saved source order for the select and pinyin-sorts the quick-switch list', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
@@ -101,8 +101,10 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    // 激活态下拉框仍按 sourceOrder（visibleSources 未排序）。
     expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Bing[\s\S]*Exa[\s\S]*Google[\s\S]*Baidu[\s\S]*抖音[\s\S]*小红书[\s\S]*哔哩哔哩[\s\S]*Yandex[\s\S]*DuckDuckGo/);
+    // 快切栏管理列表按拼音排序展示（中文与拉丁文按拼写交错，不随 sourceOrder）。
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Baidu[\s\S]*哔哩哔哩[\s\S]*Bing[\s\S]*ChatGPT[\s\S]*DeepSeek[\s\S]*豆包[\s\S]*抖音[\s\S]*DuckDuckGo[\s\S]*Exa[\s\S]*Gemini[\s\S]*Google[\s\S]*Grok[\s\S]*小红书[\s\S]*Yandex/);
   });
 
   it('quickbar list has no reorder buttons (ordering moved to the source layout editor)', async () => {
@@ -360,7 +362,7 @@ describe('options page', () => {
     expect(screen.getByRole('group', { name: '语言' })).toBeInTheDocument();
   });
 
-  it('renders a site engine in its saved sourceOrder position in the quickbar list', async () => {
+  it('renders a site engine in its pinyin-sorted position in the quickbar list', async () => {
     const siteEngine: SiteEngineDefinition = {
       id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google',
     };
@@ -375,9 +377,10 @@ describe('options page', () => {
       return Promise.resolve(undefined);
     }) as never);
     render(<App />);
-    // Site engine appears between exa and google, in the persisted order (no reorder UI anymore).
+    // Site engine appears in its pinyin-sorted position (Docs → "docs" 排在 Exa 之前、Google 之前)，
+    // 不再随 sourceOrder；列表无移动按钮（排序集中在「来源布局」编辑器）。
     await screen.findByRole('button', { name: '在快切栏隐藏 Docs' });
-    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Exa[\s\S]*Docs[\s\S]*Google/);
+    expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Docs[\s\S]*Exa[\s\S]*Google/);
     // 排序集中在「来源布局」编辑器：快切栏列表不应出现任何移动按钮。
     const quickbar = screen.getByRole('heading', { name: '快切栏' }).parentElement as HTMLElement;
     expect(within(quickbar).queryByRole('button', { name: /上移|下移/ })).toBeNull();
