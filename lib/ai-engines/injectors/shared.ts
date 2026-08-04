@@ -1,7 +1,7 @@
 // AI engine 注入器共享 DOM 工具。
 //
 // 在 content script 上下文执行，使用标准 DOM API。不引用 browser.* —— 这些是纯 DOM 函数。
-// 基于 @librarian 整理的社区油猴脚本已验证方案（见 docs/solutions 待记录）。
+// 基于 @librarian 整理的社区油猴脚本已验证方案（来源与协议见 docs/solutions/architecture-patterns/ai-engine-conversation-navigation-source-type.md「社区来源与协议」节）。
 
 /** 默认等待超时（ms）。 */
 const WAIT_TIMEOUT = 10_000;

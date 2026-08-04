@@ -91,6 +91,17 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 
 **已拒绝的替代**：注入前 toast 确认（在第三方站新增可见 UI 面、反射性点确认即失效）；「仅填充不提交」开关（砍掉功能价值、ChatGPT 注入器变 no-op，且不修同意权缺口——真正的缺口已由可见性门控修复）。
 
+## 社区来源与协议（注入器技术出处）
+
+注入器的选择器与填充/提交技巧，来自 @librarian 规格表整理的社区油猴脚本与技术文章（了结 `shared.ts` 的「待记录」）。按站点：
+
+- **DeepSeek**：[DeepSeek Prompt Automation](https://gist.github.com/orca131/7f4dd7f2ec377c09cdb8b0ad5cd10e68)（orca131，`textarea[name="search"]` + 合成 Enter + MutationObserver，未标注许可）、[AI 助手选择器](https://greasyfork.org/zh-CN/scripts/528300)（`#chat-input` + input 事件 + Enter + replaceState 清参，许可未确认）、大橘「AI 网页版 Query 参数问答填充」（仅填充不提交）、[给 AI 搜索网站添加 q 查询参数](https://greasyfork.org/zh-CN/scripts/550940)（smilingpoplar，MIT）。
+- **ChatGPT**：原生 `?q=` 预填（站点行为），注入器只补 Enter。行为记录见 [Tenable TRA-2025-22](https://www.tenable.com/security/research/tra-2025-22)（OpenAI 2025-07 以 sec-fetch-site 修补自动提交）与 [Zenn《どこでもワンステップでAI呼び出し》](https://zenn.dev/finatext/articles/283442255930fe)（finatext，2025-09）。
+- **Gemini**：[AI 助手选择器](https://greasyfork.org/zh-CN/scripts/528300)（rich-textarea / contenteditable 选择器）；填充用 innerText + input 事件，发送按钮延迟激活需 pollUntil。
+- **豆包**：boommanpro《[豆包 URL 参数调用](https://boommanpro.cn/post/doubao-plugin)》（「必须 `execCommand('insertText')` 触发真实 InputEvent 才能同步 React state」的结论最关键，未标注许可）、[豆包自动发送助手](https://greasyfork.org/zh-CN/scripts/541111)（CathyElla，MIT）、AI搜索引擎增强😈（huahuacat / CathyElla，豆包专项）。SPA 清参用 navEntry 兜底。
+
+**协议结论**：本扩展注入器独立编写，未复制上述任何代码，仅取用选择器（各站 DOM 事实，不受版权保护）与标准 Web API 技巧（React native value setter、execCommand、contenteditable 同步、PerformanceNavigationTiming），不构成代码复制，无许可义务。已确认 MIT：550940（smilingpoplar，原规格表记录、脚本身份二次确认）、541111（CathyElla，脚本头 `@license MIT` 二次确认）。未标注许可：orca131、boommanpro（二次确认无 `@license`）。许可未确认：528300（Greasy Fork 屏蔽许可字段直读）。因未复制代码，鸣谢为致谢性质。
+
 ## Why This Matters
 
 - **AI 对话站塞不进 engine registry**：没有可匹配/可抽取的标准 SERP URL，硬套引擎模型会失败。

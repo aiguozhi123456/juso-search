@@ -146,6 +146,8 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 本扩展在 Google / Bing / Baidu 结果页注入切换栏的部分思路——“作为结果容器首子元素插入以继承宽度、简化对齐”，以及“向宿主页注入 CSS shim 给切换栏腾出空间”——以及哔哩哔哩结果页注入锚点（`.head-contain` / `.search-input`）的选择，参考自 [searchEngineJump 搜索引擎快捷跳转](https://greasyfork.org/zh-CN/scripts/27752-searchenginejump)（作者：NLF、锐经、[qxin i](https://github.com/qxinGitHub/searchEngineJump)，MIT 许可）。本扩展的实现独立编写，与原脚本不共享代码。
 
+AI 对话引擎注入层（DeepSeek / ChatGPT / Gemini / 豆包）的输入框定位、填充与提交方案，参考自多个社区油猴脚本与公开技术文章，主要包括：[给 AI 搜索网站添加 q 查询参数](https://greasyfork.org/zh-CN/scripts/550940)（smilingpoplar，MIT 许可，多站 `?q=` 通用实现）、[DeepSeek Prompt Automation](https://gist.github.com/orca131/7f4dd7f2ec377c09cdb8b0ad5cd10e68)（orca131）、[AI 助手选择器](https://greasyfork.org/zh-CN/scripts/528300)（Gemini / Grok / ChatGPT / DeepSeek 输入框选择器）、[豆包自动发送助手](https://greasyfork.org/zh-CN/scripts/541111)（CathyElla，MIT 许可）与 boommanpro《[豆包 URL 参数调用](https://boommanpro.cn/post/doubao-plugin)》（豆包 `execCommand` 填充结论），以及 ChatGPT `?q=` 预填行为的公开记录（[Zenn《どこでもワンステップでAI呼び出し》](https://zenn.dev/finatext/articles/283442255930fe)、[Tenable TRA-2025-22](https://www.tenable.com/security/research/tra-2025-22)）。本扩展的注入器实现独立编写，与上述来源不共享代码；所用选择器为各站点 DOM 事实，React 受控组件 native value setter、`execCommand('insertText')`、contenteditable 同步、`PerformanceNavigationTiming` 兜底等均为标准 Web API 技术。
+
 ## 许可证
 
 Juso 的完整本地搜索闭环——当前扩展、来源集成、智能体访问、本地配置与缓存——以 [MPL-2.0](LICENSE) 开放。该承诺不表示未来可能出现的托管或运营服务必然开源或免费。
