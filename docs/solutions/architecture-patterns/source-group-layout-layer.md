@@ -60,7 +60,7 @@ export type SwitcherItem =
 ```
 
 Four deliberately independent fields:
-- **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The three builtins — `ai-search`, `engines`, `sites` — always exist.
+- **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The five builtins — `engines`, `sites`, `ai-engines`, `ai-search`, `custom` — always exist.
 - **`layout`** — a single mixed sequence of top-row items. Each item is either a pinned source (rendered as a bare pill) or a group (rendered as a collapsible pill whose flyout opens on hover/focus as a *transient* state and pins open on click — click-to-pin, see [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md)). Pinned sources and groups are peers and share one ordering, so the user can interleave them freely.
 - **`assignments`** — `sourceId → groupId`, recorded **only** for sources that live inside a group. A pinned source does not appear in `assignments` at all; pinning is expressed by its presence in `layout`.
 - **`groupOrders`** — `groupId → explicit member order` for that group. Optional per group: when absent, the group falls back to the projected `sources` order (see section 7).
@@ -84,8 +84,8 @@ where `defaultGroupForSourceId` maps providers → `ai-search`, engines → `eng
 
 Any value read from storage passes through `normalizeGroupConfig(raw, allSourceIds)` before it is used. It is the contract that guarantees a `GroupConfig` is always self-consistent regardless of what is on disk — which matters acutely in a BYOK extension where the source set is volatile. Its guarantees:
 
-- **`groups`** — drops labels that fail `isSourceLabel`, dedupes by id (first wins), and **backfills the three builtin groups in `DEFAULT_GROUPS` order**.
-- **`layout`** — drops items referencing unknown sources or unknown groups (`isSwitcherItem` checks against the live source-set and the known-group-set), dedupes by key keeping first occurrence, and falls back to `[{ai-search}, {engines}, {sites}]` when layout is empty/missing.
+- **`groups`** — drops labels that fail `isSourceLabel`, dedupes by id (first wins), and **backfills the five builtin groups in `DEFAULT_GROUPS` order**.
+- **`layout`** — drops items referencing unknown sources or unknown groups (`isSwitcherItem` checks against the live source-set and the known-group-set), dedupes by key keeping first occurrence, and falls back to `[{engines}, {sites}, {ai-engines}, {ai-search}, {custom}]` when layout is empty/missing.
 - **`assignments`** — drops entries pointing at unknown sources, at deleted groups, and at sources that are currently pinned (a pinned source must not carry a stale assignment).
 
 ```ts
@@ -281,12 +281,11 @@ const layout = useMemo(
 
 ### The `normalizeGroupConfig` builtin-ordering fix
 
-The naive backfill is wrong. If a persisted config only contains the `engines` builtin (the other two were somehow dropped), prepending the missing `ai-search` and `sites` yields `[ai-search, sites, engines, ...]` — which reorders the builtins away from `DEFAULT_GROUPS` order. The actual fix rebuilds the prefix from `DEFAULT_GROUPS` as a skeleton, taking the existing entry when present or the default when not, then appends any custom groups:
+The naive backfill is wrong. If a persisted config only contains some builtins, prepending the missing ones naively yields a sequence that reorders the builtins away from `DEFAULT_GROUPS` order. The actual fix rebuilds the prefix from `DEFAULT_GROUPS` as a skeleton, taking the existing entry when present or the default when not, then appends any custom groups:
 
 ```ts
-// 不能只 unshift 缺失项：若持久化里已有部分内置组（如只有 engines），
-// 仅补缺失的 ai-search/sites 会让结果变成 [ai-search, sites, engines, ...]，
-// 打破 DEFAULT_GROUPS 顺序。改为以 DEFAULT_GROUPS 为骨架重排。
+// 不能只 unshift 缺失项：若持久化里已有部分内置组，仅补缺失项而不以
+// DEFAULT_GROUPS 为骨架重排，会让内置组顺序偏离 DEFAULT_GROUPS。改为以骨架重排。
 const orderedIds = new Set<SourceGroupId>();
 const ordered: SourceGroup[] = [];
 for (const def of DEFAULT_GROUPS) {

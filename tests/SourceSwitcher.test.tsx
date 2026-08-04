@@ -129,7 +129,7 @@ describe('SourceSwitcher — grouped layout', () => {
 
   it('renders group trigger pills (not flat source buttons) by default', () => {
     render(<SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />);
-    // 两个分组 trigger：API 搜索 / 搜索引擎（站点组为空不渲染）
+    // 两个分组 trigger：搜索引擎 / API 搜索（站点组为空不渲染）
     expect(screen.getByRole('button', { name: /API 搜索/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /搜索引擎/ })).toBeInTheDocument();
     // 收起态下不渲染组内 source 按钮

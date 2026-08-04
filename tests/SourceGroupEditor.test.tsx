@@ -324,8 +324,8 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     );
     const dt = dragDataTransfer();
     const rows = Array.from(container.querySelectorAll('.layout-row--group')) as HTMLElement[];
-    // orderedGroupConfig 的 layout 只有 ai-search/engines；组件内 normalizeGroupConfig 把缺失的
-    // 内置组（ai-engines/sites/custom）追加到末尾（L4），故编辑器渲染 5 行。
+    // orderedGroupConfig 的 layout 只有 ai-search/engines；组件内 normalizeGroupConfig 把缺失的内置组
+    // （sites/ai-engines/custom）追加到末尾（L4），故编辑器渲染 5 行。
     expect(rows).toHaveLength(5);
     fireEvent.dragStart(rows[0], { dataTransfer: dt });
     fireEvent.dragOver(rows[1], { dataTransfer: dt });
@@ -333,9 +333,9 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     fireEvent.dragEnd(rows[0], { dataTransfer: dt });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
     const next = onChange.mock.calls[0][0] as GroupConfig;
-    // 拖动 row[0](ai-search) 到 row[1](engines)：remove+insert 交换两者，末尾追加的 ai-engines/sites/custom 位置不变。
+    // 拖动 row[0](ai-search) 到 row[1](engines)：remove+insert 交换两者，末尾追加的 sites/ai-engines/custom 位置不变。
     expect(next.layout.map((item) => item.kind === 'group' ? item.groupId : item.sourceId))
-      .toEqual(['engines', 'ai-search', 'ai-engines', 'sites', 'custom']);
+      .toEqual(['engines', 'ai-search', 'sites', 'ai-engines', 'custom']);
   });
 
   it('does not reorder across groups (cross-group member drag is a no-op)', async () => {

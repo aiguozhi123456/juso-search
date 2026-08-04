@@ -130,13 +130,13 @@ describe('buildExportPayload', () => {
     });
     const payload = await buildExportPayload();
     expect(payload.groupConfig).toBeDefined();
-    // 持久化 layout 缺 ai-engines/engines/sites/custom；normalizeGroupConfig 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
+    // 持久化 layout 缺 engines/sites/ai-engines/custom；normalizeGroupConfig 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(payload.groupConfig?.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
-      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'custom' },
     ]);
   });

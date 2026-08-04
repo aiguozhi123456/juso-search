@@ -16,7 +16,7 @@ import { isCustomEngineId } from './custom-engines';
 import { isProviderInstanceId } from './provider-instances';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
 
-/** 内置分组 id：API 搜索 / AI 搜索 / 搜索引擎 / 站点 / 自定义。 */
+/** 内置分组 id：搜索引擎 / 站点 / AI 搜索 / API 搜索 / 自定义。 */
 export const AI_SEARCH_GROUP = 'ai-search';
 export const AI_ENGINES_GROUP = 'ai-engines';
 export const ENGINES_GROUP = 'engines';
@@ -52,10 +52,10 @@ export interface GroupConfig {
 
 /** 内置默认分组定义（i18n 标签，渲染处用 t() 解析）。 */
 export const DEFAULT_GROUPS: SourceGroup[] = [
-  { id: AI_SEARCH_GROUP, label: { kind: 'i18n', key: 'group_ai_search' } },
-  { id: AI_ENGINES_GROUP, label: { kind: 'i18n', key: 'group_ai_engines' } },
   { id: ENGINES_GROUP, label: { kind: 'i18n', key: 'group_engines' } },
   { id: SITES_GROUP, label: { kind: 'i18n', key: 'group_sites' } },
+  { id: AI_ENGINES_GROUP, label: { kind: 'i18n', key: 'group_ai_engines' } },
+  { id: AI_SEARCH_GROUP, label: { kind: 'i18n', key: 'group_ai_search' } },
   { id: CUSTOM_GROUP, label: { kind: 'i18n', key: 'group_custom' } },
 ];
 
@@ -180,10 +180,10 @@ export function normalizeGroupConfig(
     seenGroupIds.add(obj.id);
     groups.push({ id: obj.id, label: obj.label });
   }
-  // 补齐缺失的内置三组，并保证「内置在前、按 DEFAULT_GROUPS 顺序」。
-  // 不能只 unshift 缺失项：若持久化里已有部分内置组（如只有 engines），
-  // 仅补缺失的 ai-search/sites 会让结果变成 [ai-search, sites, engines, ...]，
-  // 打破 DEFAULT_GROUPS 顺序。改为以 DEFAULT_GROUPS 为骨架重排：内置位用已有项或默认项，再追加自定义组。
+  // 补齐缺失的内置组，并保证「内置在前、按 DEFAULT_GROUPS 顺序」。
+  // 不能只 unshift 缺失项：若持久化里已有部分内置组，仅补缺失项而不以 DEFAULT_GROUPS
+  // 为骨架重排，会让内置组顺序偏离 DEFAULT_GROUPS。改为以 DEFAULT_GROUPS 为骨架重排：
+  // 内置位用已有项或默认项，再追加自定义组。
   const orderedIds = new Set<SourceGroupId>();
   const ordered: SourceGroup[] = [];
   for (const def of DEFAULT_GROUPS) {

@@ -361,12 +361,12 @@ describe('storage: source order', () => {
 describe('storage: groupConfig', () => {
   it('returns the default group config when unset (all sources grouped by type)', async () => {
     const cfg = await getGroupConfig();
-    expect(cfg.groups.map((g) => g.id)).toEqual(['ai-search', 'ai-engines', 'engines', 'sites', 'custom']);
+    expect(cfg.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'custom']);
     expect(cfg.layout).toEqual([
-      { kind: 'group', groupId: 'ai-search' },
-      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'ai-engines' },
+      { kind: 'group', groupId: 'ai-search' },
       { kind: 'group', groupId: 'custom' },
     ]);
     expect(cfg.assignments).toEqual({});
@@ -391,14 +391,14 @@ describe('storage: groupConfig', () => {
     const cfg = await getGroupConfig();
     // google pinned → its assignment dropped; ghost (unknown source) dropped
     expect(cfg.assignments).toEqual({ tavily: 'custom' });
-    // 持久化 layout 缺 ai-engines/engines/sites；normalize 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
+    // 持久化 layout 缺 engines/sites/ai-engines；normalize 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(cfg.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
       { kind: 'group', groupId: 'custom' },
-      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'ai-engines' },
     ]);
   });
 
@@ -411,15 +411,15 @@ describe('storage: groupConfig', () => {
     });
     const snap = await getProviderConfigSnapshot();
     expect(snap.groupConfig).toBeDefined();
-    // missing builtin groups (ai-engines, engines, sites, custom) filled into groups in DEFAULT_GROUPS order;
+    // missing builtin groups (engines, sites, ai-engines, custom) filled into groups in DEFAULT_GROUPS order;
     // the persisted ai-search is reordered into its canonical position. The layout's missing builtin
-    // groups (ai-engines, engines, sites, custom) are appended at the end so the new groups render persistently.
-    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['ai-search', 'ai-engines', 'engines', 'sites', 'custom']);
+    // groups (engines, sites, ai-engines, custom) are appended at the end so the new groups render persistently.
+    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'custom']);
     expect(snap.groupConfig.layout).toEqual([
       { kind: 'group', groupId: 'ai-search' },
-      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
+      { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'custom' },
     ]);
   });
