@@ -71,12 +71,12 @@ export const MAX_RESULTS_KEY = 'providerMaxResults'; // Record<ProviderId, numbe
 // 必须用户显式开启。仅读各自键，不 get(null)（与 theme/locale 同样的 key 卫生）。
 export const AGENT_BRIDGE_ENABLED_KEY = 'agentBridgeEnabled'; // boolean（stored === true 才 true）
 export const ENGINE_SEARCH_ENABLED_KEY = 'engineSearchEnabled'; // boolean
-export const BAR_POSITION_KEY = 'serpBarPosition'; // BarPositionPref (快切栏栏位：auto / top / bottom)
+export const BAR_POSITION_KEY = 'serpBarPosition'; // BarPositionPref (快切栏栏位：auto / top / inline / bottom)
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
 export type StylePref = 'classic' | 'colorful';
-export type BarPositionPref = 'auto' | 'top' | 'bottom';
+export type BarPositionPref = 'auto' | 'top' | 'inline' | 'bottom';
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 // providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
@@ -342,12 +342,12 @@ export async function setStylePref(pref: StylePref): Promise<void> {
   await browser.storage.local.set({ [STYLE_KEY]: pref });
 }
 
-/** 快切栏栏位偏好：auto（窄屏自动底栏，默认）/ top / bottom。
+/** 快切栏栏位偏好：auto（窄屏自动底栏，默认）/ top（固定覆盖顶栏）/ inline（内联）/ bottom。
  *  与 stylePref 同样的 key 卫生：仅读自身键，不 get(null)。 */
 export async function getBarPositionPref(): Promise<BarPositionPref> {
   const got = await browser.storage.local.get(BAR_POSITION_KEY);
   const stored = got[BAR_POSITION_KEY];
-  return stored === 'top' || stored === 'bottom' ? stored : 'auto';
+  return stored === 'top' || stored === 'inline' || stored === 'bottom' ? stored : 'auto';
 }
 
 export async function setBarPositionPref(pref: BarPositionPref): Promise<void> {

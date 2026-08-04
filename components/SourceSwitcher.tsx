@@ -17,10 +17,14 @@ interface Props {
   onSelect: (source: SearchSource) => void;
   disabled?: boolean;
   /**
-   * 底栏模式：横滑轨道 + active 滚到轨道视口正中；分组 flyout 用 fixed 锚定向上展开。
-   * 点击切换（固定展开）为两模式统一行为，见组件头注释。顶栏/搜索页不传。
+   * 覆盖层定位模式，三态：
+   *   · null/undefined（默认）= 内联（搜索页顶栏）：无横滑轨道、无 active 居中，
+   *     flyout 走既有 .group-flyout 的 top:100% 向下展开；
+   *   · 'bottom' = 底部覆盖层：横滑轨道 + active 居中，flyout fixed 锚定向上展开；
+   *   · 'top' = 顶部覆盖层：横滑轨道 + active 居中，flyout fixed 锚定向下展开。
+   * 点击切换（固定展开）为各模式统一行为，见组件头注释。
    */
-  bottomMode?: boolean;
+  overlayPosition?: 'top' | 'bottom' | null;
 }
 
 interface IndicatorMetrics {
@@ -32,7 +36,8 @@ interface IndicatorMetrics {
 
 interface FlyoutAnchor {
   left: number;
-  bottom: number;
+  bottom?: number;
+  top?: number;
 }
 
 /** 解析分组/来源标签为可见文本（i18n key 走 t()，字面量直出）。 */
@@ -52,13 +57,16 @@ function resolveLabel(label: SourceLabel): string {
  *   · 分组 trigger hover 进入时展开浮层（.group-flyout），离开关闭；键盘 onFocus/Blur 同步；
  *   · 分组 trigger 点击固定展开（两模式一致）：收起→打开并固定；瞬态展开中点击→转为固定；
  *     固定后 hover 移出不收起，仅再点/Escape/外部点击/选中组内源时关闭；
- *   · bottomMode：轨道横滑、指示器在 track 内、active 居中、flyout fixed 向上、点击切换；
+ *   · overlayPosition（'bottom'/'top'）：轨道横滑、指示器在 track 内、active 居中、
+ *     flyout fixed（向上/向下）、点击切换；
  *   · 同一组件用于搜索页与 SERP 注入栏（shadow DOM 内），两处样式各自维护；
  *   · 测量在 layout 阶段同步完成，避免指示器先飞到 (0,0) 再回弹；
  *   · jsdom 下 offset* 返回 0，指示器宽高为 0、视觉不可见，不影响测试断言。
  */
-export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled, bottomMode = false }: Props) {
+export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled, overlayPosition = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // overlayPosition 非 null 即覆盖层模式（top/bottom 共用横滑轨道、active 居中与 fixed flyout）。
+  const isOverlay = overlayPosition !== null;
   const trackRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<IndicatorMetrics | null>(null);
   // 当前展开的分组 id（hover/focus/click 控制）；null 表示全部收起。
@@ -94,7 +102,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   }, [activeId, layout]);
 
   useLayoutEffect(() => {
-    // 指示器相对 track（底栏横滑时与 pill 同滚动上下文）；顶栏 track 不滚动，等价于原 container。
+    // 指示器相对 track（覆盖层模式横滑时与 pill 同滚动上下文）；内联/搜索页 track 不滚动，等价于原 container。
     const measureRoot = trackRef.current ?? containerRef.current;
     if (!measureRoot || indicatorKey == null) {
       setIndicator(null);
@@ -111,28 +119,28 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       w: target.offsetWidth,
       h: target.offsetHeight,
     });
-  }, [indicatorKey, layout, bottomMode]);
+  }, [indicatorKey, layout, overlayPosition]);
 
   useLayoutEffect(() => {
-    if (!bottomMode || centerKey == null) return;
+    if (!isOverlay || centerKey == null) return;
     const track = trackRef.current;
     if (!track) return;
     const target = track.querySelector<HTMLElement>(`[data-key="${CSS.escape(centerKey)}"]`);
     if (!target) return;
     scrollChildToCenter(track, target);
-  }, [bottomMode, centerKey, layout]);
+  }, [overlayPosition, centerKey, layout]);
 
-  // 底栏 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
+  // 覆盖层 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
   useEffect(() => {
-    if (!bottomMode) {
+    if (!isOverlay) {
       setOpenGroupId(null);
       setPinnedGroupId(null);
     }
-  }, [bottomMode]);
+  }, [overlayPosition]);
 
-  // 底栏 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
+  // 覆盖层 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
   useEffect(() => {
-    if (!bottomMode) return;
+    if (!isOverlay) return;
     const el = containerRef.current;
     if (!el) return;
     const root = el.getRootNode();
@@ -148,7 +156,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     });
     obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
     return () => obs.disconnect();
-  }, [bottomMode]);
+  }, [overlayPosition]);
 
   const isReady = indicator != null && indicator.w > 0;
   const style = isReady
@@ -216,7 +224,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
             setPinnedGroupId(item.group.id);
           }
         }}
-        bottomMode={bottomMode}
+        overlayPosition={overlayPosition}
       />
     );
   });
@@ -228,7 +236,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
       role="group"
       aria-label={t(MSG.source_switcher_aria)}
       data-active-source={activeId ?? undefined}
-      data-bottom={bottomMode ? 'true' : undefined}
+      data-overlay={overlayPosition ?? undefined}
     >
       <div ref={trackRef} className="switcher-track" style={style}>
         {isReady && <span className="switcher-indicator" aria-hidden="true" />}
@@ -307,7 +315,7 @@ function GroupPill({
   onOpen,
   onClose,
   onToggle,
-  bottomMode,
+  overlayPosition,
 }: {
   group: { id: string; label: SourceLabel };
   items: SearchSource[];
@@ -321,9 +329,11 @@ function GroupPill({
   onOpen: () => void;
   onClose: () => void;
   onToggle: () => void;
-  bottomMode: boolean;
+  overlayPosition: 'top' | 'bottom' | null;
 }) {
   const label = resolveLabel(group.label);
+  // overlayPosition 非 null 即覆盖层模式（top/bottom 共用 fixed flyout 行为）。
+  const isOverlay = overlayPosition !== null;
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。
   const groupId = `switcher-group-${group.id}`;
   const groupRef = useRef<HTMLDivElement>(null);
@@ -359,9 +369,10 @@ function GroupPill({
   // 卸载时清掉未触发的延迟关闭，避免回调作用到已卸载组件。
   useEffect(() => () => cancelClose(), []);
 
-  // 底栏 fixed flyout：按 trigger 视口盒锚定到上方（host 无 backdrop-filter 时 fixed 相对 viewport）。
+  // 覆盖层 fixed flyout：按 trigger 视口盒锚定到上方（bottom）或下方（top）
+  // （host 无 backdrop-filter 时 fixed 相对 viewport）。
   useLayoutEffect(() => {
-    if (!open || !bottomMode) {
+    if (!open || !isOverlay) {
       setFlyoutAnchor(null);
       return;
     }
@@ -374,7 +385,13 @@ function GroupPill({
       const maxLeft = Math.max(0, window.innerWidth - 200);
       if (left > maxLeft) left = maxLeft;
       if (left < 0) left = 0;
-      setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+      if (overlayPosition === 'top') {
+        // 顶部覆盖层：flyout 从 trigger 下缘向下展开。
+        setFlyoutAnchor({ left, top: rect.bottom + 4 });
+      } else {
+        // 底部覆盖层：flyout 从 trigger 上缘向上展开。
+        setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+      }
     };
     update();
     window.addEventListener('resize', update);
@@ -383,10 +400,10 @@ function GroupPill({
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
-  }, [open, bottomMode]);
+  }, [open, overlayPosition]);
 
-  // 点外部关闭（两种模式统一）：触屏无可靠 hover-out（底栏主路径），
-  // 顶栏/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
+  // 点外部关闭（各模式统一）：触屏无可靠 hover-out（覆盖层主路径），
+  // 内联/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
   // 也能命中；composedPath 含 shadow 内后代，path.includes 判断对 shadow 内点击同样有效。
   useEffect(() => {
     if (!open) return;
@@ -402,14 +419,22 @@ function GroupPill({
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [open, handleClose]);
 
-  const flyoutStyle: React.CSSProperties | undefined = bottomMode && flyoutAnchor
-    ? {
-        position: 'fixed',
-        left: flyoutAnchor.left,
-        bottom: flyoutAnchor.bottom,
-        top: 'auto',
-        right: 'auto',
-      }
+  const flyoutStyle: React.CSSProperties | undefined = isOverlay && flyoutAnchor
+    ? overlayPosition === 'top'
+      ? {
+          position: 'fixed',
+          left: flyoutAnchor.left,
+          top: flyoutAnchor.top,
+          bottom: 'auto',
+          right: 'auto',
+        }
+      : {
+          position: 'fixed',
+          left: flyoutAnchor.left,
+          bottom: flyoutAnchor.bottom,
+          top: 'auto',
+          right: 'auto',
+        }
     : undefined;
 
   return (
@@ -418,16 +443,16 @@ function GroupPill({
       className={`switcher-group${open ? ' open' : ''}`}
       data-group={group.id}
       onMouseEnter={() => {
-        // 底栏 + 粗指针（触屏）：禁用 hover 开层，避免点触后 hover 粘滞。
-        if (bottomMode && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
+        // 覆盖层 + 粗指针（触屏）：禁用 hover 开层，避免点触后 hover 粘滞。
+        if (isOverlay && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
         cancelClose();
         onOpen();
       }}
       onMouseLeave={scheduleClose}
       onFocus={() => {
-        // 底栏：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
+        // 覆盖层：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
         // （首次点触空操作）；键盘用户用 Enter/Space 触发 click→onToggle 开层。
-        if (bottomMode) return;
+        if (isOverlay) return;
         onOpen();
       }}
       onBlur={(e) => {
@@ -445,9 +470,9 @@ function GroupPill({
           handleClose();
           return;
         }
-        // 底栏键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
+        // 覆盖层键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
         // 某些合成键盘事件不派发 click）。
-        if (bottomMode && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+        if (isOverlay && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
           if (e.target === triggerRef.current) {
             e.preventDefault();
             e.stopPropagation();
@@ -478,7 +503,7 @@ function GroupPill({
       {open && (
         <div
           ref={flyoutRef}
-          className={`group-flyout${bottomMode ? ' group-flyout--fixed-up' : ''}`}
+          className={`group-flyout${overlayPosition === 'bottom' ? ' group-flyout--fixed-up' : overlayPosition === 'top' ? ' group-flyout--fixed-down' : ''}`}
           id={groupId}
           style={flyoutStyle}
           onMouseEnter={cancelClose}

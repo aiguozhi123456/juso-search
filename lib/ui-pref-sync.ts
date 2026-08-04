@@ -13,7 +13,7 @@ export function isUiPrefChangedMessage(message: unknown): message is UiPrefChang
   if (candidate.key === 'themePref') return candidate.value === 'auto' || candidate.value === 'light' || candidate.value === 'dark';
   if (candidate.key === 'localePref') return candidate.value === 'auto' || candidate.value === 'zh_CN' || candidate.value === 'en';
   if (candidate.key === 'stylePref') return candidate.value === 'classic' || candidate.value === 'colorful';
-  if (candidate.key === 'serpBarPosition') return candidate.value === 'auto' || candidate.value === 'top' || candidate.value === 'bottom';
+  if (candidate.key === 'serpBarPosition') return candidate.value === 'auto' || candidate.value === 'top' || candidate.value === 'inline' || candidate.value === 'bottom';
   return false;
 }
 
@@ -30,5 +30,5 @@ export function isStylePref(value: unknown): value is StylePref {
 }
 
 export function isBarPositionPref(value: unknown): value is BarPositionPref {
-  return value === 'auto' || value === 'top' || value === 'bottom';
+  return value === 'auto' || value === 'top' || value === 'inline' || value === 'bottom';
 }

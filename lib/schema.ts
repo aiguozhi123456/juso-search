@@ -15,11 +15,12 @@
 import { DEFAULT_HIDDEN_AI_ENGINE_IDS } from './ai-engines/registry';
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
-// agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / serpBarPosition / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
+// agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
+// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
 export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
@@ -63,6 +64,9 @@ export const migrations: Migration[] = [
   { version: 5, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V4) },
   // v6→v7: AI 对话引擎加入（DeepSeek / ChatGPT / Gemini / 豆包 / Grok）——全部默认隐藏（需登录）。
   { version: 6, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_AI_ENGINE_IDS) },
+  // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
+  // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
+  { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ];
 
 /**

@@ -62,15 +62,15 @@ The `...(maxResults !== null ? { maxResults } : {})` spread is the key idiom: **
 
 ### Do not bump the schema version for an additive, getter-fallback config key
 
-`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 6) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
+`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 8) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
 
 When adding `providerMaxResults`, the change to `lib/schema.ts` is just a whitelist append:
 
 ```ts
 export const CONFIG_KEYS = [
   'providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref',
-  'sourceOrder', 'sourceHidden', 'siteEngines', 'agentBridgeEnabled',
-  'engineSearchEnabled', 'providerMaxResults', // <- additive
+  'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances',
+  'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', // <- additive
   'groupConfig', 'serpBarPosition',
 ] as const;
 ```
@@ -350,7 +350,7 @@ The `preventDefault` on `mouseDown` is the primary fix (the input never loses fo
 
 - **`docs/solutions/architecture-patterns/local-search-cache-mv3.md`** — cache-domain design; the cache-invalidation pitfall (C1) shows its cache key must account for config values that affect result shape.
 - **`docs/solutions/architecture-patterns/config-preference-pipeline.md`** — the end-to-end pref pipeline; maxResults is a third pref type (per-provider scalar map) distinct from the existing `SourceId[]` prefs.
-- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig` and `serpBarPosition` later brought the whitelist to 13 entries.
+- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig`, `customEngines`, and `providerInstances` are getter-defaulted additions that joined without a bump, while `serpBarPosition` (the 13th) later forced a v7→v8 value-rewrite bump when `'top'` semantics changed — the whitelist is now 15 entries.
 - **`docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`** — owns the `defineProvider` factory contract where the truncation safety net lives.
 - **`docs/solutions/architecture-patterns/provider-api-integration-patterns.md`** — provider adapter patterns; the count-propagation asymmetry (REST forwards upstream, MCP relies on factory slice).
 - **`docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`** — the BYOK/provider-config boundary this pref respects.

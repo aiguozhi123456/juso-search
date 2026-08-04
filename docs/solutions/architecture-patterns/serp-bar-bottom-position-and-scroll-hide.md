@@ -44,18 +44,18 @@ A "bottom" position was developed on a feature branch that **diverged from main*
 
 While the bottom-bar branch was in flight, **main independently added two things**: *source groups* (collapsible group pills with hover/click flyouts, projected by `projectLayout`) and *schema v5* (the `groupConfig` whitelist entry). The bottom-bar branch never saw groups — it shipped a flat row of chips. Only the **tip commit** (the bottom bar itself) was cherry-picked onto the now-groups-aware main. The merge therefore had to resolve conflicts between two parallel feature tracks that both reshape the same shadow-DOM UI region, and then fix the **coexistence bugs** that neither track's tests caught alone — because each track was tested in isolation against a UI the other track had already transformed. Three rounds of Oracle review surfaced and closed the traps (backdrop-filter containing block, overflow-clipping subtlety, touch focus/click race, shadow-safe outside dismiss, scroll-hide/flyout interplay). The coexistence fixes are the core learning recorded here: they are not one-off mistakes but recurring traps for *any* fixed-position overlay that also hosts a flyout/popover child.
 
-This document captures the architecture pattern that emerged: two positioning models bridged by a `data-position` host attribute; a single `applyPositionChrome` helper that unifies every position-transition path; a compact mobile track with active-centering; the groups × bottom coexistence traps and their fixes; a config knob added without a schema bump; and the bottom-mode rule that engine pageStyles must be skipped.
+This document captures the architecture pattern that emerged: three placement models (inline / top overlay / bottom overlay) bridged by a `data-position` host attribute; a single `applyPositionChrome` helper that unifies every position-transition path; a compact mobile track with active-centering; the groups × overlay coexistence traps and their fixes; a config knob whose later value redefinition ('top' semantics) required a v7→v8 value-rewrite bump; and the overlay rule that engine pageStyles must be skipped.
 
 ## Guidance
 
-### 1. Two positioning models — top (per-engine inline anchor) vs bottom (universal fixed overlay)
+### 1. Three placement models — inline (per-engine anchor) vs top/bottom (universal fixed overlays)
 
-The two positions are structurally different and must not share an anchor strategy.
+The three placements are structurally different and must not share an anchor strategy.
 
-**Top** is *per-engine inline*: each engine declares an anchor cascade (`engine.anchors`) and an alignment target (`engine.alignTo`); the content script inserts the host as a sibling of a persistent container and syncs `--juso-serp-offset-left` / `--juso-serp-width` from the target's content box. Some engines are themselves fixed (Douyin pins the bar under its 56px search header):
+**Inline** is *per-engine anchor insertion*: each engine declares an anchor cascade (`engine.anchors`) and an alignment target (`engine.alignTo`); the content script inserts the host as a sibling of a persistent container and syncs `--juso-serp-offset-left` / `--juso-serp-width` from the target's content box. Some engines are themselves fixed (Douyin pins the bar under its 56px search header — an inline-only rule now that `top` means the fixed overlay):
 
 ```css
-:host([data-engine="douyin"]) {
+:host([data-engine="douyin"][data-position="inline"]) {
   position: fixed !important;
   top: 56px !important;
   left: var(--juso-serp-left, 72px) !important;
@@ -65,7 +65,7 @@ The two positions are structurally different and must not share an anchor strate
 }
 ```
 
-**Bottom** is *universal*: `position: fixed; bottom: 0; width: 100%` ignores every engine's DOM. No anchor, no alignment target. One CSS block serves all six engines:
+**Top** and **bottom** are *universal*: `position: fixed; top: 0` / `bottom: 0; width: 100%` ignores every engine's DOM. No anchor, no alignment target. One CSS block serves all six engines per overlay:
 
 ```css
 :host([data-position="bottom"]) {
@@ -79,25 +79,48 @@ The two positions are structurally different and must not share an anchor strate
   z-index: 2147483647 !important;
   /* ...mobile polish... */
 }
-/* Explicit reset so Douyin's top:56px does not survive into bottom mode. */
+/* Explicit reset so Douyin's top:56px does not survive into bottom overlay mode. */
 :host([data-engine="douyin"][data-position="bottom"]) {
   top: auto !important;
   left: 0 !important;
   width: 100% !important;
   max-width: none !important;
 }
+
+/* The symmetric top overlay (mirrors serp-bar-styles.ts). */
+:host([data-position="top"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  max-width: none !important;
+  z-index: 2147483647 !important;
+  /* ...mobile polish... */
+}
+/* Explicit reset so Douyin's top:56px does not survive into top overlay mode. */
+:host([data-engine="douyin"][data-position="top"]) {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
 ```
 
-The two are bridged by a `data-position` host attribute — the same convention as the existing `data-engine` / `data-theme` / `data-style` bridge. Because WXT's `createShadowRootUi` injects the stylesheet inside the shadow root, the only way for CSS to branch on runtime conditions is for `onMount` (and later event handlers) to stamp attributes on the outer host, and for `:host([data-...])` selectors to react. The bottom block is placed **at the end of the stylesheet** so that, at equal specificity, source order lets it override engine-specific top-positioning rules.
+The Douyin reset now appears for both overlay positions — `top: auto` for the bottom overlay, an explicit `top: 0` for the top overlay — neutralizing the inline `top: 56px` rule.
+
+The three placements are bridged by a `data-position` host attribute — the same convention as the existing `data-engine` / `data-theme` / `data-style` bridge. Because WXT's `createShadowRootUi` injects the stylesheet inside the shadow root, the only way for CSS to branch on runtime conditions is for `onMount` (and later event handlers) to stamp attributes on the outer host, and for `:host([data-...])` selectors to react. The overlay blocks are placed **at the end of the stylesheet** so that, at equal specificity, source order lets them override engine-specific inline-positioning rules.
 
 Which model applies is resolved by a pure function with a 480px mobile breakpoint:
 
 ```typescript
-/** auto 模式：视口宽度 <= 480px 时用底栏，否则顶栏。 */
-export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number): 'top' | 'bottom' {
+/** auto 模式：视口宽度 <= 480px 时用底栏，否则内联（无感：保持默认体验不变）。 */
+export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number): 'top' | 'bottom' | 'inline' {
   if (pref === 'top') return 'top';
+  if (pref === 'inline') return 'inline';
   if (pref === 'bottom') return 'bottom';
-  return viewportWidth <= 480 ? 'bottom' : 'top';
+  return viewportWidth <= 480 ? 'bottom' : 'inline';
 }
 ```
 
@@ -110,27 +133,35 @@ A position can flip on five independent paths: initial `onMount`, SPA `syncLocat
 ```typescript
 /**
  * Apply position chrome: dataset, pageStyles vs pad, scroll-hide baseline.
- * Does NOT render — callers re-render when React props (e.g. bottomMode) must change.
+ * Does NOT render — callers re-render when React props (e.g. overlayPosition) must change.
  */
-const applyPositionChrome = (pos: 'top' | 'bottom', opts?: { resetScrollBaseline?: boolean }) => {
+const applyPositionChrome = (pos: 'top' | 'bottom' | 'inline', opts?: { resetScrollBaseline?: boolean }) => {
   if (!mountedHost) return;
   mountedHost.dataset.position = pos;
-  if (pos === 'bottom') {
-    // bottom must NOT keep top-bar engine shims (Douyin etc.)
-    removePageStyles();
-    injectBottomPadStyles();
-    delete mountedHost.dataset.hidden;
-    if (opts?.resetScrollBaseline !== false) lastScrollY = window.scrollY;
-  } else {
+  if (pos === 'inline') {
+    // 内联：引擎 pageStyles shim；移除覆盖层垫高。
     removeBottomPadStyles();
+    removeTopPadStyles();
     injectPageStyles(state.engine);
     delete mountedHost.dataset.hidden;
     lastScrollY = 0;
+  } else {
+    // 覆盖层 top/bottom：移除引擎 pageStyles；按位置垫高页面。
+    removePageStyles();
+    if (pos === 'bottom') {
+      removeTopPadStyles();
+      injectBottomPadStyles();
+    } else {
+      removeBottomPadStyles();
+      injectTopPadStyles();
+    }
+    delete mountedHost.dataset.hidden;
+    if (opts?.resetScrollBaseline !== false) lastScrollY = window.scrollY;
   }
 };
 ```
 
-Every position-change path calls it, then re-renders so the `bottomMode` prop enters the React tree (the flyout anchoring and touch handlers branch on `bottomMode`; outside-dismiss is unified across both modes since 2026-08-01 — see §4e):
+Every position-change path calls it, then re-renders so the `overlayPosition` prop enters the React tree (the flyout anchoring and touch handlers branch on `overlayPosition`; outside-dismiss is unified across all placement modes since 2026-08-01 — see §4e):
 
 ```typescript
 // onMount (serp-bar.content.ts:245)
@@ -149,7 +180,7 @@ ctx.addEventListener(window, 'resize', () => {
     if (next !== state.resolvedPosition) {
       state.resolvedPosition = next;
       applyPositionChrome(next);
-      // bottomMode 进 React 树：位置变化必须 re-render。
+      // overlayPosition 进 React 树：位置变化必须 re-render。
       if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
     }
   }
@@ -168,12 +199,12 @@ const onPrefMessage = (message: unknown) => {
 };
 ```
 
-> **2026-08-01: the `resize` and `onPrefMessage` snippets above are superseded by §4g's teardown+remount.** A position flip changes the host's physical parent (engine anchor subtree vs `document.body`), so those two paths no longer do the in-place `applyPositionChrome` + re-render shown here: they set `state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)` (serp-bar.content.ts:483-497 for resize, :504-514 for onPrefMessage). `onMount` (:245) still calls `applyPositionChrome(state.resolvedPosition)` during the remount to restamp `data-position` and swap pad↔pageStyles. The snippets are kept as the historical in-place shape.
+> **Superseded by §4g:** the `resize` and `onPrefMessage` snippets above no longer describe the current paths. A position flip that crosses the inline/overlay boundary changes the host's physical parent (engine anchor subtree vs `document.body`), so those two paths do **teardown + remount** (`state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`) instead of the in-place `applyPositionChrome` + re-render shown here; a `top ↔ bottom` flip is the in-place restyle (both overlays are body-mounted). `onMount` still calls `applyPositionChrome(state.resolvedPosition)` during the remount to restamp `data-position` and swap pad↔pageStyles. The snippets are kept as the historical in-place shape.
 
 Three discipline points:
 
 - **The helper owns the four operations** (stamp `data-position`, swap pageStyles↔pad, clear `data-hidden`, baseline `lastScrollY`); callers own only their own guards and the re-render. This makes each path auditable without duplicating the transition body.
-- **No-op when resolved position is unchanged.** The `resize` and `onPrefMessage` paths early-return when `next === state.resolvedPosition`, so toggling `top → auto` on a wide viewport (both resolve to `top`) never touches the DOM.
+- **No-op when resolved position is unchanged.** The `resize` and `onPrefMessage` paths early-return when `next === state.resolvedPosition`, so toggling `auto → inline` on a wide viewport (both resolve to `inline`) never touches the DOM.
 - **`resetScrollBaseline` is the one escape hatch.** `onMount` passes it implicitly (defaults to true); a path that must preserve the existing scroll baseline can pass `{ resetScrollBaseline: false }`.
 
 ### 3. Compact mobile track + active centering
@@ -255,31 +286,31 @@ export function scrollChildToCenter(scrollParent: HTMLElement, child: HTMLElemen
 Both the indicator measurement and the centering use `trackRef` as the measure root, so the indicator coordinates are in the track's own (scrolled) coordinate space:
 
 ```tsx
-// Indicator: measured against the track (same scroll context as pills in bottom mode).
+// Indicator: measured against the track (same scroll context as pills in overlay mode).
 useLayoutEffect(() => {
   const measureRoot = trackRef.current ?? containerRef.current;
   if (!measureRoot || indicatorKey == null) { setIndicator(null); return; }
   const target = measureRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(indicatorKey)}"]`);
   if (!target) { setIndicator(null); return; }
   setIndicator({ x: target.offsetLeft, y: target.offsetTop, w: target.offsetWidth, h: target.offsetHeight });
-}, [indicatorKey, layout, bottomMode]);
+}, [indicatorKey, layout, overlayPosition]);
 
-// Active centering: bottom mode only.
+// Active centering: overlay modes only.
 useLayoutEffect(() => {
-  if (!bottomMode || centerKey == null) return;
+  if (!isOverlay || centerKey == null) return;
   const track = trackRef.current;
   if (!track) return;
   const target = track.querySelector<HTMLElement>(`[data-key="${CSS.escape(centerKey)}"]`);
   if (!target) return;
   scrollChildToCenter(track, target);
-}, [bottomMode, centerKey, layout]);
+}, [overlayPosition, centerKey, layout]);
 ```
 
 `scrollChildToCenter` is extracted to `lib/` as a pure function (injectable, testable in jsdom) rather than a content-script named export — the same extraction discipline as `resolveBarPosition` and `injectBottomPadStyles`, because content-script named exports break the WXT build.
 
-### 4. Groups × bottom coexistence traps (the core learning)
+### 4. Groups × overlay coexistence traps (the core learning)
 
-This is the heart of the merge. Source groups add a **flyout** (`.group-flyout`) that, in top mode, is `position: absolute; top: 100%` — anchored to its trigger, clipped only by the (non-scrolling) page. In bottom mode that flyout must open **upward**, above the bar. The naive approach — keep it `absolute` — fails because the bar's own `overflow` and the page's bottom edge clip it. The fix is `position: fixed` with JS-anchored viewport coordinates. But making a descendant `fixed` inside a shadow host that is *itself* `fixed` and styled for scroll-hide exposes a chain of CSS-spec traps that cost a full Oracle round each.
+This is the heart of the merge. Source groups add a **flyout** (`.group-flyout`) that, in inline mode, is `position: absolute; top: 100%` — anchored to its trigger, clipped only by the (non-scrolling) page. In overlay mode that flyout must be `position: fixed` with JS-anchored viewport coordinates — upward above a bottom bar, downward below a top bar. The naive approach — keep it `absolute` — fails because the bar's own `overflow` and the viewport edge clip it. But making a descendant `fixed` inside a shadow host that is *itself* `fixed` and styled for scroll-hide exposes a chain of CSS-spec traps that cost a full Oracle round each.
 
 #### 4a. `backdrop-filter` / `transform` / `filter` create a containing block for `position:fixed`
 
@@ -322,9 +353,9 @@ A second spec subtlety: `overflow-x: auto` + `overflow-y: hidden` on the track d
 
 This is the exact opposite of the naive intuition ("`overflow: hidden` clips everything inside it"). The trap is that the *first* instinct when a flyout vanishes is to add `overflow: visible` or remove the scroll container — but the real cause was an upstream `backdrop-filter` silently turning the scroll container into a containing block, at which point `overflow-y: hidden` *did* clip the flyout. Removing the `backdrop-filter` (not touching the overflow) is the fix. This round was the most expensive Oracle finding because the symptom (flyout clipped) pointed at the wrong property (overflow) while the root cause lived in an unrelated ancestor (host `backdrop-filter`).
 
-#### 4c. Fixed upward flyout with JS-anchored coordinates
+#### 4c. Fixed flyout with JS-anchored viewport coordinates
 
-With the containing-block chain clean, the flyout is `position: fixed` and its `left`/`bottom` are written by JS from the trigger's viewport box. CSS only owns appearance:
+With the containing-block chain clean, the flyout is `position: fixed` and its `left`/`top` or `left`/`bottom` are written by JS from the trigger's viewport box. CSS only owns appearance:
 
 ```css
 /* fixed 向上 flyout：位置由 JS 写入 left/bottom；样式只负责外观。 */
@@ -338,12 +369,13 @@ With the containing-block chain clean, the flyout is `position: fixed` and its `
 }
 ```
 
-The anchor is computed in a `useLayoutEffect` that reads the trigger's `getBoundingClientRect()` and converts to viewport-relative `left` / `bottom: innerHeight - rect.top + 4` (4px gap above the trigger). It re-runs on `resize` and capture-phase `scroll` so the flyout tracks the trigger as the page scrolls:
+The anchor is computed in a `useLayoutEffect` that reads the trigger's `getBoundingClientRect()` and converts to viewport-relative coordinates: `top: rect.bottom + 4` for the top overlay (flyout below the trigger), `bottom: innerHeight - rect.top + 4` for the bottom overlay (flyout above the trigger, 4px gap). It re-runs on `resize` and capture-phase `scroll` so the flyout tracks the trigger as the page scrolls:
 
 ```tsx
-// 底栏 fixed flyout：按 trigger 视口盒锚定到上方（host 无 backdrop-filter 时 fixed 相对 viewport）。
+// 覆盖层 fixed flyout：按 trigger 视口盒锚定到上方（bottom）或下方（top）
+// （host 无 backdrop-filter 时 fixed 相对 viewport）。
 useLayoutEffect(() => {
-  if (!open || !bottomMode) { setFlyoutAnchor(null); return; }
+  if (!open || !isOverlay) { setFlyoutAnchor(null); return; }
   const trigger = triggerRef.current;
   if (!trigger) return;
   const update = () => {
@@ -353,7 +385,13 @@ useLayoutEffect(() => {
     const maxLeft = Math.max(0, window.innerWidth - 200);
     if (left > maxLeft) left = maxLeft;
     if (left < 0) left = 0;
-    setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+    if (overlayPosition === 'top') {
+      // 顶部覆盖层：flyout 从 trigger 下缘向下展开。
+      setFlyoutAnchor({ left, top: rect.bottom + 4 });
+    } else {
+      // 底部覆盖层：flyout 从 trigger 上缘向上展开。
+      setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+    }
   };
   update();
   window.addEventListener('resize', update);
@@ -362,24 +400,26 @@ useLayoutEffect(() => {
     window.removeEventListener('resize', update);
     window.removeEventListener('scroll', update, true);
   };
-}, [open, bottomMode]);
+}, [open, overlayPosition]);
 
-const flyoutStyle: React.CSSProperties | undefined = bottomMode && flyoutAnchor
-  ? { position: 'fixed', left: flyoutAnchor.left, bottom: flyoutAnchor.bottom, top: 'auto', right: 'auto' }
+const flyoutStyle: React.CSSProperties | undefined = isOverlay && flyoutAnchor
+  ? overlayPosition === 'top'
+    ? { position: 'fixed', left: flyoutAnchor.left, top: flyoutAnchor.top, bottom: 'auto', right: 'auto' }
+    : { position: 'fixed', left: flyoutAnchor.left, bottom: flyoutAnchor.bottom, top: 'auto', right: 'auto' }
   : undefined;
 ```
 
-#### 4d. Touch focus/click race — `onFocus` must not open in bottom mode
+#### 4d. Touch focus/click race — `onFocus` must not open in overlay mode
 
-Top mode opens the flyout on `hover` *and* `focus` (keyboard users tab to the trigger and the flyout opens). Reusing that in bottom mode breaks touch: a tap fires `focus` (→ open) *then* `click` (→ toggle = close). The first tap therefore opens-then-closes = a no-op; the user must tap twice.
+Inline mode opens the flyout on `hover` *and* `focus` (keyboard users tab to the trigger and the flyout opens). Reusing that in overlay mode breaks touch: a tap fires `focus` (→ open) *then* `click` (→ toggle = close). The first tap therefore opens-then-closes = a no-op; the user must tap twice.
 
-**Fix: `onFocus` returns early in `bottomMode`**; touch users open via `click → onToggle`, and keyboard users open via `Enter`/`Space → onToggle` (with `preventDefault` so the synthesized click does not double-toggle):
+**Fix: `onFocus` returns early in overlay mode**; touch users open via `click → onToggle`, and keyboard users open via `Enter`/`Space → onToggle` (with `preventDefault` so the synthesized click does not double-toggle):
 
 ```tsx
 onFocus={() => {
-  // 底栏：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
+  // 覆盖层：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
   // （首次点触空操作）；键盘用户用 Enter/Space 触发 click→onToggle 开层。
-  if (bottomMode) return;
+  if (isOverlay) return;
   onOpen();
 }}
 // ...
@@ -389,9 +429,9 @@ onKeyDown={(e) => {
     onClose();
     return;
   }
-  // 底栏键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
+  // 覆盖层键盘路径：Enter/Space 显式切换（与 click→onToggle 等价，兜底防止
   // 某些合成键盘事件不派发 click）。
-  if (bottomMode && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+  if (isOverlay && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
     if (e.target === triggerRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -401,20 +441,20 @@ onKeyDown={(e) => {
 }}
 // ...
 onClick={(e) => {
-  // 点击切换（两模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
+  // 点击切换（各模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
   e.stopPropagation();
   onToggle();
 }}
 ```
 
-> **2026-08-01: click became the unified open/pin path in both modes.** The bottom-mode-only `onClick` (above) was generalized: `onToggle` is now a three-branch state machine — collapsed → open **and pin**; transiently open (hover/focus) → **pin**; pinned → close. Hover/focus still open *transiently* via `onOpen` (which clears any other group's pin; hovering back onto a previously pinned group does not restore the pin), while `scheduleClose` skips its delayed close when the group is pinned (`pinnedRef`). So the hover/focus path is transient open; **only click pins**. Outside-dismiss (§4e), Escape, and blur all clear the pin. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).
+> **2026-08-01: click became the unified open/pin path in all modes.** The bottom-mode-only `onClick` (above) was generalized: `onToggle` is now a three-branch state machine — collapsed → open **and pin**; transiently open (hover/focus) → **pin**; pinned → close. Hover/focus still open *transiently* via `onOpen` (which clears any other group's pin; hovering back onto a previously pinned group does not restore the pin), while `scheduleClose` skips its delayed close when the group is pinned (`pinnedRef`). So the hover/focus path is transient open; **only click pins**. Outside-dismiss (§4e), Escape, and blur all clear the pin. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).
 
 A secondary touch guard: `onMouseEnter` is suppressed on coarse pointers so a tap does not leave a sticky hover-open state after the finger lifts:
 
 ```tsx
 onMouseEnter={() => {
-  // 底栏 + 粗指针（触屏）：禁用 hover 开层，避免点触后 hover 粘滞。
-  if (bottomMode && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
+  // 覆盖层 + 粗指针（触屏）：禁用 hover 开层，避免点触后 hover 粘滞。
+  if (isOverlay && typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
   cancelClose();
   onOpen();
 }}
@@ -424,7 +464,7 @@ The lesson: **touch interaction cannot reuse desktop hover/focus patterns withou
 
 #### 4e. Shadow-safe outside dismiss — `document` capture + `composedPath()`
 
-Top mode closes a *transiently-open* flyout on `mouseleave` (with a 120ms hover-intent delay for the trigger/flyout seam). Touch has no reliable hover-out, and a pinned flyout (click-to-pin, §4d) has no hover-out by definition — so **both modes share one pointer-down-outside dismiss** (unified 2026-08-01; previously bottom-only). Two wrong implementations:
+Inline mode closes a *transiently-open* flyout on `mouseleave` (with a 120ms hover-intent delay for the trigger/flyout seam). Touch has no reliable hover-out, and a pinned flyout (click-to-pin, §4d) has no hover-out by definition — so **all placement modes share one pointer-down-outside dismiss** (unified 2026-08-01; previously overlay-only). Two wrong implementations:
 
 - **`getRootNode()` / `element.contains(target)`** — only sees nodes inside the same root. A tap on the *page* (outside the shadow root) is not in `groupRef.contains`, so it would be treated as "outside" and close — but a tap *inside the shadow root but outside the group* is also not seen, and worse, retargeting across shadow boundaries means `target` is the shadow host, not the inner element, so `contains` checks are unreliable.
 - **`document.getElementById(groupId)`** — fails entirely inside a closed shadow root; the id is not queryable from the document.
@@ -432,8 +472,8 @@ Top mode closes a *transiently-open* flyout on `mouseleave` (with a 120ms hover-
 **Fix: listen on `document` with `capture: true`, and test membership via `event.composedPath()`**, which returns the full retargeted path *through* shadow boundaries. `path.includes(groupRef.current)` / `path.includes(flyoutRef.current)` correctly identifies taps inside the group or flyout regardless of shadow boundaries:
 
 ```tsx
-// 点外部关闭（两种模式统一）：触屏无可靠 hover-out（底栏主路径），
-// 顶栏/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
+// 点外部关闭（各模式统一）：触屏无可靠 hover-out（覆盖层主路径），
+// 内联/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
 // 也能命中；composedPath 含 shadow 内后代，path.includes(groupRef/flyoutRef)
 // 判断对 shadow 内点击同样有效。
 useEffect(() => {
@@ -460,9 +500,9 @@ Scroll-hide stamps `data-hidden="true"` on the host when the user scrolls down (
 The component cannot know about scroll-hide directly (it lives in the content script). Instead it observes the host's `data-hidden` attribute via a `MutationObserver` and closes on change. The host is reached from inside the shadow root via `getRootNode()` → `ShadowRoot.host` (falling back to `closest('[data-position]')` for the non-shadow search-page case):
 
 ```tsx
-// 底栏 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
+// 覆盖层 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
 useEffect(() => {
-  if (!bottomMode) return;
+  if (!isOverlay) return;
   const el = containerRef.current;
   if (!el) return;
   const root = el.getRootNode();
@@ -478,14 +518,14 @@ useEffect(() => {
   });
   obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
   return () => obs.disconnect();
-}, [bottomMode]);
+}, [overlayPosition]);
 ```
 
 And the content-script side that drives it (the `data-hidden` stamp that the observer reacts to):
 
 ```typescript
 const handleScrollHide = () => {
-  if (!mountedHost || state.resolvedPosition !== 'bottom') return;
+  if (!mountedHost || state.resolvedPosition === 'inline') return;
   const currentY = window.scrollY;
   // 近顶部始终显示，避免页面顶端无栏可用。
   if (currentY < 10) {
@@ -510,32 +550,32 @@ ctx.addEventListener(window, 'scroll', handleScrollHide, { passive: true });
 
 The cross-boundary contract is deliberately one-directional and attribute-based: the content script owns the hide *intent* (`data-hidden`), the component owns the *reaction* (close flyout). Neither side calls into the other; they communicate only through the host attribute. This is the same `data-*` bridge discipline as `data-position`, extended to a runtime behavioral signal.
 
-#### 4g. Body-mount in bottom mode — escape the *page* ancestor containing block (the cross-site trap)
+#### 4g. Body-mount in overlay mode — escape the *page* ancestor containing block (the cross-site trap)
 
-§4a fixed the containing-block trap for the bar's **own** host (`backdrop-filter` on `:host`). But `position:fixed` is vulnerable to *any* ancestor in the page DOM, not just the bar's internal ancestors. The bottom bar was originally inserted into the same inline anchor as the top bar — a sibling of a results container *inside the page*. Two cross-site bugs traced to that:
+§4a fixed the containing-block trap for the bar's **own** host (`backdrop-filter` on `:host`). But `position:fixed` is vulnerable to *any* ancestor in the page DOM, not just the bar's internal ancestors. The overlay bar was originally inserted into the same inline anchor as the inline bar — a sibling of a results container *inside the page*. Two cross-site bugs traced to that:
 
 - **小红书:** the host was inserted `after #search-input`, deep in the SPA subtree. 小红书's SPA renders ancestors carrying `transform`/`will-change`/`contain`; those become the containing block of the `position:fixed` host, so `bottom:0` anchored to the ancestor box, not the viewport → the bar floated at the wrong vertical position ("not at the page bottom"). No CSS on `:host` can fix this — the trap is upstream, in the page.
 - **抖音:** the host was inserted before `#search-result-container`, again inside a page subtree whose stacking context trapped the `z-index: 600` host beneath 抖音's share/settings popups (~1000+). Even raising `z-index` could not escape a low ancestor stacking context.
 
-**Fix — in bottom mode the host is mounted to `document.body`, ignoring the engine anchor.** This aligns the DOM mount with the design stated in §1 ("bottom is *universal*: … ignores every engine's DOM") — the CSS already treated the bottom bar as a viewport overlay, but the mount had not caught up. Mounting to `document.body` puts the host at the page top level, so no page ancestor can establish a containing block or a trapping stacking context.
+**Fix — in overlay mode the host is mounted to `document.body`, ignoring the engine anchor.** This aligns the DOM mount with the design stated in §1 ("top/bottom are *universal*: … ignores every engine's DOM") — the CSS already treated the overlay bar as a viewport overlay, but the mount had not caught up. Mounting to `document.body` puts the host at the page top level, so no page ancestor can establish a containing block or a trapping stacking context.
 
 Three implementation details make this safe:
 
-1. **The WXT `anchor` returns `'body'` in bottom mode.** `createShadowRootUi`'s internal `getAnchor` resolves a string selector via `querySelector`; if it returns nothing, `mountUi` **throws** `"could not find anchor element"`. On an SPA the engine anchor may not exist yet at `document_idle`, so returning the engine selector would make the bottom bar fail to mount early. `'body'` always exists, so `getAnchor` always resolves and the custom `append` (below) takes over placement.
+1. **The WXT `anchor` returns `'body'` in overlay mode.** `createShadowRootUi`'s internal `getAnchor` resolves a string selector via `querySelector`; if it returns nothing, `mountUi` **throws** `"could not find anchor element"`. On an SPA the engine anchor may not exist yet at `document_idle`, so returning the engine selector would make the overlay bar fail to mount early. `'body'` always exists, so `getAnchor` always resolves and the custom `append` (below) takes over placement.
 
-2. **The custom `append` redirects to `document.body` in bottom mode.** WXT calls `options.append(anchor, root)` when `append` is a function (the existing override); we branch on `state.resolvedPosition === 'bottom'` and do `(document.body ?? document.documentElement).appendChild(root)`, ignoring the `anchor` argument entirely. The engine-anchor `switch (strategy.append)` path runs only in top mode.
+2. **The custom `append` redirects to `document.body` in overlay mode.** WXT calls `options.append(anchor, root)` when `append` is a function (the existing override); we branch on `state.resolvedPosition !== 'inline'` and do `(document.body ?? document.documentElement).appendChild(root)`, ignoring the `anchor` argument entirely. The engine-anchor `switch (strategy.append)` path runs only in inline mode.
 
 ```typescript
 append: (anchor, root) => {
-  if (state.resolvedPosition === 'bottom') {
+  if (state.resolvedPosition !== 'inline') {
     (document.body ?? document.documentElement).appendChild(root);
     return;
   }
-  switch (strategy.append) { /* …top-mode engine-anchor insertion… */ }
+  switch (strategy.append) { /* …inline-mode engine-anchor insertion… */ }
 }
 ```
 
-3. **A `mountIfReady` fast-path makes the body mount budget-independent.** The engine-anchor path gates mounting on `canAttemptMount` (which needs `remountBudget > 0` and a preferred/last-resort anchor present). A bottom bar depends on neither — only on `document.body` existing — so the bottom branch checks `document.body` and mounts directly, never consuming the remount budget. The detach handler mirrors this: it remounts in bottom mode regardless of budget (a body-mounted host's parent is stable; the budget gate exists to fight hostile SPA teardown of *inline* anchors). This is what prevents the bar from silently disappearing after a `top → bottom` flip late in a long-lived page when the budget is exhausted.
+3. **A `mountIfReady` fast-path makes the body mount budget-independent.** The engine-anchor path gates mounting on `canAttemptMount` (which needs `remountBudget > 0` and a preferred/last-resort anchor present). An overlay bar depends on neither — only on `document.body` existing — so the overlay branch checks `document.body` and mounts directly, never consuming the remount budget. The detach handler mirrors this: it remounts in overlay mode regardless of budget (a body-mounted host's parent is stable; the budget gate exists to fight hostile SPA teardown of *inline* anchors). This is what prevents the bar from silently disappearing after an `inline → overlay` flip late in a long-lived page when the budget is exhausted.
 
 **z-index is raised to `2147483647` (int32 max).** With the host body-mounted, its stacking context is the page root, so a maximal z-index guarantees it sits above every site floating layer (抖音 share/settings popups, etc.). The fixed-up flyout (`.group-flyout--fixed-up`) uses the same max: it is a child of the (now-body-level) host, so it does not need to exceed the host, and the same value keeps it above site popups too.
 
@@ -551,53 +591,68 @@ append: (anchor, root) => {
 }
 ```
 
-**Remount on `top ↔ bottom` flip.** The host's physical parent differs between modes (engine anchor subtree vs `document.body`), so a position flip cannot be an in-place `applyPositionChrome` + re-render — that only changes `data-position` and the pad/pageStyles, leaving the host in the *old* DOM location. The `resize` (auto-breakpoint crossing) and `onPrefMessage` (Options toggle) transition paths now do **teardown + remount**: `state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`, reusing the current `locationRevision` so no budget/observer bookkeeping resets. `onMount`'s call to `applyPositionChrome(state.resolvedPosition)` restamps `data-position` and swaps pad↔pageStyles during the remount, so the helper remains the single owner of those operations.
+**Remount only on `inline ↔ overlay` flips.** The host's physical parent differs between the placement groups (engine anchor subtree vs `document.body`), so a flip across that boundary cannot be an in-place `applyPositionChrome` + re-render — that only changes `data-position` and the pad/pageStyles, leaving the host in the *old* DOM location. The `resize` (auto-breakpoint crossing) and `onPrefMessage` (Options toggle) transition paths therefore branch on whether the flip crosses the boundary: cross-boundary flips do **teardown + remount** (`state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`, reusing the current `locationRevision` so no budget/observer bookkeeping resets), while a `top ↔ bottom` flip is the in-place restyle since both overlays are body-mounted. `onMount`'s call to `applyPositionChrome(state.resolvedPosition)` restamps `data-position` and swaps pad↔pageStyles during the remount, so the helper remains the single owner of those operations.
 
 The generalizable lesson: **a `position:fixed` overlay's containing block is determined by its *page* ancestor chain, not its CSS alone.** Mounting such an overlay inside a rich SPA subtree (transforms, will-change, contain) silently breaks its viewport anchoring and traps its z-index, and no amount of `:host` CSS can repair it — the fix is structural: mount the overlay at the page top level (`document.body`).
 
-### 5. `CONFIG_KEYS` without a schema bump
+### 5. `CONFIG_KEYS` — the getter-default shortcut, and the one bump serpBarPosition needed
 
-`serpBarPosition` is a persisted pref that must survive config export/import, so it has to be in the config-domain whitelist. But like `groupConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, and `providerMaxResults` before it, its default is supplied by a **getter** (`getBarPositionPref` normalizes any missing/unknown value to `'auto'`). A missing key is therefore safe without a migration: there is nothing to transform, just a default to fall back to. So it is added to `CONFIG_KEYS` **without** bumping `CURRENT_SCHEMA_VERSION` and **without** a migration entry:
+`serpBarPosition` is a persisted pref that must survive config export/import, so it has to be in the config-domain whitelist. Like `groupConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, and `providerMaxResults` before it, its default is supplied by a **getter** (`getBarPositionPref` normalizes any missing/unknown value to `'auto'`). A missing key is therefore safe without a migration: there is nothing to transform, just a default to fall back to.
+
+But when the `'top'` value was **redefined** in v8 (fixed overlay top, replacing the old inline behavior), legacy stored `'top'` data *did* need transforming — old `'top'` users must keep their inline experience, so their stored value is rewritten to `'inline'`. That value redefinition is exactly the "legacy data must transform" case, so `CURRENT_SCHEMA_VERSION` was bumped 7→8 and a value-rewrite migration entry was added:
 
 ```typescript
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
-// agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / serpBarPosition 默认值由 getter 兜底，不 bump 版本（无需迁移）。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition'] as const;
+// agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
+// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition'] as const;
+
+// v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
+// 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
+{ version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ```
 
-The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither. The getter is the single source of the default:
+The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` joined the 15-key whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
 
 ```typescript
 export async function getBarPositionPref(): Promise<BarPositionPref> {
   const got = await browser.storage.local.get(BAR_POSITION_KEY);
   const stored = got[BAR_POSITION_KEY];
-  return stored === 'top' || stored === 'bottom' ? stored : 'auto';
+  return stored === 'top' || stored === 'inline' || stored === 'bottom' ? stored : 'auto';
 }
 ```
 
 Any unknown/missing value normalizes to `'auto'`, so a legacy storage state without the key is safe with zero migration code.
 
-### 6. Bottom mode skips engine pageStyles
+### 6. Overlay mode skips engine pageStyles
 
-Top-bar shims must not apply in bottom mode. Douyin's `pageStyles` pushes its filter toolbar down to make room for a *top* bar at `top: 56px`; injecting that shim in bottom mode would corrupt the host page layout for a bar that is no longer at the top. `applyPositionChrome` handles this in the transition body (§2): the `bottom` branch calls `removePageStyles()` before injecting the pad, and the `top` branch calls `injectPageStyles(state.engine)`:
+Engine shims must not apply in overlay mode. Douyin's `pageStyles` pushes its filter toolbar down to make room for a bar at `top: 56px` — an *inline* placement; injecting that shim in overlay mode would corrupt the host page layout for a bar that is fixed to the viewport edge. `applyPositionChrome` handles this in the transition body (§2): the overlay branches (`top`/`bottom`) call `removePageStyles()` before injecting the corresponding pad, and the `inline` branch calls `injectPageStyles(state.engine)`:
 
 ```typescript
-if (pos === 'bottom') {
-  // bottom must NOT keep top-bar engine shims (Douyin etc.)
-  removePageStyles();
-  injectBottomPadStyles();
+if (pos === 'inline') {
+  // 内联：引擎 pageStyles shim；移除覆盖层垫高。
+  removeBottomPadStyles();
+  removeTopPadStyles();
+  injectPageStyles(state.engine);
   // ...
 } else {
-  removeBottomPadStyles();
-  injectPageStyles(state.engine);
+  // 覆盖层 top/bottom：移除引擎 pageStyles；按位置垫高页面。
+  removePageStyles();
+  if (pos === 'bottom') {
+    removeTopPadStyles();
+    injectBottomPadStyles();
+  } else {
+    removeBottomPadStyles();
+    injectTopPadStyles();
+  }
   // ...
 }
 ```
 
-The stylesheet also defends against the engine-specific *host* rule that would otherwise survive: `:host([data-engine="douyin"]) { top: 56px }` is neutralized by the explicit `:host([data-engine="douyin"][data-position="bottom"]) { top: auto }` override (§1). Belt and suspenders — the page shim is removed at the DOM level, and the host rule is overridden at the cascade level, so neither top-bar artifact leaks into bottom mode.
+The stylesheet also defends against the engine-specific *host* rule that would otherwise survive: `:host([data-engine="douyin"][data-position="inline"]) { top: 56px }` is neutralized by the explicit `:host([data-engine="douyin"][data-position="bottom"]) { top: auto }` and `:host([data-engine="douyin"][data-position="top"]) { top: 0 }` overrides (§1). Belt and suspenders — the page shim is removed at the DOM level, and the host rule is overridden at the cascade level, so no inline-bar artifact leaks into overlay mode.
 
 ## Why This Matters
 
@@ -607,16 +662,16 @@ The stylesheet also defends against the engine-specific *host* rule that would o
 
 - **A `position:fixed` overlay's containing block is set by its page ancestor chain, not by its own CSS — so where you *mount* it matters as much as how you *style* it.** §4a fixed the trap for the bar's own `:host` (`backdrop-filter` on the host). §4g is the cross-site corollary: mounting the bottom bar inside a rich SPA subtree (小红书's `#search-input` ancestors, 抖音's `#search-result-container`) meant a *page* ancestor — not the host — established the containing block (bar not at the real viewport bottom) and a trapping stacking context (z-index trapped below site popups). No `:host` CSS can fix an upstream-page-ancestor trap; the fix is structural — mount the overlay at `document.body`. The recurring lesson: when a fixed overlay misbehaves on one site and not others, suspect the mount location inside that site's transform/will-change/contain subtree, and prefer a top-level mount for overlays that must ignore page geometry.
 
-- **Touch interaction cannot reuse desktop hover/focus patterns without race analysis.** A tap synthesizes `focus` then `click` on the same element; if both mutate open-state, the first tap is a no-op. The desktop `onFocus={onOpen}` is correct for keyboard users on a top bar but must be gated out of the touch (bottom) path, with `click`/`Enter`/`Space` carrying the open action instead. Any popover that supports both pointer and touch will hit this unless the focus and click paths are deliberately disambiguated.
+- **Touch interaction cannot reuse desktop hover/focus patterns without race analysis.** A tap synthesizes `focus` then `click` on the same element; if both mutate open-state, the first tap is a no-op. The desktop `onFocus={onOpen}` is correct for keyboard users on an inline bar but must be gated out of the touch (overlay) path, with `click`/`Enter`/`Space` carrying the open action instead. Any popover that supports both pointer and touch will hit this unless the focus and click paths are deliberately disambiguated.
 
 ## When to Apply
 
-- **Adding a fixed-position overlay variant to an inline-anchored component** — the `data-position` attribute bridge, the universal fixed-bottom + page-pad approach (replacing per-engine anchors), and the `applyPositionChrome` helper that unifies every transition path.
-- **A `position:fixed` overlay that misbehaves on specific sites (wrong vertical anchor, or covered by site popups)** — mount it to `document.body` instead of an inline anchor inside the site's transform/will-change/contain subtree (§4g); raise z-index to int32 max (`2147483647`) only *after* escaping the site's stacking context. Remount (teardown + re-mount), not in-place restyle, on any `top↔bottom` flip so the host's physical parent changes.
+- **Adding a fixed-position overlay variant to an inline-anchored component** — the `data-position` attribute bridge, the universal fixed overlay (top and bottom) + page-pad approach (replacing per-engine anchors), and the `applyPositionChrome` helper that unifies every transition path.
+- **A `position:fixed` overlay that misbehaves on specific sites (wrong vertical anchor, or covered by site popups)** — mount it to `document.body` instead of an inline anchor inside the site's transform/will-change/contain subtree (§4g); raise z-index to int32 max (`2147483647`) only *after* escaping the site's stacking context. Remount (teardown + re-mount) only on `inline ↔ overlay` flips so the host's physical parent changes; `top ↔ bottom` is now an in-place restyle since both are body-mounted.
 - **Merging parallel feature tracks that both touch the same UI region** — budget for an integration-review pass exercising the intersection; do not assume each track's isolation tests cover the merge.
 - **Debugging a flyout/popover that vanishes or mis-anchors under `overflow:auto` or `backdrop-filter` ancestors** — check the *ancestor chain* for `backdrop-filter`/`transform`/`filter`/`will-change`/`contain` (each creates a containing block for fixed descendants); the `overflow` is a symptom, not the cause.
 - **Wiring touch-friendly open/close where focus-open races click-toggle** — gate `onFocus` out of the touch path; let `click`/`Enter`/`Space` own the open action; suppress `mouseenter` on coarse pointers to avoid hover-stick.
-- **Adding a config knob to an import/export pipeline without a schema bump** — add the key to `CONFIG_KEYS`, supply the default via a normalizing getter, and skip the migration/version-bump unless legacy data must transform.
+- **Adding a config knob to an import/export pipeline** — add the key to `CONFIG_KEYS`, supply the default via a normalizing getter, and skip the migration/version-bump unless legacy data must transform (as `serpBarPosition`'s v7→v8 `'top'` redefinition did).
 
 ## Examples
 
@@ -655,27 +710,27 @@ The stylesheet also defends against the engine-specific *host* rule that would o
 }
 ```
 
-### `onFocus` guard (before: first tap no-op; after: click-only open in bottom mode; later: unified click-to-pin)
+### `onFocus` guard (before: first tap no-op; after: click-only open in overlay mode; later: unified click-to-pin)
 
 **Before** — `onFocus` opens unconditionally. A touch tap fires `focus` (open) then `click` (toggle → close): the first tap is a no-op.
 
 ```tsx
 /* BROKEN: touch focus-opens then click-closes = first tap does nothing. */
 onFocus={() => onOpen()}
-onClick={() => { if (bottomMode) onToggle(); }}
+onClick={() => { if (overlayPosition) onToggle(); }}
 ```
 
-**After** — `onFocus` returns early in `bottomMode`; `click` owns open via `onToggle`, and `Enter`/`Space` do the same for keyboard with `preventDefault` to avoid a double-toggle from synthesized click. (Since 2026-08-01 the `onClick` branch is no longer `bottomMode`-gated: `onToggle` runs in **both** modes and doubles as the click-to-pin state machine — collapsed → open+pin, transient → pin, pinned → close. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).)
+**After** — `onFocus` returns early in overlay mode; `click` owns open via `onToggle`, and `Enter`/`Space` do the same for keyboard with `preventDefault` to avoid a double-toggle from synthesized click. (Since 2026-08-01 the `onClick` branch is no longer `overlayPosition`-gated: `onToggle` runs in **all** modes and doubles as the click-to-pin state machine — collapsed → open+pin, transient → pin, pinned → close. See [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md).)
 
 ```tsx
 onFocus={() => {
-  // 底栏：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
+  // 覆盖层：不靠 focus 开层。触屏 focus 先于 click，若 focus 开层会被 click 关掉
   // （首次点触空操作）；键盘用户用 Enter/Space 触发 click→onToggle 开层。
-  if (bottomMode) return;
+  if (isOverlay) return;
   onOpen();
 }}
 onKeyDown={(e) => {
-  if (bottomMode && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
+  if (isOverlay && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) {
     if (e.target === triggerRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -684,7 +739,7 @@ onKeyDown={(e) => {
   }
 }}
 onClick={(e) => {
-  // 点击切换（两模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
+  // 点击切换（各模式一致）：收起→打开并固定；瞬态展开→固定；固定→关闭。
   e.stopPropagation();
   onToggle();
 }}
@@ -705,7 +760,7 @@ const onPointerDown = (e: PointerEvent) => {
 };
 ```
 
-**After** — listen on `document` with `capture: true`; test membership via `composedPath()`, which traverses shadow boundaries so both page taps and inner-shadow taps are correctly classified. Since 2026-08-01 the guard is **not** `bottomMode`-gated — both modes share the outside-dismiss (a pinned flyout in top/search mode has no hover-out either), and the callback routes through `handleClose` so a pending hover-intent timer cannot fire a stale close afterwards:
+**After** — listen on `document` with `capture: true`; test membership via `composedPath()`, which traverses shadow boundaries so both page taps and inner-shadow taps are correctly classified. Since 2026-08-01 the guard is **not** `overlayPosition`-gated — all placement modes share the outside-dismiss (a pinned flyout in inline/search mode has no hover-out either), and the callback routes through `handleClose` so a pending hover-intent timer cannot fire a stale close afterwards:
 
 ```tsx
 useEffect(() => {
@@ -725,8 +780,8 @@ useEffect(() => {
 
 ## Related
 
-- [serp-switch-bar-and-unified-source-model](./serp-switch-bar-and-unified-source-model.md) — the foundational SERP bar architecture: shadow-DOM isolation, self-contained token stylesheet keyed by `data-theme`, and the inline-anchor insertion model that the bottom variant deliberately replaces with a fixed overlay.
-- [serp-bar-engine-specific-anchors](../ui-bugs/serp-bar-engine-specific-anchors.md) — the per-engine inline-anchor model for the top bar (`#rcnt`/`#b_content`/`#container`), the `data-engine` attribute bridge, and the shadow-cascade precedence rules (`:host { all: initial !important }`) that the `data-position` bridge reuses. The bottom bar's explicit `:host([data-engine="douyin"][data-position="bottom"]) { top: auto }` override exists because of Douyin's fixed-top rule documented here.
-- [config-preference-pipeline](./config-preference-pipeline.md) — the eight-layer pipeline for adding a persisted pref (storage → schema `CONFIG_KEYS` → messaging → gateway → background → config-io → i18n → UI). `serpBarPosition` traverses this pipeline; the getter-default-no-migration shortcut (§5) is the content-schema-side complement.
+- [serp-switch-bar-and-unified-source-model](./serp-switch-bar-and-unified-source-model.md) — the foundational SERP bar architecture: shadow-DOM isolation, self-contained token stylesheet keyed by `data-theme`, and the inline-anchor insertion model that the overlay variants deliberately replace with a fixed overlay.
+- [serp-bar-engine-specific-anchors](../ui-bugs/serp-bar-engine-specific-anchors.md) — the per-engine inline-anchor model for the inline mode (`#rcnt`/`#b_content`/`#container`), the `data-engine` attribute bridge, and the shadow-cascade precedence rules (`:host { all: initial !important }`) that the `data-position` bridge reuses. The overlay bars' explicit `:host([data-engine="douyin"][data-position="bottom"]) { top: auto }` and `:host([data-engine="douyin"][data-position="top"]) { top: 0 }` overrides exist because of Douyin's fixed-inline rule documented here.
+- [config-preference-pipeline](./config-preference-pipeline.md) — the eight-layer pipeline for adding a persisted pref (storage → schema `CONFIG_KEYS` → messaging → gateway → background → config-io → i18n → UI). `serpBarPosition` traverses this pipeline; the getter-default shortcut (§5) — and its v7→v8 value-rewrite exception — is the content-schema-side complement.
 - [testable-content-script-helpers-via-lib-extraction](./testable-content-script-helpers-via-lib-extraction.md) — why `resolveBarPosition`, `injectBottomPadStyles`, `removeBottomPadStyles`, and `scrollChildToCenter` live in `lib/` (pure/injectable, testable) rather than as content-script named exports (which break the WXT build).
 - [theme-persistence-i18n-key-hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) — the worker-side `storage.onChanged` → `broadcastUiPref` pattern and the desensitized-config trust boundary that the bar-position live-sync channel plugs into.

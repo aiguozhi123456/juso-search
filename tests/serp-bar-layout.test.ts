@@ -13,16 +13,17 @@ describe('SERP bar shadow-host layout', () => {
     );
   });
 
-  it('mounts the bottom bar to document.body, escaping the engine anchor subtree', async () => {
-    // 底栏 host 必须脱离 engine 内联锚点子树（小红书 #search-input / 抖音
+  it('mounts overlay bars (top + bottom) to document.body, escaping the engine anchor subtree', async () => {
+    // 覆盖层 host（顶栏/底栏）必须脱离 engine 内联锚点子树（小红书 #search-input / 抖音
     // #search-result-container），否则页面祖先的 transform/filter/will-change/contain/
-    // backdrop-filter 会让它变成 position:fixed 的 containing block（底栏不贴真底部），
-    // 并困住 z-index（被站点浮层盖住）。底栏返回 "body" 锚点并在 append 内 appendChild 到 body。
+    // backdrop-filter 会让它变成 position:fixed 的 containing block（栏不贴真顶/底部），
+    // 并困住 z-index（被站点浮层盖住）。覆盖层在 anchor 与 append 两个分支都返回/落到
+    // "body"，并在 append 内 appendChild 到 body。inline 仍走引擎锚点插入。
     const source = await readFile(resolve(process.cwd(), 'entrypoints/serp-bar.content.ts'), 'utf8');
 
-    // anchor 在底栏返回 "body"（让 WXT 的 getAnchor 永远命中，绕过 mountUi 的 throw）。
-    expect(source).toMatch(/resolvedPosition\s*===\s*'bottom'\)\s*return\s*'body'/);
-    // append 在底栏分支 appendChild 到 document.body（兜底 documentElement）。
+    // anchor 在覆盖层（非 inline）返回 "body"（让 WXT 的 getAnchor 永远命中，绕过 mountUi 的 throw）。
+    expect(source).toMatch(/resolvedPosition\s*!==\s*'inline'\)\s*return\s*'body'/);
+    // append 在覆盖层分支 appendChild 到 document.body（兜底 documentElement）。
     expect(source).toMatch(/document\.body\s*\?\?\s*document\.documentElement\)\.appendChild\(root\)/);
   });
 
@@ -69,6 +70,22 @@ describe('SERP bar shadow-host layout', () => {
       /\.group-flyout--fixed-up\s*\{[^}]*z-index:\s*2147483647\s*!important[^}]*\}/,
     );
     expect(bottomFlyoutRule).not.toBeNull();
+  });
+
+  it('raises the top bar host to int32-max z-index so it sits above site popups once body-mounted', () => {
+    // 顶栏 host 与底栏对称：挂到 document.body 后脱离站点子树层叠上下文；用 int32 最大值
+    // z-index 盖过站点浮层（同底栏理由）。
+    const topHostRule = serpBarStyles.match(
+      /:host\(\[data-position="top"\]\)\s*\{[^}]*z-index:\s*2147483647\s*!important[^}]*\}/,
+    );
+    expect(topHostRule).not.toBeNull();
+
+    // 顶栏 fixed-down flyout 同取 int32 最大值：它是 host 的 fixed 子元素，无需超过 host；
+    // 同值即可，并一并盖过站点浮层。
+    const topFlyoutRule = serpBarStyles.match(
+      /\.group-flyout--fixed-down\s*\{[^}]*z-index:\s*2147483647\s*!important[^}]*\}/,
+    );
+    expect(topFlyoutRule).not.toBeNull();
   });
 
   it('forwards provider instances from the config reply into allSources projections', async () => {

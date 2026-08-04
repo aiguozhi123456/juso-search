@@ -296,6 +296,7 @@ export const MSG = {
   bar_position_group: 'bar_position_group',
   bar_position_auto: 'bar_position_auto',
   bar_position_top: 'bar_position_top',
+  bar_position_inline: 'bar_position_inline',
   bar_position_bottom: 'bar_position_bottom',
   locale_group: 'locale_group',
   locale_auto: 'locale_auto',

@@ -128,7 +128,7 @@ Pins-once is the key invariant: once a source appears as a pinned `{kind:'source
 
 ### 5. Schema bump without migration — lazy getter defaults
 
-Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 6`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
+Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 8`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
 
 ```ts
 // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
@@ -136,7 +136,7 @@ Adding a persisted config key normally means writing a migration. Here it did no
 { version: 4, migrate: (config) => config },
 ```
 
-The comment in `CONFIG_KEYS` spells out why this is safe: `agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / serpBarPosition 默认值由 getter 兜底，不 bump 版本（无需迁移）`. The version bump is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
+The getter-defaulted keys — `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, and `groupConfig` — all joined `CONFIG_KEYS` without a migration: their defaults are supplied by normalizing getters, so a missing key needs no transformation, just a default to fall back to (`serpBarPosition` is the exception — it later *did* bump to v8 when the `'top'` value's semantics were redefined; see `lib/schema.ts`). The version bump here is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
 
 ### 6. `groupConfig` folded into the existing provider-config snapshot and worker message
 

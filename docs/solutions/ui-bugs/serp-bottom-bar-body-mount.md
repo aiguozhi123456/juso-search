@@ -45,30 +45,30 @@ The bottom bar (`data-position="bottom"`) is a `position: fixed; bottom: 0` view
 
 ## Solution
 
-In bottom mode, mount the shadow host to **`document.body`** instead of the engine's inline anchor, and raise the host z-index to `2147483647` (int32 max). This is a structural fix: the DOM mount finally matches the design stated in the architecture doc — the bottom bar "ignores every engine's DOM."
+In overlay mode (top and bottom), mount the shadow host to **`document.body`** instead of the engine's inline anchor, and raise the host z-index to `2147483647` (int32 max). This is a structural fix: the DOM mount finally matches the design stated in the architecture doc — the overlay bar "ignores every engine's DOM."
 
 `entrypoints/serp-bar.content.ts` — `createShadowRootUi` config:
 
 ```typescript
-// anchor: bottom mode returns "body" so WXT's getAnchor always resolves
+// anchor: overlay mode (top/bottom) returns "body" so WXT's getAnchor always resolves
 // (mountUi throws if the anchor is missing; on an SPA the engine anchor
 // may not exist yet at document_idle).
 anchor: () => {
-  if (state.resolvedPosition === 'bottom') return 'body';
+  if (state.resolvedPosition !== 'inline') return 'body';
   strategy = pickAnchor(anchorsFor(state.engine));
   return strategy.selector;
 },
-// append: bottom mode ignores the anchor and appends to document.body.
+// append: overlay mode ignores the anchor and appends to document.body.
 append: (anchor, root) => {
-  if (state.resolvedPosition === 'bottom') {
+  if (state.resolvedPosition !== 'inline') {
     (document.body ?? document.documentElement).appendChild(root);
     return;
   }
-  switch (strategy.append) { /* …top-mode engine-anchor insertion… */ }
+  switch (strategy.append) { /* …inline-mode engine-anchor insertion… */ }
 },
 ```
 
-A `mountIfReady` fast-path makes the body mount **budget-independent** (bottom bar depends only on `document.body` existing, not on the engine anchor or `remountBudget`), so a `top → bottom` flip late in a long-lived page cannot exhaust the budget and silently drop the bar. The detach handler mirrors this (remount in bottom mode regardless of budget).
+A `mountIfReady` fast-path makes the body mount **budget-independent** (an overlay bar depends only on `document.body` existing, not on the engine anchor or `remountBudget`), so an `inline → overlay` flip late in a long-lived page cannot exhaust the budget and silently drop the bar. The detach handler mirrors this (remount in overlay mode regardless of budget).
 
 `entrypoints/shared/serp-bar-styles.ts`:
 
@@ -85,7 +85,7 @@ A `mountIfReady` fast-path makes the body mount **budget-independent** (bottom b
 }
 ```
 
-Because the host's physical parent differs between modes (`document.body` vs engine anchor), a `top ↔ bottom` flip cannot be an in-place restyle — it is **teardown + remount** in both the `resize` (auto-breakpoint) and `onPrefMessage` (Options toggle) transition paths:
+Because the host's physical parent differs between placement groups (`document.body` for overlays vs the engine anchor for inline), only an `inline ↔ overlay` flip is **teardown + remount**; a `top ↔ bottom` flip is an in-place restyle via `applyPositionChrome` + re-render, since both overlays are body-mounted. In the `resize` (auto-breakpoint) and `onPrefMessage` (Options toggle) transition paths, cross-boundary flips do:
 
 ```typescript
 state.resolvedPosition = next;
@@ -93,7 +93,7 @@ if (ui.mounted) safeRemove();
 mountWhenAnchorReady(locationRevision);
 ```
 
-Finally, `syncAlignedHost` is skipped in bottom mode (it writes `--juso-serp-*` vars computed against the host's `parentElement`, which the bottom `!important` rules ignore — pure redundant work).
+Finally, `syncAlignedHost` is skipped in overlay modes (top and bottom) — it writes `--juso-serp-*` vars computed against the host's `parentElement`, which the overlay `!important` rules ignore — pure redundant work.
 
 ## Why This Works
 
@@ -101,16 +101,18 @@ The CSS spec makes a `position:fixed` element's containing block the **viewport*
 
 Mounting the host to `document.body` puts it at the page top level: no page ancestor can establish a containing block or a trapping stacking context, so `bottom:0` anchors to the viewport and `z-index: 2147483647` is reachable. `ui.remove()` (WXT `shadow-root.mjs`) detaches via `shadowHost.remove()` regardless of parent, so a body-mounted host cleans up correctly.
 
-**Universality:** the branch is only `state.resolvedPosition === 'bottom'`, resolved uniformly by `resolveBarPosition` (user picks `bottom`, or `auto` + viewport ≤ 480px). There is **no per-engine / per-host condition** in the mount path — all six engines mount to `document.body` in bottom mode.
+**Universality:** the branch is only `state.resolvedPosition !== 'inline'`, resolved uniformly by `resolveBarPosition` (user picks `top`/`bottom`, or `auto` + viewport ≤ 480px). There is **no per-engine / per-host condition** in the mount path — all six engines mount to `document.body` in overlay modes.
+
+**Known limitation (top overlay):** a `top:0` overlay with `z-index: 2147483647` covers site fixed headers (e.g. Douyin's 56px header, Google's header). `injectTopPadStyles` only pushes *flow* content down (`html{padding-top:40px}`); it cannot push fixed headers down, so the site header is inaccessible while the top overlay is visible. This is symmetric to the bottom overlay covering fixed bottom elements, is user-opted (explicit `'top'` pref), and is mitigated by scroll-hide (scroll down → overlay slides away). No code fix; documented so future reviewers don't re-investigate.
 
 ## Prevention
 
 - **For a `position:fixed` overlay that misbehaves on specific sites (wrong anchor, or covered by site popups), suspect the *mount location* first, not the CSS.** A fixed overlay's containing block and stacking context are set by its page ancestor chain. If the overlay is mounted inside a rich SPA subtree (transform/will-change/contain), no host-level CSS can fix it — mount it at `document.body`.
 - **Test guards added** (`tests/serp-bar-layout.test.ts`): the bottom host and fixed-up flyout carry `z-index: 2147483647 !important`; the content script's bottom `append` mounts to `document.body` (source-shape assertions, since the content script is an untestable IIFE). Run `npm test` after any change to these paths.
-- **A position flip that changes the physical parent must remount, not restyle.** `applyPositionChrome` only swaps `data-position` + pad/pageStyles; if the parent differs between modes, do teardown + remount so `append`/`onMount` re-apply for the new location.
+- **A position flip that changes the physical parent must remount, not restyle.** `applyPositionChrome` only swaps `data-position` + pad/pageStyles; if the physical parent differs (inline vs overlay), do teardown + remount so `append`/`onMount` re-apply for the new location.
 
 ## Related
 
 - [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — the bottom-bar architecture. §4g is the deep treatment of this body-mount fix (the ancestor containing-block chain, the `mountIfReady` fast-path rationale, the z-index choice, and the remount-on-flip rule). This doc is the symptom-first entry; §4g is the rationale.
-- [serp-bar-engine-specific-anchors](./serp-bar-engine-specific-anchors.md) — the **top-bar** inline-anchor model and stacking decisions that the bottom variant deliberately *replaces* with the body mount. Different problem (top anchor selection), not superseded.
+- [serp-bar-engine-specific-anchors](./serp-bar-engine-specific-anchors.md) — the **inline** anchor model and stacking decisions that the overlay variants deliberately *replace* with the body mount. Different problem (top anchor selection), not superseded.
 - [serp-bar-spa-remount-and-last-resort-upgrade](./serp-bar-spa-remount-and-last-resort-upgrade.md) — the SPA detach/remount budget and last-resort anchor upgrade. The bottom fast-path reuses the same `mountWhenAnchorReady` flow but bypasses the budget/anchor gates because a body mount depends on neither.

@@ -30,6 +30,8 @@ import {
   removePageStyles,
   injectBottomPadStyles,
   removeBottomPadStyles,
+  injectTopPadStyles,
+  removeTopPadStyles,
   resolveBarPosition,
   canAttemptMount,
   shouldUpgradeFromLastResort,
@@ -83,33 +85,41 @@ export default defineContentScript({
     let selectGen = 0;
     let selecting = false;
 
-    // 底栏滚动隐藏：向下滑动藏栏、向上滑动显栏；近顶部始终显示。
+    // 覆盖层（顶/底栏）滚动隐藏：向下滑动藏栏、向上滑动显栏；近顶部始终显示。
     const SCROLL_HIDE_THRESHOLD = 8;
     let lastScrollY = 0;
 
     /**
      * Apply position chrome: dataset, pageStyles vs pad, scroll-hide baseline.
-     * Does NOT render — callers re-render when React props (e.g. bottomMode) must change.
+     * Does NOT render — callers re-render when React props (e.g. overlayPosition) must change.
      */
-    const applyPositionChrome = (pos: 'top' | 'bottom', opts?: { resetScrollBaseline?: boolean }) => {
+    const applyPositionChrome = (pos: 'top' | 'bottom' | 'inline', opts?: { resetScrollBaseline?: boolean }) => {
       if (!mountedHost) return;
       mountedHost.dataset.position = pos;
-      if (pos === 'bottom') {
-        // bottom must NOT keep top-bar engine shims (Douyin etc.)
-        removePageStyles();
-        injectBottomPadStyles();
-        delete mountedHost.dataset.hidden;
-        if (opts?.resetScrollBaseline !== false) lastScrollY = window.scrollY;
-      } else {
+      if (pos === 'inline') {
+        // 内联：引擎 pageStyles shim；移除覆盖层垫高。
         removeBottomPadStyles();
+        removeTopPadStyles();
         injectPageStyles(state.engine);
         delete mountedHost.dataset.hidden;
         lastScrollY = 0;
+      } else {
+        // 覆盖层 top/bottom：移除引擎 pageStyles；按位置垫高页面。
+        removePageStyles();
+        if (pos === 'bottom') {
+          removeTopPadStyles();
+          injectBottomPadStyles();
+        } else {
+          removeBottomPadStyles();
+          injectTopPadStyles();
+        }
+        delete mountedHost.dataset.hidden;
+        if (opts?.resetScrollBaseline !== false) lastScrollY = window.scrollY;
       }
     };
 
     const handleScrollHide = () => {
-      if (!mountedHost || state.resolvedPosition !== 'bottom') return;
+      if (!mountedHost || state.resolvedPosition === 'inline') return;
       const currentY = window.scrollY;
       // 近顶部始终显示，避免页面顶端无栏可用。
       if (currentY < 10) {
@@ -187,24 +197,26 @@ export default defineContentScript({
       name: 'juso-serp-bar',
       position: 'inline',
       // 函数锚点：每次 mountUi→getAnchor 时重选候选（首选→回退）。
-      // 底栏返回 "body"：WXT 的 mountUi 会在 getAnchor 找不到锚点时 throw，导致底栏在
-      // SPA 早期（engine 锚点未渲染）挂不上；body 永远存在，绕过该限制。底栏的 append
-      // 分支忽略传入的 anchor 直接 appendChild 到 body，故这里返回什么都安全，只要存在。
+      // 覆盖层（顶/底栏）返回 "body"：WXT 的 mountUi 会在 getAnchor 找不到锚点时 throw，
+      // 导致覆盖层在 SPA 早期（engine 锚点未渲染）挂不上；body 永远存在，绕过该限制。
+      // 覆盖层的 append 分支忽略传入的 anchor 直接 appendChild 到 body，故这里返回什么都
+      // 安全，只要存在。
       anchor: () => {
-        if (state.resolvedPosition === 'bottom') return 'body';
+        if (state.resolvedPosition !== 'inline') return 'body';
         strategy = pickAnchor(anchorsFor(state.engine));
         return strategy.selector;
       },
       // 自定义 append：按当前 strategy.append 插入。before/after 无 parent 时硬失败，
       // 避免 onMount 跑完但 host 不在 document 里（ui.mounted 与 DOM 脱节）。
-      // 底栏例外：host 挂到 document.body（忽略 engine 锚点）。底栏是 position:fixed
-      // 视口覆盖层，若挂进 engine 子树（如小红书 #search-input、抖音 #search-result-container），
-      // 页面祖先的 transform/filter/will-change/contain/backdrop-filter 会把它变成
-      // containing block（见 docs/.../serp-bar-bottom-position-and-scroll-hide.md §4a），
-      // 导致 bottom:0 锚到祖先而非视口（小红书"不在页面底部"），且其层叠上下文困住 z-index
-      // （抖音栏被分享/设置浮层盖住）。挂到 body 脱离子树后这两者一并解决。
+      // 覆盖层（顶/底栏）例外：host 挂到 document.body（忽略 engine 锚点）。覆盖层是
+      // position:fixed 视口覆盖层，若挂进 engine 子树（如小红书 #search-input、抖音
+      // #search-result-container），页面祖先的 transform/filter/will-change/contain/
+      // backdrop-filter 会把它变成 containing block（见 docs/.../serp-bar-bottom-position-
+      // and-scroll-hide.md §4a），导致 top/bottom:0 锚到祖先而非视口（小红书"不在页面底部"），
+      // 且其层叠上下文困住 z-index（抖音栏被分享/设置浮层盖住）。挂到 body 脱离子树后
+      // 这两者一并解决。
       append: (anchor, root) => {
-        if (state.resolvedPosition === 'bottom') {
+        if (state.resolvedPosition !== 'inline') {
           (document.body ?? document.documentElement).appendChild(root);
           return;
         }
@@ -241,10 +253,10 @@ export default defineContentScript({
         mountedHost = shadowHost;
         mountedAnchorIndex = anchorsFor(state.engine).findIndex((c) => c.selector === strategy.selector);
         if (mountedAnchorIndex < 0) mountedAnchorIndex = 0;
-        // 顶栏才需要按 engine 锚点对齐内容列；底栏挂 body、position:fixed 全宽，
-        // syncAlignedHost 写的 --juso-serp-* 变量会被底栏 !important 全部忽略，纯冗余。
-        if (state.resolvedPosition !== 'bottom') syncAlignedHost(shadowHost, strategy);
-        // pageStyles only in top mode; bottom removes engine shims and pads the page.
+        // 仅内联才需按 engine 锚点对齐内容列；覆盖层（顶/底栏）挂 body、position:fixed
+        // 全宽，syncAlignedHost 写的 --juso-serp-* 变量会被覆盖层 !important 全部忽略，纯冗余。
+        if (state.resolvedPosition === 'inline') syncAlignedHost(shadowHost, strategy);
+        // pageStyles only in inline mode; top/bottom overlays remove engine shims and pad the page.
         applyPositionChrome(state.resolvedPosition);
         const mountEl = document.createElement('div');
         uiContainer.append(mountEl);
@@ -260,6 +272,7 @@ export default defineContentScript({
         lastScrollY = 0;
         removePageStyles();
         removeBottomPadStyles();
+        removeTopPadStyles();
         mounted?.root.unmount();
       },
     });
@@ -303,6 +316,7 @@ export default defineContentScript({
         lastScrollY = 0;
         removePageStyles();
         removeBottomPadStyles();
+        removeTopPadStyles();
       }
     };
 
@@ -318,9 +332,9 @@ export default defineContentScript({
           if (mountedHost && document.contains(mountedHost)) return false;
           safeRemove();
         }
-        // 底栏挂 document.body，与 engine 锚点无关：document.body 在就立即挂，
+        // 覆盖层（顶/底栏）挂 document.body，与 engine 锚点无关：document.body 在就立即挂，
         // 不受 remountBudget/engine 锚点是否存在限制（避免位置翻面后预算耗尽导致栏消失）。
-        if (state.resolvedPosition === 'bottom') {
+        if (state.resolvedPosition !== 'inline') {
           if (!document.body) return false;
           // revision 竞态兜底，与下方 engine 锚点路径一致。
           if (revision !== locationRevision) return false;
@@ -411,9 +425,9 @@ export default defineContentScript({
           detachRemountTimer = null;
           if (revision !== locationRevision) return;
           safeRemove();
-          // 底栏挂 body，重挂不依赖 engine 锚点/预算（见 mountIfReady 底栏快路径）；
-          // 顶栏仍受预算限制，防止敌对 SPA 无限重建拖垮扩展。
-          const canRemount = state.resolvedPosition === 'bottom' || remountBudget > 0;
+          // 覆盖层（顶/底栏）挂 body，重挂不依赖 engine 锚点/预算（见 mountIfReady 覆盖层快路径）；
+          // 内联仍受预算限制，防止敌对 SPA 无限重建拖垮扩展。
+          const canRemount = state.resolvedPosition !== 'inline' || remountBudget > 0;
           if (revision === locationRevision && canRemount) {
             mountWhenAnchorReady(revision);
           }
@@ -462,7 +476,7 @@ export default defineContentScript({
         return;
       }
       applyPositionChrome(state.resolvedPosition);
-      if (state.resolvedPosition !== 'bottom') syncAlignedHost(mountedHost, strategy);
+      if (state.resolvedPosition === 'inline') syncAlignedHost(mountedHost, strategy);
       if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
       watchHostDetachment(revision);
       watchLastResortUpgrade(revision);
@@ -485,21 +499,27 @@ export default defineContentScript({
 
     ctx.addEventListener(window, 'resize', () => {
       if (mountedHost && document.contains(mountedHost)) {
-        // 仅顶栏需按 engine 锚点重对齐；底栏全宽 fixed，重算 --juso-serp-* 是冗余。
-        if (state.resolvedPosition !== 'bottom') syncAlignedHost(mountedHost, strategy);
+        // 仅内联需按 engine 锚点重对齐；覆盖层全宽 fixed，重算 --juso-serp-* 是冗余。
+        if (state.resolvedPosition === 'inline') syncAlignedHost(mountedHost, strategy);
         const next = resolveBarPosition(state.barPositionPref, window.innerWidth);
         if (next !== state.resolvedPosition) {
-          // 位置翻面（top↔bottom）改变了 host 的物理挂载位置（body vs engine 锚点），
-          // 仅换 data-position 不够：必须 teardown + 重挂，让 append/onMount 按新模式
-          // 落点（onMount 内的 applyPositionChrome 会重盖 data-position + 切 pad/pageStyles）。
+          const wasInline = state.resolvedPosition === 'inline';
+          const willInline = next === 'inline';
           state.resolvedPosition = next;
-          if (ui.mounted) safeRemove();
-          mountWhenAnchorReady(locationRevision);
+          if (wasInline !== willInline) {
+            // 跨 body/引擎锚点边界：物理挂载位置变了，必须 teardown + 重挂。
+            if (ui.mounted) safeRemove();
+            mountWhenAnchorReady(locationRevision);
+          } else {
+            // top↔bottom：都挂 body，仅换 data-position + pad + re-render，无需重挂。
+            applyPositionChrome(next);
+            if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+          }
         }
       }
     });
 
-    // 底栏滚动隐藏：passive 监听，handler 内部按 resolvedPosition 早退。
+    // 覆盖层滚动隐藏：passive 监听，handler 内部按 resolvedPosition 早退。
     ctx.addEventListener(window, 'scroll', handleScrollHide, { passive: true });
 
     // 实时同步栏位偏好：用户在设置页切换 serpBarPosition 时，已打开的 SERP 标签
@@ -509,11 +529,17 @@ export default defineContentScript({
       state.barPositionPref = message.value;
       const next = resolveBarPosition(message.value, window.innerWidth);
       if (next === state.resolvedPosition) return;
-      // 同 resize：位置翻面需重挂以改变 host 物理位置（body vs engine 锚点）。
+      const wasInline = state.resolvedPosition === 'inline';
+      const willInline = next === 'inline';
       state.resolvedPosition = next;
       if (!mountedHost) return;
-      if (ui.mounted) safeRemove();
-      mountWhenAnchorReady(locationRevision);
+      if (wasInline !== willInline) {
+        if (ui.mounted) safeRemove();
+        mountWhenAnchorReady(locationRevision);
+      } else {
+        applyPositionChrome(next);
+        if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+      }
     };
     browser.runtime.onMessage.addListener(onPrefMessage);
     ctx.onInvalidated(() => {
@@ -535,7 +561,7 @@ interface BarState {
   resolvedTheme: 'light' | 'dark';
   stylePref: StylePref;
   barPositionPref: BarPositionPref;
-  resolvedPosition: 'top' | 'bottom';
+  resolvedPosition: 'top' | 'bottom' | 'inline';
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
@@ -587,7 +613,7 @@ function render(
       activeId: state.activeId,
       onSelect: onSelectSource,
       disabled,
-      bottomMode: state.resolvedPosition === 'bottom',
+      overlayPosition: state.resolvedPosition === 'inline' ? null : state.resolvedPosition,
     }),
   );
 }

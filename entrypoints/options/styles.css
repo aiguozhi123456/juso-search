@@ -1049,7 +1049,7 @@ body {
   clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
 
-/* ── 快切栏栏位切换（auto / top / bottom）：3 态图标滑动指示器 ── */
+/* ── 快切栏栏位切换（auto / top / inline / bottom）：4 态图标滑动指示器 ── */
 .bar-position-toggle {
   position: relative;
   display: inline-flex;

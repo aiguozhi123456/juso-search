@@ -5,11 +5,14 @@ import { baiduEngine } from '@/lib/engines/baidu';
 import {
   PAGE_STYLES_ID,
   BOTTOM_PAD_STYLES_ID,
+  TOP_PAD_STYLES_ID,
   injectPageStyles,
   pickAnchor,
   removePageStyles,
   injectBottomPadStyles,
   removeBottomPadStyles,
+  injectTopPadStyles,
+  removeTopPadStyles,
   resolveBarPosition,
   preferredAnchorCandidates,
   preferredAnchorsPresent,
@@ -34,6 +37,11 @@ function countPageStyleEls(): number {
 /** Helper: count <style#juso-serp-bottom-pad> currently in <head>. */
 function countBottomPadStyleEls(): number {
   return document.head.querySelectorAll(`style#${BOTTOM_PAD_STYLES_ID}`).length;
+}
+
+/** Helper: count <style#juso-serp-top-pad> currently in <head>. */
+function countTopPadStyleEls(): number {
+  return document.head.querySelectorAll(`style#${TOP_PAD_STYLES_ID}`).length;
 }
 
 describe('pickAnchor', () => {
@@ -233,9 +241,14 @@ describe('shouldMountForEngine (hidden engine gate)', () => {
 });
 
 describe('resolveBarPosition', () => {
-  it('explicit top always resolves to top regardless of width', () => {
+  it('explicit top always resolves to top (fixed overlay) regardless of width', () => {
     expect(resolveBarPosition('top', 320)).toBe('top');
     expect(resolveBarPosition('top', 1920)).toBe('top');
+  });
+
+  it('explicit inline always resolves to inline (engine anchor insertion) regardless of width', () => {
+    expect(resolveBarPosition('inline', 320)).toBe('inline');
+    expect(resolveBarPosition('inline', 1920)).toBe('inline');
   });
 
   it('explicit bottom always resolves to bottom regardless of width', () => {
@@ -247,16 +260,16 @@ describe('resolveBarPosition', () => {
     expect(resolveBarPosition('auto', 480)).toBe('bottom');
   });
 
-  it('auto just above the 480px boundary resolves to top', () => {
-    expect(resolveBarPosition('auto', 481)).toBe('top');
+  it('auto just above the 480px boundary resolves to inline', () => {
+    expect(resolveBarPosition('auto', 481)).toBe('inline');
   });
 
   it('auto on a narrow viewport resolves to bottom', () => {
     expect(resolveBarPosition('auto', 320)).toBe('bottom');
   });
 
-  it('auto on a wide viewport resolves to top', () => {
-    expect(resolveBarPosition('auto', 1920)).toBe('top');
+  it('auto on a wide viewport resolves to inline', () => {
+    expect(resolveBarPosition('auto', 1920)).toBe('inline');
   });
 });
 
@@ -305,5 +318,53 @@ describe('removeBottomPadStyles', () => {
     expect(() => removeBottomPadStyles(document)).not.toThrow();
 
     expect(countBottomPadStyleEls()).toBe(0);
+  });
+});
+
+describe('injectTopPadStyles', () => {
+  afterEach(() => {
+    removeTopPadStyles(document);
+  });
+
+  it('creates exactly one <style> in <head> containing padding-top', () => {
+    injectTopPadStyles(document);
+
+    const els = document.head.querySelectorAll<HTMLStyleElement>(`style#${TOP_PAD_STYLES_ID}`);
+    expect(els).toHaveLength(1);
+
+    const el = els[0]!;
+    expect(el.id).toBe(TOP_PAD_STYLES_ID);
+    expect(el.textContent).toContain('padding-top');
+  });
+
+  it('is idempotent: a second call replaces, does not duplicate', () => {
+    injectTopPadStyles(document);
+    injectTopPadStyles(document);
+
+    expect(countTopPadStyleEls()).toBe(1);
+  });
+});
+
+describe('removeTopPadStyles', () => {
+  beforeEach(() => {
+    // 起始态：head 不含目标 <style>。
+    removeTopPadStyles(document);
+  });
+
+  it('removes the <style> injected by injectTopPadStyles', () => {
+    injectTopPadStyles(document);
+    expect(countTopPadStyleEls()).toBe(1);
+
+    removeTopPadStyles(document);
+
+    expect(countTopPadStyleEls()).toBe(0);
+  });
+
+  it('is a no-op when no such element exists (does not throw)', () => {
+    expect(countTopPadStyleEls()).toBe(0);
+
+    expect(() => removeTopPadStyles(document)).not.toThrow();
+
+    expect(countTopPadStyleEls()).toBe(0);
   });
 });

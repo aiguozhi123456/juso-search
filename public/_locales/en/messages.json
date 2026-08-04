@@ -155,6 +155,7 @@
   "bar_position_group": { "message": "Bar position" },
   "bar_position_auto": { "message": "Auto" },
   "bar_position_top": { "message": "Top" },
+  "bar_position_inline": { "message": "Inline" },
   "bar_position_bottom": { "message": "Bottom" },
   "locale_group": { "message": "Language" },
   "locale_auto": { "message": "Auto" },

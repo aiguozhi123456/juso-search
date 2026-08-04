@@ -155,6 +155,7 @@
   "bar_position_group": { "message": "快切栏栏位" },
   "bar_position_auto": { "message": "自动" },
   "bar_position_top": { "message": "顶栏" },
+  "bar_position_inline": { "message": "内联" },
   "bar_position_bottom": { "message": "底栏" },
   "locale_group": { "message": "语言" },
   "locale_auto": { "message": "自动" },

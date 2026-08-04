@@ -269,6 +269,19 @@ describe('SourceSwitcher — grouped layout', () => {
       offsets.mockRestore();
     }
   });
+
+  // 内联（overlayPosition 省略/null）：容器不挂 data-overlay，浮层不带 fixed-up/fixed-down 类。
+  it('inline (overlayPosition omitted) has no data-overlay attribute and a plain flyout', () => {
+    const { container } = render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} />,
+    );
+    expect(container.querySelector('.source-switcher')).not.toHaveAttribute('data-overlay');
+    // 内联浮层走既有 .group-flyout 的 top:100% 向下展开，不得带 fixed 定位修饰类。
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /API 搜索/ }).parentElement!);
+    const flyout = container.querySelector('.group-flyout');
+    expect(flyout).not.toBeNull();
+    expect(flyout!.className).toBe('group-flyout');
+  });
 });
 
 describe('SourceSwitcher — click pin (top bar / search page)', () => {
@@ -400,19 +413,25 @@ describe('SourceSwitcher — click pin (top bar / search page)', () => {
   });
 });
 
-describe('SourceSwitcher — bottomMode', () => {
+describe('SourceSwitcher — bottom overlay (overlayPosition="bottom")', () => {
   const groupedConfig = defaultGroupConfig(sources.map((s) => s.id));
 
-  it('renders data-bottom="true" on .source-switcher', () => {
+  it('renders data-overlay="bottom" on .source-switcher and a fixed-up flyout', () => {
     const { container } = render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
     );
-    expect(container.querySelector('.source-switcher')).toHaveAttribute('data-bottom', 'true');
+    expect(container.querySelector('.source-switcher')).toHaveAttribute('data-overlay', 'bottom');
+    // 展开浮层：fixed flyout 类应为 fixed-up（锚定向上展开），不得带 fixed-down。
+    fireEvent.click(screen.getByRole('button', { name: /API 搜索/ }));
+    const flyout = container.querySelector('.group-flyout');
+    expect(flyout).not.toBeNull();
+    expect(flyout!.className).toContain('group-flyout--fixed-up');
+    expect(flyout!.className).not.toContain('group-flyout--fixed-down');
   });
 
   it('click group trigger opens flyout; second click closes', () => {
     render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
     );
     const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     // 收起：组内 source 不可见
@@ -424,9 +443,9 @@ describe('SourceSwitcher — bottomMode', () => {
   });
 
   // P0-2: 底栏下 focus 不应自动开层（否则触屏 focus→click 竞态导致首次点触空操作）。
-  it('focus on trigger does NOT open the flyout in bottomMode', () => {
+  it('focus on trigger does NOT open the flyout in the bottom overlay', () => {
     render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
     );
     const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
@@ -434,9 +453,9 @@ describe('SourceSwitcher — bottomMode', () => {
   });
 
   // P0-2: 键盘路径——focus 不开层，但 Enter/Space 应切换开层。
-  it('Enter on focused trigger opens the flyout in bottomMode', () => {
+  it('Enter on focused trigger opens the flyout in the bottom overlay', () => {
     render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
     );
     const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
@@ -445,9 +464,9 @@ describe('SourceSwitcher — bottomMode', () => {
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
   });
 
-  it('Space on focused trigger opens the flyout in bottomMode', () => {
+  it('Space on focused trigger opens the flyout in the bottom overlay', () => {
     render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
     );
     const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     aiTrigger.focus();
@@ -456,9 +475,87 @@ describe('SourceSwitcher — bottomMode', () => {
   });
 
   // P1-1: 页面（shadow 外）pointerdown 应关闭已展开的浮层。
-  it('pointerdown outside the group closes an open flyout in bottomMode', () => {
+  it('pointerdown outside the group closes an open flyout in the bottom overlay', () => {
     render(
-      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} bottomMode />,
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    // 在 document 上派发一个落在分组之外的 pointerdown（capture 监听应捕获并关闭）。
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    fireEvent.pointerDown(outside);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    document.body.removeChild(outside);
+  });
+});
+
+describe('SourceSwitcher — top overlay (overlayPosition="top")', () => {
+  const groupedConfig = defaultGroupConfig(sources.map((s) => s.id));
+
+  it('renders data-overlay="top" on .source-switcher and a fixed-down flyout', () => {
+    const { container } = render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+    );
+    expect(container.querySelector('.source-switcher')).toHaveAttribute('data-overlay', 'top');
+    // 展开浮层：fixed flyout 类应为 fixed-down（锚定向下展开），不得带 fixed-up。
+    fireEvent.click(screen.getByRole('button', { name: /API 搜索/ }));
+    const flyout = container.querySelector('.group-flyout');
+    expect(flyout).not.toBeNull();
+    expect(flyout!.className).toContain('group-flyout--fixed-down');
+    expect(flyout!.className).not.toContain('group-flyout--fixed-up');
+  });
+
+  it('click group trigger opens flyout; second click closes', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+    // 收起：组内 source 不可见
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    fireEvent.click(aiTrigger);
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+    fireEvent.click(aiTrigger);
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  // 覆盖层守卫：top 覆盖层与 bottom 共用——focus 不开层，避免触屏 focus→click 竞态。
+  it('focus on trigger does NOT open the flyout in the top overlay', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+    aiTrigger.focus();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  // 覆盖层键盘路径：focus 不开层，但 Enter/Space 应切换开层。
+  it('Enter on focused trigger opens the flyout in the top overlay', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+    aiTrigger.focus();
+    expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    fireEvent.keyDown(aiTrigger, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+
+  it('Space on focused trigger opens the flyout in the top overlay', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+    );
+    const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+    aiTrigger.focus();
+    fireEvent.keyDown(aiTrigger, { key: ' ' });
+    expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+  });
+
+  // 覆盖层守卫：页面（shadow 外）pointerdown 应关闭已展开的浮层。
+  it('pointerdown outside the group closes an open flyout in the top overlay', () => {
+    render(
+      <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
     );
     const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
     fireEvent.click(aiTrigger);

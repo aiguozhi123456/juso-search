@@ -45,11 +45,33 @@ function BottomIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/** 内联栏位图标：圆角框 + 居中填充条（内容区垂直居中）。 */
+function InlineIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <rect x="7" y="10.5" width="10" height="3" rx="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 type IconComponent = typeof MonitorIcon;
 
 const OPTIONS: { value: BarPositionPref; Icon: IconComponent; labelKey: keyof typeof MSG }[] = [
   { value: 'auto', Icon: MonitorIcon, labelKey: 'bar_position_auto' },
   { value: 'top', Icon: TopIcon, labelKey: 'bar_position_top' },
+  { value: 'inline', Icon: InlineIcon, labelKey: 'bar_position_inline' },
   { value: 'bottom', Icon: BottomIcon, labelKey: 'bar_position_bottom' },
 ];
 
@@ -61,7 +83,7 @@ interface IndicatorMetrics {
 }
 
 /**
- * 3 态快切栏栏位切换器：自动 / 顶栏 / 底栏。
+ * 4 态快切栏栏位切换器：自动 / 顶栏（覆盖）/ 内联 / 底栏。
  *
  * 指示器语言：用位置图标（显示器 / 顶栏框 / 底栏框）替代文字，更直观地表达栏位。
  * 复用 StyleToggle 的滑动指示器机制：

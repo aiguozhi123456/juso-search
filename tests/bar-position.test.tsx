@@ -52,6 +52,13 @@ describe('useBarPosition', () => {
     await vi.waitFor(() => expect(result.current.pref).toBe('bottom'));
   });
 
+  it('reads inline from storage', async () => {
+    mockRuntimeMessages();
+    vi.mocked(storage.getBarPositionPref).mockResolvedValue('inline');
+    const { result } = await renderUseBarPosition();
+    await vi.waitFor(() => expect(result.current.pref).toBe('inline'));
+  });
+
   it('setPref writes storage and updates pref optimistically', async () => {
     mockRuntimeMessages();
     const { result } = await renderUseBarPosition();
@@ -59,6 +66,15 @@ describe('useBarPosition', () => {
     act(() => result.current.setPref('bottom'));
     expect(result.current.pref).toBe('bottom');
     expect(storage.setBarPositionPref).toHaveBeenCalledWith('bottom');
+  });
+
+  it('setPref writes storage and updates pref optimistically for inline', async () => {
+    mockRuntimeMessages();
+    const { result } = await renderUseBarPosition();
+    await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
+    act(() => result.current.setPref('inline'));
+    expect(result.current.pref).toBe('inline');
+    expect(storage.setBarPositionPref).toHaveBeenCalledWith('inline');
   });
 
   it('rolls back pref when persist rejects', async () => {
@@ -81,6 +97,16 @@ describe('useBarPosition', () => {
       for (const l of listeners) l({ type: 'uiPrefChanged', key: 'serpBarPosition', value: 'bottom' });
     });
     await vi.waitFor(() => expect(result.current.pref).toBe('bottom'));
+  });
+
+  it('onChanged cross-tab: a valid remote inline serpBarPosition syncs pref', async () => {
+    const listeners = mockRuntimeMessages();
+    const { result } = await renderUseBarPosition();
+    await vi.waitFor(() => expect(result.current.pref).toBe('auto'));
+    act(() => {
+      for (const l of listeners) l({ type: 'uiPrefChanged', key: 'serpBarPosition', value: 'inline' });
+    });
+    await vi.waitFor(() => expect(result.current.pref).toBe('inline'));
   });
 
   it('onChanged ignores unknown newValue (validation branch)', async () => {

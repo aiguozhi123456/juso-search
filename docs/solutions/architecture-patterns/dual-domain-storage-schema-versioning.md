@@ -49,12 +49,12 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on thirteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on fifteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export const migrations: Migration[] = [
   // each entry: { version: N, migrate: (config) => config }
@@ -278,7 +278,7 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export async function ensureSchema(): Promise<void> {
   const { schemaVersion: v } = await browser.storage.local.get('schemaVersion');

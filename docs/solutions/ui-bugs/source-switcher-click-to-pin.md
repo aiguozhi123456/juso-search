@@ -6,11 +6,11 @@ module: SourceSwitcher
 problem_type: ui_bug
 component: frontend_stimulus
 severity: medium
-description: Source Group 分类 pill 点击固定（pin）交互在两模式下不一致：顶栏点击无效仅 hover 展开，底栏可 toggle 但 hover 移出延迟关闭。修复为 pinnedGroupId 状态 + 三分支状态机 + 120ms 延迟关闭检查。
+description: Source Group 分类 pill 点击固定（pin）交互在各模式下不一致：内联/搜索页点击无效仅 hover 展开，覆盖层可 toggle 但 hover 移出延迟关闭。修复为 pinnedGroupId 状态 + 三分支状态机 + 120ms 延迟关闭检查。
 symptoms:
-  - 顶栏（非 bottomMode）点击分类 pill 无反应，onClick 直接 return，仅 hover 展开且移开即收回
-  - 底栏（bottomMode/SERP 注入栏）点击可 toggle，但精指针 hover 移出后仍延迟关闭
-  - 两模式展开行为不一致：同一次点击在顶栏不固定、在底栏固定
+  - 内联/搜索页（非 overlayPosition）点击分类 pill 无反应，onClick 直接 return，仅 hover 展开且移开即收回
+  - 覆盖层（overlayPosition/SERP 注入栏）点击可 toggle，但精指针 hover 移出后仍延迟关闭
+  - 各模式展开行为不一致：同一次点击在内联不固定、在覆盖层固定
 root_cause: logic_error
 resolution_type: code_fix
 related_components:
@@ -29,14 +29,14 @@ tags:
 
 ## Problem
 
-统一快切栏（components/SourceSwitcher.tsx）的分组分类 pill 有两套交互语义：底栏（bottomMode，SERP 注入栏）点击可 toggle 展开，顶栏/搜索页（entrypoints/search/App.tsx）点击则无效——trigger 的 onClick 直接 return，只能 hover 展开，且鼠标一移出分组（120ms hover-intent 延迟）就收回。用户体感是"点击会导致收回而非固定，再点击、再移开还是会收回"。需求：点击分类后无论 hover 与否都保持展开（固定/pin），顶栏与底栏行为一致。
+统一快切栏（components/SourceSwitcher.tsx）的分组分类 pill 有两套交互语义：覆盖层（overlayPosition，SERP 注入栏）点击可 toggle 展开，内联/搜索页（entrypoints/search/App.tsx）点击则无效——trigger 的 onClick 直接 return，只能 hover 展开，且鼠标一移出分组（120ms hover-intent 延迟）就收回。用户体感是"点击会导致收回而非固定，再点击、再移开还是会收回"。需求：点击分类后无论 hover 与否都保持展开（固定/pin），内联与覆盖层行为一致。
 
 ## Symptoms
 
 - 顶栏/搜索页：点击分组 trigger 无任何语义（onClick 直接 return），展开只能靠 hover；鼠标移出后 120ms 延迟关闭，flyout 被收回。
 - 顶栏：点击不会把展开"固定"住，精指针用户点一下想锁定菜单，结果一移开就收，必须一直按着/悬停。
 - 底栏：点击可 toggle，但精指针下 hover 移出仍触发延迟关闭，与点击建立的"已展开"状态互相打架。
-- 两模式交互不一致：同样的 trigger，点击语义在顶栏是空操作、在底栏是 toggle；外部 pointerdown 关闭仅底栏启用。
+- 各模式交互不一致：同样的 trigger，点击语义在内联/搜索页是空操作、在覆盖层是 toggle；外部 pointerdown 关闭仅覆盖层启用。
 
 ## What Didn't Work
 
@@ -47,7 +47,7 @@ tags:
 
 ## Solution
 
-在 `openGroupId`（瞬态展开）之上新增 `pinnedGroupId` 状态（components/SourceSwitcher.tsx:67），不变量：`pinnedGroupId ≠ null ⟹ pinnedGroupId === openGroupId`（经 oracle 逐路径推演成立）。两模式共用同一套三分支 onToggle 状态机。
+在 `openGroupId`（瞬态展开）之上新增 `pinnedGroupId` 状态（components/SourceSwitcher.tsx:67），不变量：`pinnedGroupId ≠ null ⟹ pinnedGroupId === openGroupId`（经 oracle 逐路径推演成立）。各模式共用同一套三分支 onToggle 状态机。
 
 onToggle 三分支（父组件，SourceSwitcher.tsx:203）：
 
@@ -93,9 +93,9 @@ const scheduleClose = () => {
 };
 ```
 
-显式关闭路径统一走 `handleClose` 本地包装（cancelClose + onClose，SourceSwitcher.tsx:346）：Escape、外部 pointerdown、blur、选中组内源都会先取消挂起的延迟关闭定时器，避免旧定时器到期后再触发幂等 onClose。外部 pointerdown 关闭（document capture + composedPath 判断 groupRef/flyoutRef 是否包含目标）从仅底栏扩展为两模式统一（SourceSwitcher.tsx:386-402）。
+显式关闭路径统一走 `handleClose` 本地包装（cancelClose + onClose，SourceSwitcher.tsx:346）：Escape、外部 pointerdown、blur、选中组内源都会先取消挂起的延迟关闭定时器，避免旧定时器到期后再触发幂等 onClose。外部 pointerdown 关闭（document capture + composedPath 判断 groupRef/flyoutRef 是否包含目标）从仅覆盖层扩展为各模式统一（SourceSwitcher.tsx:386-402）。
 
-关闭路径全集：再点 trigger、Escape（焦点归还 trigger）、外部 pointerdown、选中组内源、scroll-hide（MutationObserver 观察 host data-hidden）、模式切换（bottomMode 变化时清空两组状态）。
+关闭路径全集：再点 trigger、Escape（焦点归还 trigger）、外部 pointerdown、选中组内源、scroll-hide（MutationObserver 观察 host data-hidden）、模式切换（overlayPosition 变化时清空两组状态）。
 
 ## Why This Works
 
@@ -115,11 +115,11 @@ const scheduleClose = () => {
 - 对含"瞬态 vs 固定"双生命周期的 UI 状态，优先拆两个状态并在组件头注释写明不变量，而不是给单一状态加 flag 堆分支——单一状态加 flag 无法在 render 期区分两种来源。
 - 事件回调里读"最新状态"一律走 ref（render 期写入、回调只读），不要闭包捕获 stale 值。
 - 新增显式关闭路径时，检查是否与延迟关闭/延迟打开定时器冲突：凡显式路径都必须先 cancelClose，并配套卸载清理（useEffect(() => () => cancelClose(), [])）。
-- 两模式共享的交互语义（点击 pin）放到共享组件实现，避免"顶栏一个行为、底栏一个行为"的模式分叉；模式差异（锚定方向、粗指针禁用 hover）留在 bottomMode 分支内。
+- 各模式共享的交互语义（点击 pin）放到共享组件实现，避免"内联一个行为、覆盖层一个行为"的模式分叉；模式差异（锚定方向、粗指针禁用 hover）留在 overlayPosition 分支内。
 
 ## Related Issues
 
-- [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — 锚点文档：§4d-4f 记录了本次改动所扩展的同一浮层状态机（hover-intent 120ms、touch focus/click 竞态、shadow-safe 外部关闭、scroll-hide 关浮层）。其 §4d onClick 代码示例与 §4e"外部关闭仅底栏"的表述已被本次改动取代，需刷新。
+- [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — 锚点文档：§4d-4f 记录了本次改动所扩展的同一浮层状态机（hover-intent 120ms、touch focus/click 竞态、shadow-safe 外部关闭、scroll-hide 关浮层）。其 §4d/§4e 的代码示例与表述已随本次改动同步刷新（统一为各模式 / overlayPosition）。
 - [source-group-layout-layer](../architecture-patterns/source-group-layout-layer.md) — Source Group Layout 布局层（pinned 平铺 vs grouped 折叠、projectLayout），pill 的交互描述（"hover flyout"）未包含点击固定语义。
 - [serp-switch-bar-and-unified-source-model](../architecture-patterns/serp-switch-bar-and-unified-source-model.md) — 两宿主（搜索页顶栏 vs shadow-DOM SERP 栏）结构与 projectLayout seam 的结构背景。
 - [serp-bottom-bar-body-mount](../ui-bugs/serp-bottom-bar-body-mount.md) — 底栏 flyout 的几何/层级背景（body mount、z-index max、group-flyout--fixed-up）。

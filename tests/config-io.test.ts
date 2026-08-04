@@ -153,6 +153,12 @@ describe('buildExportPayload', () => {
     expect(payload.serpBarPosition).toBe('bottom');
   });
 
+  it('reads a stored inline serpBarPosition value', async () => {
+    installStorage({ serpBarPosition: 'inline' });
+    const payload = await buildExportPayload();
+    expect(payload.serpBarPosition).toBe('inline');
+  });
+
   it('falls back activeSource through activeProvider and configured keys', async () => {
     installStorage({ providerKeys: { exa: 'exa-1' }, activeProvider: 'exa' });
     await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'exa' });
@@ -424,6 +430,20 @@ describe('parseImportPayload', () => {
   it('rejects an invalid serpBarPosition value', () => {
     const result = parseImportPayload(validPayload({ serpBarPosition: 'side' as never }));
     expect(result).toEqual({ ok: false, error: 'invalid_bar_position' });
+  });
+
+  it('accepts an inline serpBarPosition value (renamed from legacy top)', () => {
+    const result = parseImportPayload(validPayload({ serpBarPosition: 'inline' }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.serpBarPosition).toBe('inline');
+  });
+
+  it('remaps a legacy v7 "top" serpBarPosition to inline before validation', () => {
+    // v7 及更早导出里 'top' 表示内联引擎锚点插入；v8 起该语义改名 'inline'，
+    // 导入时必须先做手术式重映射，否则 'top' 会命中 invalid_bar_position 校验。
+    const result = parseImportPayload(validPayload({ schemaVersion: 7, serpBarPosition: 'top' }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.serpBarPosition).toBe('inline');
   });
 
   it('accepts a missing serpBarPosition field (legacy export)', () => {

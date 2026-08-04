@@ -6,7 +6,7 @@ import { isUiPrefChangedMessage } from './ui-pref-sync';
 export type { BarPositionPref };
 
 /**
- * 快切栏栏位偏好：auto（窄屏自动底栏，默认）/ top / bottom。
+ * 快切栏栏位偏好：auto（默认：桌面解析为内联，窄屏 ≤480px 解析为底栏）/ top（固定覆盖顶栏）/ inline（内联引擎锚点插入）/ bottom（固定覆盖底栏）。
  *
  * 与 useStyle 的差异：bar position 仅由内容脚本消费，不写入 options 页 DOM，
  * 因此无 dataset 副作用。其余约定与 useStyle 一致：

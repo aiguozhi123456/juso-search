@@ -298,8 +298,15 @@ describe('storage: barPosition pref', () => {
     expect(await getBarPositionPref()).toBe('top');
     await setBarPositionPref('bottom');
     expect(await getBarPositionPref()).toBe('bottom');
+    await setBarPositionPref('inline');
+    expect(await getBarPositionPref()).toBe('inline');
     await setBarPositionPref('auto');
     expect(await getBarPositionPref()).toBe('auto');
+  });
+
+  it('returns inline when stored inline', async () => {
+    await browser.storage.local.set({ serpBarPosition: 'inline' });
+    expect(await getBarPositionPref()).toBe('inline');
   });
 
   it('rejects unknown stored values, falling back to auto', async () => {

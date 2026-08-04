@@ -45,7 +45,7 @@ import { isRegisteredAiEngineId } from './ai-engines/registry';
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
 const LOCALE_VALUES = new Set<LocalePref>(['auto', 'zh_CN', 'en']);
-const BAR_POSITION_VALUES = new Set<BarPositionPref>(['auto', 'top', 'bottom']);
+const BAR_POSITION_VALUES = new Set<BarPositionPref>(['auto', 'top', 'inline', 'bottom']);
 const DEFAULT_ENGINE_ID: EngineId = 'google';
 const MAX_IMPORT_BYTES = 256 * 1024;
 /** 导入可接受的最旧 schema 版本（v3 遗留，无 siteEngines/groupConfig）。与 CURRENT_SCHEMA_VERSION 构成连续支持区间。 */
@@ -148,6 +148,9 @@ export function parseImportPayload(raw: unknown): ParseResult {
   if (typeof schemaVersion !== 'number' || schemaVersion < MIN_SUPPORTED_SCHEMA_VERSION || schemaVersion > CURRENT_SCHEMA_VERSION) {
     return { ok: false, error: 'schema_version_mismatch' };
   }
+  // 旧备份(v<8)的 'top' 语义为内联引擎锚点插入；v8 起 'top' 重定义为固定覆盖顶栏。
+  // 导入旧备份时 remap 'top'→'inline'，保持旧备份语义不变（与新 'top' 覆盖语义区分）。
+  if (schemaVersion < 8 && obj.serpBarPosition === 'top') obj.serpBarPosition = 'inline';
   const pk = obj.providerKeys;
   if (!pk || typeof pk !== 'object' || Array.isArray(pk)) {
     return { ok: false, error: 'invalid_provider_keys' };

@@ -73,7 +73,7 @@ export const serpBarStyles = `
  * 在 #search-toolbar-container 内，由 pageStyles 把该工具栏整体下移腾出栏位。
  * left/width 用视口绝对坐标（--juso-serp-left），对齐搜索内容列（#search-content-area），
  * 不能用相对父元素的 --juso-serp-offset-left（fixed 的 containing block 是 viewport）。 */
-:host([data-engine="douyin"]) {
+:host([data-engine="douyin"][data-position="inline"]) {
   position: fixed !important;
   top: 56px !important;
   left: var(--juso-serp-left, 72px) !important;
@@ -279,6 +279,73 @@ export const serpBarStyles = `
   width: 100% !important;
   max-width: none !important;
 }
+/* 顶栏覆盖层：与底栏对称；page pad 由 #juso-serp-top-pad 让出栏高。
+ * 放在底栏块之后，等特异性下覆盖抖音 inline 的 top:56px。 */
+:host([data-position="top"]) {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  max-width: none !important;
+  z-index: 2147483647 !important;
+  background: var(--bg) !important;
+  background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
+  box-sizing: border-box !important;
+  padding: 4px 8px !important;
+  padding-top: calc(4px + env(safe-area-inset-top, 0px)) !important;
+  padding-left: calc(8px + env(safe-area-inset-left, 0px)) !important;
+  padding-right: calc(8px + env(safe-area-inset-right, 0px)) !important;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.1) !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+  transition: transform 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+:host([data-position="top"][data-hidden="true"]) {
+  transform: translateY(-100%) !important;
+}
+:host([data-engine="douyin"][data-position="top"]) {
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+:host([data-position="top"]) .source-switcher {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+:host([data-position="top"]) .switcher-track {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 2px 4px !important;
+  gap: 2px !important;
+  /* 半透明底色提供"磨砂"观感；不放 backdrop-filter——它是 fixed flyout 的祖先，
+   * 会建立 containing block 并配合 overflow-y:hidden 裁切向上浮层。host 同理不带。 */
+  background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
+}
+:host([data-position="top"]) .switcher-track::-webkit-scrollbar {
+  display: none !important;
+}
+/* 扁栏 chip：略小于 tip 的加厚 touch，仍可点。 */
+:host([data-position="top"]) .source-switcher button,
+:host([data-position="top"]) .source-switcher .group-trigger {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  flex-shrink: 0 !important;
+}
 :host([data-position="bottom"]) .source-switcher {
   display: block !important;
   width: 100% !important;
@@ -325,5 +392,15 @@ export const serpBarStyles = `
   padding-top: 4px !important;
   padding-bottom: 6px !important;
   box-shadow: 0 -6px 20px rgba(0,0,0,0.15) !important;
+}
+/* fixed 向下 flyout（顶栏）：位置由 JS 写入 left/top；样式只负责外观。
+ * z-index 与 host 同取 int32 最大值（同 fixed-up 理由）。 */
+:host([data-position="top"]) .group-flyout--fixed-down {
+  position: fixed !important;
+  bottom: auto !important;
+  z-index: 2147483647 !important;
+  padding-top: 6px !important;
+  padding-bottom: 4px !important;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15) !important;
 }
 `;

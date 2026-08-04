@@ -140,11 +140,35 @@ export function removeBottomPadStyles(doc: Document = document): void {
   doc.head.querySelector(`style#${BOTTOM_PAD_STYLES_ID}`)?.remove();
 }
 
-/** auto 模式：视口宽度 <= 480px 时用底栏，否则顶栏。 */
-export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number): 'top' | 'bottom' {
+/** 顶栏垫高样式 <style> 的 id（与 bottom pad / engine pageStyles 分离，避免互相覆盖）。 */
+export const TOP_PAD_STYLES_ID = 'juso-serp-top-pad';
+
+/** 顶栏 footprint（与底栏同源：上下 padding ~4px×2 + chip ~28px ≈ 36px，用 40px 留余量）。 */
+export const TOP_BAR_PAD_PX = 40;
+
+/** 注入顶栏垫高样式：顶栏 position:fixed 覆盖页面顶部，需给 html 加 padding-top
+ *  让出栏高。叠加 env(safe-area-inset-top) 适配刘海/状态条。 */
+export function injectTopPadStyles(doc: Document = document): void {
+  const existing = doc.head.querySelector<HTMLStyleElement>(`style#${TOP_PAD_STYLES_ID}`);
+  if (existing) existing.remove();
+  const styleEl = doc.createElement('style');
+  styleEl.id = TOP_PAD_STYLES_ID;
+  styleEl.textContent = `html{padding-top:calc(${TOP_BAR_PAD_PX}px + env(safe-area-inset-top,0px)) !important}`;
+  doc.head.append(styleEl);
+}
+
+/** 移除顶栏垫高样式。 */
+export function removeTopPadStyles(doc: Document = document): void {
+  doc.head.querySelector(`style#${TOP_PAD_STYLES_ID}`)?.remove();
+}
+
+/** auto 模式：视口宽度 <= 480px 时用底栏，否则内联（无感：保持默认体验不变）。
+ *  'top' = 固定覆盖顶栏（与底栏对称）；'inline' = 内联引擎锚点插入；'bottom' = 固定覆盖底栏。 */
+export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number): 'top' | 'bottom' | 'inline' {
   if (pref === 'top') return 'top';
+  if (pref === 'inline') return 'inline';
   if (pref === 'bottom') return 'bottom';
-  return viewportWidth <= 480 ? 'bottom' : 'top';
+  return viewportWidth <= 480 ? 'bottom' : 'inline';
 }
 
 /**

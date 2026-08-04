@@ -103,14 +103,15 @@ describe('ensureSchema: downgrade tolerance', () => {
 describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(6);
+      expect(mod.migrations).toHaveLength(7);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
       expect(mod.migrations[2].version).toBe(3);
       expect(mod.migrations[3].version).toBe(4);
       expect(mod.migrations[4].version).toBe(5);
       expect(mod.migrations[5].version).toBe(6);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(7);
+      expect(mod.migrations[6].version).toBe(7);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(8);
     });
   });
 
@@ -171,6 +172,26 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('v6->v7 migration does not duplicate AI engines already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['ai:grok', 'ai:gemini'] }, 6, 7, migrations);
     expect(out.sourceHidden).toEqual(['ai:grok', 'ai:gemini', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao']);
+  });
+
+  it('v7->v8 migration remaps legacy "top" serpBarPosition to inline', () => {
+    // v7 的 'top' 表示内联引擎锚点插入；v8 起该语义改名 'inline'，'top' 变为固定覆盖顶栏。
+    const once = migrateConfig({ serpBarPosition: 'top' }, 7, 8, migrations);
+    const twice = migrateConfig(once, 7, 8, migrations);
+    expect(once.serpBarPosition).toBe('inline');
+    expect(twice).toEqual(once);
+  });
+
+  it('v7->v8 migration leaves bottom serpBarPosition unchanged', () => {
+    const out = migrateConfig({ serpBarPosition: 'bottom' }, 7, 8, migrations);
+    expect(out.serpBarPosition).toBe('bottom');
+  });
+
+  it('v7->v8 migration leaves inline serpBarPosition unchanged (idempotent)', () => {
+    const once = migrateConfig({ serpBarPosition: 'inline' }, 7, 8, migrations);
+    const twice = migrateConfig(once, 7, 8, migrations);
+    expect(once.serpBarPosition).toBe('inline');
+    expect(twice).toEqual(once);
   });
 
   it('v3->v4 adds explicit empty Site Engine definitions', () => {
