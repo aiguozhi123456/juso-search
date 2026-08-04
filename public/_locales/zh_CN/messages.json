@@ -156,6 +156,7 @@
   "opts_about_license": { "message": "开源协议 · MPL-2.0" },
   "opts_about_acknowledgements_heading": { "message": "致谢" },
   "opts_about_acknowledgements_text": { "message": "SERP 切换栏的注入锚点思路参考了 searchEngineJump（MIT 许可）。本扩展的实现独立编写，与原脚本不共享代码。" },
+  "opts_about_ack_ai_text": { "message": "AI 对话引擎（DeepSeek / ChatGPT / Gemini / 豆包）的输入填充与提交方式，参考了社区油猴脚本与公开技术文章，如 给AI搜索网站添加q查询参数（MIT 许可）、DeepSeek Prompt Automation、豆包自动发送助手（MIT 许可）等。本扩展实现独立编写，与上述来源不共享代码。" },
   "open_settings": { "message": "设置" },
   "theme_group": { "message": "主题" },
   "theme_auto": { "message": "自动" },

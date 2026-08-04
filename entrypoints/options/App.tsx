@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
@@ -23,7 +23,7 @@ import { CustomEngineManager } from '@/components/CustomEngineManager';
 import { ProviderInstanceManager } from '@/components/ProviderInstanceManager';
 import { Wordmark } from '@/components/Wordmark';
 import { SearchIcon, SettingsIcon, InfoIcon, ExternalLinkIcon, BrandMark } from '@/components/icons';
-import { t, MSG } from '@/lib/i18n';
+import { t, MSG, getCurrentLocale, type Locale } from '@/lib/i18n';
 
 function KeyIcon({ size = 16 }: { size?: number }) {
   return (
@@ -59,7 +59,50 @@ const ABOUT_LINKS = {
   store: 'https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji',
   docs: 'https://github.com/aiguozhi123456/juso-search/blob/main/docs/DEVELOPMENT.md',
   searchEngineJump: 'https://greasyfork.org/zh-CN/scripts/27752-searchenginejump',
+  aiScriptQParam: 'https://greasyfork.org/zh-CN/scripts/550940',
+  aiScriptDeepSeek: 'https://gist.github.com/orca131/7f4dd7f2ec377c09cdb8b0ad5cd10e68',
+  aiScriptDoubao: 'https://greasyfork.org/zh-CN/scripts/541111',
 } as const;
+
+/** 致谢区 AI 引擎段落：每个 locale 的脚本名 token → 外链。
+ *  token 即文案中出现的可见脚本名（两个脚本名在中英文下不同），按 locale 提供映射；
+ *  renderAckLinks 在渲染时按 token 切分文案并插入链接，避免硬编码某种语言语序。 */
+const AI_ACK_LINKS: Record<Locale, Record<string, string>> = {
+  zh_CN: {
+    '给AI搜索网站添加q查询参数': ABOUT_LINKS.aiScriptQParam,
+    'DeepSeek Prompt Automation': ABOUT_LINKS.aiScriptDeepSeek,
+    '豆包自动发送助手': ABOUT_LINKS.aiScriptDoubao,
+  },
+  en: {
+    'Add q query parameter to AI search sites': ABOUT_LINKS.aiScriptQParam,
+    'DeepSeek Prompt Automation': ABOUT_LINKS.aiScriptDeepSeek,
+    'Doubao Auto-Send Assistant': ABOUT_LINKS.aiScriptDoubao,
+  },
+};
+
+/** 把本地化文案中出现的 token 子串替换为外链。
+ *  与既有 searchEngineJump 段落的 split/interleave 同构，扩展为多 token：
+ *  token 即文案中可见文本（各 locale 可能不同），由调用方按 locale 提供 token→URL 映射。 */
+function renderAckLinks(text: string, tokenUrls: Record<string, string>): ReactNode[] {
+  const tokens = Object.keys(tokenUrls);
+  if (tokens.length === 0) return [text];
+  // 转义正则元字符；按长度降序拼接，避免短 token 误匹配长 token 的子串。
+  const pattern = new RegExp(
+    `(${tokens
+      .map((tok) => tok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .sort((a, b) => b.length - a.length)
+      .join('|')})`,
+  );
+  return text.split(pattern).map((part, i) =>
+    tokenUrls[part] ? (
+      <a key={i} className="about-ack-link" href={tokenUrls[part]} target="_blank" rel="noopener noreferrer">
+        {part}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
 
 export default function App() {
   const providers = allProviders();
@@ -449,6 +492,9 @@ export default function App() {
                     )}
                   </span>
                 ))}
+            </p>
+            <p className="about-ack-text">
+              {renderAckLinks(t(MSG.opts_about_ack_ai_text), AI_ACK_LINKS[getCurrentLocale()])}
             </p>
           </section>
           </>
