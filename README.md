@@ -7,7 +7,7 @@
 [![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
 
-[English](README.en.md)
+**简体中文** | [English](README.en.md)
 
 > **一面为人，一面为智能体。**
 

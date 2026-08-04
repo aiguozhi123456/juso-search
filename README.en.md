@@ -7,7 +7,7 @@
 [![WXT](https://img.shields.io/badge/Built%20with-WXT-6B46C1.svg)](https://wxt.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/aiguozhi123456/juso-search/pulls)
 
-[中文](README.md)
+[简体中文](README.md) | **English**
 
 > **Search with equal focus on people and agents.**
 
