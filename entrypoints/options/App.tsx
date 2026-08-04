@@ -22,7 +22,7 @@ import { SiteEngineManager } from '@/components/SiteEngineManager';
 import { CustomEngineManager } from '@/components/CustomEngineManager';
 import { ProviderInstanceManager } from '@/components/ProviderInstanceManager';
 import { Wordmark } from '@/components/Wordmark';
-import { SearchIcon, SettingsIcon } from '@/components/icons';
+import { SearchIcon, SettingsIcon, InfoIcon, ExternalLinkIcon, BrandMark } from '@/components/icons';
 import { t, MSG } from '@/lib/i18n';
 
 function KeyIcon({ size = 16 }: { size?: number }) {
@@ -46,6 +46,20 @@ function KeyIcon({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
+
+/** 安全读取扩展版本号。测试环境（fake-browser）无 getManifest，需 typeof 守卫。 */
+function getAppVersion(): string {
+  if (typeof browser === 'undefined') return '';
+  return browser?.runtime?.getManifest?.()?.version ?? '';
+}
+
+/** 关于页外链常量。 */
+const ABOUT_LINKS = {
+  github: 'https://github.com/aiguozhi123456/juso-search',
+  store: 'https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji',
+  docs: 'https://github.com/aiguozhi123456/juso-search/blob/main/docs/DEVELOPMENT.md',
+  searchEngineJump: 'https://greasyfork.org/zh-CN/scripts/27752-searchenginejump',
+} as const;
 
 export default function App() {
   const providers = allProviders();
@@ -71,7 +85,8 @@ export default function App() {
    const navGroups = [
      { id: 'search', label: '搜索', icon: <SearchIcon size={16} /> },
      { id: 'keys', label: '密钥', icon: <KeyIcon size={16} /> },
-     { id: 'general', label: '通用', icon: <SettingsIcon size={16} /> }
+     { id: 'general', label: '通用', icon: <SettingsIcon size={16} /> },
+     { id: 'about', label: t(MSG.opts_about_heading), icon: <InfoIcon size={16} /> }
    ];
 
   useEffect(() => {
@@ -362,6 +377,79 @@ export default function App() {
           <section data-section="config">
             <h2>{t(MSG.opts_config_io_heading)}</h2>
             <ConfigExportImport onImported={syncConfig} />
+          </section>
+          </>
+          )}
+
+          {activeGroup === 'about' && (
+          <>
+          <section data-section="about-brand" className="about-brand-hero">
+            <div className="about-brand-mark" aria-hidden="true">
+              <BrandMark size={48} />
+            </div>
+            <div className="about-brand-body">
+              <div className="about-brand-title">
+                <span className="about-brand-wordmark">{t(MSG.search_page_title)}</span>
+                {getAppVersion() && (
+                  <span className="about-version-badge">v{getAppVersion()}</span>
+                )}
+              </div>
+              <p className="about-brand-tagline">{t(MSG.opts_about_tagline)}</p>
+              <p className="about-brand-description">{t(MSG.opts_about_description)}</p>
+            </div>
+          </section>
+
+          <section data-section="about-links">
+            <h2>{t(MSG.opts_about_links_heading)}</h2>
+            <div className="about-links-list">
+              <a className="about-link-row" href={ABOUT_LINKS.github} target="_blank" rel="noopener noreferrer">
+                <span className="about-link-label">{t(MSG.opts_about_link_github)}</span>
+                <ExternalLinkIcon size={14} />
+              </a>
+              <a className="about-link-row" href={ABOUT_LINKS.store} target="_blank" rel="noopener noreferrer">
+                <span className="about-link-label">{t(MSG.opts_about_link_store)}</span>
+                <ExternalLinkIcon size={14} />
+              </a>
+              <a className="about-link-row" href={ABOUT_LINKS.docs} target="_blank" rel="noopener noreferrer">
+                <span className="about-link-label">{t(MSG.opts_about_link_docs)}</span>
+                <ExternalLinkIcon size={14} />
+              </a>
+            </div>
+          </section>
+
+          <section data-section="about-tech">
+            <h2>{t(MSG.opts_about_tech_heading)}</h2>
+            <div className="about-tech-list">
+              <div className="about-tech-row">
+                <span className="about-tech-label">{t(MSG.opts_about_tech_stack)}</span>
+              </div>
+              <div className="about-tech-row">
+                <span className="about-tech-label">{t(MSG.opts_about_license)}</span>
+              </div>
+            </div>
+          </section>
+
+          <section data-section="about-ack">
+            <h2>{t(MSG.opts_about_acknowledgements_heading)}</h2>
+            <p className="about-ack-text">
+              {t(MSG.opts_about_acknowledgements_text)
+                .split('searchEngineJump')
+                .map((part, i, arr) => (
+                  <span key={i}>
+                    {part}
+                    {i < arr.length - 1 && (
+                      <a
+                        className="about-ack-link"
+                        href={ABOUT_LINKS.searchEngineJump}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        searchEngineJump
+                      </a>
+                    )}
+                  </span>
+                ))}
+            </p>
           </section>
           </>
           )}

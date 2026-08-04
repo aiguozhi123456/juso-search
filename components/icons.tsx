@@ -192,3 +192,25 @@ export function GripIcon({ size }: IconProps) {
     </Base>
   );
 }
+
+/** 信息图标（Lucide info 风格）：圆圈 + i，用于「关于」导航。 */
+export function InfoIcon({ size }: IconProps) {
+  return (
+    <Base size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </Base>
+  );
+}
+
+/** 外链图标（Lucide external-link 风格）：方框 + 右上箭头，暗示新窗口打开。 */
+export function ExternalLinkIcon({ size }: IconProps) {
+  return (
+    <Base size={size}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </Base>
+  );
+}

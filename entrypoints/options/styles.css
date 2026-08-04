@@ -1356,6 +1356,14 @@ body {
   .options section {
     padding: var(--space-3) var(--space-4);
   }
+  .options .about-brand-hero {
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-4);
+  }
+  .about-brand-mark {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1373,6 +1381,148 @@ body {
   .key-row__max-results > label {
     flex-basis: 100%;             /* 标签独占一行，输入与按钮换行到下方 */
   }
+}
+
+/* ── 关于页 ──────────────────────────────────────────
+   设计意图：品牌区作为视觉焦点，用 brand-softer 底色 + brand 左边框营造
+   仪式感；其余区块沿用标准 section 卡片，保持一致性。
+   注意：.about-brand-hero 需加 .options 前缀提升特异性，否则会被
+   .options section 的 background/padding/border 覆盖。 */
+.options .about-brand-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-5);
+  background: var(--brand-softer);
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid var(--brand);
+}
+.about-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--brand);
+}
+.about-brand-body {
+  flex: 1;
+  min-width: 0;
+}
+.about-brand-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.about-brand-wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.about-version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.about-brand-tagline {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-md);
+  color: var(--muted);
+  line-height: 1.5;
+}
+.about-brand-description {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  line-height: 1.65;
+  opacity: 0.85;
+}
+
+/* ── 链接区 ── */
+.about-links-list {
+  border-top: 1px solid var(--border-soft);
+}
+.about-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--fg);
+  text-decoration: none;
+  font-size: var(--text-md);
+  font-weight: 500;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.about-link-row:last-child {
+  border-bottom: none;
+}
+.about-link-row:hover {
+  color: var(--brand);
+}
+.about-link-row .about-link-label {
+  flex: 1;
+  min-width: 0;
+}
+.about-link-row svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  opacity: 0.6;
+  transition: color var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+}
+.about-link-row:hover svg {
+  color: var(--brand);
+  opacity: 1;
+}
+
+/* ── 技术信息区 ── */
+.about-tech-list {
+  border-top: 1px solid var(--border-soft);
+}
+.about-tech-row {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: var(--text-sm);
+}
+.about-tech-row:last-child {
+  border-bottom: none;
+}
+.about-tech-label {
+  color: var(--fg);
+}
+
+/* ── 致谢区 ── */
+.about-ack-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.65;
+}
+.about-ack-link {
+  color: var(--brand);
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.about-ack-link:hover {
+  opacity: 0.75;
 }
 
 /* ── 彩色风格：设置区块按功能拥有稳定实色 ────────────────────────── */
@@ -1406,6 +1556,8 @@ body {
 [data-style="colorful"] .options-nav-item[data-group="keys"].active::before { background: var(--color-yellow); }
 [data-style="colorful"] .options-nav-item[data-group="general"].active { color: var(--color-violet); background: var(--color-violet-soft); }
 [data-style="colorful"] .options-nav-item[data-group="general"].active::before { background: var(--color-violet); }
+[data-style="colorful"] .options-nav-item[data-group="about"].active { color: var(--color-rose); background: var(--color-rose-soft); }
+[data-style="colorful"] .options-nav-item[data-group="about"].active::before { background: var(--color-rose); }
 [data-style="colorful"] .options section {
   border-left: 3px solid var(--section-color);
 }
@@ -1419,6 +1571,10 @@ body {
 [data-style="colorful"] .options section[data-section="provider-instances"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="config"] { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
+[data-style="colorful"] .options section[data-section="about-brand"] { --section-color: var(--brand); --section-soft: var(--brand-soft); }
+[data-style="colorful"] .options section[data-section="about-links"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
+[data-style="colorful"] .options section[data-section="about-tech"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
+[data-style="colorful"] .options section[data-section="about-ack"] { --section-color: var(--color-rose); --section-soft: var(--color-rose-soft); }
 [data-style="colorful"] .options section h2 { color: var(--section-color); }
 [data-style="colorful"] .options section h2::before { background: var(--section-color); }
 
@@ -1464,6 +1620,16 @@ body {
   background: var(--color-violet-soft);
 }
 
+/* 关于页在彩色风格下：品牌 mark 三条带分色（与 Wordmark 一致），
+   链接/致谢 hover 跟随所在 section 的签名色。 */
+[data-style="colorful"] .about-brand-mark { color: var(--color-red); }
+[data-style="colorful"] .about-brand-mark rect:nth-child(1) { fill: var(--color-red); }
+[data-style="colorful"] .about-brand-mark rect:nth-child(2) { fill: var(--color-orange); }
+[data-style="colorful"] .about-brand-mark rect:nth-child(3) { fill: var(--color-blue); }
+[data-style="colorful"] .about-link-row:hover { color: var(--section-color); }
+[data-style="colorful"] .about-link-row:hover svg { color: var(--section-color); }
+[data-style="colorful"] .about-ack-link { color: var(--section-color); }
+
 @media (max-width: 768px) {
   [data-style="colorful"] .options-nav-item.active {
     background: var(--color-blue);
@@ -1472,4 +1638,5 @@ body {
   [data-style="colorful"] .options-nav-item[data-group="search"].active { background: var(--color-blue); }
   [data-style="colorful"] .options-nav-item[data-group="keys"].active { background: var(--color-yellow); }
   [data-style="colorful"] .options-nav-item[data-group="general"].active { background: var(--color-violet); }
+  [data-style="colorful"] .options-nav-item[data-group="about"].active { background: var(--color-rose); }
 }
