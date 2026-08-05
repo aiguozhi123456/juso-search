@@ -89,7 +89,9 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 
 **方案 1（内部通讯 / 一次性握手）暂缓**：content script 不信任 URL 的 `?q=`、改为只响应扩展自己发起的导航（发起方写一次性 nonce→query 到 `chrome.storage.session`，worker resolve-and-consume）。已验证技术成立、无致命 MV3 坑，但：content script 默认不能直读 session storage（须 worker 中转）、App.tsx 有 5 处 `location.assign` 需收敛、doubao nonce 需 navEntry 兜底、ChatGPT 须同时保留 `?q=`——成本 ~200–300 行，为收窄后的残余风险付费不划算。**重启触发条件**：(a) 出现实际滥用报告；或 (b) 这些站点中任一家把 `?q=` 变成原生约定（野外链接变真实）。届时按上述设计直接执行。
 
-**已拒绝的替代**：注入前 toast 确认（在第三方站新增可见 UI 面、反射性点确认即失效）；「仅填充不提交」开关（砍掉功能价值、ChatGPT 注入器变 no-op，且不修同意权缺口——真正的缺口已由可见性门控修复）。
+**已拒绝的替代**：注入前 toast 确认（在第三方站新增可见 UI 面、反射性点确认即失效）。
+
+> **后续更新（2026-08-05）**：「仅填充不提交」开关后来以不同设计实现——见 [./ai-engine-enter-param-auto-submit-contract.md](./ai-engine-enter-param-auto-submit-contract.md)。新设计通过 `enter=1` URL 参数契约解耦自动提交与原生预填：开关默认 ON（不砍功能价值），关闭时 URL 不带 `enter=1`、content script 仅预填不提交（ChatGPT 注入器仍聚焦 + 清参，非 no-op）。同意权缺口仍由可见性门控修复，开关是额外的行为控制层。
 
 ## 社区来源与协议（注入器技术出处）
 

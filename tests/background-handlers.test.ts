@@ -6,6 +6,50 @@ import { buildSafeSearchUrl } from '@/lib/search-page-url';
 
 const EXT_ORIGIN = 'chrome-extension://fake-id';
 
+// background.ts 的 handler 都包在 defineBackground 闭包里（WXT 自动导入，vitest 不可直接 import）。
+// 这里 mock messaging/gateway，stub defineBackground 立即执行回调，动态 import 后断言
+// setAiAutoEnter 的注册与委托（对齐 agent-bridge-gating.test.ts 的「复制逻辑」模式）。
+const mockedHandleSetAiAutoEnter = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('@/lib/messaging', () => ({ onMessage: vi.fn() }));
+
+vi.mock('@/lib/gateway', () => ({
+  handleAiInjectAllowed: vi.fn(),
+  handleClearSearchCache: vi.fn(),
+  handleDeleteCachedSearch: vi.fn(),
+  handleDeleteProviderKey: vi.fn(),
+  handleDeleteSiteEngine: vi.fn(),
+  handleCreateSiteEngine: vi.fn(),
+  handleCreateCustomEngine: vi.fn(),
+  handleUpdateCustomEngine: vi.fn(),
+  handleDeleteCustomEngine: vi.fn(),
+  handleCreateProviderInstance: vi.fn(),
+  handleUpdateProviderInstance: vi.fn(),
+  handleDeleteProviderInstance: vi.fn(),
+  handleExportConfig: vi.fn(),
+  handleGetCachedSearchEntry: vi.fn(),
+  handleGetProviderConfig: vi.fn(),
+  handleGetSearchCacheSummaries: vi.fn(),
+  handleImportConfig: vi.fn(),
+  handleListAgentInstances: vi.fn(),
+  handleListAgentProviders: vi.fn(),
+  handlePreviewImport: vi.fn(),
+  handleSaveProviderKey: vi.fn(),
+  handleSearch: vi.fn(),
+  handleSearchInstance: vi.fn(),
+  handleSetActiveProvider: vi.fn(),
+  handleSetActiveSource: vi.fn(),
+  handleClearProviderMaxResults: vi.fn(),
+  handleSetProviderMaxResults: vi.fn(),
+  handleSetSourceHidden: vi.fn(),
+  handleSetSourceOrder: vi.fn(),
+  handleSetGroupConfig: vi.fn(),
+  handleSetAiAutoEnter: mockedHandleSetAiAutoEnter,
+  handleTestKey: vi.fn(),
+  handleUpdateSiteEngine: vi.fn(),
+  getSchemaReady: vi.fn().mockResolvedValue(undefined),
+}));
+
 beforeEach(() => {
   vi.stubGlobal('browser', {
     runtime: {
@@ -82,5 +126,36 @@ describe('buildSafeSearchUrl — 非法入参返回 null', () => {
 
   it('拒绝 undefined', () => {
     expect(buildSafeSearchUrl(undefined)).toBeNull();
+  });
+});
+
+describe('background handler registration — setAiAutoEnter', () => {
+  it('registers setAiAutoEnter and delegates to handleSetAiAutoEnter', async () => {
+    const onMessage = vi.mocked((await import('@/lib/messaging')).onMessage);
+    onMessage.mockClear();
+    mockedHandleSetAiAutoEnter.mockClear();
+
+    // WXT 的 defineBackground 在运行时立即执行回调；这里 stub 为同步执行以触发注册。
+    vi.stubGlobal('defineBackground', (cb: () => void) => {
+      cb();
+    });
+    vi.stubGlobal('browser', {
+      runtime: {
+        id: 'fake-id',
+        getURL: (p: string) => `${EXT_ORIGIN}/${p.replace(/^\//, '')}`,
+        sendMessage: vi.fn().mockResolvedValue(undefined),
+      },
+      action: { onClicked: { addListener: vi.fn() } },
+      storage: { onChanged: { addListener: vi.fn() } },
+      tabs: { create: vi.fn(), update: vi.fn() },
+    });
+
+    await import('@/entrypoints/background');
+
+    const registration = onMessage.mock.calls.find(([type]) => type === 'setAiAutoEnter');
+    expect(registration).toBeDefined();
+    const handler = registration![1] as (ctx: { data: boolean }) => Promise<void>;
+    await handler({ data: false });
+    expect(mockedHandleSetAiAutoEnter).toHaveBeenCalledWith(false);
   });
 });

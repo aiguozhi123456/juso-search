@@ -30,6 +30,7 @@ import {
   handleSetSourceHidden,
   handleSetSourceOrder,
   handleSetGroupConfig,
+  handleSetAiAutoEnter,
   handleTestKey,
   handleUpdateSiteEngine,
 } from '@/lib/gateway';
@@ -59,6 +60,7 @@ export default defineBackground(() => {
   onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
   onMessage('setSourceHidden', ({ data }) => handleSetSourceHidden(data));
   onMessage('aiInjectAllowed', ({ data }) => handleAiInjectAllowed(data));
+  onMessage('setAiAutoEnter', ({ data }) => handleSetAiAutoEnter(data));
   onMessage('setGroupConfig', ({ data }) => handleSetGroupConfig(data));
   onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
   onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));

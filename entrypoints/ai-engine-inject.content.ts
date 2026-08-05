@@ -16,6 +16,7 @@
 import { HOST_TO_ENGINE_ID, INJECT_MATCH_PATTERNS, INJECTORS } from '@/lib/ai-engines/injectors';
 import { resolveAllowedInjection } from '@/lib/ai-engines/injection-gate';
 import { getAiEngine, isRegisteredAiEngineId } from '@/lib/ai-engines/registry';
+import { extractQueryWithNavFallback } from '@/lib/ai-engines/injectors/shared';
 import { sendMessage } from '@/lib/messaging';
 
 export default defineContentScript({
@@ -35,6 +36,10 @@ export default defineContentScript({
     const query = injector.extractQuery(window.location.href)?.trim();
     if (!query) return; // 无 query 参数（含纯空白，如 ?q=%20），静默退出（用户正常访问首页）
 
+    // 自动回车门控：URL 携带 enter=1 才自动提交；否则仅预填不提交（aiAutoEnter 开关关闭时
+    // URL 不带 enter=1，即原生 ?q= 预填场景）。SPA 清参兜底：从 navigation entry 原始 URL 取参。
+    const autoSubmit = extractQueryWithNavFallback(window.location.href, 'enter') === '1';
+
     // 可见性门控：仅当该 AI engine 未被 sourceHidden 收录时才注入（fail-closed）
     const allowed = await resolveAllowedInjection(
       HOST_TO_ENGINE_ID[host],
@@ -43,7 +48,7 @@ export default defineContentScript({
     if (!allowed) return; // 未启用或门控失败 → 静默退出
 
     try {
-      await injector.fillAndSubmit(query);
+      await injector.fillAndSubmit(query, { autoSubmit });
     } catch {
       // 静默降级——任何异常都不打扰用户，让用户看到带 q 的页面手动操作
     }

@@ -32,6 +32,7 @@ import {
   setSourceHidden,
   setSourceOrder,
   setGroupConfig,
+  setAiAutoEnter,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -295,6 +296,12 @@ export async function handleAiInjectAllowed(engineId: SourceId): Promise<boolean
 export async function handleSetGroupConfig(config: GroupConfig): Promise<void> {
   await getSchemaReady();
   await setGroupConfig(config);
+}
+
+/** 设置 AI engine 自动回车开关（默认 true）。 */
+export async function handleSetAiAutoEnter(value: boolean): Promise<void> {
+  await getSchemaReady();
+  await setAiAutoEnter(value);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

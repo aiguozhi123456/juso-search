@@ -55,6 +55,10 @@ describe('CONFIG_KEYS whitelist', () => {
     expect(CONFIG_KEYS).toContain('customEngines');
     expect(CONFIG_KEYS).toContain('siteEngines');
   });
+
+  it('includes aiAutoEnter in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('aiAutoEnter');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

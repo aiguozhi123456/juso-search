@@ -40,8 +40,9 @@ export const doubaoInjector: AiEngineInjector = {
     // 优先用当前 URL，回退到 navigation entry 的原始 URL。
     return extractQueryWithNavFallback(url, 'q');
   },
-  async fillAndSubmit(query, timeoutMs) {
-    const el = await waitForElement(INPUT_SELECTORS, timeoutMs);
+  async fillAndSubmit(query, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
+    const autoSubmit = opts?.autoSubmit !== false;
+    const el = await waitForElement(INPUT_SELECTORS, opts?.timeoutMs);
     if (!el) return; // 静默降级
     const textarea = el as HTMLTextAreaElement;
     if (textarea.tagName !== 'TEXTAREA') return;
@@ -64,6 +65,11 @@ export const doubaoInjector: AiEngineInjector = {
       setReactTextareaValue(textarea, query);
       await sleep(200);
       if (textarea.value !== query) return; // 静默降级
+    }
+
+    if (!autoSubmit) {
+      clearUrlQuery(); // 仅预填不提交（enter=1 缺失场景）；同样清参防刷新重复填充
+      return;
     }
 
     // 先等发送按钮出现，再轮询点击——predicate 内每次重新查询，

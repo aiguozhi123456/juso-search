@@ -15,6 +15,7 @@ import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { StyleToggle } from '@/components/StyleToggle';
 import { BarPositionToggle } from '@/components/BarPositionToggle';
+import { AiAutoEnterToggle } from '@/components/AiAutoEnterToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
@@ -108,6 +109,7 @@ export default function App() {
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
+  const [aiAutoEnter, setAiAutoEnterState] = useState(true);
   const [active, setActive] = useState<SourceId | null>(null);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
   const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
@@ -167,6 +169,7 @@ export default function App() {
       }
       setConfiguredProviderIds(config.configuredProviderIds);
       setProviderMaxResults(config.providerMaxResults ?? {});
+      setAiAutoEnterState(config.aiAutoEnter ?? true);
       // Site Engines 完全由 worker 持有真相：每次 config 刷新直接覆盖本地副本，
       // 让 SiteEngineManager 在 create/update/delete 后看到最新结果。
       const engines = config.siteEngines ?? [];
@@ -212,6 +215,15 @@ export default function App() {
       // 写入失败：本地未推进到 id，再次推进 revision 并从 worker 重新拉取真相，
       // 避免在途响应把 active 锁死在错误值上。
       activeSourceRevision.current += 1;
+      syncConfig();
+    }
+  }
+
+  async function handleAiAutoEnterChange(value: boolean) {
+    setAiAutoEnterState(value);
+    try {
+      await sendMessage('setAiAutoEnter', value);
+    } catch {
       syncConfig();
     }
   }
@@ -333,6 +345,11 @@ export default function App() {
               <span className="bar-position-label">{t(MSG.bar_position_group)}</span>
               <BarPositionToggle />
             </div>
+            <div className="bar-position-row">
+              <span className="bar-position-label">{t(MSG.ai_auto_enter_group)}</span>
+              <AiAutoEnterToggle enabled={aiAutoEnter} onChange={handleAiAutoEnterChange} />
+            </div>
+            <p className="hint">{t(MSG.ai_auto_enter_hint)}</p>
             <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
             <div className="source-order-list">
               {/* 展示按拼音排序（仅展示，不写入 sourceOrder；实际顺序在「来源布局」中拖动调整）。 */}

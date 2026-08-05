@@ -41,9 +41,11 @@ export interface AiEngineInjector {
   /** 从页面 URL 提取预填查询词；无参数返回 null。 */
   extractQuery(url: string): string | null;
   /** 等 DOM 渲染、填充输入框、提交。在 content script 上下文执行。失败静默降级。
-   *  timeoutMs 为可选的 DOM 等待超时（threaded 到 waitForElement，缺省用默认值）——
-   *  生产调用不传；测试注入短超时避免真等默认 10s。 */
-  fillAndSubmit(query: string, timeoutMs?: number): Promise<void>;
+   *  opts.timeoutMs 为可选的 DOM 等待超时（threaded 到 waitForElement，缺省用默认值）——
+   *  生产调用不传；测试注入短超时避免真等默认 10s。
+   *  opts.autoSubmit 控制是否在填充后自动提交（默认 true）。false 时仅预填不提交，
+   *  供「enter=1 参数缺失」场景使用（?q= 原生预填、不自动回车）。 */
+  fillAndSubmit(query: string, opts?: { autoSubmit?: boolean; timeoutMs?: number }): Promise<void>;
 }
 
 /** content script 注入器标识（字面量联合，编译期防呆）：registry 的 inject 分支引用它，

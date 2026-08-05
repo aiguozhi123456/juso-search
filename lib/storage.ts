@@ -72,6 +72,7 @@ export const MAX_RESULTS_KEY = 'providerMaxResults'; // Record<ProviderId, numbe
 export const AGENT_BRIDGE_ENABLED_KEY = 'agentBridgeEnabled'; // boolean（stored === true 才 true）
 export const ENGINE_SEARCH_ENABLED_KEY = 'engineSearchEnabled'; // boolean
 export const BAR_POSITION_KEY = 'serpBarPosition'; // BarPositionPref (快切栏栏位：auto / top / inline / bottom)
+export const AI_AUTO_ENTER_KEY = 'aiAutoEnter'; // AI engine 自动回车开关（默认 true，stored !== false 才 true）
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
@@ -352,6 +353,17 @@ export async function getBarPositionPref(): Promise<BarPositionPref> {
 
 export async function setBarPositionPref(pref: BarPositionPref): Promise<void> {
   await browser.storage.local.set({ [BAR_POSITION_KEY]: pref });
+}
+
+/** AI engine 自动回车开关：默认 true（stored !== false 才 true）。
+ *  控制注入型 AI engine（ChatGPT/DeepSeek/豆包/Gemini）的 URL 是否追加 enter=1 参数。 */
+export async function getAiAutoEnter(): Promise<boolean> {
+  const got = await browser.storage.local.get(AI_AUTO_ENTER_KEY);
+  return got[AI_AUTO_ENTER_KEY] !== false;
+}
+
+export async function setAiAutoEnter(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [AI_AUTO_ENTER_KEY]: v });
 }
 
 /** Agent Bridge 总开关：默认 false，stored === true 才 true。
@@ -673,8 +685,8 @@ function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], keys: unknow
 }
 
 /** One coherent exact-key view for UI configuration replies. */
-export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig }> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig; aiAutoEnter: boolean }> {
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
@@ -691,7 +703,7 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
   // ProviderInstanceId 并入 SourceId），resolveEffectiveActiveSource 已并入 SourceId 联合。
   const storedSource = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
   const activeFallback = typeof got[ACTIVE_KEY] === 'string' ? got[ACTIVE_KEY] as SourceId : null;
-  return { configuredProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteEngines, customEngines, providerInstances) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, providerMaxResults, groupConfig };
+  return { configuredProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteEngines, customEngines, providerInstances) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, providerMaxResults, groupConfig, aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false };
 }
 
 /** 从已读的 storage 原始值解析 maxResults 映射（避免重复 IO，供 snapshot 复用同一份 get）。 */

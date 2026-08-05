@@ -166,6 +166,7 @@ export default defineContentScript({
       state.query = nextQueryAfterSerpContext(context, rawQuery, state.query);
       state.activeSiteId = context.matchingSiteId;
       state.activeId = context.activeId;
+      state.aiAutoEnter = config.aiAutoEnter ?? true;
       // Hidden backing engine with no visible matching site: tear the bar down.
       if (!shouldMountForEngine(state.engine.id, state.sourceHidden, state.activeSiteId)) {
         safeRemove();
@@ -183,7 +184,7 @@ export default defineContentScript({
       if (mountedRoot) render(mountedRoot, state, selectSource, true);
       void (async () => {
         try {
-          await onSelect(source, state.query, applyConfigSnapshot, () => gen === selectGen);
+          await onSelect(source, state.query, applyConfigSnapshot, () => gen === selectGen, state.aiAutoEnter);
         } finally {
           if (gen === selectGen) {
             selecting = false;
@@ -562,6 +563,8 @@ interface BarState {
   stylePref: StylePref;
   barPositionPref: BarPositionPref;
   resolvedPosition: 'top' | 'bottom' | 'inline';
+  /** AI engine 自动回车开关（默认 true）：注入型 AI engine 的 URL 是否追加 enter=1。 */
+  aiAutoEnter: boolean;
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
@@ -593,6 +596,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     stylePref,
     barPositionPref,
     resolvedPosition: resolveBarPosition(barPositionPref, window.innerWidth),
+    aiAutoEnter: config.aiAutoEnter ?? true,
   };
 }
 
@@ -662,6 +666,7 @@ async function onSelect(
   query: string,
   onUnresolvedSource?: (config: ProviderConfigReply) => void,
   isCurrent: () => boolean = () => true,
+  aiAutoEnter: boolean = true,
 ): Promise<void> {
   if (source.kind === 'site-engine') {
     let config: ProviderConfigReply;
@@ -744,14 +749,14 @@ async function onSelect(
     // AI engines are preset (not editable in Options), so no re-resolve needed.
     // SERP bar opens a new tab to preserve the current results page; no setActiveSource.
     if (!isCurrent()) return;
-    const handoff = resolveSerpHandoff(source, query);
+    const handoff = resolveSerpHandoff(source, query, { aiAutoEnter });
     if (handoff?.kind === 'navigate') {
       void sendMessage('openNewTab', handoff.url);
     }
     return;
   }
   if (!isCurrent()) return;
-  const handoff = resolveSerpHandoff(source, query);
+  const handoff = resolveSerpHandoff(source, query, { aiAutoEnter });
   if (!handoff) return;
   if (handoff.kind === 'navigate') {
     location.assign(handoff.url);

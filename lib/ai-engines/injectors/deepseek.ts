@@ -28,8 +28,9 @@ export const deepseekInjector: AiEngineInjector = {
   extractQuery(url) {
     return extractQueryWithNavFallback(url, 'q');
   },
-  async fillAndSubmit(query, timeoutMs) {
-    const el = await waitForElement(INPUT_SELECTORS, timeoutMs);
+  async fillAndSubmit(query, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
+    const autoSubmit = opts?.autoSubmit !== false;
+    const el = await waitForElement(INPUT_SELECTORS, opts?.timeoutMs);
     if (!el) return; // 静默降级
     const textarea = el as HTMLTextAreaElement;
     if (textarea.tagName !== 'TEXTAREA') return;
@@ -47,7 +48,9 @@ export const deepseekInjector: AiEngineInjector = {
       if (textarea.value !== query) return; // 仍失败，静默降级
     }
 
-    dispatchEnter(textarea);
+    if (autoSubmit) {
+      dispatchEnter(textarea);
+    }
     clearUrlQuery(); // 清 URL 参数，防刷新重复提交
   },
 };

@@ -85,6 +85,54 @@
 .style-toggle button.active { background: var(--brand); color: var(--brand-on); }
 .style-toggle[style*="--indicator-w"] button.active { background: transparent; }
 
+/* AI 自动回车切换器（开 / 关）：2 态滑动指示器。 */
+.ai-auto-enter-toggle {
+  position: relative;
+  display: inline-flex;
+  padding: var(--space-1);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-full);
+  background: var(--bg-soft);
+}
+.ai-auto-enter-toggle-indicator {
+  position: absolute;
+  left: var(--indicator-x, 0);
+  top: var(--indicator-y, 0);
+  width: var(--indicator-w, 0);
+  height: var(--indicator-h, 0);
+  background: var(--brand);
+  border-radius: var(--radius-full);
+  transition: left var(--duration-normal) var(--ease-out),
+              top var(--duration-normal) var(--ease-out),
+              width var(--duration-normal) var(--ease-out),
+              height var(--duration-normal) var(--ease-out);
+  z-index: 0;
+  pointer-events: none;
+}
+.ai-auto-enter-toggle button {
+  position: relative;
+  z-index: 1;
+  height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-full);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.ai-auto-enter-toggle button:hover:not([data-active="true"]) {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.ai-auto-enter-toggle button[data-active="true"] { color: var(--brand-on); font-weight: 700; }
+.ai-auto-enter-toggle button.active { background: var(--brand); color: var(--brand-on); }
+.ai-auto-enter-toggle[style*="--indicator-w"] button.active { background: transparent; }
+
 /* 设置页语言切换：正文里的长条形分段控件 */
 .locale-toggle {
   display: grid;

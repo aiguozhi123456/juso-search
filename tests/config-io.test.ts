@@ -159,6 +159,18 @@ describe('buildExportPayload', () => {
     expect(payload.serpBarPosition).toBe('inline');
   });
 
+  it('exports aiAutoEnter (defaults true when unset)', async () => {
+    installStorage({ providerKeys: {} });
+    const payload = await buildExportPayload();
+    expect(payload.aiAutoEnter).toBe(true);
+  });
+
+  it('exports a stored aiAutoEnter=false', async () => {
+    installStorage({ aiAutoEnter: false });
+    const payload = await buildExportPayload();
+    expect(payload.aiAutoEnter).toBe(false);
+  });
+
   it('falls back activeSource through activeProvider and configured keys', async () => {
     installStorage({ providerKeys: { exa: 'exa-1' }, activeProvider: 'exa' });
     await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'exa' });
@@ -454,6 +466,25 @@ describe('parseImportPayload', () => {
     if (result.ok) expect(result.value.serpBarPosition).toBeUndefined();
   });
 
+  it('accepts an aiAutoEnter boolean', () => {
+    const result = parseImportPayload(validPayload({ aiAutoEnter: false }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.aiAutoEnter).toBe(false);
+  });
+
+  it('rejects a non-boolean aiAutoEnter', () => {
+    const result = parseImportPayload(validPayload({ aiAutoEnter: 'yes' as never }));
+    expect(result).toEqual({ ok: false, error: 'invalid_ai_auto_enter' });
+  });
+
+  it('accepts a missing aiAutoEnter field (legacy export)', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.aiAutoEnter;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.aiAutoEnter).toBeUndefined();
+  });
+
   it('accepts valid Provider Instances in an import payload', () => {
     const instance = makeInstance('inst:exa:abc');
     const result = parseImportPayload(validPayload({ providerInstances: [instance] }));
@@ -652,6 +683,26 @@ describe('mergeImport', () => {
     const report = await mergeImport(validPayload({ serpBarPosition: 'bottom' }));
     expect(report.serpBarPositionOverridden).toBe(false);
     expect((await browser.storage.local.get('serpBarPosition')).serpBarPosition).toBe('top');
+  });
+
+  it('applyPrefs=true with a different aiAutoEnter writes it and marks overridden', async () => {
+    installStorage({ aiAutoEnter: true });
+    const report = await mergeImport(validPayload({ aiAutoEnter: false }), { applyPrefs: true });
+    expect(report.aiAutoEnterOverridden).toBe(true);
+    expect((await browser.storage.local.get('aiAutoEnter')).aiAutoEnter).toBe(false);
+  });
+
+  it('applyPrefs=true with an identical aiAutoEnter does NOT mark overridden', async () => {
+    installStorage({ aiAutoEnter: false });
+    const report = await mergeImport(validPayload({ aiAutoEnter: false }), { applyPrefs: true });
+    expect(report.aiAutoEnterOverridden).toBe(false);
+  });
+
+  it('applyPrefs undefined/false does NOT touch aiAutoEnter', async () => {
+    installStorage({ aiAutoEnter: false });
+    const report = await mergeImport(validPayload({ aiAutoEnter: true }));
+    expect(report.aiAutoEnterOverridden).toBe(false);
+    expect((await browser.storage.local.get('aiAutoEnter')).aiAutoEnter).toBe(false);
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
@@ -935,6 +986,15 @@ describe('previewImport (dry-run)', () => {
     });
     const preview = await previewImport(validPayload({ serpBarPosition: 'bottom' }));
     expect(preview.prefDiffs).toEqual([{ key: 'serpBarPosition', from: 'auto', to: 'bottom' }]);
+  });
+
+  it('reports an aiAutoEnter diff when current is true and payload is false', async () => {
+    installStorage({
+      providerKeys: { tavily: 'tvly-1' }, activeProvider: 'tavily', activeSource: 'tavily',
+      themePref: 'auto', localePref: 'auto', aiAutoEnter: true,
+    });
+    const preview = await previewImport(validPayload({ aiAutoEnter: false }));
+    expect(preview.prefDiffs).toEqual([{ key: 'aiAutoEnter', from: 'true', to: 'false' }]);
   });
 
   it('includes Provider Instance changes in the preference diff', async () => {

@@ -47,6 +47,7 @@ export default function App() {
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
   const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
+  const [aiAutoEnter, setAiAutoEnter] = useState(true);
   const [active, setActive] = useState<SourceId | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -72,6 +73,7 @@ export default function App() {
       setCustomEngines(config.customEngines ?? []);
       setProviderInstances(config.providerInstances ?? []);
       setGroupConfig(config.groupConfig);
+      setAiAutoEnter(config.aiAutoEnter ?? true);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
       // provider 必须已配置才认（实例 id 按 base provider 判定，configuredProviderIds 是 ProviderId[]）；
       // query 预填并立即触发一次搜索。
@@ -174,7 +176,7 @@ export default function App() {
       selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
       source = selectedSource?.id ?? null;
     }
-    const handoff = selectedSource && resolveSerpHandoff(selectedSource, query);
+    const handoff = selectedSource && resolveSerpHandoff(selectedSource, query, { aiAutoEnter });
     if (handoff?.kind === 'navigate') {
       location.assign(handoff.url);
       return;
@@ -254,7 +256,7 @@ export default function App() {
             setError({ message: t(MSG.search_failed_retry), needKey: false });
             return;
           }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
           if (fallbackHandoff?.kind === 'navigate') {
             if (switchReqId !== switchReqIdRef.current) return;
             location.assign(fallbackHandoff.url);
@@ -309,7 +311,7 @@ export default function App() {
             setError({ message: t(MSG.search_failed_retry), needKey: false });
             return;
           }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
           if (fallbackHandoff?.kind === 'navigate') {
             if (switchReqId !== switchReqIdRef.current) return;
             location.assign(fallbackHandoff.url);
@@ -373,7 +375,7 @@ export default function App() {
             setError({ message: t(MSG.search_failed_retry), needKey: false });
             return;
           }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
           if (fallbackHandoff?.kind === 'navigate') {
             if (switchReqId !== switchReqIdRef.current) return;
             location.assign(fallbackHandoff.url);
@@ -429,7 +431,7 @@ export default function App() {
             setError({ message: t(MSG.search_failed_retry), needKey: false });
             return;
           }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery);
+          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
           if (fallbackHandoff?.kind === 'navigate') {
             if (switchReqId !== switchReqIdRef.current) return;
             location.assign(fallbackHandoff.url);
@@ -463,7 +465,7 @@ export default function App() {
         await sendMessage('setActiveSource', source.id).catch(() => undefined);
         if (switchReqId !== switchReqIdRef.current) return;
         if (nextQuery) {
-          const handoff = resolveSerpHandoff(source, nextQuery);
+          const handoff = resolveSerpHandoff(source, nextQuery, { aiAutoEnter });
           if (handoff?.kind === 'navigate') location.assign(handoff.url);
         }
       } finally {
@@ -539,6 +541,7 @@ export default function App() {
     setCustomEngines(config.customEngines ?? []);
     setProviderInstances(config.providerInstances ?? []);
     setGroupConfig(config.groupConfig);
+    setAiAutoEnter(config.aiAutoEnter ?? true);
     setActive(config.activeSourceId);
   }
 

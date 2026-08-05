@@ -34,8 +34,9 @@ export const geminiInjector: AiEngineInjector = {
     // Gemini 也用 ?prompt= 参数，两个参数分别走 SPA 兜底取参
     return extractQueryWithNavFallback(url, 'q') ?? extractQueryWithNavFallback(url, 'prompt');
   },
-  async fillAndSubmit(query, timeoutMs) {
-    const el = await waitForElement(INPUT_SELECTORS, timeoutMs);
+  async fillAndSubmit(query, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
+    const autoSubmit = opts?.autoSubmit !== false;
+    const el = await waitForElement(INPUT_SELECTORS, opts?.timeoutMs);
     if (!el) return; // 静默降级
 
     // rich-textarea 内部的 contenteditable div
@@ -57,6 +58,11 @@ export const geminiInjector: AiEngineInjector = {
     // return 且不清 URL 参数——用户可刷新重试（对齐 deepseek/doubao 降级语义）。
     const filled = (htmlEl.innerText ?? '').trim();
     if (!filled.includes(query)) return;
+
+    if (!autoSubmit) {
+      clearUrlQuery(); // 仅预填不提交（enter=1 缺失场景）；同样清参防刷新重复填充
+      return;
+    }
 
     // 先等发送按钮出现，再轮询点击——predicate 内每次重新查询，
     // 避免 React 重渲染替换按钮节点后对 detached 节点 click() 静默无效

@@ -160,15 +160,16 @@ export function extractQueryWithNavFallback(url: string, param: string): string 
 }
 
 /**
- * 清除 URL 中的 query 参数（q / prompt），防止刷新重复提交。
+ * 清除 URL 中的 query 参数（q / prompt / enter），防止刷新重复提交。
  * 提交成功后调用。replaceState 不触发页面重载，不影响已填充的输入框。
- * 只删 q/prompt，保留其余参数与 hash。
+ * 只删 q/prompt/enter，保留其余参数与 hash。
  */
 export function clearUrlQuery(): void {
   try {
     const url = new URL(window.location.href);
     url.searchParams.delete('q');
     url.searchParams.delete('prompt');
+    url.searchParams.delete('enter');
     window.history.replaceState({}, '', url.pathname + url.search + url.hash);
   } catch {
     // ignore

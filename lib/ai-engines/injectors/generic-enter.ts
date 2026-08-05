@@ -24,15 +24,18 @@ export const chatgptInjector: AiEngineInjector = {
     // 回退到 navigation entry 的原始 URL 取参，避免漏补 Enter。
     return extractQueryWithNavFallback(url, 'q');
   },
-  async fillAndSubmit(query: string, timeoutMs?: number) {
+  async fillAndSubmit(query: string, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
     void query;
+    const autoSubmit = opts?.autoSubmit !== false;
     // 原生已预填，只需等输入框出现后补提交。
-    const input = await waitForElement(CHATGPT_INPUT_SELECTORS, timeoutMs);
+    const input = await waitForElement(CHATGPT_INPUT_SELECTORS, opts?.timeoutMs);
     if (!input) return; // 静默降级
     const htmlEl = input as HTMLElement;
     htmlEl.focus();
     await sleep(200); // 等 focus 生效
-    dispatchEnter(input);
+    if (autoSubmit) {
+      dispatchEnter(input);
+    }
     clearUrlQuery(); // 清 URL 参数，防刷新重复提交
   },
 };

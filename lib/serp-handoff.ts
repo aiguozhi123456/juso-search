@@ -80,8 +80,26 @@ export function nextQueryAfterSerpContext(
   return context.baseQuery;
 }
 
-/** 解析 chip 选中后的跳转意图；不识别的源返回 null。 */
-export function resolveSerpHandoff(source: SearchSource, query: string): SerpHandoff | null {
+/** 向 AI engine 导航 URL 追加 enter 参数（同 key 已存在则覆盖），返回新 URL。 */
+function withEnterParam(baseUrl: string, value: string): string {
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set('enter', value);
+    return url.toString();
+  } catch {
+    // URL 解析失败（理论上 buildUrl 不会产生）→ 原样返回，保证不破坏导航。
+    return baseUrl;
+  }
+}
+
+/** 解析 chip 选中后的跳转意图；不识别的源返回 null。
+ *  opts.aiAutoEnter：AI engine 自动回车开关（默认 true）。注入型 AI engine 仅在开关
+ *  开启时追加 enter=1（url-only 型原生自动提交，无需 enter=1）。 */
+export function resolveSerpHandoff(
+  source: SearchSource,
+  query: string,
+  opts?: { aiAutoEnter?: boolean },
+): SerpHandoff | null {
   const trimmed = query.trim();
   if (source.kind === 'custom-engine' && source.customEngine) {
     const url = trimmed ? buildCustomEngineUrl(source.customEngine.urlTemplate, trimmed) : null;
@@ -100,7 +118,15 @@ export function resolveSerpHandoff(source: SearchSource, query: string): SerpHan
   }
   if (source.kind === 'ai-engine' && isRegisteredAiEngineId(source.id)) {
     const aiEngine = getAiEngine(source.id);
-    return { kind: 'navigate', url: trimmed ? aiEngine.buildUrl(trimmed) : aiEngine.buildHomeUrl() };
+    if (!trimmed) return { kind: 'navigate', url: aiEngine.buildHomeUrl() };
+    // inject 型：aiAutoEnter 默认 true → 追加 enter=1（content script 据此自动提交）；
+    // aiAutoEnter 关闭 → 仅原生预填（?q=），不自动回车。url-only 型原生自动提交，不追加。
+    const wantsAutoEnter = aiEngine.execution.kind === 'inject' && opts?.aiAutoEnter !== false;
+    const baseUrl = aiEngine.buildUrl(trimmed);
+    const url = wantsAutoEnter
+      ? withEnterParam(baseUrl, '1')
+      : baseUrl;
+    return { kind: 'navigate', url };
   }
   if (source.kind === 'provider-instance' && isProviderInstanceId(source.id)) {
     // 实例与裸 provider 同语义：委托 background 打开搜索页深链，deep link 携带实例 id

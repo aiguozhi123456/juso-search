@@ -53,6 +53,8 @@ export type ProviderConfigReply = {
    * IU2/IU4 落地后应收紧为必填（`ProviderInstance[]`）。
    */
   providerInstances?: ProviderInstance[];
+  /** AI engine 自动回车开关（默认 true）。注入型 AI engine 的 URL 是否追加 enter=1。 */
+  aiAutoEnter?: boolean;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -80,6 +82,8 @@ export type ProtocolMap = {
   setGroupConfig(config: GroupConfig): Promise<void>;
   /** AI 注入可见性门控：该 AI engine 是否对用户可见（未被 sourceHidden 收录）。content script 在 fillAndSubmit 前查询，fail-closed。 */
   aiInjectAllowed(engineId: SourceId): Promise<boolean>;
+  /** 设置 AI engine 自动回车开关（默认 true）。 */
+  setAiAutoEnter(value: boolean): Promise<void>;
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;

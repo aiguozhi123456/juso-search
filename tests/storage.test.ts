@@ -17,6 +17,8 @@ import {
   setStylePref,
   getBarPositionPref,
   setBarPositionPref,
+  getAiAutoEnter,
+  setAiAutoEnter,
   getSourceOrder,
   setSourceOrder,
   getSourceHidden,
@@ -312,6 +314,33 @@ describe('storage: barPosition pref', () => {
   it('rejects unknown stored values, falling back to auto', async () => {
     await browser.storage.local.set({ serpBarPosition: 'side' });
     expect(await getBarPositionPref()).toBe('auto');
+  });
+});
+
+describe('storage: aiAutoEnter', () => {
+  it('defaults to true when unset', async () => {
+    expect(await getAiAutoEnter()).toBe(true);
+  });
+
+  it('round-trips explicit values', async () => {
+    await setAiAutoEnter(false);
+    expect(await getAiAutoEnter()).toBe(false);
+    await setAiAutoEnter(true);
+    expect(await getAiAutoEnter()).toBe(true);
+  });
+
+  it('treats stored false as off and any other value as on', async () => {
+    await browser.storage.local.set({ aiAutoEnter: false });
+    expect(await getAiAutoEnter()).toBe(false);
+    await browser.storage.local.set({ aiAutoEnter: true });
+    expect(await getAiAutoEnter()).toBe(true);
+  });
+
+  it('is included in getProviderConfigSnapshot (defaults true)', async () => {
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.aiAutoEnter).toBe(true);
+    await setAiAutoEnter(false);
+    expect((await getProviderConfigSnapshot()).aiAutoEnter).toBe(false);
   });
 });
 

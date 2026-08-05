@@ -31,6 +31,7 @@ vi.mock('@/lib/storage', () => ({
   setSourceHidden: vi.fn(),
   setSourceOrder: vi.fn(),
   setGroupConfig: vi.fn().mockResolvedValue(undefined),
+  setAiAutoEnter: vi.fn().mockResolvedValue(undefined),
   createSiteEngineDefinition: vi.fn(),
   updateSiteEngineDefinition: vi.fn(),
   deleteSiteEngineDefinition: vi.fn(),
@@ -95,6 +96,7 @@ import {
   handleSetSourceOrder,
   handleSetSourceHidden,
   handleSetGroupConfig,
+  handleSetAiAutoEnter,
   handleTestKey,
   handleUpdateSiteEngine,
   handleUpdateCustomEngine,
@@ -130,6 +132,7 @@ import {
   setSourceHidden,
   setSourceOrder,
   setGroupConfig,
+  setAiAutoEnter,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -167,6 +170,7 @@ const mockedSetProviderMaxResults = vi.mocked(setProviderMaxResults);
 const mockedSetSourceOrder = vi.mocked(setSourceOrder);
 const mockedSetSourceHidden = vi.mocked(setSourceHidden);
 const mockedSetGroupConfig = vi.mocked(setGroupConfig);
+const mockedSetAiAutoEnter = vi.mocked(setAiAutoEnter);
 const mockedClearKey = vi.mocked(clearKey);
 const mockedClearProviderMaxResults = vi.mocked(clearProviderMaxResults);
 const mockedCreateSiteEngineDefinition = vi.mocked(createSiteEngineDefinition);
@@ -468,7 +472,7 @@ describe('handleTestKey', () => {
 
 describe('handleGetProviderConfig', () => {
   it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]) });
+    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]), aiAutoEnter: true });
 
     await expect(handleGetProviderConfig()).resolves.toEqual({
       configuredProviderIds: ['tavily', 'exa'],
@@ -478,6 +482,7 @@ describe('handleGetProviderConfig', () => {
       sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [],
       providerMaxResults: {},
       groupConfig: defaultGroupConfig([]),
+      aiAutoEnter: true,
     });
   });
 });
@@ -520,6 +525,13 @@ describe('handleSetGroupConfig', () => {
     const cfg = defaultGroupConfig(['tavily', 'google']);
     await handleSetGroupConfig(cfg);
     expect(mockedSetGroupConfig).toHaveBeenCalledWith(cfg);
+  });
+});
+
+describe('handleSetAiAutoEnter', () => {
+  it('persists the AI auto-enter toggle from the worker context', async () => {
+    await handleSetAiAutoEnter(false);
+    expect(mockedSetAiAutoEnter).toHaveBeenCalledWith(false);
   });
 });
 
@@ -1005,7 +1017,7 @@ describe('handleImportConfig', () => {
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
-      serpBarPositionOverridden: false,
+      serpBarPositionOverridden: false, aiAutoEnterOverridden: false,
       sourceOrderOverridden: false, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);

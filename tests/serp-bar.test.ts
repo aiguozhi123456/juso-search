@@ -75,12 +75,13 @@ describe('resolveSerpHandoff — engine chip', () => {
 
 describe('resolveSerpHandoff — ai-engine chip', () => {
   // 构造方式与其他 kind 相同；resolveSerpHandoff 通过 registry 按 id 查，不需要 aiEngine 字段。
-  const aiCases: ReadonlyArray<{ source: SearchSource; queryUrl: string; homeUrl: string }> = [
-    { source: { id: 'ai:grok', kind: 'ai-engine', label: 'ai_engine_grok', supportsAnswer: false }, queryUrl: 'https://grok.com/?q=hello+world', homeUrl: 'https://grok.com/' },
-    { source: { id: 'ai:chatgpt', kind: 'ai-engine', label: 'ai_engine_chatgpt', supportsAnswer: false }, queryUrl: 'https://chatgpt.com/?q=hello+world', homeUrl: 'https://chatgpt.com/' },
-    { source: { id: 'ai:deepseek', kind: 'ai-engine', label: 'ai_engine_deepseek', supportsAnswer: false }, queryUrl: 'https://chat.deepseek.com/?q=hello+world', homeUrl: 'https://chat.deepseek.com/' },
-    { source: { id: 'ai:doubao', kind: 'ai-engine', label: 'ai_engine_doubao', supportsAnswer: false }, queryUrl: 'https://www.doubao.com/chat/?q=hello+world', homeUrl: 'https://www.doubao.com/chat/' },
-    { source: { id: 'ai:gemini', kind: 'ai-engine', label: 'ai_engine_gemini', supportsAnswer: false }, queryUrl: 'https://gemini.google.com/app?q=hello+world', homeUrl: 'https://gemini.google.com/app' },
+  // inject 型（chatgpt/deepseek/doubao/gemini）默认追加 enter=1；url-only 型（grok）不追加。
+  const aiCases: ReadonlyArray<{ source: SearchSource; queryUrl: string; homeUrl: string; inject: boolean }> = [
+    { source: { id: 'ai:grok', kind: 'ai-engine', label: 'ai_engine_grok', supportsAnswer: false }, queryUrl: 'https://grok.com/?q=hello+world', homeUrl: 'https://grok.com/', inject: false },
+    { source: { id: 'ai:chatgpt', kind: 'ai-engine', label: 'ai_engine_chatgpt', supportsAnswer: false }, queryUrl: 'https://chatgpt.com/?q=hello+world&enter=1', homeUrl: 'https://chatgpt.com/', inject: true },
+    { source: { id: 'ai:deepseek', kind: 'ai-engine', label: 'ai_engine_deepseek', supportsAnswer: false }, queryUrl: 'https://chat.deepseek.com/?q=hello+world&enter=1', homeUrl: 'https://chat.deepseek.com/', inject: true },
+    { source: { id: 'ai:doubao', kind: 'ai-engine', label: 'ai_engine_doubao', supportsAnswer: false }, queryUrl: 'https://www.doubao.com/chat/?q=hello+world&enter=1', homeUrl: 'https://www.doubao.com/chat/', inject: true },
+    { source: { id: 'ai:gemini', kind: 'ai-engine', label: 'ai_engine_gemini', supportsAnswer: false }, queryUrl: 'https://gemini.google.com/app?q=hello+world&enter=1', homeUrl: 'https://gemini.google.com/app', inject: true },
   ];
 
   it('navigates to the built URL with the query encoded for each of the 5 AI engines', () => {
@@ -97,6 +98,16 @@ describe('resolveSerpHandoff — ai-engine chip', () => {
       kind: 'navigate',
       url: 'https://grok.com/?q=%E4%B8%AD%E6%96%87+%26+x',
     });
+  });
+
+  it('aiAutoEnter:false 时不追加 enter=1（仅原生预填，不自动回车）', () => {
+    for (const { source, queryUrl } of aiCases) {
+      const expected = queryUrl.replace('&enter=1', '');
+      expect(resolveSerpHandoff(source, 'hello world', { aiAutoEnter: false })).toEqual({
+        kind: 'navigate',
+        url: expected,
+      });
+    }
   });
 
   it('navigates to each AI engine home URL when the query is empty or whitespace', () => {
