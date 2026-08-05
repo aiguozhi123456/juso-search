@@ -513,6 +513,9 @@ export default function App() {
             <p className="about-ack-text">
               {renderAckLinks(t(MSG.opts_about_ack_ai_text), AI_ACK_LINKS[getCurrentLocale()])}
             </p>
+            <p className="about-ack-text">
+              {t(MSG.opts_about_trademark_text)}
+            </p>
           </section>
           </>
           )}

@@ -157,6 +157,7 @@
   "opts_about_acknowledgements_heading": { "message": "Acknowledgements" },
   "opts_about_acknowledgements_text": { "message": "The SERP bar injection anchor approach was inspired by searchEngineJump (MIT). This extension's implementation is independently written and shares no code with the original script." },
   "opts_about_ack_ai_text": { "message": "The AI chat engine (DeepSeek / ChatGPT / Gemini / Doubao) input fill and submit approaches drew on community userscripts and public technical articles, notably Add q query parameter to AI search sites (MIT), DeepSeek Prompt Automation, and Doubao Auto-Send Assistant (MIT), among others. This extension's implementation is independently written and shares no code with these sources." },
+  "opts_about_trademark_text": { "message": "All third-party product names, brand names, trademarks, and icons appearing in this extension belong to their respective owners and are used solely to identify the corresponding search sources; such use does not imply affiliation, sponsorship, or endorsement." },
   "open_settings": { "message": "Settings" },
   "theme_group": { "message": "Theme" },
   "theme_auto": { "message": "Auto" },

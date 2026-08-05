@@ -298,6 +298,7 @@ export const MSG = {
   opts_about_acknowledgements_heading: 'opts_about_acknowledgements_heading',
   opts_about_acknowledgements_text: 'opts_about_acknowledgements_text',
   opts_about_ack_ai_text: 'opts_about_ack_ai_text',
+  opts_about_trademark_text: 'opts_about_trademark_text',
   // 设置入口 / 主题 / 语言 / 风格
   open_settings: 'open_settings',
   theme_group: 'theme_group',

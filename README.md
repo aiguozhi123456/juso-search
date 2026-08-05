@@ -148,6 +148,10 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 AI 对话引擎注入层（DeepSeek / ChatGPT / Gemini / 豆包）的输入框定位、填充与提交方案，参考自多个社区油猴脚本与公开技术文章，主要包括：[给 AI 搜索网站添加 q 查询参数](https://greasyfork.org/zh-CN/scripts/550940)（smilingpoplar，MIT 许可，多站 `?q=` 通用实现）、[DeepSeek Prompt Automation](https://gist.github.com/orca131/7f4dd7f2ec377c09cdb8b0ad5cd10e68)（orca131）、[AI 助手选择器](https://greasyfork.org/zh-CN/scripts/528300)（Gemini / Grok / ChatGPT / DeepSeek 输入框选择器）、[豆包自动发送助手](https://greasyfork.org/zh-CN/scripts/541111)（CathyElla，MIT 许可）与 boommanpro《[豆包 URL 参数调用](https://boommanpro.cn/post/doubao-plugin)》（豆包 `execCommand` 填充结论），以及 ChatGPT `?q=` 预填行为的记录（[OpenAI 帮助中心《ChatGPT Search》](https://help.openai.com/en/articles/9237897-chatgpt-search)（官方）、[Tenable TRA-2025-22](https://www.tenable.com/security/research/tra-2025-22)、[Zenn《どこでもワンステップでAI呼び出し》](https://zenn.dev/finatext/articles/283442255930fe)）。本扩展的注入器实现独立编写，与上述来源不共享代码；所用选择器为各站点 DOM 事实，React 受控组件 native value setter、`execCommand('insertText')`、contenteditable 同步、`PerformanceNavigationTiming` 兜底等均为标准 Web API 技术。
 
+## 商标声明
+
+本扩展中出现的所有第三方产品名、品牌名、服务名、商标与图标（包括但不限于 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo、Tavily、Exa、Brave、Stepfun、Jina、豆包、DeepSeek、ChatGPT、Gemini、Grok 等）均归各自所有者所有，仅用于指代对应的搜索来源与服务。本扩展与上述品牌所有者不存在关联、赞助或背书关系，亦非其官方产品。图标按各品牌公开规范使用。
+
 ## 许可证
 
 Juso 的完整本地搜索闭环——当前扩展、来源集成、智能体访问、本地配置与缓存——以 [MPL-2.0](LICENSE) 开放。该承诺不表示未来可能出现的托管或运营服务必然开源或免费。
