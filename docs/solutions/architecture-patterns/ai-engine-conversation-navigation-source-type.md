@@ -52,7 +52,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 
 - **按框架选填充路径**：React 受控 textarea 用 native value setter + `InputEvent`（直接设 `.value` 不同步）；Lexical/Slate 富文本用 `document.execCommand('insertText')`（改 innerHTML 无效）；MutationObserver 同步型编辑器（Gemini）直接设 `innerText` + input 事件。
 - **失败静默降级**：所有 `fillAndSubmit` 路径 `return` 而非 `throw`，content script 入口再套一层 `try/catch`。选择器超时 / 未登录 / 页面改版时不打扰用户，让用户看到带 `?q=` 的页面手动操作。例外：机制 3 站点若 SPA 已客户端清参（如豆包），降级时 query 在地址栏不可恢复，需回 Juso 重搜。
-- **幂等性 = 提交后清 URL 参数**：`clearUrlQuery()` 在成功提交后 `history.replaceState` 仅删 `q`/`prompt`（保留其余参数与 hash），防用户手动刷新重跑。MV3 静态 content script 不会在 pushState 时重跑，所以幂等性不依赖"只跑一次"，而依赖清参。机制 3 站点提交前会校验填充成功，校验失败静默降级且不清参，保留刷新重试。
+- **幂等性 = 提交后清 URL 参数**：`clearUrlQuery()` 在成功提交后 `history.replaceState` 仅删 `q`/`prompt`/`enter`（保留其余参数与 hash），防用户手动刷新重跑。MV3 静态 content script 不会在 pushState 时重跑，所以幂等性不依赖"只跑一次"，而依赖清参。机制 3 站点提交前会校验填充成功，校验失败静默降级且不清参，保留刷新重试。
 - **SPA 清参兜底**：`extractQueryWithNavFallback` 先读当前 URL，取不到时回退 `performance.getEntriesByType('navigation')[0].name`（原始导航 URL），处理豆包这类在 document_idle 前客户端清参的站。
 - **选择器宁缺毋滥**：不用裸 `textarea` 兜底——非聊天页（登录页）若恰好带 `?q=`，裸兜底会往任意 textarea 填词，违背静默降级契约。
 - **发送按钮延迟激活**：Gemini 的发送按钮要等输入被识别后才 enabled，用 `pollUntil` 轮询且**在 predicate 内重查按钮**（不持有初始节点引用，防 React 重渲染后对 detached 节点 click 静默无效）。

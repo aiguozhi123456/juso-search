@@ -17,17 +17,17 @@ const CHATGPT_INPUT_SELECTORS = [
   'div[contenteditable="true"][id*="prompt"]',
 ] as const;
 
-/** ChatGPT 注入器：?q= 预填 + 补 Enter。 */
+/** ChatGPT 注入器：?q= 预填 + 补 Enter（受 enter=1 / autoSubmit 门控）。 */
 export const chatgptInjector: AiEngineInjector = {
   extractQuery(url) {
     // SPA 兜底：ChatGPT 原生预填后可能在 document_idle 前用 replaceState 清掉 ?q=，
-    // 回退到 navigation entry 的原始 URL 取参，避免漏补 Enter。
+    // 回退到 navigation entry 的原始 URL 取参，避免漏补 Enter（仅 autoSubmit=true 时）。
     return extractQueryWithNavFallback(url, 'q');
   },
   async fillAndSubmit(query: string, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
     void query;
     const autoSubmit = opts?.autoSubmit !== false;
-    // 原生已预填，只需等输入框出现后补提交。
+    // 原生已预填，等输入框出现后按 autoSubmit 决定是否补提交。
     const input = await waitForElement(CHATGPT_INPUT_SELECTORS, opts?.timeoutMs);
     if (!input) return; // 静默降级
     const htmlEl = input as HTMLElement;
