@@ -18,6 +18,8 @@ import {
   type GroupConfig,
   type SourceGroup,
   type SwitcherItem,
+  type ProjectedItem,
+  type PinnedItem,
 } from '@/lib/source-groups';
 
 // ── 测试数据 ──
@@ -36,6 +38,11 @@ const SOURCES: SearchSource[] = [
 
 function makeSource(id: string, kind: 'provider' | 'engine' | 'site-engine', supportsAnswer: boolean): SearchSource {
   return { id, kind, label: `msg_${id}`, supportsAnswer, favicon: `/icons/${id}.svg` } as SearchSource;
+}
+
+/** 类型守卫：收窄 ProjectedItem → PinnedItem（kind === 'source'），便于在 every 断言后安全访问 .source。 */
+function isPinnedItem(it: ProjectedItem): it is PinnedItem {
+  return it.kind === 'source';
 }
 
 describe('defaultGroupForSourceId', () => {
@@ -627,21 +634,21 @@ describe('resolveEffectiveLayout', () => {
     const sources = [s('a', 'provider'), s('b', 'engine'), s('c', 'site-engine')];
     const layout = resolveEffectiveLayout(sources, defaultGroupConfig(sources.map((x) => x.id)), null);
     expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
-    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+    expect(layout.items.filter(isPinnedItem).map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
   });
 
   it('flattens 5 sources all in one group (renderedGroupCount == 1, < SINGLE_GROUP_FLAT_THRESHOLD)', () => {
     const sources = [s('a'), s('b'), s('c'), s('d'), s('e')];
     const layout = resolveEffectiveLayout(sources, singleGroupConfig(sources.map((x) => x.id)), null);
     expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
-    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+    expect(layout.items.filter(isPinnedItem).map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
   });
 
   it('flattens 6 sources all in one group (boundary: renderedGroupCount == 1, == SINGLE_GROUP_FLAT_THRESHOLD)', () => {
     const sources = [s('a'), s('b'), s('c'), s('d'), s('e'), s('f')];
     const layout = resolveEffectiveLayout(sources, singleGroupConfig(sources.map((x) => x.id)), null);
     expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
-    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+    expect(layout.items.filter(isPinnedItem).map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
   });
 
   it('keeps grouping for 7 sources all in one group (single group too large to flatten)', () => {
