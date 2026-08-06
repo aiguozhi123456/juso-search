@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-08-01
+last_updated: 2026-08-06
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -12,6 +12,7 @@ applies_when:
   - Adding a new config concern (grouping) where you must keep it orthogonal to an existing projection layer (sourceOrder/sourceHidden)
   - Bumping a persisted schema version where no data migration is required because defaults can be derived lazily via getter fallback
   - A UI must render a mixed sequence of flat/pinned items plus folded group items with a sliding indicator that tracks only the active pinned item
+  - A grouped switcher should auto-flatten (dissolve groups) when the source set is small or all sources share a single bucket, since grouping then adds a click without separating anything
 related_components:
   - service_object
   - tooling
@@ -24,6 +25,7 @@ tags:
   - drag-and-drop
   - touch-fallback
   - group-orders
+  - auto-flatten
 ---
 
 # Source Groups: A Layout Layer Over the Source Projection
@@ -230,6 +232,50 @@ The quick-switch list (options page) originally offered per-item ↑↓ arrows, 
 - **Duplicate group-order parsing drifted** — before `groupOrderOf`, the editor's private resolution diverged from `projectLayout` (missing tail-backfill). Removed the private copy; parity tests keep them aligned.
 - **Drag swallowed button clicks** — fixed by `isInteractiveTarget` + `preventDefault` (Chrome) and no-`setData` (Firefox).
 
+### 9. Adaptive flatten — `resolveEffectiveLayout` (grouping must earn its keep)
+
+Grouping exists to do two jobs at once: **reduce clutter** (collapse many pills into one) and **separate categories** (engines vs. sites vs. AI). When either job is absent, the group flyout is pure cost — an extra hover/click to reach a source that could have been a flat pill. `resolveEffectiveLayout` drops the grouping layer in exactly those cases:
+
+```ts
+export function resolveEffectiveLayout(
+  sources: readonly SearchSource[],
+  config: GroupConfig,
+  activeId: SourceId | null,
+): ProjectedLayout {
+  const projected = projectLayout(sources, config, activeId);
+  const groupCount = projected.items.reduce((n, it) => (it.kind === 'group' ? n + 1 : n), 0);
+  const shouldFlat = sources.length <= FEW_SOURCES_FLAT_THRESHOLD
+    || (groupCount <= 1 && sources.length <= SINGLE_GROUP_FLAT_THRESHOLD);
+  if (!shouldFlat) return projected;
+  return { items: sources.map((s) => ({ kind: 'source', source: s })) };
+}
+```
+
+The rule encodes "grouping earns its keep only when it both reduces clutter **and** separates ≥2 buckets":
+
+- **Few sources** (`≤ FEW_SOURCES_FLAT_THRESHOLD`) → flatten regardless of structure. There is no clutter to reduce, so grouping is pure cost.
+- **One rendered group** (`groupCount <= 1`, i.e. everything collapsed into a single bucket) **and** still a tidy count (`≤ SINGLE_GROUP_FLAT_THRESHOLD`) → flatten. A single group separates nothing; the flyout is a wasted hop. The tidy cap avoids the opposite extreme — flattening a large single group produces an overcrowded row, which is the very clutter grouping exists to prevent.
+- **Multiple groups** (≥2), or a single oversized group → keep `projectLayout`'s output unchanged. Grouping is doing real work.
+
+`groupCount` counts **rendered** groups — `projectLayout` already skips empty ones (`if (groupItems.length === 0) continue;`), so the count reflects only buckets that actually contain visible sources. The flatten branch maps over the already-projected `sources` 1:1, so it can neither drop nor duplicate a source relative to `projectLayout`; it only dissolves group containers into top-row pills.
+
+**Gated by a preference, wired as a prop.** A persisted boolean `flatLayoutFewSources` (default ON, `stored !== false` semantics — the same shape as `aiAutoEnter`, carried through the full config-preference pipeline documented in [config-preference-pipeline](./config-preference-pipeline.md)) decides whether the switcher uses `resolveEffectiveLayout` at all. `SourceSwitcher` takes it as `autoFlatFewSources` and branches in its `layout` memo:
+
+```ts
+const layout = useMemo(
+  () => autoFlatFewSources
+    ? resolveEffectiveLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId)
+    : projectLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId),
+  [sources, groupConfig, activeId, autoFlatFewSources],
+);
+```
+
+When flattened, every item is a `PinnedItem`, so the sliding-indicator rule (see *Why This Matters* below) needs no special case — the active source is always a flat pill and the indicator anchors to it normally.
+
+**Pitfall — the flat branch reorders pinned pills to `sourceOrder`.** Non-flat `projectLayout` yields pinned sources in `config.layout` order (it walks the persisted layout); the flatten branch yields them in `sources` (i.e. `sourceOrder`) order. For a config like `[pinnedC, pinnedA, group(B,D,E)]` with `sourceOrder [A,B,C,D,E]`, toggling the pref visibly reorders C before A. This is inherent to flattening (once groups dissolve there is no layout sequence to honor) and intentional; it only affects users who manually pinned sources out-of-order **and** have a small enough set to trigger flattening.
+
+**Test matrix — pin the boundary.** The rule's tests assert both the shape (`every kind === 'source'` vs `some kind === 'group'`) **and** exact membership (`items.map(i => i.source.id) === sources.map(s => s.id)`) so the flat branch can never silently drop or duplicate, and they land a case exactly on `SINGLE_GROUP_FLAT_THRESHOLD` so the boundary cannot drift to an off-by-one: 3 sources any structure → flatten; 5 all in one group → flatten; 6 all in one group (boundary) → flatten; 7 all in one group → keep (too large); 6 across 3 groups → keep (real separation); 4 across 2 groups → flatten (few, despite separation).
+
 ## Why This Matters
 
 **Layering keeps three axes composable.** Source visibility, source order, and top-row layout are orthogonal. A user hiding a provider, reordering engines, and pinning a Site Engine to the top row are doing three independent things, and the design lets each happen without touching the others. `lib/sources.ts` keeps owning the projection (what exists, what is visible, the canonical order); `lib/source-groups.ts` only layers "which visible sources are pinned flat vs. collapsed into a group" on top. `projectLayout` consumes the already-projected source list — it never re-hides, never re-orders the underlying list; group-internal order is either explicit (`groupOrders`) or the projection order filtered. Had grouping been folded into projection, every existing code path (the SERP inject bar, import merge, active-source resolution, the mutation queues) would have had to learn about groups, and the diff surface for a layout feature would have ballooned into the visibility model.
@@ -277,7 +323,7 @@ const layout = useMemo(
 );
 ```
 
-`layout.items` is a list of `PinnedItem | GroupItem`. The same component renders both; a `GroupItem` carries `containsActive` for the badge and its `items` become the flyout — opened transiently on hover/focus and pinned open on click (click-to-pin). The projection layer was not modified to produce this — `projectLayout` runs on top of its output.
+`layout.items` is a list of `PinnedItem | GroupItem`. The same component renders both; a `GroupItem` carries `containsActive` for the badge and its `items` become the flyout — opened transiently on hover/focus and pinned open on click (click-to-pin). The projection layer was not modified to produce this — `projectLayout` runs on top of its output. When the `flatLayoutFewSources` preference is on, the switcher instead calls `resolveEffectiveLayout`, which returns the same `projectLayout` result except in the few-sources / single-group cases where it dissolves groups into flat pills (see §9 below).
 
 ### The `normalizeGroupConfig` builtin-ordering fix
 
