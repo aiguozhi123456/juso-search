@@ -73,6 +73,15 @@ vi.mock('@/lib/config-io', () => ({
   mergeImport: vi.fn(),
 }));
 
+// agent-skill-packager / skill-variant 整体 mock：packageAgentSkill 可控（resolve/reject）；
+// SKILL_VARIANT 固定 'prod'（vitest 不应用 wxt 的构建期 vite.define）。
+vi.mock('@/lib/agent-skill-packager', () => ({
+  packageAgentSkill: vi.fn(),
+}));
+vi.mock('@/lib/skill-variant', () => ({
+  SKILL_VARIANT: 'prod',
+}));
+
 import {
   handleClearSearchCache,
   handleClearProviderMaxResults,
@@ -104,6 +113,7 @@ import {
   handleSearchInstance,
   handleListAgentInstances,
   handleListAgentProviders,
+  handlePackageAgentSkill,
   handleCreateProviderInstance,
   handleUpdateProviderInstance,
   handleDeleteProviderInstance,
@@ -148,6 +158,7 @@ import {
 import { getAdapter } from '@/lib/providers/registry';
 import { buildExportPayload, parseImportPayload, mergeImport } from '@/lib/config-io';
 import type { ConfigExport, ImportReport } from '@/lib/config-io';
+import { packageAgentSkill } from '@/lib/agent-skill-packager';
 
 const mockedGetActive = vi.mocked(getActiveProviderId);
 const mockedGetProviderConfigSnapshot = vi.mocked(getProviderConfigSnapshot);
@@ -188,6 +199,7 @@ const mockedGetAdapter = vi.mocked(getAdapter);
 const mockedBuildExportPayload = vi.mocked(buildExportPayload);
 const mockedParseImportPayload = vi.mocked(parseImportPayload);
 const mockedMergeImport = vi.mocked(mergeImport);
+const mockedPackageAgentSkill = vi.mocked(packageAgentSkill);
 
 function fakeAdapter(overrides: Partial<ProviderAdapter> = {}): ProviderAdapter {
   return {
@@ -988,6 +1000,33 @@ describe('handleExportConfig', () => {
     const reply = await handleExportConfig(onDownload);
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.kind).toBe('download_failed');
+  });
+});
+
+describe('handlePackageAgentSkill', () => {
+  it('packages with the build variant and triggers the download with the returned data url + filename', async () => {
+    mockedPackageAgentSkill.mockResolvedValue({
+      dataUrl: 'data:application/zip;base64,AAAA',
+      filename: 'juso-search-1.3.0.zip',
+    });
+    const onDownload = vi.fn().mockResolvedValue(undefined);
+
+    const reply = await handlePackageAgentSkill(onDownload);
+
+    expect(mockedPackageAgentSkill).toHaveBeenCalledWith('prod');
+    expect(onDownload).toHaveBeenCalledTimes(1);
+    expect(onDownload).toHaveBeenCalledWith('data:application/zip;base64,AAAA', 'juso-search-1.3.0.zip');
+    expect(reply).toEqual({ ok: true });
+  });
+
+  it('returns ok:false with the error message when packaging fails and does not download', async () => {
+    mockedPackageAgentSkill.mockRejectedValue(new Error('boom'));
+    const onDownload = vi.fn().mockResolvedValue(undefined);
+
+    const reply = await handlePackageAgentSkill(onDownload);
+
+    expect(reply).toEqual({ ok: false, error: 'boom' });
+    expect(onDownload).not.toHaveBeenCalled();
   });
 });
 

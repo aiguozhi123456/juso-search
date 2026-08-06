@@ -50,6 +50,8 @@ import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import { ensureSchema } from './schema';
 import { ensureCacheSchema } from './search-cache';
 import { buildExportPayload, parseImportPayload, previewImport, mergeImport, type ConfigExport, type ImportReport } from './config-io';
+import { packageAgentSkill } from './agent-skill-packager';
+import { SKILL_VARIANT } from './skill-variant';
 
 // 双版本 schema 启动护栏：handler 顶部 await getSchemaReady() 后才可读/写 storage。
 // 稳态两 ensure 各读单键 === 当前 → 立即 return，整个 promise 在首个微任务内 resolve（近零开销）。
@@ -347,6 +349,23 @@ export async function handleExportConfig(
     return { ok: true, filename };
   } catch (e) {
     return { ok: false, error: { kind: 'download_failed', message: errorMessage(e) } };
+  }
+}
+
+/**
+ * 打包 Agent Skill：worker 抓取随包模板 → stamp 当前扩展 runtime id → STORE zip →
+ * 转 data URL → browser.downloads.download 直接发起下载。key 与打包产物均不进页面内存（R7 同理），
+ * 页面只收到 ok/err 状态。
+ */
+export async function handlePackageAgentSkill(
+  onDownload: (url: string, filename: string) => Promise<void> = triggerDownload,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { dataUrl, filename } = await packageAgentSkill(SKILL_VARIANT);
+    await onDownload(dataUrl, filename);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
   }
 }
 

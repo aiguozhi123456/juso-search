@@ -63,6 +63,10 @@ export type ExportConfigReply =
   | { ok: true; filename: string }
   | { ok: false; error: ConfigIoError };
 
+export type PackageAgentSkillReply =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export type ImportConfigReply =
   | { ok: true; report: ImportReport }
   | { ok: false; error: ConfigIoError };
@@ -107,6 +111,8 @@ export type ProtocolMap = {
   deleteCachedSearch(id: string): Promise<void>;
   clearSearchCache(): Promise<void>;
   exportConfig(): Promise<ExportConfigReply>;
+  /** 打包 Agent Skill：worker 抓模板 → stamp runtime id → zip → 直接下载（R7 同理），页面只收 ok/err。 */
+  packageAgentSkill(): Promise<PackageAgentSkillReply>;
   previewImport(payload: ConfigExport): Promise<PreviewImportReply>;
   importConfig(data: { payload: ConfigExport; applyPrefs: boolean }): Promise<ImportConfigReply>;
   /** bridge.html 仅把 fragment 中已解析的本地 Agent 凭据交给 worker。 */

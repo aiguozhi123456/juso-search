@@ -86,6 +86,7 @@ Chrome Web Store 安装无开发者模式警告，且可自动更新。
 2. 根据你的 Juso 安装方式选择技能：
    - **Chrome Web Store 安装**（推荐）：将 `skills/juso-search/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search/`。扩展 ID 已内置默认值，一般无需配置。
    - **开发版（自行 `npm run build:dev` 构建）**：将 `skills/juso-search-dev/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search-dev/`。两个技能的唯一区别在于扩展 ID 不同，请按需选择。
+   或从扩展 Options → 通用 → Agent Bridge 一键下载配套 Agent Skill（自动按本机扩展 ID 盖章，解压后拷到 `.agents/skills/` 即可；自定义 dev 构建亦可）。
 3. 仅在自行签名打包（或扩展 ID 与默认不一致）时，才设置 `JUSO_EXTENSION_ID` 或传入 `--extension-id`。
 4. 若自动发现找不到浏览器，或扩展装在 Edge 等非默认二进制上，请把可执行文件路径指到**已安装 Juso 的那一份浏览器**（可同时指定 profile 目录名）：
 

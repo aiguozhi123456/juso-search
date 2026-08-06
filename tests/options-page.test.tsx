@@ -644,4 +644,60 @@ describe('options page', () => {
     // 编辑仍可用。
     expect(within(row).getByRole('button', { name: '编辑' })).not.toBeDisabled();
   });
+
+  it('renders the companion Agent Skill download button in the agent-bridge section', async () => {
+    render(<App />);
+    openTab('通用');
+    expect(screen.getByRole('heading', { name: '配套 Agent Skill' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载 Agent Skill' })).toBeInTheDocument();
+  });
+
+  it('downloads the Agent Skill via packageAgentSkill and shows success status', async () => {
+    render(<App />);
+    openTab('通用');
+    fireEvent.click(screen.getByRole('button', { name: '下载 Agent Skill' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('packageAgentSkill', undefined));
+    expect(await screen.findByText('已开始下载')).toBeInTheDocument();
+  });
+
+  it('shows the failure status with the worker error when packaging fails', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      if (type === 'packageAgentSkill') {
+        return Promise.resolve({ ok: false, error: 'boom' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('通用');
+    fireEvent.click(screen.getByRole('button', { name: '下载 Agent Skill' }));
+    expect(await screen.findByText('下载失败：boom')).toBeInTheDocument();
+  });
+
+  it('disables the download button while packaging is in flight', async () => {
+    const pending = deferred<void>();
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      if (type === 'packageAgentSkill') return pending.promise.then(() => ({ ok: true }));
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('通用');
+    fireEvent.click(screen.getByRole('button', { name: '下载 Agent Skill' }));
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('packageAgentSkill', undefined));
+    // 在途：按钮禁用，状态行显示下载中文案。
+    expect(screen.getByRole('button', { name: '下载 Agent Skill' })).toBeDisabled();
+    expect(screen.getByText('正在下载…')).toBeInTheDocument();
+    // 完成：按钮恢复，成功文案出现。等待 pending 收尾避免遗留 deferred 触发 act 警告。
+    await act(async () => {
+      pending.resolve();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(screen.getByText('已开始下载')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下载 Agent Skill' })).not.toBeDisabled();
+  });
 });

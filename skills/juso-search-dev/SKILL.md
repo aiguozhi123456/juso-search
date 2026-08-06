@@ -17,7 +17,7 @@ Use this skill when a task needs web search through the user's locally configure
 
 - Build and load the Juso developer extension (`npm run build:dev` → load `.output/chrome-mv3-dev/` in `chrome://extensions` with Developer mode).
 - The browser you open must be the one whose profile has Juso developer build installed and enabled.
-- 扩展 ID 已内置默认值（开发版 `pdklefhommhabbhkglgkgomeibeibmcl`），无需手动配置。仅在自行签名打包且 ID 与默认不一致时，才需设置 `JUSO_EXTENSION_ID` 或传 `--extension-id` 覆盖。
+- 扩展 ID 已内置，无需手动配置。
 - Configure at least one provider in the extension before `search`.
 - Run the script from this skill directory, or use its path relative to the skill root: `scripts/juso_search.py`.
 

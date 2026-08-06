@@ -13,7 +13,8 @@
     "prepare": "wxt prepare",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:python": "python -m unittest tests/scripts/test_juso_search.py",
+    "test:python": "python -m unittest tests/scripts/test_juso_search.py tests/scripts/test_gen_skills.py",
+    "gen-skills": "python scripts/gen_skills.py",
     "test:watch": "vitest",
     "lint": "eslint ."
   },

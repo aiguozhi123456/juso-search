@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-08-01
+last_updated: 2026-08-05
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -126,6 +126,16 @@ Each engine owns its natural-result DOM contract:
 Redirect decoding requires both the expected path and engine hostname. An external site may legitimately have `/url?q=...` or `/ck/a?u=...`; path-only decoding would silently rewrite its URL.
 
 Page-state errors (`challenge`, `consent`, `unsupported-layout`, `no-results`) and orchestration errors (`tab-closed`, `timeout`, `aborted`, `extract-failed`) are explicit failures with nonzero CLI exit status. They are not successful empty result sets. See `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md`.
+
+### Single-source template and in-extension download
+
+The skill no longer lives only as hand-maintained repo copies. The single source is the template at `public/agent-skill/` — prod-style content with one `__JUSO_EXTENSION_ID__` placeholder in `scripts/juso_search.py` — which ships verbatim inside the extension and is fetchable via `browser.runtime.getURL`.
+
+`scripts/gen_skills.py` renders the two repo-published directories (`skills/juso-search/`, `skills/juso-search-dev/`) from that one template; the dev build is produced by encoded prod→dev prose transforms. `tests/scripts/test_gen_skills.py` is a drift lock that asserts the tracked directories equal the generator output, killing the hand-maintained-twin drift class.
+
+The in-extension download path (Options → 通用 → Agent Bridge → Download Agent Skill) fetches the template in the worker, stamps `browser.runtime.id` into the placeholder — so a custom dev build receives its own id — zips it with a uniform `juso-search/` top-level folder, and downloads it via `browser.downloads.download` as `juso-search-<version>.zip` (CWS prod) or `juso-search-dev-<version>.zip` (dev builds).
+
+The two channels serve different audiences: the repo directories (distinct names) target GitHub users and maintainers dogfooding both builds, while the in-extension download (uniform `juso-search` name) targets single-extension end users.
 
 ## Why This Matters
 

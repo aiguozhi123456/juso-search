@@ -9,6 +9,13 @@ const DEV_EXTENSION_KEY =
 
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  // __SKILL_VARIANT__ 编译期常量：'dev'（wxt build --mode development）或 'prod'（其余构建）。
+  // 后台 worker 用它在 Options 内下载技能包时选择打包进扩展的技能模板（public/agent-skill/）。
+  vite: (env) => ({
+    define: {
+      __SKILL_VARIANT__: JSON.stringify(env.mode === 'development' ? 'dev' : 'prod'),
+    },
+  }),
   manifest: ({ mode }) => ({
     ...(mode === 'development' ? { key: DEV_EXTENSION_KEY } : {}),
     default_locale: 'zh_CN',

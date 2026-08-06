@@ -86,6 +86,7 @@ You can now search and switch among conventional engines, saved Site Engines, an
 2. Choose the skill that matches your Juso installation:
    - **Chrome Web Store installation** (recommended): install or copy `skills/juso-search/` into your agent's skills directory, for example `.agents/skills/juso-search/`. The extension ID is built in by default—no setup needed.
    - **Developer build** (self-built via `npm run build:dev`): install or copy `skills/juso-search-dev/` into your agent's skills directory, for example `.agents/skills/juso-search-dev/`. The only difference between the two skills is the extension ID; choose based on how you installed Juso.
+   Or download the companion Agent Skill from Options → General → Agent Bridge (auto-stamped with this extension's ID; unzip into `.agents/skills/`. Custom dev builds are supported too).
 3. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default).
 4. If auto-discovery cannot find a browser, or Juso is installed only in Edge (or another non-default binary), point the skill at **the executable whose profile has Juso** (optionally set a profile directory name):
 

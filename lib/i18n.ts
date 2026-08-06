@@ -284,6 +284,13 @@ export const MSG = {
   opts_agent_bridge_enable: 'opts_agent_bridge_enable',
   opts_agent_bridge_engine_search: 'opts_agent_bridge_engine_search',
   opts_agent_bridge_engine_search_hint: 'opts_agent_bridge_engine_search_hint',
+  // 配套 Agent Skill 下载（IU8/IU9）
+  opts_agent_skill_heading: 'opts_agent_skill_heading',
+  opts_agent_skill_hint: 'opts_agent_skill_hint',
+  opts_agent_skill_download: 'opts_agent_skill_download',
+  opts_agent_skill_pending: 'opts_agent_skill_pending',
+  opts_agent_skill_done: 'opts_agent_skill_done',
+  opts_agent_skill_failed: 'opts_agent_skill_failed',
   // 关于页
   opts_about_heading: 'opts_about_heading',
   opts_about_tagline: 'opts_about_tagline',

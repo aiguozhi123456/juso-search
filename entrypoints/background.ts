@@ -19,6 +19,7 @@ import {
   handleImportConfig,
   handleListAgentInstances,
   handleListAgentProviders,
+  handlePackageAgentSkill,
   handlePreviewImport,
   handleSaveProviderKey,
   handleSearch,
@@ -112,6 +113,7 @@ export default defineBackground(() => {
   onMessage('deleteCachedSearch', ({ data }) => handleDeleteCachedSearch(data));
   onMessage('clearSearchCache', () => handleClearSearchCache());
   onMessage('exportConfig', () => handleExportConfig());
+  onMessage('packageAgentSkill', () => handlePackageAgentSkill());
   onMessage('previewImport', ({ data }) => handlePreviewImport(data));
   onMessage('importConfig', ({ data }) => handleImportConfig(data));
   onMessage('agentBridgeClaim', async ({ data, sender }) => {
