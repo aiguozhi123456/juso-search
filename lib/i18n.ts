@@ -293,6 +293,9 @@ export const MSG = {
   opts_agent_skill_failed: 'opts_agent_skill_failed',
   // 关于页
   opts_about_heading: 'opts_about_heading',
+  opts_nav_search: 'opts_nav_search',
+  opts_nav_keys: 'opts_nav_keys',
+  opts_nav_general: 'opts_nav_general',
   opts_about_tagline: 'opts_about_tagline',
   opts_about_description: 'opts_about_description',
   opts_about_links_heading: 'opts_about_links_heading',

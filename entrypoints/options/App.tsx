@@ -130,9 +130,9 @@ export default function App() {
   const [activeGroup, setActiveGroup] = useState('search');
 
    const navGroups = [
-     { id: 'search', label: '搜索', icon: <SearchIcon size={16} /> },
-     { id: 'keys', label: '密钥', icon: <KeyIcon size={16} /> },
-     { id: 'general', label: '通用', icon: <SettingsIcon size={16} /> },
+     { id: 'search', label: t(MSG.opts_nav_search), icon: <SearchIcon size={16} /> },
+     { id: 'keys', label: t(MSG.opts_nav_keys), icon: <KeyIcon size={16} /> },
+     { id: 'general', label: t(MSG.opts_nav_general), icon: <SettingsIcon size={16} /> },
      { id: 'about', label: t(MSG.opts_about_heading), icon: <InfoIcon size={16} /> }
    ];
 
