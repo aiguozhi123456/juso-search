@@ -257,6 +257,7 @@
   "opts_instance_delete_confirm": { "message": "Delete instance \"$1\"?", "placeholders": { "1": { "content": "$1" } } },
   "opts_instance_save": { "message": "Save" },
   "opts_instance_cancel": { "message": "Cancel" },
+  "opts_instance_reset": { "message": "Reset to defaults" },
   "opts_instance_empty": { "message": "No instances yet. Add one to create a tuned preset of a provider." },
   "opts_instance_limit_reached": { "message": "Up to 50 provider instances. Remove one to add another." },
   "opts_instance_status_created": { "message": "Instance added." },

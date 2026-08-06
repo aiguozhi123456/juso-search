@@ -705,6 +705,32 @@ body {
 }
 .provider-instance-form-actions button:disabled { opacity: 0.5; cursor: default; }
 
+/* 「恢复默认设置」：次要、轻度破坏性动作（清空 options 草稿，仍需保存才生效）→
+   ghost 文字按钮，视觉权重刻意低于保存主按钮。单独成行置于 options 子表单与
+   提交行之间，语义上归属 options 子表单而非整实例提交；右对齐使其与左对齐的
+   [保存][取消] 提交行分离，避免被误读为同级提交动作。currentColor 字形 + 既有
+   token 配色，亮/暗与默认/彩色主题自适应（hover 跟随 --brand，与保存按钮同色和谐）。 */
+.provider-instance-form-reset { display: flex; justify-content: flex-end; }
+.provider-instance-form-reset button {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs); font-family: inherit; font-weight: 500;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+.provider-instance-form-reset button::before {
+  content: ""; width: 14px; height: 14px; flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 4 1 10 7 10'/%3E%3Cpath d='M3.51 15a9 9 0 1 0 2.13-9.36L1 10'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 4 1 10 7 10'/%3E%3Cpath d='M3.51 15a9 9 0 1 0 2.13-9.36L1 10'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.provider-instance-form-reset button:hover:not(:disabled) {
+  color: var(--brand); background: var(--brand-soft);
+}
+.provider-instance-form-reset button:disabled { opacity: 0.5; cursor: default; }
+
 /* ── Exa 参数表单（Provider Instance 内的子表单） ── */
 .exa-settings {
   display: flex;

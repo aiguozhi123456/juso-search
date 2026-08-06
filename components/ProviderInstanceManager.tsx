@@ -453,6 +453,17 @@ export function ProviderInstanceManager() {
     setEditor((prev) => (prev ? { ...prev, doubao: { ...prev.doubao, ...patch } } : prev));
   }
 
+  /** 恢复默认设置：仅把 options 草稿重置为 provider 默认值（镜像 submit 的 per-provider 分支），
+   *  名称字段不动（名称是实例身份，create 模式同样不动）；只 patch 草稿，仍需点保存才生效。 */
+  function resetOptionsDraft() {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      const exa = prev.baseProviderId === 'exa' ? defaultExaDraft() : prev.exa;
+      const doubao = prev.baseProviderId === 'doubao' ? defaultDoubaoDraft() : prev.doubao;
+      return { ...prev, exa, doubao };
+    });
+  }
+
   async function submit() {
     if (!editor || busy) return;
     const name = editor.name.trim();
@@ -537,6 +548,14 @@ export function ProviderInstanceManager() {
           )}
           {editor.baseProviderId === 'doubao' && (
             <DoubaoOptionsForm draft={editor.doubao} onChange={patchDoubao} />
+          )}
+
+          {(editor.baseProviderId === 'exa' || editor.baseProviderId === 'doubao') && (
+            <div className="provider-instance-form-reset">
+              <button type="button" onClick={resetOptionsDraft} disabled={busy}>
+                {t(MSG.opts_instance_reset)}
+              </button>
+            </div>
           )}
 
           <div className="provider-instance-form-actions">

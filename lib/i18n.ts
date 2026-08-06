@@ -400,6 +400,7 @@ export const MSG = {
   opts_instance_delete_confirm: 'opts_instance_delete_confirm',
   opts_instance_save: 'opts_instance_save',
   opts_instance_cancel: 'opts_instance_cancel',
+  opts_instance_reset: 'opts_instance_reset',
   opts_instance_empty: 'opts_instance_empty',
   opts_instance_limit_reached: 'opts_instance_limit_reached',
   opts_instance_status_created: 'opts_instance_status_created',

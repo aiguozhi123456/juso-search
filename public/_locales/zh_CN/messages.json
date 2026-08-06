@@ -257,6 +257,7 @@
   "opts_instance_delete_confirm": { "message": "确定删除实例「$1」吗？", "placeholders": { "1": { "content": "$1" } } },
   "opts_instance_save": { "message": "保存" },
   "opts_instance_cancel": { "message": "取消" },
+  "opts_instance_reset": { "message": "恢复默认设置" },
   "opts_instance_empty": { "message": "还没有实例。新增一个即可为 provider 创建调好参数的预设。" },
   "opts_instance_limit_reached": { "message": "最多 50 个 provider 实例，请先删除不再需要的。" },
   "opts_instance_status_created": { "message": "实例已新增。" },

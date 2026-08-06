@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within, act } from '@testing-librar
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
+import { DEFAULT_DOUBAO_SETTINGS } from '@/lib/providers/doubao';
 import type { SiteEngineDefinition } from '@/lib/site-engines';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
@@ -841,6 +842,92 @@ describe('options page', () => {
         },
       }),
     );
+  });
+
+  it('resets a doubao instance options to defaults in edit mode while keeping the name', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
+            options: { timeRange: '2026-02-01..2026-02-28', needContent: true, needUrl: true, sites: ['a.com', 'b.com'], blockHosts: ['x.com'], onlyAuthoritative: false, queryRewrite: true, contentFormat: 'markdown', industry: 'game' },
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('豆包研究');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    // 先改名称：重置只动 options 草稿，名称必须保持用户值。
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包研究·恢复' } });
+    // 非默认 options 已在表单回显（自定义区间、markdown、行业 game）。
+    fireEvent.click(screen.getByRole('button', { name: '恢复默认设置' }));
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('updateProviderInstance', {
+        id: 'inst:doubao:abc123',
+        patch: { name: '豆包研究·恢复', options: expect.objectContaining(DEFAULT_DOUBAO_SETTINGS) },
+      }),
+    );
+  });
+
+  it('resets changed doubao fields to defaults in create mode before saving', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    // 改若干字段（枚举区间、开关、格式），再点重置。
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'OneWeek' } });
+    fireEvent.click(screen.getByLabelText('仅返回有正文的结果'));
+    fireEvent.change(screen.getByLabelText('正文格式'), { target: { value: 'markdown' } });
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包默认' } });
+    fireEvent.click(screen.getByRole('button', { name: '恢复默认设置' }));
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'doubao',
+        name: '豆包默认',
+        options: expect.objectContaining(DEFAULT_DOUBAO_SETTINGS),
+      }),
+    );
+  });
+
+  it('echoes the default options in the form after resetting', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'OneWeek' } });
+    fireEvent.click(screen.getByLabelText('仅返回有正文的结果'));
+    fireEvent.change(screen.getByLabelText('正文格式'), { target: { value: 'markdown' } });
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包回显' } });
+    fireEvent.click(screen.getByRole('button', { name: '恢复默认设置' }));
+    // 代表性控件回到默认：timeRange 下拉回到「不限」（''）、开关取消勾选、格式回 text。
+    expect(screen.getByLabelText('发文时间范围')).toHaveValue('');
+    expect(screen.queryByLabelText('开始日期')).not.toBeInTheDocument();
+    expect((screen.getByLabelText('仅返回有正文的结果') as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByLabelText('正文格式')).toHaveValue('text');
+    // 名称不受重置影响。
+    expect((screen.getByPlaceholderText('如「AI 研究」') as HTMLInputElement).value).toBe('豆包回显');
   });
 
   it('deletes a provider instance after inline confirmation', async () => {
