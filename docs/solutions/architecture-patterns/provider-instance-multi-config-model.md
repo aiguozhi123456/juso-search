@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-08-02
+last_updated: 2026-08-06
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -175,7 +175,9 @@ When a bare provider id is searched (agent v1, or a UI that hasn't migrated to i
 2. The user changes the default by reordering `sourceOrder` (an existing axis), not by editing a separate "default" field.
 3. The sole instance for a provider cannot be deleted (protects the default), but can be hidden. This ensures a provider with a configured key always has a default instance for v1 agent fallback.
 
-**Auto-create on key config.** When a provider key is saved (`handleSaveProviderKey`) and the provider is in `PROVIDERS_WITH_INSTANCE_OPTIONS` and has no existing instances, a default instance is auto-created with empty options (`{}` — the adapter's normalizer fills defaults) and the provider's display label as its name. This is done atomically via `ensureDefaultInstance` (in `lib/storage.ts`, inside `withProviderInstancesMutation`), which checks for existing instances before creating — so re-adding a deleted key does not create a duplicate. This ensures every instance-supporting provider always has ≥1 instance, making the model uniform (no bare pill ever appears for instance-supporting providers).
+**Auto-create on key config.** When a provider key is saved (`handleSaveProviderKey`) and the provider is in `PROVIDERS_WITH_INSTANCE_OPTIONS` and has no existing instances, a default instance is auto-created with empty options (`{}` — the adapter's normalizer fills defaults) and the provider's display label as its name. This is done atomically via `ensureDefaultInstance` (in `lib/storage.ts`, inside `withSourceMutation(() => withProviderInstancesMutation(...))` — source queue first, then instance queue, matching `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`), which checks for existing instances before creating — so re-adding a deleted key does not create a duplicate. This ensures every instance-supporting provider always has ≥1 instance, making the model uniform (no bare pill ever appears for instance-supporting providers).
+
+**Backfill on config read.** Key-save auto-create only covers users who save a key *after* the instance feature shipped. Older users who configured exa/doubao keys before instances existed would otherwise keep a bare provider pill forever. `handleGetProviderConfig` (`lib/gateway.ts`) therefore lazily backfills: it reads the config snapshot, and for any provider in `PROVIDERS_WITH_INSTANCE_OPTIONS` that is configured (key exists — only read in the worker context, BYOK-safe) yet has zero instances, it calls the same `ensureDefaultInstance`. The snapshot returned to the UI is re-read after backfill so the new instance is projected immediately. The backfill is idempotent (missing set is empty once done — `ensureDefaultInstance` is itself a no-op when an instance exists), costs zero extra storage reads in steady state, and is best-effort: a failed backfill never blocks the config reply. Chosen trigger point: every UI surface (search page / options / SERP bar) pulls config through this one worker message, so a single lazy backfill here self-heals all of them. A read-path backfill is preferred over a schema migration for three reasons: (1) it also covers keys filled by config import (`mergeImport` only fills empty slots and never re-triggers key-save auto-create); (2) it keeps the migration chain (`ensureSchema`, worker-only at `lib/gateway.ts:67-74`, pre-warmed at `entrypoints/background.ts:50`) a pure key-stamping function — a migration would have to read key existence inside schema code, leaking the BYOK check out of the read path it belongs to; (3) it self-heals storage that was manually edited back to zero instances.
 
 The cost of implicit-first is that "first in storage order" is an implicit contract. It is documented at `resolveBareProvider` (`lib/gateway.ts:449-450`) and exercised by tests. The benefit is one fewer storage field and one fewer consistency invariant to maintain. The auto-create + sole-instance protection together ensure the default is always present and stable.
 
@@ -314,25 +316,26 @@ buildRequest(query, opts, apiKey) {
 
 `normalizeExaSettings` (`lib/providers/exa.ts:68-84`) sanitizes the untrusted `providerSettings` bag into a valid `ExaSettings` at the adapter boundary — the same way `normalizeProviderInstance` sanitizes at the storage boundary. Unknown fields are ignored. This means:
 
-- Phase 1 ships Exa options only (6 fields: searchType, category, includeDomains, excludeDomains, textMaxCharacters, highlightsMaxCharacters). Result count (`numResults`) is **not** an instance option — the provider-level `maxResults` stepper is the single source of truth for result count. This avoids a dead-form-field bug where provider-level maxResults would silently override instance-level numResults.
-- Phase 1 ships Exa options only, but the framework is schema-agnostic from day one.
-- Phase 2 (adding options for another provider) requires **no change to `SearchOptions`, `gateway.ts`, `messaging.ts`, or the cache**. It requires only: (1) an options type + normalizer in the new adapter, (2) an options form in `ProviderInstanceManager`, (3) an entry in `PROVIDERS_WITH_INSTANCE_OPTIONS`.
+- Exa ships options (6 fields: searchType, category, includeDomains, excludeDomains, textMaxCharacters, highlightsMaxCharacters) and Doubao ships options (9 fields: timeRange, needContent, needUrl, sites, blockHosts, onlyAuthoritative, queryRewrite, contentFormat, industry). Result count (`numResults`) is **not** an instance option — the provider-level `maxResults` stepper is the single source of truth for result count. This avoids a dead-form-field bug where provider-level maxResults would silently override instance-level numResults.
+- The framework is schema-agnostic from day one: each adapter owns its options schema and normalizer, and the form is just a draft-to-settings projection in `ProviderInstanceManager`.
+- Adding options for a third provider requires **no change to `SearchOptions`, `gateway.ts`, `messaging.ts`, or the cache**. It requires only: (1) an options type + normalizer in the new adapter, (2) an options form in `ProviderInstanceManager`, (3) an entry in `PROVIDERS_WITH_INSTANCE_OPTIONS`.
 
-The `PROVIDERS_WITH_INSTANCE_OPTIONS` set (`lib/provider-instances.ts:32-34`) is the Phase 1 hardcode that gates which providers appear in the "create instance" dropdown:
+The `PROVIDERS_WITH_INSTANCE_OPTIONS` set (`lib/provider-instances.ts:32-35`) is the hardcode that gates which providers appear in the "create instance" dropdown:
 
 ```ts
 export const PROVIDERS_WITH_INSTANCE_OPTIONS: ReadonlySet<ProviderId> = new Set<ProviderId>([
   'exa',
+  'doubao',
 ]);
 ```
 
-Creating an instance of a provider with no options would be meaningless — it would behave identically to the bare provider pill. The set prevents that. Phase 2 should derive this set from adapter-declared schema descriptors rather than maintaining it by hand; the three-step extension contract (adapter schema + UI form + set entry) is documented inline at `:22-31`.
+Creating an instance of a provider with no options would be meaningless — it would behave identically to the bare provider pill. The set prevents that. The set is intentionally hand-maintained (each addition must also ship an adapter schema + UI form); a future phase could derive it from adapter-declared schema descriptors, but the three-step extension contract (adapter schema + UI form + set entry) is documented inline at `:22-31`.
 
 ### Mirror site-engine / custom-engine patterns for storage, projection, and config IO
 
 The instance feature is the fourth instance of a recurring pattern in this codebase (after providers, site-engines, custom-engines). Every layer that already handled site-engines was extended with a parallel instance branch:
 
-- **Storage CRUD** (`lib/storage.ts:565-644`): `getProviderInstances` / `setProviderInstances` / `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`, plus a fourth serialization queue `withProviderInstancesMutation` (`:110-115`). `deleteProviderInstance` acquires the source queue before the instance queue (the same order `clearKey` uses) because deletion rewrites `sourceOrder` / `sourceHidden` / `activeSource` as well as the instance collection.
+- **Storage CRUD** (`lib/storage.ts`): `getProviderInstances` / `setProviderInstances` / `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`, plus a fourth serialization queue `withProviderInstancesMutation`. Every instance CRUD that reads or rewrites the instance collection (`createProviderInstance` / `updateProviderInstance` / `ensureDefaultInstance` / `deleteProviderInstance`) acquires the source queue before the instance queue (the same order `clearKey` uses) so it serializes against `mergeImport`, which holds the source queue while whole-array-overwriting the instance collection — the instance queue alone would still permit a lost-update against that whole-array write.
 - **`selectActiveSourceId` dual-write** (`lib/storage.ts:290-313`): selecting an instance id writes both `activeSource = instanceId` and `activeProvider = instance.baseProviderId`, so provider-only fallback paths (`getActiveProviderId`) still resolve. This mirrors the existing `isKnownProvider` branch.
 - **`allSources` projection** (`lib/sources.ts:157-256`): a provider with instances projects one pill per instance (sharing the base adapter's `favicon` / `supportsAnswer`, using the instance name as a literal label) and **does not** project a bare provider pill. A provider with zero instances projects the bare pill as before. Same-provider instances are kept adjacent in the flyout by a sort heuristic over `sourceOrder`.
 - **`normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds`** (`lib/sources.ts:56-135`): each gained a `providerInstances` parameter. Instance ids are kept iff they appear in the provided definitions; unknown ids are stripped.

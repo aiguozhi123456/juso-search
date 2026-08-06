@@ -14,6 +14,13 @@ import {
   type ExaSearchType,
   type ExaCategory,
 } from '@/lib/providers/exa';
+import {
+  DOUBAO_TIME_RANGES,
+  DOUBAO_INDUSTRIES,
+  normalizeDoubaoSettings,
+  type DoubaoSettings,
+  type DoubaoIndustry,
+} from '@/lib/providers/doubao';
 
 type Status = { kind: 'idle' | 'saving' | 'ok' | 'fail'; message: string };
 
@@ -31,9 +38,28 @@ type ExaDraft = {
   highlightsMaxStr: string;
 };
 
+/**
+ * Doubao 参数草稿：发文时间在「枚举值 | custom」间切换，选 custom 时由两个
+ * date 输入（timeStart/timeEnd）组成 'YYYY-MM-DD..YYYY-MM-DD' 区间；站点/屏蔽
+ * 域名用 textarea（每行一个）的中间字符串态，与 ExaDraft 同构。
+ */
+type DoubaoDraft = {
+  timeRange: string; // '' | OneDay/OneWeek/OneMonth/OneYear | 'custom'
+  timeStart: string;
+  timeEnd: string;
+  needContent: boolean;
+  needUrl: boolean;
+  onlyAuthoritative: boolean;
+  queryRewrite: boolean;
+  sites: string;
+  blockHosts: string;
+  contentFormat: 'text' | 'markdown';
+  industry: '' | DoubaoIndustry;
+};
+
 type EditorState =
-  | { mode: 'create'; baseProviderId: ProviderId; name: string; exa: ExaDraft }
-  | { mode: 'edit'; editId: ProviderInstanceId; baseProviderId: ProviderId; name: string; exa: ExaDraft };
+  | { mode: 'create'; baseProviderId: ProviderId; name: string; exa: ExaDraft; doubao: DoubaoDraft }
+  | { mode: 'edit'; editId: ProviderInstanceId; baseProviderId: ProviderId; name: string; exa: ExaDraft; doubao: DoubaoDraft };
 
 function defaultExaDraft(): ExaDraft {
   return {
@@ -68,6 +94,63 @@ function exaSettingsFromDraft(draft: ExaDraft): ExaSettings {
     excludeDomains: draft.excludeText.split('\n').map((d) => d.trim()).filter(Boolean),
     textMaxCharacters: draft.textMaxStr.trim() ? Number(draft.textMaxStr) : null,
     highlightsMaxCharacters: draft.highlightsMaxStr.trim() ? Number(draft.highlightsMaxStr) : null,
+  };
+}
+
+function defaultDoubaoDraft(): DoubaoDraft {
+  return {
+    timeRange: '',
+    timeStart: '',
+    timeEnd: '',
+    needContent: false,
+    needUrl: true,
+    onlyAuthoritative: false,
+    queryRewrite: false,
+    sites: '',
+    blockHosts: '',
+    contentFormat: 'text',
+    industry: '',
+  };
+}
+
+/** 编辑既有实例时用 normalizeDoubaoSettings 把存储的 options 投影成表单草稿。 */
+function doubaoDraftFromInstance(instance: ProviderInstance): DoubaoDraft {
+  const settings = normalizeDoubaoSettings(instance.options);
+  const range = /^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/.exec(settings.timeRange);
+  return {
+    timeRange: range ? 'custom' : settings.timeRange,
+    timeStart: range ? range[0].split('..')[0] : '',
+    timeEnd: range ? range[0].split('..')[1] : '',
+    needContent: settings.needContent,
+    needUrl: settings.needUrl,
+    onlyAuthoritative: settings.onlyAuthoritative,
+    queryRewrite: settings.queryRewrite,
+    sites: settings.sites.join('\n'),
+    blockHosts: settings.blockHosts.join('\n'),
+    contentFormat: settings.contentFormat,
+    industry: settings.industry,
+  };
+}
+
+/** 保存时把草稿组装成 DoubaoSettings（textarea 按行拆分、自定义区间两端齐全才落值）。 */
+function doubaoSettingsFromDraft(draft: DoubaoDraft): DoubaoSettings {
+  return {
+    // 枚举值（OneDay/OneWeek/OneMonth/OneYear）原样透传；仅 custom 需要拼区间。
+    // 区间必须两端齐全（API 无半区间，缺端落 '' = 不限）且 start <= end
+    // （ISO 串字典序可比；date input 的 min 只是引导，手输/后改 start 仍可倒置）。
+    timeRange: draft.timeRange === 'custom'
+      ? (draft.timeStart && draft.timeEnd && draft.timeStart <= draft.timeEnd
+          ? `${draft.timeStart}..${draft.timeEnd}`
+          : '')
+      : draft.timeRange,
+    needContent: draft.needContent,
+    needUrl: draft.needUrl,
+    sites: draft.sites.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, 20),
+    blockHosts: draft.blockHosts.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, 5),
+    onlyAuthoritative: draft.onlyAuthoritative,
+    queryRewrite: draft.queryRewrite,
+    contentFormat: draft.contentFormat,
+    industry: draft.industry,
   };
 }
 
@@ -148,9 +231,135 @@ function ExaOptionsForm({ draft, onChange }: { draft: ExaDraft; onChange: (patch
   );
 }
 
+/** Doubao 参数表单：复用 .exa-settings 系列的样式类（与 ExaOptionsForm 同构的受控草稿）。 */
+function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: (patch: Partial<DoubaoDraft>) => void }) {
+  return (
+    <div className="exa-settings">
+      <div className="exa-settings-grid">
+        <label className="exa-field">
+          <span className="exa-field-label">{t(MSG.opts_doubao_time_range)}</span>
+          <select
+            value={draft.timeRange}
+            onChange={(e) => onChange({ timeRange: e.target.value })}
+          >
+            <option value="">{t(MSG.opts_doubao_time_unlimited)}</option>
+            {DOUBAO_TIME_RANGES.map((r) => (
+              <option key={r} value={r}>{t(MSG[`opts_doubao_time_${r.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}` as keyof typeof MSG])}</option>
+            ))}
+            <option value="custom">{t(MSG.opts_doubao_time_custom)}</option>
+          </select>
+        </label>
+
+        {draft.timeRange === 'custom' && (
+          <>
+            <label className="exa-field">
+              <span className="exa-field-label">{t(MSG.opts_doubao_time_start)}</span>
+              <input
+                type="date"
+                value={draft.timeStart}
+                onChange={(e) => onChange({ timeStart: e.target.value })}
+              />
+            </label>
+            <label className="exa-field">
+              <span className="exa-field-label">{t(MSG.opts_doubao_time_end)}</span>
+              <input
+                type="date"
+                min={draft.timeStart || undefined}
+                value={draft.timeEnd}
+                onChange={(e) => onChange({ timeEnd: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        <label className="exa-field">
+          <span className="exa-field-label">{t(MSG.opts_doubao_content_format)}</span>
+          <select
+            value={draft.contentFormat}
+            onChange={(e) => onChange({ contentFormat: e.target.value as 'text' | 'markdown' })}
+          >
+            <option value="text">{t(MSG.opts_doubao_format_text)}</option>
+            <option value="markdown">{t(MSG.opts_doubao_format_markdown)}</option>
+          </select>
+        </label>
+
+        <label className="exa-field">
+          <span className="exa-field-label">{t(MSG.opts_doubao_industry)}</span>
+          <select
+            value={draft.industry}
+            onChange={(e) => onChange({ industry: e.target.value as '' | DoubaoIndustry })}
+          >
+            <option value="">{t(MSG.opts_doubao_industry_none)}</option>
+            {DOUBAO_INDUSTRIES.map((ind) => (
+              <option key={ind} value={ind}>{t(MSG[`opts_doubao_industry_${ind}` as keyof typeof MSG])}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="exa-settings-grid">
+        <label className="exa-field">
+          <input
+            type="checkbox"
+            checked={draft.needContent}
+            onChange={(e) => onChange({ needContent: e.target.checked })}
+          />
+          <span className="exa-field-label">{t(MSG.opts_doubao_need_content)}</span>
+        </label>
+        <label className="exa-field">
+          <input
+            type="checkbox"
+            checked={draft.needUrl}
+            onChange={(e) => onChange({ needUrl: e.target.checked })}
+          />
+          <span className="exa-field-label">{t(MSG.opts_doubao_need_url)}</span>
+        </label>
+        <label className="exa-field">
+          <input
+            type="checkbox"
+            checked={draft.onlyAuthoritative}
+            onChange={(e) => onChange({ onlyAuthoritative: e.target.checked })}
+          />
+          <span className="exa-field-label">{t(MSG.opts_doubao_only_authoritative)}</span>
+        </label>
+        <label className="exa-field">
+          <input
+            type="checkbox"
+            checked={draft.queryRewrite}
+            onChange={(e) => onChange({ queryRewrite: e.target.checked })}
+          />
+          <span className="exa-field-label">{t(MSG.opts_doubao_query_rewrite)}</span>
+        </label>
+      </div>
+
+      <label className="exa-field exa-field--wide">
+        <span className="exa-field-label">{t(MSG.opts_doubao_sites)}</span>
+        <textarea
+          rows={3}
+          placeholder={t(MSG.opts_doubao_domains_placeholder)}
+          value={draft.sites}
+          onChange={(e) => onChange({ sites: e.target.value })}
+        />
+      </label>
+      <p className="hint">{t(MSG.opts_doubao_sites_hint)}</p>
+
+      <label className="exa-field exa-field--wide">
+        <span className="exa-field-label">{t(MSG.opts_doubao_block_hosts)}</span>
+        <textarea
+          rows={3}
+          placeholder={t(MSG.opts_doubao_domains_placeholder)}
+          value={draft.blockHosts}
+          onChange={(e) => onChange({ blockHosts: e.target.value })}
+        />
+      </label>
+      <p className="hint">{t(MSG.opts_doubao_block_hosts_hint)}</p>
+    </div>
+  );
+}
+
 /**
  * Provider 实例管理：自包含组件（无 props，自己加载数据）。
- * 列出实例 + 创建/编辑/删除；Phase 1 仅 Exa 有参数表单。
+ * 列出实例 + 创建/编辑/删除；Phase 1 仅 Exa 有参数表单，Phase 2 加入 Doubao。
  * 实例 id 属 SourceId 边界，这里只发 CRUD 消息，绝不把实例 id 当 ProviderId 使用。
  */
 export function ProviderInstanceManager() {
@@ -210,9 +419,9 @@ export function ProviderInstanceManager() {
   function openCreate() {
     setConfirmDeleteId(null);
     setStatus({ kind: 'idle', message: '' });
-    // 默认选中首个支持实例 options 的已配置 provider（Phase 1 即 exa）。
+    // 默认选中首个支持实例 options 的已配置 provider（exa 或 doubao）。
     const baseProviderId = instanceableProviders[0]?.id ?? 'exa';
-    setEditor({ mode: 'create', baseProviderId, name: '', exa: defaultExaDraft() });
+    setEditor({ mode: 'create', baseProviderId, name: '', exa: defaultExaDraft(), doubao: defaultDoubaoDraft() });
   }
 
   function openEdit(instance: ProviderInstance) {
@@ -224,6 +433,7 @@ export function ProviderInstanceManager() {
       baseProviderId: instance.baseProviderId,
       name: instance.name,
       exa: exaDraftFromInstance(instance),
+      doubao: doubaoDraftFromInstance(instance),
     });
   }
 
@@ -239,15 +449,21 @@ export function ProviderInstanceManager() {
     setEditor((prev) => (prev ? { ...prev, exa: { ...prev.exa, ...patch } } : prev));
   }
 
+  function patchDoubao(patch: Partial<DoubaoDraft>) {
+    setEditor((prev) => (prev ? { ...prev, doubao: { ...prev.doubao, ...patch } } : prev));
+  }
+
   async function submit() {
     if (!editor || busy) return;
     const name = editor.name.trim();
     if (!name) return;
     setStatus({ kind: 'saving', message: '' });
-    // Phase 1：仅 Exa 有 options schema；其它 provider 的 options 为空对象。
+    // 仅带 per-instance options schema 的 provider 组装 options；其它 provider 的 options 为空对象。
     const options = editor.baseProviderId === 'exa'
       ? exaSettingsFromDraft(editor.exa) as unknown as Record<string, unknown>
-      : {};
+      : editor.baseProviderId === 'doubao'
+        ? doubaoSettingsFromDraft(editor.doubao) as unknown as Record<string, unknown>
+        : {};
     try {
       if (editor.mode === 'create') {
         await sendMessage('createProviderInstance', { baseProviderId: editor.baseProviderId, name, options });
@@ -306,6 +522,9 @@ export function ProviderInstanceManager() {
               id="provider-instance-base"
               value={editor.baseProviderId}
               onChange={(e) => patchEditor({ baseProviderId: e.target.value as ProviderId })}
+              // base provider 由实例 id 编码、存储层不可变更（storage.ts updateProviderInstance）；
+              // 编辑模式禁用下拉，防止切 base 后 submit 按新 base 组装 options，静默清空原设置。
+              disabled={editor.mode === 'edit'}
             >
               {instanceableProviders.map((p) => (
                 <option key={p.id} value={p.id}>{t(p.label)}</option>
@@ -315,6 +534,9 @@ export function ProviderInstanceManager() {
 
           {editor.baseProviderId === 'exa' && (
             <ExaOptionsForm draft={editor.exa} onChange={patchExa} />
+          )}
+          {editor.baseProviderId === 'doubao' && (
+            <DoubaoOptionsForm draft={editor.doubao} onChange={patchDoubao} />
           )}
 
           <div className="provider-instance-form-actions">

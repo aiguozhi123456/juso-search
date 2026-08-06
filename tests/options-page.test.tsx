@@ -593,6 +593,256 @@ describe('options page', () => {
     );
   });
 
+  it('offers doubao in the base-provider dropdown when its key is configured', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['exa', 'doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    const baseSelect = screen.getByLabelText('底层 Provider') as HTMLSelectElement;
+    // Exa 与 Doubao 均支持实例选项；Tavily 未配置也不在列。
+    expect(Array.from(baseSelect.options).map((o) => o.value)).toEqual(['exa', 'doubao']);
+    // 默认选 exa；切到 doubao 后出现 Doubao 参数表单。
+    fireEvent.change(baseSelect, { target: { value: 'doubao' } });
+    expect(screen.getByText('发文时间范围')).toBeInTheDocument();
+    expect(screen.getByText('限定站点')).toBeInTheDocument();
+  });
+
+  it('creates a doubao provider instance via the createProviderInstance message', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        // 仅 doubao 已配置 → 默认 base provider 即 doubao。
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    expect(screen.getByLabelText('底层 Provider')).toHaveValue('doubao');
+    expect(screen.getByText('发文时间范围')).toBeInTheDocument();
+    // 自定义发文区间：选「自定义区间」后填开始/结束日期。
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'custom' } });
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-01-01' } });
+    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2026-01-31' } });
+    // 勾选两个开关，限定/屏蔽站点各一行，正文格式与行业各选一项。
+    fireEvent.click(screen.getByLabelText('仅返回有正文的结果'));
+    fireEvent.click(screen.getByLabelText('仅限非常权威内容'));
+    fireEvent.change(screen.getByLabelText('限定站点'), { target: { value: 'example.com\ntest.org' } });
+    fireEvent.change(screen.getByLabelText('屏蔽站点'), { target: { value: 'spam.com' } });
+    fireEvent.change(screen.getByLabelText('正文格式'), { target: { value: 'markdown' } });
+    fireEvent.change(screen.getByLabelText('行业搜索'), { target: { value: 'finance' } });
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包研究' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'doubao',
+        name: '豆包研究',
+        options: expect.objectContaining({
+          timeRange: '2026-01-01..2026-01-31',
+          needContent: true,
+          needUrl: true,
+          onlyAuthoritative: true,
+          sites: ['example.com', 'test.org'],
+          blockHosts: ['spam.com'],
+          contentFormat: 'markdown',
+          industry: 'finance',
+        }),
+      }),
+    );
+  });
+
+  it('saves the OneWeek enum time range when selected for a doubao instance', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    // 枚举值 OneWeek（非 custom）：必须原样落值，而不是被拼区间的三元表达式清成 ''。
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'OneWeek' } });
+    expect(screen.queryByLabelText('开始日期')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包一周' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'doubao',
+        name: '豆包一周',
+        options: expect.objectContaining({ timeRange: 'OneWeek' }),
+      }),
+    );
+  });
+
+  it('round-trips a stored enum time range into the form and keeps it on save', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
+            options: { timeRange: 'OneWeek', needContent: false, needUrl: true, sites: [], blockHosts: [], onlyAuthoritative: false, queryRewrite: false, contentFormat: 'text', industry: '' },
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('豆包研究');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    // 存量枚举值回显到下拉（不回退成 ''，也不误拆成自定义区间）。
+    expect((screen.getByLabelText('发文时间范围') as HTMLSelectElement).value).toBe('OneWeek');
+    expect(screen.queryByLabelText('开始日期')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包研究·周' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('updateProviderInstance', {
+        id: 'inst:doubao:abc123',
+        patch: { name: '豆包研究·周', options: expect.objectContaining({ timeRange: 'OneWeek' }) },
+      }),
+    );
+  });
+
+  it('saves empty timeRange when a custom range has only a start date', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'custom' } });
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-01-01' } });
+    // 结束日期下限 = 开始日期，防倒置区间。
+    expect(screen.getByLabelText('结束日期')).toHaveAttribute('min', '2026-01-01');
+    // 结束日期留空：API 无半区间，保存必须落 ''（不限），不得拼出半区间。
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包半区间' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'doubao',
+        name: '豆包半区间',
+        options: expect.objectContaining({ timeRange: '' }),
+      }),
+    );
+  });
+
+  it('saves empty timeRange when a custom range is inverted (start > end)', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    fireEvent.change(screen.getByLabelText('发文时间范围'), { target: { value: 'custom' } });
+    // 先填结束日期，再把开始日期改成晚于它（date input 的 min 只是引导，后改 start 仍可倒置）。
+    fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2026-01-31' } });
+    fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-02-01' } });
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包倒置' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
+        baseProviderId: 'doubao',
+        name: '豆包倒置',
+        options: expect.objectContaining({ timeRange: '' }),
+      }),
+    );
+  });
+
+  it('disables the base provider dropdown while editing an existing instance', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
+            options: { timeRange: 'OneWeek', needContent: false, needUrl: true, sites: [], blockHosts: [], onlyAuthoritative: false, queryRewrite: false, contentFormat: 'text', industry: '' },
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('豆包研究');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    // 编辑模式禁用 base 下拉：base 由实例 id 编码不可变，切换会在保存时按新 base 组装 options 静默清空原设置。
+    expect(screen.getByLabelText('底层 Provider')).toBeDisabled();
+  });
+
+  it('edits a doubao instance and round-trips its options into the form', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve({
+          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          providerInstances: [{
+            id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
+            options: { timeRange: '2026-02-01..2026-02-28', needContent: true, needUrl: true, sites: ['a.com', 'b.com'], blockHosts: ['x.com'], onlyAuthoritative: false, queryRewrite: true, contentFormat: 'markdown', industry: 'game' },
+          }],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    await screen.findByText('豆包研究');
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    // 自定义区间在编辑时被拆回开始/结束日期两个输入框。
+    expect((screen.getByLabelText('开始日期') as HTMLInputElement).value).toBe('2026-02-01');
+    expect((screen.getByLabelText('结束日期') as HTMLInputElement).value).toBe('2026-02-28');
+    // textarea 按行回填，勾选/下拉状态恢复。
+    expect((screen.getByLabelText('限定站点') as HTMLTextAreaElement).value).toBe('a.com\nb.com');
+    expect((screen.getByLabelText('屏蔽站点') as HTMLTextAreaElement).value).toBe('x.com');
+    expect((screen.getByLabelText('仅返回有正文的结果') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('开启 Query 改写') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('正文格式') as HTMLSelectElement).value).toBe('markdown');
+    expect((screen.getByLabelText('行业搜索') as HTMLSelectElement).value).toBe('game');
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包研究·游戏' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('updateProviderInstance', {
+        id: 'inst:doubao:abc123',
+        patch: {
+          name: '豆包研究·游戏',
+          options: expect.objectContaining({
+            timeRange: '2026-02-01..2026-02-28',
+            sites: ['a.com', 'b.com'],
+            contentFormat: 'markdown',
+            industry: 'game',
+          }),
+        },
+      }),
+    );
+  });
+
   it('deletes a provider instance after inline confirmation', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {

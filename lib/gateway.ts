@@ -125,6 +125,26 @@ export async function handleTestKey(providerId: ProviderId): Promise<TestKeyRepl
 
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
+  const snapshot = await getProviderConfigSnapshot();
+  // 懒补齐（backfill）：实例功能上线前就已配置 key 的老用户（exa/doubao）可能没有任何实例，
+  // 破坏「支持实例选项的 provider 永远 ≥1 个实例」。所有 UI 面（搜索页/options/SERP bar）
+  // 都经本消息拉配置——在这里 worker 侧补齐一次即可自愈全部 UI；configuredProviderIds 来自
+  // key 存在性判断，仅发生在 worker 上下文，符合 BYOK 边界（页面代码绝不读 key）。
+  // ensureDefaultInstance 在 source+实例双队列内原子读-判-建（已有实例即 no-op），因此本逻辑幂等，
+  // 重复触发零副作用；稳态下 missing 为空，零额外存储读，热路径无成本。
+  // best-effort：补齐失败不影响配置返回。
+  const missing = [...PROVIDERS_WITH_INSTANCE_OPTIONS]
+    .filter((providerId) => snapshot.configuredProviderIds.includes(providerId))
+    .filter((providerId) => !snapshot.providerInstances.some((instance) => instance.baseProviderId === providerId));
+  if (missing.length === 0) return snapshot;
+  for (const providerId of missing) {
+    try {
+      await ensureDefaultInstance(providerId, t(getAdapter(providerId).label));
+    } catch {
+      // 忽略——配置读取是主操作，补齐是附带动作
+    }
+  }
+  // 补齐后重取快照，本次响应直接反映新实例（UI 无需等下一次消息）
   return getProviderConfigSnapshot();
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { doubaoAdapter } from '@/lib/providers/doubao';
+import { doubaoAdapter, normalizeDoubaoSettings, DEFAULT_DOUBAO_SETTINGS } from '@/lib/providers/doubao';
 import { ProviderError } from '@/lib/providers/types';
 import { res } from './helpers';
 
@@ -88,7 +88,60 @@ describe('doubaoAdapter', () => {
     expect(init.headers.Authorization).toBe('Bearer doubao-key');
     expect(init.headers['Content-Type']).toBe('application/json');
     const body = JSON.parse(init.body);
-    expect(body).toEqual({ Query: 'hello', SearchType: 'web', Count: 5, Filter: { NeedUrl: true } });
+    expect(body).toEqual({ Query: 'hello', SearchType: 'web', Count: 5, Filter: { NeedContent: false, NeedUrl: true } });
+  });
+
+  it('applies providerSettings from opts', async () => {
+    const fetchMock = vi.fn(async () => res(200, { ResponseMetadata: {}, Result: { ResultCount: 0, WebResults: [] } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await doubaoAdapter.search('q', {
+      providerSettings: {
+        timeRange: 'OneWeek',
+        needContent: true,
+        needUrl: false,
+        sites: ['example.com', 'test.org'],
+        blockHosts: ['spam.com'],
+        onlyAuthoritative: true,
+        queryRewrite: true,
+        contentFormat: 'markdown',
+        industry: 'finance',
+      },
+    }, 'doubao-key');
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    const body = JSON.parse(init.body);
+    expect(body.TimeRange).toBe('OneWeek');
+    expect(body.Filter.NeedContent).toBe(true);
+    expect(body.Filter.NeedUrl).toBe(false);
+    expect(body.Filter.Sites).toBe('example.com|test.org');
+    expect(body.Filter.BlockHosts).toBe('spam.com');
+    expect(body.Filter.AuthInfoLevel).toBe(1);
+    expect(body.QueryControl).toEqual({ QueryRewrite: true });
+    expect(body.ContentFormats).toBe('markdown');
+    expect(body.Industry).toBe('finance');
+  });
+
+  it('omits optional fields when providerSettings is empty or unset', async () => {
+    for (const providerSettings of [undefined, {}]) {
+      const fetchMock = vi.fn(async () => res(200, { ResponseMetadata: {}, Result: { ResultCount: 0, WebResults: [] } }));
+      vi.stubGlobal('fetch', fetchMock);
+      await doubaoAdapter.search('q', providerSettings ? { providerSettings } : {}, 'k');
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+      const body = JSON.parse(init.body);
+      expect(body).toEqual({ Query: 'q', SearchType: 'web', Count: 10, Filter: { NeedContent: false, NeedUrl: true } });
+    }
+  });
+
+  it('maxResults override works: opts.maxResults lands in the body, default is 10 when unset', async () => {
+    const fetchMock = vi.fn(async () => res(200, { ResponseMetadata: {}, Result: { ResultCount: 0, WebResults: [] } }));
+    vi.stubGlobal('fetch', fetchMock);
+    await doubaoAdapter.search('q', { maxResults: 3, providerSettings: {} }, 'k');
+    let [, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(JSON.parse(init.body).Count).toBe(3);
+
+    fetchMock.mockClear();
+    await doubaoAdapter.search('q', {}, 'k');
+    [, init] = fetchMock.mock.calls[0] as unknown as [string, { body: string }];
+    expect(JSON.parse(init.body).Count).toBe(10);
   });
 
   it('maps business error 10403 to unauthorized (HTTP 200, Result null)', async () => {
@@ -137,5 +190,58 @@ describe('doubaoAdapter', () => {
       }),
     );
     await expect(doubaoAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
+  });
+});
+
+describe('normalizeDoubaoSettings', () => {
+  it('returns defaults for null/undefined/garbage', () => {
+    expect(normalizeDoubaoSettings(null)).toEqual(DEFAULT_DOUBAO_SETTINGS);
+    expect(normalizeDoubaoSettings(undefined)).toEqual(DEFAULT_DOUBAO_SETTINGS);
+    expect(normalizeDoubaoSettings('garbage')).toEqual(DEFAULT_DOUBAO_SETTINGS);
+    expect(normalizeDoubaoSettings(42)).toEqual(DEFAULT_DOUBAO_SETTINGS);
+  });
+
+  it('rejects invalid timeRange and keeps valid enums/ranges', () => {
+    expect(normalizeDoubaoSettings({ timeRange: 'TwoDays' }).timeRange).toBe('');
+    expect(normalizeDoubaoSettings({ timeRange: '2026-01-01..2026-01-31' }).timeRange).toBe('2026-01-01..2026-01-31');
+    expect(normalizeDoubaoSettings({ timeRange: 'OneDay' }).timeRange).toBe('OneDay');
+    expect(normalizeDoubaoSettings({ timeRange: '2026-1-1..2026-01-31' }).timeRange).toBe('');
+    expect(normalizeDoubaoSettings({ timeRange: 'OneWeek..OneMonth' }).timeRange).toBe('');
+  });
+
+  it('trims and filters empty domains, truncates sites at 20 and blockHosts at 5', () => {
+    const many = Array.from({ length: 25 }, (_, i) => `site${i}.com`);
+    const manyBlocked = Array.from({ length: 7 }, (_, i) => `block${i}.com`);
+    const s = normalizeDoubaoSettings({
+      sites: ['a.com', '', '  ', 'b.com', ...many],
+      blockHosts: ['x.com', ...manyBlocked],
+    });
+    expect(s.sites).toHaveLength(20);
+    expect(s.sites[0]).toBe('a.com');
+    expect(s.blockHosts).toHaveLength(5);
+    expect(s.blockHosts[0]).toBe('x.com');
+  });
+
+  it('drops non-array hosts and unknown fields', () => {
+    const s = normalizeDoubaoSettings({ sites: 'not-array', blockHosts: 'not-array', numResults: 999, mystery: true });
+    expect(s).toEqual(DEFAULT_DOUBAO_SETTINGS);
+  });
+
+  it('accepts only strict boolean true for flag fields', () => {
+    const s = normalizeDoubaoSettings({ needContent: 'yes', needUrl: 1, onlyAuthoritative: true, queryRewrite: true });
+    expect(s.needContent).toBe(false);
+    expect(s.needUrl).toBe(false);
+    expect(s.onlyAuthoritative).toBe(true);
+    expect(s.queryRewrite).toBe(true);
+  });
+
+  it('falls back on invalid contentFormat and industry', () => {
+    const s = normalizeDoubaoSettings({ contentFormat: 'html', industry: 'tech' });
+    expect(s.contentFormat).toBe('text');
+    expect(s.industry).toBe('');
+    expect(normalizeDoubaoSettings({ contentFormat: 'markdown', industry: 'gov' })).toMatchObject({
+      contentFormat: 'markdown',
+      industry: 'gov',
+    });
   });
 });

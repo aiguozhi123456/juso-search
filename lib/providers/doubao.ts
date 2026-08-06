@@ -26,6 +26,67 @@ interface DoubaoResponse {
   Result?: DoubaoResult | null;
 }
 
+// ── Doubao Custom 可选设置（用户在设置页配置，gateway 读 storage 后通过 SearchOptions.providerSettings 传入）──
+
+export const DOUBAO_TIME_RANGES = ['OneDay', 'OneWeek', 'OneMonth', 'OneYear'] as const;
+
+export const DOUBAO_INDUSTRIES = ['finance', 'game', 'gov'] as const;
+export type DoubaoIndustry = (typeof DOUBAO_INDUSTRIES)[number];
+
+export interface DoubaoSettings {
+  timeRange: string; // '' | 枚举值 | 'YYYY-MM-DD..YYYY-MM-DD'（含端点区间）
+  needContent: boolean;
+  needUrl: boolean;
+  sites: string[]; // ≤20，| 分隔的完整域名
+  blockHosts: string[]; // ≤5，| 分隔
+  onlyAuthoritative: boolean; // Filter.AuthInfoLevel=1
+  queryRewrite: boolean; // QueryControl.QueryRewrite
+  contentFormat: 'text' | 'markdown';
+  industry: '' | DoubaoIndustry;
+}
+
+export const DEFAULT_DOUBAO_SETTINGS: DoubaoSettings = {
+  timeRange: '',
+  needContent: false,
+  needUrl: true,
+  sites: [],
+  blockHosts: [],
+  onlyAuthoritative: false,
+  queryRewrite: false,
+  contentFormat: 'text',
+  industry: '',
+};
+
+const DATE_RANGE_PATTERN = /^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/;
+
+/** Sanitize untrusted storage/UI input into a valid DoubaoSettings. */
+export function normalizeDoubaoSettings(raw: unknown): DoubaoSettings {
+  if (typeof raw !== 'object' || raw === null) return { ...DEFAULT_DOUBAO_SETTINGS };
+  const r = raw as Record<string, unknown>;
+  const hostList = (v: unknown, limit: number): string[] =>
+    Array.isArray(v) ? v.filter((d): d is string => typeof d === 'string' && d.trim().length > 0).map((d) => d.trim()).slice(0, limit) : [];
+  const timeRange = (v: unknown): string =>
+    typeof v === 'string'
+      && ((DOUBAO_TIME_RANGES as readonly string[]).includes(v) || DATE_RANGE_PATTERN.test(v))
+      ? v
+      : '';
+  const contentFormat = (v: unknown): 'text' | 'markdown' => (v === 'markdown' ? 'markdown' : 'text');
+  const industry = (v: unknown): '' | DoubaoIndustry =>
+    v === 'finance' || v === 'game' || v === 'gov' ? v : '';
+  return {
+    timeRange: timeRange(r.timeRange),
+    needContent: r.needContent === true,
+    // needUrl 默认 true（保持现状行为）：字段缺失时回落默认值，显式非 true 才视为关闭。
+    needUrl: r.needUrl === undefined ? DEFAULT_DOUBAO_SETTINGS.needUrl : r.needUrl === true,
+    sites: hostList(r.sites, 20),
+    blockHosts: hostList(r.blockHosts, 5),
+    onlyAuthoritative: r.onlyAuthoritative === true,
+    queryRewrite: r.queryRewrite === true,
+    contentFormat: contentFormat(r.contentFormat),
+    industry: industry(r.industry),
+  };
+}
+
 const ENDPOINT = 'https://open.feedcoopapi.com/search_api/web_search';
 const LABEL = 'provider_doubao';
 
@@ -38,14 +99,24 @@ export const doubaoAdapter = defineProvider<DoubaoResponse>({
     endpoint: ENDPOINT,
     label: LABEL,
     buildRequest(query, opts, apiKey) {
+      const s = normalizeDoubaoSettings(opts.providerSettings);
+      const filter: Record<string, unknown> = { NeedContent: s.needContent, NeedUrl: s.needUrl };
+      if (s.sites.length) filter.Sites = s.sites.join('|');
+      if (s.blockHosts.length) filter.BlockHosts = s.blockHosts.join('|');
+      if (s.onlyAuthoritative) filter.AuthInfoLevel = 1;
+      const body: Record<string, unknown> = {
+        Query: query,
+        SearchType: 'web',
+        Count: opts.maxResults ?? 10,
+        Filter: filter,
+      };
+      if (s.timeRange) body.TimeRange = s.timeRange;
+      if (s.queryRewrite) body.QueryControl = { QueryRewrite: true };
+      if (s.contentFormat !== 'text') body.ContentFormats = s.contentFormat;
+      if (s.industry) body.Industry = s.industry;
       return {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          Query: query,
-          SearchType: 'web',
-          Count: opts.maxResults ?? 10,
-          Filter: { NeedUrl: true },
-        }),
+        body: JSON.stringify(body),
       };
     },
   }),

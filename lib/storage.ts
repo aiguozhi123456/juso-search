@@ -596,7 +596,9 @@ export async function setProviderInstances(list: ProviderInstance[]): Promise<vo
 }
 
 export async function createProviderInstance(baseProviderId: ProviderId, name: string, options: Record<string, unknown>): Promise<ProviderInstance> {
-  return withProviderInstancesMutation(async () => {
+  // 同时改写实例集合与 sourceOrder：按 deleteProviderInstance/clearKey 的既定次序
+  // 先取 source 队列、再取实例队列，避免与 mergeImport（持 source 队列整写实例数组）并发覆盖。
+  return withSourceMutation(() => withProviderInstancesMutation(async () => {
     const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const instance = normalizeProviderInstance({ id: `inst:${baseProviderId}:${crypto.randomUUID()}` as ProviderInstanceId, baseProviderId, name, options });
@@ -611,14 +613,16 @@ export async function createProviderInstance(baseProviderId: ProviderId, name: s
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: next, [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteDefinitions, customDefinitions, next) });
     return instance;
-  });
+  }));
 }
 
 /** 统一实例模型（KTD5）：为 base provider 原子地补齐默认实例——读-判-建全部在实例变更队列内，
  *  消除并发 save key 时双双读到空列表而重复创建默认实例的竞态。已有实例则 no-op。
- *  options 固定为空对象（全部走适配器默认）。 */
+ *  options 固定为空对象（全部走适配器默认）。
+ *  同时改写实例集合与 sourceOrder：与 createProviderInstance 同序先取 source 队列、再取实例队列，
+ *  避免与 mergeImport（持 source 队列整写实例数组）并发覆盖。 */
 export async function ensureDefaultInstance(baseProviderId: ProviderId, name: string): Promise<void> {
-  await withProviderInstancesMutation(async () => {
+  await withSourceMutation(() => withProviderInstancesMutation(async () => {
     const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     if (instances.some((instance) => instance.baseProviderId === baseProviderId)) return;
@@ -632,11 +636,13 @@ export async function ensureDefaultInstance(baseProviderId: ProviderId, name: st
     const siteDefinitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: next, [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteDefinitions, customDefinitions, next) });
-  });
+  }));
 }
 
 export async function updateProviderInstance(id: ProviderInstanceId, patch: { name?: string; options?: Record<string, unknown> }): Promise<ProviderInstance | null> {
-  return withProviderInstancesMutation(async () => {
+  // 整数组读-改-写实例集合：按 create/ensure/delete 同序先取 source 队列、再取实例队列，
+  // 与 mergeImport（持 source 队列整写实例数组）串行化，避免并发 lost-update。
+  return withSourceMutation(() => withProviderInstancesMutation(async () => {
     const got = await browser.storage.local.get(PROVIDER_INSTANCES_KEY);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const index = instances.findIndex((item) => item.id === id);
@@ -654,7 +660,7 @@ export async function updateProviderInstance(id: ProviderInstanceId, patch: { na
     if (providerInstancesSerializedBytes(next) > MAX_INSTANCES_SERIALIZED_BYTES) throw new Error('invalid_provider_instance');
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: next });
     return nextInstance;
-  });
+  }));
 }
 
 export async function deleteProviderInstance(id: ProviderInstanceId): Promise<void> {

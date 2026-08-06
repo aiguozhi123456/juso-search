@@ -25,12 +25,13 @@ const PROVIDER_IDS: ReadonlySet<ProviderId> = new Set<ProviderId>([
  * instance of a provider with no options would be meaningless (it would behave
  * identically to the bare provider pill).
  *
- * Phase 1: only Exa has an options schema. Extend this set to enable more providers;
- * each addition must also ship an options form in `ProviderInstanceManager` and an
- * options-builder branch in the create/update submit path.
+ * Extend this set to enable more providers; each addition must also ship an options
+ * form in `ProviderInstanceManager` and an options-builder branch in the create/update
+ * submit path.
  */
 export const PROVIDERS_WITH_INSTANCE_OPTIONS: ReadonlySet<ProviderId> = new Set<ProviderId>([
   'exa',
+  'doubao',
 ]);
 
 export const MAX_PROVIDER_INSTANCES = 50;

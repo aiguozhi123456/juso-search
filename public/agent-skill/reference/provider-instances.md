@@ -1,6 +1,6 @@
 # Provider instances
 
-Providers that support custom instances (currently Exa) can have multiple tuned variants — e.g. one Exa instance for AI research (category=publication), another for startup news (category=news). Each instance is a first-class search target with its own options.
+Providers that support custom instances (currently Exa and Doubao) can have multiple tuned variants — e.g. one Exa instance for AI research (category=publication), another for startup news (category=news). Each instance is a first-class search target with its own options.
 
 Use `list-providers` to discover which providers have instances (the `hasInstances` field). Use `list-instances` to list all instances with their ids and labels. Use `search-instance` to search through a specific instance.
 

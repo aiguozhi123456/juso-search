@@ -487,20 +487,137 @@ describe('handleTestKey', () => {
 });
 
 describe('handleGetProviderConfig', () => {
-  it('returns configured provider ids and active provider without keys', async () => {
-    mockedGetProviderConfigSnapshot.mockResolvedValue({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa', activeSourceId: 'google', sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'], sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [], providerMaxResults: {}, groupConfig: defaultGroupConfig([]), aiAutoEnter: true, flatLayoutFewSources: true });
+  type Snapshot = Awaited<ReturnType<typeof getProviderConfigSnapshot>>;
 
-    await expect(handleGetProviderConfig()).resolves.toEqual({
-      configuredProviderIds: ['tavily', 'exa'],
-      activeProviderId: 'exa',
+  function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
+    return {
+      configuredProviderIds: [],
+      activeProviderId: null,
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
-      sourceHidden: [], siteEngines: [], customEngines: [], providerInstances: [],
+      sourceHidden: [],
+      siteEngines: [],
+      customEngines: [],
+      providerInstances: [],
       providerMaxResults: {},
       groupConfig: defaultGroupConfig([]),
       aiAutoEnter: true,
       flatLayoutFewSources: true,
+      ...overrides,
+    };
+  }
+
+  it('returns configured provider ids and active provider without keys', async () => {
+    // exa 已有实例：无缺失项，纯透传（不触发补齐、不重取快照）
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot({
+      configuredProviderIds: ['tavily', 'exa'],
+      activeProviderId: 'exa',
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Exa', options: {} }],
+    }));
+
+    const reply = await handleGetProviderConfig();
+
+    expect(reply).toEqual(snapshot({
+      configuredProviderIds: ['tavily', 'exa'],
+      activeProviderId: 'exa',
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Exa', options: {} }],
+    }));
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+    expect(mockedGetProviderConfigSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('backfills a default instance for a configured instance-supporting provider with no instances (exa)', async () => {
+    const initial = snapshot({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'exa' });
+    const backfilled = snapshot({
+      configuredProviderIds: ['tavily', 'exa'],
+      activeProviderId: 'exa',
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Exa', options: {} }],
     });
+    let calls = 0;
+    mockedGetProviderConfigSnapshot.mockImplementation(async () => (++calls === 1 ? initial : backfilled));
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await expect(handleGetProviderConfig()).resolves.toEqual(backfilled);
+
+    // 名字 = 适配器 label 经 t() 解析（provider_exa → Exa）；读-判-建委托给 ensureDefaultInstance（队列内原子）
+    expect(mockedEnsureDefaultInstance).toHaveBeenCalledWith('exa', 'Exa');
+  });
+
+  it('backfills a default instance for doubao as well', async () => {
+    const initial = snapshot({ configuredProviderIds: ['doubao'], activeProviderId: 'doubao' });
+    const backfilled = snapshot({
+      configuredProviderIds: ['doubao'],
+      activeProviderId: 'doubao',
+      providerInstances: [{ id: 'inst:doubao:def', baseProviderId: 'doubao', name: '豆包搜索 Custom', options: {} }],
+    });
+    let calls = 0;
+    mockedGetProviderConfigSnapshot.mockImplementation(async () => (++calls === 1 ? initial : backfilled));
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'doubao', label: 'provider_doubao' }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await expect(handleGetProviderConfig()).resolves.toEqual(backfilled);
+
+    expect(mockedEnsureDefaultInstance).toHaveBeenCalledWith('doubao', '豆包搜索 Custom');
+  });
+
+  it('does not backfill for a configured provider without instance options (tavily)', async () => {
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily' }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleGetProviderConfig();
+
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+    expect(mockedGetProviderConfigSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not create an instance when no provider key is configured', async () => {
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot());
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleGetProviderConfig();
+
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate when a default instance already exists', async () => {
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot({
+      configuredProviderIds: ['exa'],
+      activeProviderId: 'exa',
+      providerInstances: [{ id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Exa', options: {} }],
+    }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleGetProviderConfig();
+
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent across repeated triggers once backfilled', async () => {
+    // 已补齐状态下重复触发：缺失为空，零补齐调用（ensureDefaultInstance 的 no-op 也无需发生）
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot({
+      configuredProviderIds: ['exa', 'doubao'],
+      activeProviderId: 'exa',
+      providerInstances: [
+        { id: 'inst:exa:abc', baseProviderId: 'exa', name: 'Exa', options: {} },
+        { id: 'inst:doubao:def', baseProviderId: 'doubao', name: '豆包搜索 Custom', options: {} },
+      ],
+    }));
+    mockedEnsureDefaultInstance.mockResolvedValue(undefined);
+
+    await handleGetProviderConfig();
+    await handleGetProviderConfig();
+
+    expect(mockedEnsureDefaultInstance).not.toHaveBeenCalled();
+    expect(mockedGetProviderConfigSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the config read as the primary operation when the best-effort backfill fails', async () => {
+    mockedGetProviderConfigSnapshot.mockResolvedValue(snapshot({ configuredProviderIds: ['exa'], activeProviderId: 'exa' }));
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ id: 'exa', label: 'provider_exa' }));
+    mockedEnsureDefaultInstance.mockRejectedValue(new Error('storage boom'));
+
+    await expect(handleGetProviderConfig()).resolves.toEqual(snapshot({ configuredProviderIds: ['exa'], activeProviderId: 'exa' }));
   });
 });
 
