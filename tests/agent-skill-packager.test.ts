@@ -1,6 +1,7 @@
 // IU6 packager 测试：mock browser.runtime / global.fetch，spy createStoreZip 断言
 // 传入的 entry（不重实现 zip reader）。镜像 background-handlers.test.ts /
 // storage.test.ts 的 vi.stubGlobal('browser', ...) 模式。
+import { readdirSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { packageAgentSkill } from '@/lib/agent-skill-packager';
 import { createStoreZip } from '@/lib/zip';
@@ -21,6 +22,7 @@ const VERSION = '1.3.0';
 const SKILL_MD_FIXTURE =
   '---\nname: juso-search\n---\n\n# Juso Search\n\nextension: __JUSO_EXTENSION_ID__\n';
 const PY_FIXTURE = 'DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"\n';
+const REFERENCE_FIXTURE = '# Reference\n\nstamped id: __JUSO_EXTENSION_ID__\n';
 
 const decode = (entry: ZipEntry): string => new TextDecoder().decode(entry.data);
 
@@ -43,6 +45,8 @@ beforeEach(() => {
       if (url.endsWith('agent-skill/SKILL.md')) return { text: async () => SKILL_MD_FIXTURE };
       if (url.endsWith('agent-skill/scripts/juso_search.py'))
         return { text: async () => PY_FIXTURE };
+      if (url.includes('/agent-skill/reference/'))
+        return { text: async () => REFERENCE_FIXTURE };
       throw new Error(`unexpected fetch url: ${url}`);
     }),
   );
@@ -51,7 +55,7 @@ beforeEach(() => {
 });
 
 describe('packageAgentSkill', () => {
-  it('prod: stamps the runtime id into both files and builds a zip data url', async () => {
+  it('prod: stamps the runtime id into all skill files (SKILL.md, script, reference/*) and builds a zip data url', async () => {
     const { dataUrl, filename } = await packageAgentSkill('prod');
 
     expect(filename).toBe(`juso-search-${VERSION}.zip`);
@@ -60,10 +64,14 @@ describe('packageAgentSkill', () => {
 
     expect(createStoreZip).toHaveBeenCalledTimes(1);
     const entries = vi.mocked(createStoreZip).mock.calls[0][0];
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(6);
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/reference/engines.md',
+      'juso-search/reference/errors.md',
+      'juso-search/reference/configuration.md',
+      'juso-search/reference/provider-instances.md',
     ]);
 
     // 每个 entry 都盖章了 fake id，且占位符零残留（断言 5：成功调用必然无占位符）。
@@ -84,6 +92,10 @@ describe('packageAgentSkill', () => {
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/reference/engines.md',
+      'juso-search/reference/errors.md',
+      'juso-search/reference/configuration.md',
+      'juso-search/reference/provider-instances.md',
     ]);
     expect(entries.some((e) => e.path.startsWith('juso-search-dev'))).toBe(false);
     for (const entry of entries) {
@@ -103,6 +115,10 @@ describe('packageAgentSkill', () => {
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/reference/engines.md',
+      'juso-search/reference/errors.md',
+      'juso-search/reference/configuration.md',
+      'juso-search/reference/provider-instances.md',
     ]);
     for (const entry of entries) {
       expect(decode(entry)).toContain(custom);
@@ -118,5 +134,20 @@ describe('packageAgentSkill', () => {
     );
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
     expect(createStoreZip).not.toHaveBeenCalled();
+  });
+
+  it('REFERENCE_FILES matches the actual public/agent-skill/reference/ directory (cross-end drift lock)', async () => {
+    // 守卫：packager 打进 zip 的 reference 文件必须 == 模板实际目录。防止加了
+    // reference 文件却忘更新 REFERENCE_FILES（下载 zip 残缺），或反之（清单多余）。
+    const actual = readdirSync('public/agent-skill/reference')
+      .filter((f) => f.endsWith('.md'))
+      .sort();
+    await packageAgentSkill('prod');
+    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const zipped = entries
+      .filter((e) => e.path.startsWith('juso-search/reference/'))
+      .map((e) => e.path.replace('juso-search/reference/', ''))
+      .sort();
+    expect(zipped).toEqual(actual);
   });
 });

@@ -222,6 +222,29 @@ class PureFunctionTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(payload["error"]["kind"], "invalid_extension_id")
 
+    def test_timeout_env_and_cli_precedence(self):
+        """JUSO_TIMEOUT 覆盖默认 40s；CLI --timeout 优先于环境变量。"""
+        # 合法 env 值覆盖默认
+        with patch.dict(os.environ, {"JUSO_TIMEOUT": "90"}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.timeout, 90.0)
+            # CLI 优先于 env
+            args = juso_search.parser().parse_args(["--timeout", "12", "list-providers"])
+            self.assertEqual(args.timeout, 12.0)
+        # 空字符串 env 回退默认 40.0
+        with patch.dict(os.environ, {"JUSO_TIMEOUT": ""}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.timeout, 40.0)
+        # env 未设 → 默认 40.0
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertEqual(args.timeout, 40.0)
+        # 非法 env 值在 parse 阶段 SystemExit（与 extension_id 既有约定一致）
+        for bad in ("bad", "0", "-1", "nan", "inf"):
+            with patch.dict(os.environ, {"JUSO_TIMEOUT": bad}, clear=True):
+                with self.assertRaises(SystemExit):
+                    juso_search.parser().parse_args(["list-providers"])
+
     def test_reply_validation_status_and_path_lookup(self):
         error_reply = {"ok": False, "error": {"kind": "unknown", "message": "safe"}}
         claim = juso_search.make_claim("search", "hello", "tavily", False, "request-1")

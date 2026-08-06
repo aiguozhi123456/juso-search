@@ -390,7 +390,7 @@ def parser() -> argparse.ArgumentParser:
     argument_parser.add_argument("--extension-id", type=extension_id, default=os.environ.get("JUSO_EXTENSION_ID") or DEFAULT_EXTENSION_ID)
     argument_parser.add_argument("--chrome", default=os.environ.get("JUSO_CHROME_PATH"))
     argument_parser.add_argument("--profile", default=os.environ.get("JUSO_CHROME_PROFILE"))
-    argument_parser.add_argument("--timeout", type=positive_timeout, default=40.0)
+    argument_parser.add_argument("--timeout", type=positive_timeout, default=os.environ.get("JUSO_TIMEOUT") or "40.0")
     commands = argument_parser.add_subparsers(dest="command", required=True)
     search = commands.add_parser("search")
     search.add_argument("query", type=search_query)

@@ -54,7 +54,7 @@ DEV_PATCH_SKILL_MD = [
         "- Build and load the Juso developer extension (`npm run build:dev` → load `.output/chrome-mv3-dev/` in `chrome://extensions` with Developer mode).\n",
     ),
     (
-        "- Auto-discovery may only find common Chrome/Chromium installs. If the extension lives in Edge or another binary, set the browser path (below).\n",
+        "- Auto-discovery may only find common Chrome/Chromium installs. If the extension lives in Edge or another binary, set the browser path (see `reference/configuration.md`).\n",
         "",
     ),
     (
@@ -74,7 +74,20 @@ DEV_PATCH_PY = [
     ),
 ]
 
-TEMPLATE_FILES = ("SKILL.md", "scripts/juso_search.py")
+# dev variant 只对 SKILL.md 与 .py 有 prose 差异；reference/ 文件 prod/dev 共有，无 patch。
+DEV_PATCHES = {
+    "SKILL.md": DEV_PATCH_SKILL_MD,
+    "scripts/juso_search.py": DEV_PATCH_PY,
+}
+
+
+def _template_files() -> list[str]:
+    """递归收集模板目录下所有文件（相对 POSIX 路径），排除 __pycache__。"""
+    files: list[str] = []
+    for path in sorted(TEMPLATE_DIR.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            files.append(path.relative_to(TEMPLATE_DIR).as_posix())
+    return files
 
 
 def _read_template(rel: str) -> str:
@@ -104,12 +117,13 @@ def _apply_patch(text: str, patch: list[tuple[str, str]], label: str, sep: str) 
 def render(variant_key: str) -> dict[str, str]:
     cfg = VARIANTS[variant_key]
     out: dict[str, str] = {}
-    for rel in TEMPLATE_FILES:
+    for rel in _template_files():
         text = _read_template(rel)
         sep = _line_sep(text)
         if variant_key == "dev":
-            patch = DEV_PATCH_SKILL_MD if rel == "SKILL.md" else DEV_PATCH_PY
-            text = _apply_patch(text, patch, rel, sep)
+            patch = DEV_PATCHES.get(rel, [])
+            if patch:
+                text = _apply_patch(text, patch, rel, sep)
         # Final pass: stamp the extension id everywhere (including dev-patch-inserted content).
         text = text.replace(EXTENSION_ID_PLACEHOLDER, cfg["extension_id"])
         if EXTENSION_ID_PLACEHOLDER in text:
