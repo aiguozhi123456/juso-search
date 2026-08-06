@@ -24,6 +24,7 @@ import {
   GROUP_CONFIG_KEY,
   BAR_POSITION_KEY,
   AI_AUTO_ENTER_KEY,
+  FLAT_LAYOUT_FEW_SOURCES_KEY,
   clampMaxResults,
   withProviderKeysMutation,
   withSourceMutation,
@@ -65,6 +66,8 @@ export interface ConfigExport {
   serpBarPosition?: BarPositionPref;
   /** AI engine 自动回车开关（默认 true）。 */
   aiAutoEnter?: boolean;
+  /** 少量来源自动平铺开关（默认 true）。 */
+  flatLayoutFewSources?: boolean;
   sourceOrder?: SourceId[];
   sourceHidden?: SourceId[];
   /** Absent in legacy v3 exports; absence preserves local Site Engines. */
@@ -81,7 +84,7 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const providerInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
@@ -111,6 +114,7 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     localePref: locale,
     serpBarPosition: barPosition,
     aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false,
+    flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false,
     sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines, customEngines, providerInstances),
     sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines, customEngines, providerInstances),
     siteEngines,
@@ -200,6 +204,9 @@ export function parseImportPayload(raw: unknown): ParseResult {
   const hasAiAutoEnter = Object.prototype.hasOwnProperty.call(obj, 'aiAutoEnter');
   const aiAutoEnter = obj.aiAutoEnter;
   if (hasAiAutoEnter && typeof aiAutoEnter !== 'boolean') return { ok: false, error: 'invalid_ai_auto_enter' };
+  const hasFlatLayoutFewSources = Object.prototype.hasOwnProperty.call(obj, 'flatLayoutFewSources');
+  const flatLayoutFewSources = obj.flatLayoutFewSources;
+  if (hasFlatLayoutFewSources && typeof flatLayoutFewSources !== 'boolean') return { ok: false, error: 'invalid_flat_layout_few_sources' };
   const hasSourceOrder = Object.prototype.hasOwnProperty.call(obj, 'sourceOrder');
   const sourceOrder = obj.sourceOrder;
   if (hasSourceOrder) {
@@ -241,6 +248,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
       localePref: locale as LocalePref,
       serpBarPosition: hasBarPosition ? barPosition as BarPositionPref : undefined,
       aiAutoEnter: hasAiAutoEnter ? aiAutoEnter as boolean : undefined,
+      flatLayoutFewSources: hasFlatLayoutFewSources ? flatLayoutFewSources as boolean : undefined,
       sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines, customEngines, providerInstances) : undefined,
       sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines, customEngines, providerInstances) : undefined,
       siteEngines,
@@ -271,6 +279,8 @@ export interface ImportReport {
   serpBarPositionOverridden: boolean;
   /** 是否覆盖了 aiAutoEnter。 */
   aiAutoEnterOverridden: boolean;
+  /** 是否覆盖了 flatLayoutFewSources。 */
+  flatLayoutFewSourcesOverridden: boolean;
   /** 是否覆盖了 sourceOrder。 */
   sourceOrderOverridden: boolean;
   /** 是否覆盖了 sourceHidden。 */
@@ -289,7 +299,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'flatLayoutFewSources' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -310,7 +320,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -365,6 +375,11 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (curAiAutoEnter !== newAiAutoEnter) {
     prefDiffs.push({ key: 'aiAutoEnter', from: String(curAiAutoEnter), to: String(newAiAutoEnter) });
   }
+  const curFlatLayoutFewSources = got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false;
+  const newFlatLayoutFewSources = payload.flatLayoutFewSources ?? true;
+  if (curFlatLayoutFewSources !== newFlatLayoutFewSources) {
+    prefDiffs.push({ key: 'flatLayoutFewSources', from: String(curFlatLayoutFewSources), to: String(newFlatLayoutFewSources) });
+  }
   if (!sameSourceOrder(sourcePreferences.curSourceOrder, sourcePreferences.newSourceOrder)) {
     prefDiffs.push({ key: 'sourceOrder', from: sourcePreferences.curSourceOrder.join(' > '), to: sourcePreferences.newSourceOrder.join(' > ') });
   }
@@ -417,7 +432,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -448,6 +463,7 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
     let localeOverridden = false;
     let barPositionOverridden = false;
     let aiAutoEnterOverridden = false;
+    let flatLayoutFewSourcesOverridden = false;
     let sourceOrderOverridden = false;
     let sourceHiddenOverridden = false;
     let siteEnginesOverridden = false;
@@ -497,6 +513,12 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
         setObj[AI_AUTO_ENTER_KEY] = newAiAutoEnter;
         aiAutoEnterOverridden = true;
       }
+      const curFlatLayoutFewSources = got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false;
+      const newFlatLayoutFewSources = payload.flatLayoutFewSources ?? true;
+      if (curFlatLayoutFewSources !== newFlatLayoutFewSources) {
+        setObj[FLAT_LAYOUT_FEW_SOURCES_KEY] = newFlatLayoutFewSources;
+        flatLayoutFewSourcesOverridden = true;
+      }
       if (!sameSourceOrder(curSourceOrder, newSourceOrder)) {
         setObj[SOURCE_ORDER_KEY] = newSourceOrder;
         sourceOrderOverridden = true;
@@ -536,6 +558,7 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       localePrefOverridden: localeOverridden,
       serpBarPositionOverridden: barPositionOverridden,
       aiAutoEnterOverridden,
+      flatLayoutFewSourcesOverridden,
       sourceOrderOverridden,
       sourceHiddenOverridden,
       siteEnginesOverridden,

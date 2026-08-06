@@ -171,6 +171,18 @@ describe('buildExportPayload', () => {
     expect(payload.aiAutoEnter).toBe(false);
   });
 
+  it('exports flatLayoutFewSources (defaults true when unset)', async () => {
+    installStorage({ providerKeys: {} });
+    const payload = await buildExportPayload();
+    expect(payload.flatLayoutFewSources).toBe(true);
+  });
+
+  it('exports a stored flatLayoutFewSources=false', async () => {
+    installStorage({ flatLayoutFewSources: false });
+    const payload = await buildExportPayload();
+    expect(payload.flatLayoutFewSources).toBe(false);
+  });
+
   it('falls back activeSource through activeProvider and configured keys', async () => {
     installStorage({ providerKeys: { exa: 'exa-1' }, activeProvider: 'exa' });
     await expect(buildExportPayload()).resolves.toMatchObject({ activeSource: 'exa' });
@@ -485,6 +497,25 @@ describe('parseImportPayload', () => {
     if (result.ok) expect(result.value.aiAutoEnter).toBeUndefined();
   });
 
+  it('accepts a flatLayoutFewSources boolean', () => {
+    const result = parseImportPayload(validPayload({ flatLayoutFewSources: false }));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.flatLayoutFewSources).toBe(false);
+  });
+
+  it('rejects a non-boolean flatLayoutFewSources', () => {
+    const result = parseImportPayload(validPayload({ flatLayoutFewSources: 'yes' as never }));
+    expect(result).toEqual({ ok: false, error: 'invalid_flat_layout_few_sources' });
+  });
+
+  it('accepts a missing flatLayoutFewSources field (legacy export)', () => {
+    const payload = validPayload() as unknown as Record<string, unknown>;
+    delete payload.flatLayoutFewSources;
+    const result = parseImportPayload(payload);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.flatLayoutFewSources).toBeUndefined();
+  });
+
   it('accepts valid Provider Instances in an import payload', () => {
     const instance = makeInstance('inst:exa:abc');
     const result = parseImportPayload(validPayload({ providerInstances: [instance] }));
@@ -703,6 +734,26 @@ describe('mergeImport', () => {
     const report = await mergeImport(validPayload({ aiAutoEnter: true }));
     expect(report.aiAutoEnterOverridden).toBe(false);
     expect((await browser.storage.local.get('aiAutoEnter')).aiAutoEnter).toBe(false);
+  });
+
+  it('applyPrefs=true with a different flatLayoutFewSources writes it and marks overridden', async () => {
+    installStorage({ flatLayoutFewSources: true });
+    const report = await mergeImport(validPayload({ flatLayoutFewSources: false }), { applyPrefs: true });
+    expect(report.flatLayoutFewSourcesOverridden).toBe(true);
+    expect((await browser.storage.local.get('flatLayoutFewSources')).flatLayoutFewSources).toBe(false);
+  });
+
+  it('applyPrefs=true with an identical flatLayoutFewSources does NOT mark overridden', async () => {
+    installStorage({ flatLayoutFewSources: false });
+    const report = await mergeImport(validPayload({ flatLayoutFewSources: false }), { applyPrefs: true });
+    expect(report.flatLayoutFewSourcesOverridden).toBe(false);
+  });
+
+  it('applyPrefs undefined/false does NOT touch flatLayoutFewSources', async () => {
+    installStorage({ flatLayoutFewSources: false });
+    const report = await mergeImport(validPayload({ flatLayoutFewSources: true }));
+    expect(report.flatLayoutFewSourcesOverridden).toBe(false);
+    expect((await browser.storage.local.get('flatLayoutFewSources')).flatLayoutFewSources).toBe(false);
   });
 
   it('writes sourceOrder only when applying preferences', async () => {
@@ -995,6 +1046,15 @@ describe('previewImport (dry-run)', () => {
     });
     const preview = await previewImport(validPayload({ aiAutoEnter: false }));
     expect(preview.prefDiffs).toEqual([{ key: 'aiAutoEnter', from: 'true', to: 'false' }]);
+  });
+
+  it('reports a flatLayoutFewSources diff when current is true and payload is false', async () => {
+    installStorage({
+      providerKeys: { tavily: 'tvly-1' }, activeProvider: 'tavily', activeSource: 'tavily',
+      themePref: 'auto', localePref: 'auto', flatLayoutFewSources: true,
+    });
+    const preview = await previewImport(validPayload({ flatLayoutFewSources: false }));
+    expect(preview.prefDiffs).toEqual([{ key: 'flatLayoutFewSources', from: 'true', to: 'false' }]);
   });
 
   it('includes Provider Instance changes in the preference diff', async () => {

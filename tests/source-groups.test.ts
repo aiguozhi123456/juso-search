@@ -14,7 +14,9 @@ import {
   pinnedSourceIds,
   projectLayout,
   resolveGroupId,
+  resolveEffectiveLayout,
   type GroupConfig,
+  type SourceGroup,
   type SwitcherItem,
 } from '@/lib/source-groups';
 
@@ -587,5 +589,82 @@ describe('groupOrderOf vs projectLayout — 对拍一致性', () => {
       const expected = groupOrderOf(ALL_IDS, cfg, item.group.id).filter((id) => visibleIds.has(id));
       expect(item.items.map((s) => s.id)).toEqual(expected);
     }
+  });
+});
+
+describe('resolveEffectiveLayout', () => {
+  const s = (id: string, kind: 'provider' | 'engine' | 'site-engine' = 'engine'): SearchSource =>
+    makeSource(id, kind, kind === 'provider');
+
+  /** 所有源显式归入单个组（layout 只含该组）的配置。 */
+  function singleGroupConfig(ids: readonly string[]): GroupConfig {
+    return {
+      groups: DEFAULT_GROUPS,
+      layout: [{ kind: 'group', groupId: ENGINES_GROUP }],
+      assignments: Object.fromEntries(ids.map((id) => [id, ENGINES_GROUP])),
+      groupOrders: {},
+    };
+  }
+
+  /** 多个自定义分组、每个组均分指定源。 */
+  function multiGroupConfig(idsByGroup: Record<string, string[]>): GroupConfig {
+    const groups: SourceGroup[] = [
+      ...DEFAULT_GROUPS,
+      ...Object.keys(idsByGroup).map((gid): SourceGroup => ({ id: gid, label: { kind: 'literal', value: gid } })),
+    ];
+    return {
+      groups,
+      layout: Object.keys(idsByGroup).map((gid) => ({ kind: 'group', groupId: gid })),
+      assignments: Object.fromEntries(
+        Object.entries(idsByGroup).flatMap(([gid, ids]) => ids.map((id) => [id, gid])),
+      ),
+      groupOrders: {},
+    };
+  }
+
+  it('flattens 3 sources regardless of structure (≤ FEW_SOURCES_FLAT_THRESHOLD)', () => {
+    // 默认类型分组会渲染 ≥2 组（ai-search / engines / sites），但源总数 ≤4 → 仍平铺。
+    const sources = [s('a', 'provider'), s('b', 'engine'), s('c', 'site-engine')];
+    const layout = resolveEffectiveLayout(sources, defaultGroupConfig(sources.map((x) => x.id)), null);
+    expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
+    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+  });
+
+  it('flattens 5 sources all in one group (renderedGroupCount == 1, < SINGLE_GROUP_FLAT_THRESHOLD)', () => {
+    const sources = [s('a'), s('b'), s('c'), s('d'), s('e')];
+    const layout = resolveEffectiveLayout(sources, singleGroupConfig(sources.map((x) => x.id)), null);
+    expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
+    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+  });
+
+  it('flattens 6 sources all in one group (boundary: renderedGroupCount == 1, == SINGLE_GROUP_FLAT_THRESHOLD)', () => {
+    const sources = [s('a'), s('b'), s('c'), s('d'), s('e'), s('f')];
+    const layout = resolveEffectiveLayout(sources, singleGroupConfig(sources.map((x) => x.id)), null);
+    expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
+    expect(layout.items.map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
+  });
+
+  it('keeps grouping for 7 sources all in one group (single group too large to flatten)', () => {
+    const sources = [s('a'), s('b'), s('c'), s('d'), s('e'), s('f'), s('g')];
+    const layout = resolveEffectiveLayout(sources, singleGroupConfig(sources.map((x) => x.id)), null);
+    expect(layout.items.some((it) => it.kind === 'group')).toBe(true);
+  });
+
+  it('keeps grouping for 6 sources across 3 groups (multi-group structure has separation value)', () => {
+    const sources = [s('a'), s('b'), s('c'), s('d'), s('e'), s('f')];
+    const cfg = multiGroupConfig({
+      g1: ['a', 'b'],
+      g2: ['c', 'd'],
+      g3: ['e', 'f'],
+    });
+    const layout = resolveEffectiveLayout(sources, cfg, null);
+    expect(layout.items.some((it) => it.kind === 'group')).toBe(true);
+  });
+
+  it('flattens 4 sources across 2 groups (≤ FEW_SOURCES_FLAT_THRESHOLD)', () => {
+    const sources = [s('a'), s('b'), s('c'), s('d')];
+    const cfg = multiGroupConfig({ g1: ['a', 'b'], g2: ['c', 'd'] });
+    const layout = resolveEffectiveLayout(sources, cfg, null);
+    expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
   });
 });

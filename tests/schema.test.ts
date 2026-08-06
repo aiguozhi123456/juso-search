@@ -59,6 +59,10 @@ describe('CONFIG_KEYS whitelist', () => {
   it('includes aiAutoEnter in the config whitelist', () => {
     expect(CONFIG_KEYS).toContain('aiAutoEnter');
   });
+
+  it('includes flatLayoutFewSources in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('flatLayoutFewSources');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

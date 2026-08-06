@@ -16,6 +16,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { StyleToggle } from '@/components/StyleToggle';
 import { BarPositionToggle } from '@/components/BarPositionToggle';
 import { AiAutoEnterToggle } from '@/components/AiAutoEnterToggle';
+import { FlatLayoutToggle } from '@/components/FlatLayoutToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
@@ -110,6 +111,7 @@ export default function App() {
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
   const [aiAutoEnter, setAiAutoEnterState] = useState(true);
+  const [flatLayoutFewSources, setFlatLayoutFewSourcesState] = useState(true);
   const [active, setActive] = useState<SourceId | null>(null);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
   const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
@@ -170,6 +172,7 @@ export default function App() {
       setConfiguredProviderIds(config.configuredProviderIds);
       setProviderMaxResults(config.providerMaxResults ?? {});
       setAiAutoEnterState(config.aiAutoEnter ?? true);
+      setFlatLayoutFewSourcesState(config.flatLayoutFewSources ?? true);
       // Site Engines 完全由 worker 持有真相：每次 config 刷新直接覆盖本地副本，
       // 让 SiteEngineManager 在 create/update/delete 后看到最新结果。
       const engines = config.siteEngines ?? [];
@@ -223,6 +226,15 @@ export default function App() {
     setAiAutoEnterState(value);
     try {
       await sendMessage('setAiAutoEnter', value);
+    } catch {
+      syncConfig();
+    }
+  }
+
+  async function handleFlatLayoutFewSourcesChange(value: boolean) {
+    setFlatLayoutFewSourcesState(value);
+    try {
+      await sendMessage('setFlatLayoutFewSources', value);
     } catch {
       syncConfig();
     }
@@ -350,6 +362,11 @@ export default function App() {
               <AiAutoEnterToggle enabled={aiAutoEnter} onChange={handleAiAutoEnterChange} />
             </div>
             <p className="hint">{t(MSG.ai_auto_enter_hint)}</p>
+            <div className="bar-position-row">
+              <span className="bar-position-label">{t(MSG.flat_layout_few_sources_group)}</span>
+              <FlatLayoutToggle enabled={flatLayoutFewSources} onChange={handleFlatLayoutFewSourcesChange} />
+            </div>
+            <p className="hint">{t(MSG.flat_layout_few_sources_hint)}</p>
             <p className="hint">{t(MSG.opts_quickbar_hint)}</p>
             <div className="source-order-list">
               {/* 展示按拼音排序（仅展示，不写入 sourceOrder；实际顺序在「来源布局」中拖动调整）。 */}

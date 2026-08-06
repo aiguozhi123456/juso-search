@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SearchSource, SourceId } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
 import type { GroupConfig, SourceLabel } from '@/lib/source-groups';
-import { projectLayout, defaultGroupConfig } from '@/lib/source-groups';
+import { projectLayout, defaultGroupConfig, resolveEffectiveLayout } from '@/lib/source-groups';
 import { scrollChildToCenter } from '@/lib/scroll-child-to-center';
 import { t, MSG } from '@/lib/i18n';
 
@@ -25,6 +25,8 @@ interface Props {
    * 点击切换（固定展开）为各模式统一行为，见组件头注释。
    */
   overlayPosition?: 'top' | 'bottom' | null;
+  /** 开启「少量来源自动平铺到顶层」开关（默认 true 的用户偏好）。 */
+  autoFlatFewSources?: boolean;
 }
 
 interface IndicatorMetrics {
@@ -63,7 +65,7 @@ function resolveLabel(label: SourceLabel): string {
  *   · 测量在 layout 阶段同步完成，避免指示器先飞到 (0,0) 再回弹；
  *   · jsdom 下 offset* 返回 0，指示器宽高为 0、视觉不可见，不影响测试断言。
  */
-export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled, overlayPosition = null }: Props) {
+export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disabled, overlayPosition = null, autoFlatFewSources = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   // overlayPosition 非 null 即覆盖层模式（top/bottom 共用横滑轨道、active 居中与 fixed flyout）。
   const isOverlay = overlayPosition !== null;
@@ -75,8 +77,10 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
 
   const layout = useMemo(
-    () => projectLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId),
-    [sources, groupConfig, activeId],
+    () => autoFlatFewSources
+      ? resolveEffectiveLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId)
+      : projectLayout(sources, groupConfig ?? defaultGroupConfig(sources.map((s) => s.id)), activeId),
+    [sources, groupConfig, activeId, autoFlatFewSources],
   );
 
   // 决定指示器锚定的置顶 source pill。组内 source 不把指示器投射到分类 trigger：

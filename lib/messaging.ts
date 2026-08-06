@@ -55,6 +55,8 @@ export type ProviderConfigReply = {
   providerInstances?: ProviderInstance[];
   /** AI engine 自动回车开关（默认 true）。注入型 AI engine 的 URL 是否追加 enter=1。 */
   aiAutoEnter?: boolean;
+  /** 少量来源自动平铺开关（默认 true）。开启后源 ≤4 或单组且 ≤6 时平铺到顶层。 */
+  flatLayoutFewSources?: boolean;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };
@@ -88,6 +90,8 @@ export type ProtocolMap = {
   aiInjectAllowed(engineId: SourceId): Promise<boolean>;
   /** 设置 AI engine 自动回车开关（默认 true）。 */
   setAiAutoEnter(value: boolean): Promise<void>;
+  /** 设置少量来源自动平铺开关（默认 true）。 */
+  setFlatLayoutFewSources(value: boolean): Promise<void>;
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;

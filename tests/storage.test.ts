@@ -19,6 +19,8 @@ import {
   setBarPositionPref,
   getAiAutoEnter,
   setAiAutoEnter,
+  getFlatLayoutFewSources,
+  setFlatLayoutFewSources,
   getSourceOrder,
   setSourceOrder,
   getSourceHidden,
@@ -341,6 +343,33 @@ describe('storage: aiAutoEnter', () => {
     expect(snap.aiAutoEnter).toBe(true);
     await setAiAutoEnter(false);
     expect((await getProviderConfigSnapshot()).aiAutoEnter).toBe(false);
+  });
+});
+
+describe('storage: flatLayoutFewSources', () => {
+  it('defaults to true when unset', async () => {
+    expect(await getFlatLayoutFewSources()).toBe(true);
+  });
+
+  it('round-trips explicit values', async () => {
+    await setFlatLayoutFewSources(false);
+    expect(await getFlatLayoutFewSources()).toBe(false);
+    await setFlatLayoutFewSources(true);
+    expect(await getFlatLayoutFewSources()).toBe(true);
+  });
+
+  it('treats stored false as off and any other value as on', async () => {
+    await browser.storage.local.set({ flatLayoutFewSources: false });
+    expect(await getFlatLayoutFewSources()).toBe(false);
+    await browser.storage.local.set({ flatLayoutFewSources: true });
+    expect(await getFlatLayoutFewSources()).toBe(true);
+  });
+
+  it('is included in getProviderConfigSnapshot (defaults true)', async () => {
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.flatLayoutFewSources).toBe(true);
+    await setFlatLayoutFewSources(false);
+    expect((await getProviderConfigSnapshot()).flatLayoutFewSources).toBe(false);
   });
 });
 

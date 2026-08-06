@@ -462,6 +462,7 @@ export default defineContentScript({
       state.resolvedPosition = refreshed.resolvedPosition;
       // SPA 导航可能带回更新后的分组配置（设置页改过 layout）。
       if (refreshed.groupConfig) state.groupConfig = refreshed.groupConfig;
+      state.flatLayoutFewSources = refreshed.flatLayoutFewSources;
       // SPA 导航到被隐藏 engine 的结果页：移除栏且不再重挂。
       // 反向（从隐藏 engine 导航回可见 engine）由后续正常挂载路径恢复。
       if (!shouldMountForEngine(nextEngine.id, state.sourceHidden, state.activeSiteId)) {
@@ -565,6 +566,8 @@ interface BarState {
   resolvedPosition: 'top' | 'bottom' | 'inline';
   /** AI engine 自动回车开关（默认 true）：注入型 AI engine 的 URL 是否追加 enter=1。 */
   aiAutoEnter: boolean;
+  /** 少量来源自动平铺开关（默认 true）：源少/单组时把所有来源平铺到顶层，省去展开分组的步骤。 */
+  flatLayoutFewSources: boolean;
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
@@ -597,6 +600,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     barPositionPref,
     resolvedPosition: resolveBarPosition(barPositionPref, window.innerWidth),
     aiAutoEnter: config.aiAutoEnter ?? true,
+    flatLayoutFewSources: config.flatLayoutFewSources ?? true,
   };
 }
 
@@ -618,6 +622,7 @@ function render(
       onSelect: onSelectSource,
       disabled,
       overlayPosition: state.resolvedPosition === 'inline' ? null : state.resolvedPosition,
+      autoFlatFewSources: state.flatLayoutFewSources,
     }),
   );
 }

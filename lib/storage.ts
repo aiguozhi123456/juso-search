@@ -73,6 +73,7 @@ export const AGENT_BRIDGE_ENABLED_KEY = 'agentBridgeEnabled'; // boolean（store
 export const ENGINE_SEARCH_ENABLED_KEY = 'engineSearchEnabled'; // boolean
 export const BAR_POSITION_KEY = 'serpBarPosition'; // BarPositionPref (快切栏栏位：auto / top / inline / bottom)
 export const AI_AUTO_ENTER_KEY = 'aiAutoEnter'; // AI engine 自动回车开关（默认 true，stored !== false 才 true）
+export const FLAT_LAYOUT_FEW_SOURCES_KEY = 'flatLayoutFewSources'; // 少量来源自动平铺开关（默认 true，stored !== false 才 true）
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
@@ -364,6 +365,17 @@ export async function getAiAutoEnter(): Promise<boolean> {
 
 export async function setAiAutoEnter(v: boolean): Promise<void> {
   await browser.storage.local.set({ [AI_AUTO_ENTER_KEY]: v });
+}
+
+/** 少量来源自动平铺开关：默认 true（stored !== false 才 true）。
+ *  开启后源总数 ≤4（或单组且 ≤6）时自动把所有来源平铺到顶层，省去展开分组的步骤。 */
+export async function getFlatLayoutFewSources(): Promise<boolean> {
+  const got = await browser.storage.local.get(FLAT_LAYOUT_FEW_SOURCES_KEY);
+  return got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false;
+}
+
+export async function setFlatLayoutFewSources(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [FLAT_LAYOUT_FEW_SOURCES_KEY]: v });
 }
 
 /** Agent Bridge 总开关：默认 false，stored === true 才 true。
@@ -685,8 +697,8 @@ function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], keys: unknow
 }
 
 /** One coherent exact-key view for UI configuration replies. */
-export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig; aiAutoEnter: boolean }> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY]);
+export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteEngines: SiteEngineDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig; aiAutoEnter: boolean; flatLayoutFewSources: boolean }> {
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
@@ -703,7 +715,7 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
   // ProviderInstanceId 并入 SourceId），resolveEffectiveActiveSource 已并入 SourceId 联合。
   const storedSource = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
   const activeFallback = typeof got[ACTIVE_KEY] === 'string' ? got[ACTIVE_KEY] as SourceId : null;
-  return { configuredProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteEngines, customEngines, providerInstances) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, providerMaxResults, groupConfig, aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false };
+  return { configuredProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteEngines, customEngines, providerInstances) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, providerMaxResults, groupConfig, aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false, flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false };
 }
 
 /** 从已读的 storage 原始值解析 maxResults 映射（避免重复 IO，供 snapshot 复用同一份 get）。 */

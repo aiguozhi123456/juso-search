@@ -10,6 +10,7 @@ const EXT_ORIGIN = 'chrome-extension://fake-id';
 // 这里 mock messaging/gateway，stub defineBackground 立即执行回调，动态 import 后断言
 // setAiAutoEnter 的注册与委托（对齐 agent-bridge-gating.test.ts 的「复制逻辑」模式）。
 const mockedHandleSetAiAutoEnter = vi.fn().mockResolvedValue(undefined);
+const mockedHandleSetFlatLayoutFewSources = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/lib/messaging', () => ({ onMessage: vi.fn() }));
 
@@ -45,6 +46,7 @@ vi.mock('@/lib/gateway', () => ({
   handleSetSourceOrder: vi.fn(),
   handleSetGroupConfig: vi.fn(),
   handleSetAiAutoEnter: mockedHandleSetAiAutoEnter,
+  handleSetFlatLayoutFewSources: mockedHandleSetFlatLayoutFewSources,
   handleTestKey: vi.fn(),
   handleUpdateSiteEngine: vi.fn(),
   getSchemaReady: vi.fn().mockResolvedValue(undefined),
@@ -157,5 +159,38 @@ describe('background handler registration — setAiAutoEnter', () => {
     const handler = registration![1] as (ctx: { data: boolean }) => Promise<void>;
     await handler({ data: false });
     expect(mockedHandleSetAiAutoEnter).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('background handler registration — setFlatLayoutFewSources', () => {
+  it('registers setFlatLayoutFewSources and delegates to handleSetFlatLayoutFewSources', async () => {
+    const onMessage = vi.mocked((await import('@/lib/messaging')).onMessage);
+    onMessage.mockClear();
+    mockedHandleSetFlatLayoutFewSources.mockClear();
+
+    // WXT 的 defineBackground 在运行时立即执行回调；这里 stub 为同步执行以触发注册。
+    vi.stubGlobal('defineBackground', (cb: () => void) => {
+      cb();
+    });
+    vi.stubGlobal('browser', {
+      runtime: {
+        id: 'fake-id',
+        getURL: (p: string) => `${EXT_ORIGIN}/${p.replace(/^\//, '')}`,
+        sendMessage: vi.fn().mockResolvedValue(undefined),
+      },
+      action: { onClicked: { addListener: vi.fn() } },
+      storage: { onChanged: { addListener: vi.fn() } },
+      tabs: { create: vi.fn(), update: vi.fn() },
+    });
+
+    // 上一个用例已加载过 background 模块（vitest 缓存），必须重置模块再注册。
+    vi.resetModules();
+    await import('@/entrypoints/background');
+
+    const registration = onMessage.mock.calls.find(([type]) => type === 'setFlatLayoutFewSources');
+    expect(registration).toBeDefined();
+    const handler = registration![1] as (ctx: { data: boolean }) => Promise<void>;
+    await handler({ data: false });
+    expect(mockedHandleSetFlatLayoutFewSources).toHaveBeenCalledWith(false);
   });
 });

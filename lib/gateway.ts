@@ -33,6 +33,7 @@ import {
   setSourceOrder,
   setGroupConfig,
   setAiAutoEnter,
+  setFlatLayoutFewSources,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -304,6 +305,12 @@ export async function handleSetGroupConfig(config: GroupConfig): Promise<void> {
 export async function handleSetAiAutoEnter(value: boolean): Promise<void> {
   await getSchemaReady();
   await setAiAutoEnter(value);
+}
+
+/** 设置「少量来源自动平铺」开关（默认 true）。 */
+export async function handleSetFlatLayoutFewSources(value: boolean): Promise<void> {
+  await getSchemaReady();
+  await setFlatLayoutFewSources(value);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

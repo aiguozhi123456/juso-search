@@ -23,6 +23,11 @@ export const ENGINES_GROUP = 'engines';
 export const SITES_GROUP = 'sites';
 export const CUSTOM_GROUP = 'custom';
 
+/** 平铺触发阈值（可见源总数）：≤ 此值则无论分组结构都平铺到顶层。 */
+export const FEW_SOURCES_FLAT_THRESHOLD = 4;
+/** 单一分组时的平铺上限：所有源只落在一个组里、且总数 ≤ 此值时也平铺（超过则保留分组以免难看）。 */
+export const SINGLE_GROUP_FLAT_THRESHOLD = 6;
+
 export type SourceGroupId = string;
 
 export type SourceLabel =
@@ -416,4 +421,28 @@ export function projectLayout(
   }
 
   return { items };
+}
+
+/**
+ * 解析生效布局：在 projectLayout 之上叠加「少量来源自动平铺」规则。
+ *
+ * 平铺 ⇔ 源总数 ≤ FEW_SOURCES_FLAT_THRESHOLD，或（渲染分组数 ≤ 1 且 源总数 ≤ SINGLE_GROUP_FLAT_THRESHOLD）。
+ * 意图：分组只在「既多又真分类（≥2 个非空组）」时才有收益；否则 flyout 是纯额外点击。
+ *  - 源少 → 不需收拢 → 平铺；
+ *  - 单一分组（无分离价值）且平铺仍整洁 → 平铺；
+ *  - 多组（有分离价值）或单组过大（平铺会难看）→ 保留分组。
+ */
+export function resolveEffectiveLayout(
+  sources: readonly SearchSource[],
+  config: GroupConfig,
+  activeId: SourceId | null,
+): ProjectedLayout {
+  const projected = projectLayout(sources, config, activeId);
+  const groupCount = projected.items.reduce((n, it) => (it.kind === 'group' ? n + 1 : n), 0);
+  const shouldFlat = sources.length <= FEW_SOURCES_FLAT_THRESHOLD
+    || (groupCount <= 1 && sources.length <= SINGLE_GROUP_FLAT_THRESHOLD);
+  if (!shouldFlat) return projected;
+  // 注意：平铺输出按 `sources`（即 sourceOrder）顺序，而非 config.layout 的置顶顺序——
+  // 即置顶 pill 的相对位置可能与非平铺时不同。这是平铺的固有行为（有意为之）。
+  return { items: sources.map((s) => ({ kind: 'source', source: s })) };
 }
