@@ -1,6 +1,7 @@
 ---
 title: "Doubao search provider integration: dual API versions and HTTP 200 business-error mapping"
 date: 2026-07-28
+last_updated: 2026-08-07
 category: tooling-decisions
 module: providers
 problem_type: tooling_decision
@@ -11,7 +12,8 @@ applies_when:
   - A provider returns HTTP 200 with a null payload plus error metadata instead of a non-2xx status code, so errors must be mapped inside the adapter's normalize function rather than by restTransport
   - Integrating two API versions of the same provider brand as dual adapters sharing one icon (the stepfun/stepfun-plan pattern)
   - Auditing host_permissions, web_accessible_resources, CSS, and store docs for provider coverage after adding a provider
-tags: [doubao, search-provider, business-error, adapter, provider-error, wxt, byok]
+  - Adding per-instance options to a provider whose API exposes configurable search parameters beyond result count, via the schema-agnostic providerSettings channel
+tags: [doubao, search-provider, business-error, adapter, provider-error, wxt, byok, provider-instances, per-instance-options]
 ---
 
 # Doubao search provider integration: dual API versions and HTTP 200 business-error mapping
@@ -110,7 +112,57 @@ Doubao ships as two adapters — `doubao` (Custom版) and `doubao-global` (Globa
 
 The `doubao-global` adapter's additional wrinkle is that its `Result` is a list of `Document` objects, each carrying a `Snippet` array whose entries can be text or image typed. Its normalize joins the text-typed snippets to produce the unified `snippet` / `content` fields, while the Custom版 reads `WebResults` directly. Both converge on the same `NormalizedResult` shape, so the rest of the pipeline (ranking, rendering, dedup) is agnostic to which Doubao API version answered.
 
-**5. Pre-existing gap fixes**
+**5. Per-instance options: mapping the Custom版 API's configurable parameters to the providerSettings channel**
+
+The Custom版 (`doubao`) web-search API exposes nine configurable parameters beyond result count (`Filter.NeedContent`, `Filter.NeedUrl`, `Filter.Sites`, `Filter.BlockHosts`, `Filter.AuthInfoLevel`, `TimeRange`, `QueryControl.QueryRewrite`, `ContentFormats`, `Industry`). Surfacing these as per-instance options — so a user can save tuned variants like "近一周 AI 资讯" and "仅权威来源" — follows the schema-agnostic `providerSettings` channel the instance model already provides (see `provider-instance-multi-config-model.md`). The adapter owns the entire options contract; the framework (types, gateway, storage, messaging) is untouched.
+
+The adapter declares a settings type, a default, a boundary sanitizer, and consumes `opts.providerSettings` in `buildRequest`:
+
+```ts
+export interface DoubaoSettings {
+  timeRange: string;            // '' | 'OneDay'|'OneWeek'|'OneMonth'|'OneYear' | 'YYYY-MM-DD..YYYY-MM-DD'
+  needContent: boolean;         // Filter.NeedContent, default false
+  needUrl: boolean;             // Filter.NeedUrl, default true (preserves pre-options behavior)
+  sites: string[];              // Filter.Sites, ≤20 domains
+  blockHosts: string[];         // Filter.BlockHosts, ≤5 domains
+  onlyAuthoritative: boolean;   // Filter.AuthInfoLevel=1, default false
+  queryRewrite: boolean;        // QueryControl.QueryRewrite, default false
+  contentFormat: 'text' | 'markdown'; // ContentFormats, default 'text'
+  industry: '' | 'finance' | 'game' | 'gov'; // Industry, default ''
+}
+export const DEFAULT_DOUBAO_SETTINGS: DoubaoSettings = { /* …all defaults above… */ };
+export function normalizeDoubaoSettings(raw: unknown): DoubaoSettings { /* sanitize untrusted bag */ }
+```
+
+`buildRequest` reads the sanitized settings and emits the wire-format body. Three conventions matter:
+
+- **Omit-when-default for optional fields.** `TimeRange`, `QueryControl`, `ContentFormats` (when `'text'`), `Industry`, `Filter.Sites`/`BlockHosts` (when empty), and `Filter.AuthInfoLevel` (when 0) are omitted from the body unless non-default. This keeps the default request body minimal and matches the API's own defaults, so an instance with empty options produces the same wire request as the pre-options hardcoded body.
+- **`needUrl` defaults to `true` to preserve prior behavior.** Before options existed, the adapter hardcoded `Filter: { NeedUrl: true }`. The API's own default for `NeedUrl` is `false`, so naively defaulting to the API default would have silently changed search behavior for every existing user. The normalizer treats `needUrl` asymmetrically: missing → `true` (preserve), explicit non-`true` → `false` (honor the user's choice). This is the one field where the project's backward-compat default diverges from the API's default.
+- **`Count` is never an instance option.** Result count stays on the provider-level `maxResults` stepper (the single source of truth), mirroring the Exa precedent. Putting `Count` in instance options would create a dead-form-field bug where provider-level maxResults silently overrides it.
+
+The `buildRequest` body assembly:
+
+```ts
+buildRequest(query, opts, apiKey) {
+  const s = normalizeDoubaoSettings(opts.providerSettings);
+  const filter: Record<string, unknown> = { NeedContent: s.needContent, NeedUrl: s.needUrl };
+  if (s.sites.length) filter.Sites = s.sites.join('|');
+  if (s.blockHosts.length) filter.BlockHosts = s.blockHosts.join('|');
+  if (s.onlyAuthoritative) filter.AuthInfoLevel = 1;
+  const body: Record<string, unknown> = {
+    Query: query, SearchType: 'web', Count: opts.maxResults ?? 10, Filter: filter,
+  };
+  if (s.timeRange) body.TimeRange = s.timeRange;
+  if (s.queryRewrite) body.QueryControl = { QueryRewrite: true };
+  if (s.contentFormat !== 'text') body.ContentFormats = s.contentFormat;
+  if (s.industry) body.Industry = s.industry;
+  return { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify(body) };
+}
+```
+
+Wiring the form is the three-step extension contract documented in `provider-instance-multi-config-model.md`: add `'doubao'` to `PROVIDERS_WITH_INSTANCE_OPTIONS`, ship a `DoubaoOptionsForm` in `ProviderInstanceManager`, and add a per-provider branch in the submit path. The framework's `providerSettings: Record<string, unknown>` channel carries the bag opaquely; only the adapter's `normalizeDoubaoSettings` interprets it, so untrusted storage or imported options are sanitized at the adapter boundary.
+
+**6. Pre-existing gap fixes**
 
 Adding a new provider is the right moment to audit whether existing providers have accumulated the same gaps the new one would otherwise expose. While wiring Doubao, the audit found and fixed gaps in the existing jina provider that predated this work:
 
@@ -127,25 +179,49 @@ The principle: the new-provider scaffold is also a regression test for the regis
 - **The shared error-mapping pattern is reusable.** Any future provider whose API returns HTTP `200` with business errors — a convention common among Chinese API providers (Volcengine, ByteDance, and similar stacks that wrap RPC-style semantics behind REST transport) — can follow the `doubao-shared.ts` approach: detect the `Result: null` (or equivalent business-failure sentinel) in `normalize`, then map business error codes to `ProviderError` kinds. The worker's retry, messaging, and UI classification paths then work without changes, because they only ever see `ProviderError`.
 - **The dual-provider pattern extends the stepfun/stepfun-plan precedent.** Two API versions of the same brand share an icon, a label family, and an error mapper, differing only in transport and normalization. This keeps the provider list coherent to users (one brand, two entries) while avoiding duplicated error-handling code.
 - **The pre-existing gap audit matters as a process habit.** Provider scaffolding drifts: manifest permissions, CSS rules, docs, and skills tuples all lag behind adapter additions. Treating "add a provider" as the trigger to audit the whole registry — not just the new entry — is what keeps the registry internally consistent. The jina gaps found during the Doubao work would otherwise have remained latent runtime bugs.
+- **Per-instance options are adapter-owned, framework-agnostic.** The Custom版's nine configurable parameters were surfaced without touching `SearchOptions`, the gateway, storage, or the messaging protocol — the `providerSettings: Record<string, unknown>` channel carries the bag opaquely, and only the adapter's `normalizeDoubaoSettings` interprets it. This means a provider with a rich parameter surface can expose per-instance tuning as a self-contained adapter addition (settings type + normalizer + `buildRequest` consumption + UI form), following the Exa precedent. The one backward-compat hazard to watch: when a field was previously hardcoded (here `NeedUrl: true`), the options default must preserve the old behavior, not adopt the API's native default — otherwise every existing user's search silently changes.
 
 ## When to Apply
 
 - Adding a REST-based search provider whose API returns HTTP `200` with business errors (not just non-2xx HTTP status codes). Detect the failure sentinel in `normalize` and throw a mapped `ProviderError` — do not let it surface as an empty result set.
 - Adding a dual-provider variant of an existing provider (same brand, different API version or endpoint). Reuse the brand icon, error mapper, and label family; isolate the differences to transport and result normalization.
 - When adding any new provider — audit the existing providers in the registry for the same gaps (host permissions, web-accessible resources, CSS color rules, skills tuples, docs). The new-provider scaffold doubles as a registry-wide regression check.
+- Adding per-instance options to a provider whose API exposes configurable search parameters beyond result count. Declare the settings type + normalizer in the adapter, consume `opts.providerSettings` in `buildRequest`, and ship a form via the three-step extension contract (`PROVIDERS_WITH_INSTANCE_OPTIONS` + UI form + submit branch). Keep `Count`/result count on the provider-level `maxResults` stepper, never in instance options. When a field was previously hardcoded, default the option to preserve the old behavior rather than the API's native default.
 
 ## Examples
 
 The two Doubao API versions differ in request body shape. Custom版 takes a `SearchType` and a `Filter` object; Global版 takes `DocCount` and a `MaxSnippetLength`:
 
-Custom版 (`doubao`):
+Custom版 (`doubao`) — default body (empty options, preserves the pre-options hardcoded `NeedUrl: true`):
 
 ```ts
 body: JSON.stringify({
   Query: query,
   SearchType: 'web',
   Count: opts.maxResults ?? 10,
-  Filter: { NeedUrl: true },
+  Filter: { NeedContent: false, NeedUrl: true },
+}),
+```
+
+Custom版 with a fully-tuned instance (all nine options set):
+
+```ts
+const s = normalizeDoubaoSettings(opts.providerSettings);
+body: JSON.stringify({
+  Query: query,
+  SearchType: 'web',
+  Count: opts.maxResults ?? 10,
+  Filter: {
+    NeedContent: s.needContent,
+    NeedUrl: s.needUrl,
+    Sites: s.sites.join('|'),           // only when non-empty
+    BlockHosts: s.blockHosts.join('|'), // only when non-empty
+    AuthInfoLevel: 1,                   // only when onlyAuthoritative
+  },
+  TimeRange: s.timeRange,               // only when non-empty
+  QueryControl: { QueryRewrite: true }, // only when queryRewrite
+  ContentFormats: s.contentFormat,      // only when !== 'text'
+  Industry: s.industry,                 // only when non-empty
 }),
 ```
 
@@ -159,7 +235,7 @@ body: JSON.stringify({
 }),
 ```
 
-Both share the same `Query` field and the same `ResponseMetadata.Error` envelope on failure, which is why the shared `mapDoubaoError` works for both. The body-shape divergence is exactly the kind of API-version difference the dual-provider pattern is designed to isolate: each adapter owns its own request body, while everything downstream (error mapping, brand identity, normalized result shape) is shared.
+Both share the same `Query` field and the same `ResponseMetadata.Error` envelope on failure, which is why the shared `mapDoubaoError` works for both. The body-shape divergence is exactly the kind of API-version difference the dual-provider pattern is designed to isolate: each adapter owns its own request body, while everything downstream (error mapping, brand identity, normalized result shape) is shared. The Custom版's per-instance options layer (section 5) sits entirely inside the `doubao` adapter's `buildRequest` — the Global版 does not expose options, so its body stays the simple `DocCount` form.
 
 ## Related
 
