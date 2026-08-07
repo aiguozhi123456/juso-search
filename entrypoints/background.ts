@@ -35,6 +35,7 @@ import {
   handleSetFlatLayoutFewSources,
   handleTestKey,
   handleUpdateSiteEngine,
+  installDownloadFilenameGuard,
 } from '@/lib/gateway';
 import { isBarPositionPref, isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
@@ -45,6 +46,9 @@ import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
 import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
 
 export default defineBackground(() => {
+  // data: URL 下载的 filename 修正守卫：注册 onDeterminingFilename 监听器，强制本扩展
+  // 发起的下载使用指定文件名（见 lib/gateway.ts 中 installDownloadFilenameGuard 的注释）。
+  installDownloadFilenameGuard();
   // 预热 schema 迁移：worker 启动即触发 ensureSchema+ensureCacheSchema（懒加载 memoized），
   // 让首条消息到达前迁移大概率已完成。handler 仍会 await getSchemaReady() 兜底。
   void getSchemaReady();

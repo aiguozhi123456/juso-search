@@ -444,7 +444,28 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : 'unknown';
 }
 
+// Chrome 对 data: URL 下载不可靠地应用 filename（回退默认名，中文 locale 为「下载」）；
+// 且当任意扩展注册 onDeterminingFilename 监听器时 filename 参数被完全忽略
+//（Chromium 579563，官方 downloads.idl 明文）。注册本扩展自己的监听器，对由本扩展
+// 发起的下载强制 suggest 正确文件名，其他下载放行。Firefox 无此 API 也无此问题。
+const pendingFilenames: string[] = [];
+
+/** 在 worker 启动时调用一次：注册 onDeterminingFilename 监听器，强制本扩展发起的
+ *  下载使用指定文件名（绕过 data: URL 与冲突扩展导致的 filename 被忽略问题）。 */
+export function installDownloadFilenameGuard(): void {
+  const events = browser.downloads?.onDeterminingFilename;
+  if (!events) return; // Firefox / 不支持：filename 参数本身可靠，无需修复
+  events.addListener((item, suggest) => {
+    if (item.byExtensionId === browser.runtime.id && pendingFilenames.length > 0) {
+      suggest({ filename: pendingFilenames.shift()! });
+    } else {
+      suggest(); // 放行：非本扩展发起，或队列空（兜底用 Chrome 默认名）
+    }
+  });
+}
+
 async function triggerDownload(url: string, filename: string): Promise<void> {
+  pendingFilenames.push(filename);
   await browser.downloads.download({ url, filename, saveAs: true });
 }
 

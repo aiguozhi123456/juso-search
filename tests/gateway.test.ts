@@ -119,6 +119,7 @@ import {
   handleCreateProviderInstance,
   handleUpdateProviderInstance,
   handleDeleteProviderInstance,
+  installDownloadFilenameGuard,
 } from '@/lib/gateway';
 import {
   clearKey,
@@ -1200,5 +1201,50 @@ describe('handleImportConfig', () => {
     expect(reply.ok).toBe(false);
     if (!reply.ok) expect(reply.error.kind).toBe('invalid');
     expect(mockedMergeImport).not.toHaveBeenCalled();
+  });
+});
+
+describe('installDownloadFilenameGuard', () => {
+  let filenameListener: ((item: { byExtensionId?: string; filename: string }, suggest: (s?: { filename: string }) => void) => void) | null;
+
+  beforeEach(() => {
+    filenameListener = null;
+    vi.stubGlobal('browser', {
+      runtime: { id: 'abcdefghijklmnopabcdefghijklmnop' },
+      downloads: {
+        download: vi.fn(),
+        onDeterminingFilename: {
+          addListener: vi.fn((cb) => { filenameListener = cb; }),
+        },
+      },
+    });
+    installDownloadFilenameGuard();
+  });
+
+  it("suggests the pending filename for this extension's download", async () => {
+    // 用 handleExportConfig 走默认 triggerDownload 路径（不传 onDownload）
+    mockedBuildExportPayload.mockResolvedValue({
+      schemaVersion: 1, exportedAt: 0, appVersion: '1.0.0',
+      providerKeys: {}, activeProvider: null, activeSource: 'google',
+      themePref: 'auto', localePref: 'auto', siteEngines: [],
+    });
+    const suggestSpy = vi.fn();
+    vi.mocked(browser.downloads.download).mockImplementation(() => {
+      // 模拟 Chrome 在 download() 后触发 onDeterminingFilename
+      filenameListener!({ byExtensionId: 'abcdefghijklmnopabcdefghijklmnop', filename: 'download.json' }, suggestSpy);
+      return Promise.resolve(1);
+    });
+
+    const reply = await handleExportConfig();
+
+    expect(reply.ok).toBe(true);
+    expect(suggestSpy).toHaveBeenCalledTimes(1);
+    expect(suggestSpy).toHaveBeenCalledWith({ filename: expect.stringMatching(/^juso-config-\d{8}-\d{4}\.json$/) });
+  });
+
+  it('passes through downloads not initiated by this extension', () => {
+    const suggestSpy = vi.fn();
+    filenameListener!({ byExtensionId: 'other-extension-id', filename: 'whatever.txt' }, suggestSpy);
+    expect(suggestSpy).toHaveBeenCalledWith(); // 无参 = 放行
   });
 });

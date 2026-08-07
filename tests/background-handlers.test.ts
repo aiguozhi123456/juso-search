@@ -49,6 +49,7 @@ vi.mock('@/lib/gateway', () => ({
   handleSetFlatLayoutFewSources: mockedHandleSetFlatLayoutFewSources,
   handleTestKey: vi.fn(),
   handleUpdateSiteEngine: vi.fn(),
+  installDownloadFilenameGuard: vi.fn(),
   getSchemaReady: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -150,6 +151,7 @@ describe('background handler registration — setAiAutoEnter', () => {
       action: { onClicked: { addListener: vi.fn() } },
       storage: { onChanged: { addListener: vi.fn() } },
       tabs: { create: vi.fn(), update: vi.fn() },
+      downloads: { onDeterminingFilename: { addListener: vi.fn() } },
     });
 
     await import('@/entrypoints/background');
@@ -181,6 +183,7 @@ describe('background handler registration — setFlatLayoutFewSources', () => {
       action: { onClicked: { addListener: vi.fn() } },
       storage: { onChanged: { addListener: vi.fn() } },
       tabs: { create: vi.fn(), update: vi.fn() },
+      downloads: { onDeterminingFilename: { addListener: vi.fn() } },
     });
 
     // 上一个用例已加载过 background 模块（vitest 缓存），必须重置模块再注册。
