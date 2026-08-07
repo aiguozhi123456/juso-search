@@ -133,8 +133,8 @@ footer_code:
   other: "代码"
 footer_releases:
   other: "版本发布"
-footer_github_desc:
-  other: "开源的双面搜索网关，密钥本地管理——一面为人，一面为本地 AI 智能体。"
+footer_agent_access:
+  other: "智能体接入"
 footer_license:
   other: "© 2026 双面搜 / Juso · MPL-2.0 开源"
 footer_tm:

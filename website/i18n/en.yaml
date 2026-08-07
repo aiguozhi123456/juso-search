@@ -133,8 +133,8 @@ footer_code:
   other: "Code"
 footer_releases:
   other: "Releases"
-footer_github_desc:
-  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+footer_agent_access:
+  other: "Agent access"
 footer_license:
   other: "© 2026 双面搜 / Juso · MPL-2.0 open source"
 footer_tm:

@@ -10,11 +10,23 @@
   <link rel="icon" href="{{ "brand/favicon-32.png" | relURL }}" type="image/png" sizes="32x32">
   <link rel="icon" href="{{ "brand/favicon-192.png" | relURL }}" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="{{ "brand/favicon-192.png" | relURL }}">
+
+  {{/* canonical + hreflang：自身 + .Translations 互指 + x-default 指向中文版 */}}
+  <link rel="canonical" href="{{ .Permalink }}">
+  <link rel="alternate" hreflang="{{ .Site.Language.Locale }}" href="{{ .Permalink }}">
+  {{ range .Translations }}
+  <link rel="alternate" hreflang="{{ .Language.Locale }}" href="{{ .Permalink }}">
+  {{ end }}
+  {{ $zhURL := .Permalink }}{{ range .Translations }}{{ if eq .Language.Lang "zh" }}{{ $zhURL = .Permalink }}{{ end }}{{ end }}
+  <link rel="alternate" hreflang="x-default" href="{{ $zhURL }}">
+
   <meta property="og:title" content="{{ .Title }}">
   <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.githubDesc }}{{ end }}">
-  <meta property="og:image" content="{{ "brand/classic.png" | absURL }}">
+  <meta property="og:image" content="{{ "img/promo-1400x560.png" | absURL }}">
   <meta property="og:locale" content="{{ .Site.Language.Lang }}">
   <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ "img/promo-1400x560.png" | absURL }}">
   <meta name="theme-color" content="#c8372d" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#131313" media="(prefers-color-scheme: dark)">
 

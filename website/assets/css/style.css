@@ -358,6 +358,18 @@ p { color: var(--fg); }
 .showcase__demo { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg-soft); box-shadow: var(--shadow-2); }
 .showcase__demo img { width: 100%; }
 
+/* ---------- 浏览器窗框（截图呈现） ---------- */
+.browser-chrome__bar {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 14px; background: var(--bg-sunk);
+  border-bottom: 1px solid var(--border-soft); flex: 0 0 auto;
+}
+.browser-chrome__bar .bc-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border); flex: 0 0 auto; }
+.browser-chrome__addr {
+  margin-left: 9px; font-family: var(--font-mono); font-size: .72rem;
+  color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* ---------- CLI 代码块 ---------- */
 .cli { display: grid; gap: 16px; }
 .cli__block {
@@ -449,6 +461,14 @@ p { color: var(--fg); }
 .site-foot__top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: clamp(24px, 4vw, 48px); }
 .site-foot__brand .brandlock { margin-bottom: 14px; }
 .site-foot__brand p { color: var(--muted); font-size: .9rem; max-width: 34ch; }
+.foot-agent-link {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 14px;
+  font-size: .88rem; font-weight: 600; color: var(--brand);
+  transition: gap var(--dur) var(--ease-out);
+}
+.foot-agent-link__arrow { transition: transform var(--dur) var(--ease-out); }
+.foot-agent-link:hover { gap: 9px; }
+.foot-agent-link:hover .foot-agent-link__arrow { transform: translateX(2px); }
 .site-foot__col h4 { font-family: var(--font-sans); font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
 .site-foot__col a { display: block; font-size: .9rem; color: var(--muted); padding: 5px 0; transition: color var(--dur); }
 .site-foot__col a:hover { color: var(--brand); }

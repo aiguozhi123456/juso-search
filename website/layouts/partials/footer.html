@@ -9,18 +9,19 @@
           <span class="brandlock__en">Juso</span>
         </a>
         <p>{{ i18n "footer_tagline" }}</p>
+        <a class="foot-agent-link" href="{{ "agents/" | relLangURL }}">
+          {{ i18n "footer_agent_access" }}<span class="foot-agent-link__arrow" aria-hidden="true">→</span>
+        </a>
       </div>
       <div class="site-foot__col">
         <h4>{{ i18n "footer_get" }}</h4>
         <a href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">Chrome Web Store</a>
         <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">GitHub Release</a>
-        <a href="{{ "agents/" | relLangURL }}">{{ i18n "nav_agent" }}</a>
       </div>
       <div class="site-foot__col">
         <h4>{{ i18n "footer_code" }}</h4>
         <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">GitHub</a>
         <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "footer_releases" }}</a>
-        <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ i18n "footer_github_desc" }}</a>
       </div>
     </div>
     <div class="site-foot__bottom">
