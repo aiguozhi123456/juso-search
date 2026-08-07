@@ -46,8 +46,6 @@ sec_trust_human:
   other: "隐私模型"
 sec_trust_human_sub:
   other: "只陈述可验证的事实：密钥本地存、仅 worker 读、直达所选服务、无中转无遥测。"
-sec_cta_human:
-  other: "开始使用"
 
 sec_capability_agents:
   other: "智能体能力"
@@ -65,8 +63,6 @@ sec_setup_agents:
   other: "如何接入"
 sec_setup_agents_sub:
   other: "四步：安装扩展 → 开启 Agent Bridge → 下载配套技能 → 运行命令。"
-sec_cta_agents:
-  other: "让智能体开始搜索"
 
 # 矩阵面标题
 face_human:
@@ -107,8 +103,6 @@ cta_github:
   other: "在 GitHub 查看"
 cta_install_ext:
   other: "安装扩展"
-cta_install_ext_sub:
-  other: "Chrome Web Store 推荐，可自动更新"
 
 # 开源卡片
 os_badge:
@@ -139,11 +133,17 @@ footer_code:
   other: "代码"
 footer_releases:
   other: "版本发布"
+footer_github_desc:
+  other: "开源的双面搜索网关，密钥本地管理——一面为人，一面为本地 AI 智能体。"
 footer_license:
   other: "© 2026 双面搜 / Juso · MPL-2.0 开源"
 footer_tm:
   other: "本站出现的第三方产品名、品牌名、服务名与商标均归各自所有者所有，仅用于指代对应搜索来源与服务，不表示关联、赞助或背书。"
 
-# 跳转
+# 跳转与 404
 skip_to_content:
   other: "跳到正文"
+not_found_text:
+  other: "这一页不存在，或已移动。"
+not_found_home:
+  other: "回到首页"

@@ -5,6 +5,34 @@
    字体：Fraunces（衬线 display）× Hanken Grotesk（无衬线 body）× JetBrains Mono（CLI）。
    ========================================================================= */
 
+/* ---------- 自托管字体（latin 子集，可变字体单文件覆盖全字重） ----------
+   url 用相对路径 ../fonts/，CSS 输出在 css/ 下，故 ../fonts/ 解析到站点根 fonts/。
+   unicode-range 限定 latin，CJK 字符回退到栈中的系统字体。 */
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+  src: url(../fonts/fraunces-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(../fonts/hanken-grotesk-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url(../fonts/jetbrains-mono-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ---------- 设计令牌 ---------- */
 :root {
   --brand: #c8372d;
@@ -18,7 +46,7 @@
   --bg-sunk: #f4f2f1;
   --fg: #1a1a1a;
   --muted: #5f5f5f;
-  --faint: #8a8a8a;
+  --faint: #6f6f6f;
   --border: #e6e3e0;
   --border-soft: #f0eded;
   --answer-bg: #fdf6f4;
@@ -55,7 +83,7 @@
     --bg-sunk: #1e1c1c;
     --fg: #ececec;
     --muted: #a3a3a3;
-    --faint: #777;
+    --faint: #9a9a9a;
     --border: #34302f;
     --border-soft: #262423;
     --answer-bg: #28191a;

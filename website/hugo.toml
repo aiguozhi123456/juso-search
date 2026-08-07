@@ -16,13 +16,6 @@ enableRobotsTXT = true
   githubDesc = "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
   license = "MPL-2.0"
 
-[markup.goldmark.renderer]
-  unsafe = true
-
-[markup.highlight]
-  codeFences = false
-  style = "monokai"
-
 [languages]
   [languages.zh]
     label = "中文"
@@ -33,4 +26,4 @@ enableRobotsTXT = true
     label = "English"
     locale = "en-US"
     weight = 2
-    title = "Juso / 双面搜"
+    title = "双面搜 / Juso"

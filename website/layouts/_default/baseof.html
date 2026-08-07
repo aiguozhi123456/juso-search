@@ -7,19 +7,18 @@
   {{/* 辉光与切换器在挂载前即可用 */}}
   <title>{{ block "title" . }}{{ .Title }} — {{ .Site.Title }}{{ end }}</title>
   <meta name="description" content="{{ block "description" . }}{{ .Site.Params.githubDesc }}{{ end }}">
-  <link rel="icon" href="/brand/classic.png" type="image/png">
+  <link rel="icon" href="{{ "brand/favicon-32.png" | relURL }}" type="image/png" sizes="32x32">
+  <link rel="icon" href="{{ "brand/favicon-192.png" | relURL }}" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="{{ "brand/favicon-192.png" | relURL }}">
   <meta property="og:title" content="{{ .Title }}">
   <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.githubDesc }}{{ end }}">
-  <meta property="og:image" content="/brand/classic.png">
+  <meta property="og:image" content="{{ "brand/classic.png" | absURL }}">
   <meta property="og:locale" content="{{ .Site.Language.Lang }}">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#c8372d" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#131313" media="(prefers-color-scheme: dark)">
 
-  {{/* 字体：Fraunces（衬线 display）× Hanken Grotesk（body）× JetBrains Mono（CLI） */}}
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  {{/* 字体自托管：Fraunces / Hanken Grotesk / JetBrains Mono（latin 子集，@font-face 在 style.css 顶部） */}}
 
   {{ $css := resources.Get "css/style.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}">
@@ -32,11 +31,14 @@
   </main>
   {{ partial "footer.html" . }}
 
-  {{/* 最小 JS：仅滚动揭示，渐进增强，无 JS 内容直接可见 */}}
+  {{/* 最小 JS：仅滚动揭示，渐进增强；无 IntersectionObserver 时全部直接显示 */}}
   <script>
     (function(){
-      if (!('IntersectionObserver' in window)) return;
       var els = document.querySelectorAll('.reveal');
+      if (!('IntersectionObserver' in window)) {
+        els.forEach(function(el){ el.classList.add('in'); });
+        return;
+      }
       var io = new IntersectionObserver(function(entries){
         entries.forEach(function(e){
           if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }

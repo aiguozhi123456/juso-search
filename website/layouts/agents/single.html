@@ -31,11 +31,11 @@
             <span class="title">juso-search</span>
             <span class="lang">bash</span>
           </div>
-          <pre class="cli__pre"><span class="cmt"># {{ if $isEn }}List configured providers{{ else }}列出已配置的服务{{ end }}</span>
-<span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-providers</span>
+          <pre class="cli__pre"><span class="cmt" aria-hidden="true"># {{ if $isEn }}List configured providers{{ else }}列出已配置的服务{{ end }}</span>
+<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-providers</span>
 
-<span class="cmt"># {{ if $isEn }}Search with an explicit provider{{ else }}显式指定 provider 搜索{{ end }}</span>
-<span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search</span> <span class="str">"latest AI research"</span> <span class="flag">--provider</span> <span class="arg">tavily</span></pre>
+<span class="cmt" aria-hidden="true"># {{ if $isEn }}Search with an explicit provider{{ else }}显式指定 provider 搜索{{ end }}</span>
+<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search</span> <span class="str">"latest AI research"</span> <span class="flag">--provider</span> <span class="arg">tavily</span></pre>
         </div>
         <div class="caption"><span class="tag">CLI</span>{{ i18n "sec_cli_agents" }}</div>
       </div>

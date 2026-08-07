@@ -1,10 +1,9 @@
 {{/* 页头：品牌锁具 + 双面切换器 + 语言切换 + 安装 */}}
-{{ $lp := .Site.LanguagePrefix }}
 {{ $isAgents := strings.Contains .RelPermalink "/agents" }}
 {{ $curLang := .Site.Language.Lang }}
 <header class="site-head">
   <div class="wrap site-head__inner">
-    <a class="brandlock" href="{{ $lp }}/" aria-label="{{ i18n "brand_lockup" }}">
+    <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
       <span class="brandlock__cn">双面搜</span>
       <span class="brandlock__sep">/</span>
       <span class="brandlock__en">Juso</span>
@@ -12,24 +11,25 @@
 
     {{/* 双面切换器 —— 链接，呼应扩展快切栏 pill */}}
     <nav class="faceswitch" aria-label="{{ i18n "face_switch_label" }}">
-      <a href="{{ $lp }}/" {{ if not $isAgents }}aria-current="page"{{ end }}>
+      <a href="{{ "" | relLangURL }}" {{ if not $isAgents }}aria-current="page"{{ end }}>
         <span class="sw-dot"></span>{{ i18n "nav_human" }}
       </a>
-      <a href="{{ $lp }}/agents/" {{ if $isAgents }}aria-current="page"{{ end }}>
+      <a href="{{ "agents/" | relLangURL }}" {{ if $isAgents }}aria-current="page"{{ end }}>
         <span class="sw-dot"></span>{{ i18n "nav_agent" }}
       </a>
     </nav>
 
     <div class="head-right">
-      {{/* 语言切换：保持当前面，跨语言跳转 */}}
+      {{/* 语言切换：保持当前面，跨语言跳转用该页 .Translations */}}
       <nav class="langswitch" aria-label="{{ i18n "lang_label" }}">
-        {{ $base := cond $isAgents "agents/" "" }}
-        {{ if eq $curLang "zh" }}
-          <a aria-current="page">中</a><span class="sep">/</span>
-          <a href="/en/{{ $base }}" hreflang="en">EN</a>
-        {{ else }}
-          <a href="/{{ $base }}" hreflang="zh">中</a><span class="sep">/</span>
-          <a aria-current="page">EN</a>
+        {{ range .Translations }}
+          {{ if eq $curLang "zh" }}
+            <span aria-current="page">中</span><span class="sep">/</span>
+            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">EN</a>
+          {{ else }}
+            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">中</a><span class="sep">/</span>
+            <span aria-current="page">EN</span>
+          {{ end }}
         {{ end }}
       </nav>
       <a class="btn btn--primary btn--sm" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">

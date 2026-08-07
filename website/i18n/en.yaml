@@ -1,6 +1,6 @@
 # English UI strings (en)
 brand_lockup:
-  other: "Juso / 双面搜"
+  other: "双面搜 / Juso"
 face_switch_label:
   other: "Face switch"
 lang_label:
@@ -46,8 +46,6 @@ sec_trust_human:
   other: "Privacy model"
 sec_trust_human_sub:
   other: "Only verifiable facts: keys stored locally, read only by the worker, direct to the selected service, no relay and no telemetry."
-sec_cta_human:
-  other: "Get started"
 
 sec_capability_agents:
   other: "Agent capabilities"
@@ -65,8 +63,6 @@ sec_setup_agents:
   other: "How to connect"
 sec_setup_agents_sub:
   other: "Four steps: install → enable Agent Bridge → download the skill → run commands."
-sec_cta_agents:
-  other: "Let agents start searching"
 
 # Matrix face headers
 face_human:
@@ -107,8 +103,6 @@ cta_github:
   other: "View on GitHub"
 cta_install_ext:
   other: "Install the extension"
-cta_install_ext_sub:
-  other: "Chrome Web Store recommended, with auto-update"
 
 # Open-source card
 os_badge:
@@ -139,10 +133,17 @@ footer_code:
   other: "Code"
 footer_releases:
   other: "Releases"
+footer_github_desc:
+  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
 footer_license:
-  other: "© 2026 Juso / 双面搜 · MPL-2.0 open source"
+  other: "© 2026 双面搜 / Juso · MPL-2.0 open source"
 footer_tm:
   other: "Third-party product, brand, service names and trademarks appearing on this site belong to their respective owners and are used solely to refer to the corresponding search sources and services; no affiliation, sponsorship, or endorsement is implied."
 
+# Skip link & 404
 skip_to_content:
   other: "Skip to content"
+not_found_text:
+  other: "This page doesn't exist or has moved."
+not_found_home:
+  other: "Back to home"

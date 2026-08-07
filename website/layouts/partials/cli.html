@@ -1,9 +1,10 @@
-{{/* CLI 代码块 —— data/cli.yaml */}}
+{{/* CLI 代码块 —— data/cli.yaml；prompt/comment 装饰性 span 加 aria-hidden */}}
 <div class="cli reveal">
   {{ range hugo.Data.cli.items }}
     {{ $lang := $.Site.Language.Lang }}
     {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
     {{ $cap := .cap_zh }}{{ if eq $lang "en" }}{{ $cap = .cap_en }}{{ end }}
+    {{ $html := replaceRE `<span class="(prompt|cmt)"` `<span class="$1" aria-hidden="true"` .html }}
     <div>
       <div class="cli__block">
         <div class="cli__bar">
@@ -11,7 +12,7 @@
           <span class="title">{{ $title }}</span>
           <span class="lang">bash</span>
         </div>
-        <pre class="cli__pre">{{ .html | safeHTML }}</pre>
+        <pre class="cli__pre">{{ $html | safeHTML }}</pre>
       </div>
       <p class="cli__caption" style="margin-top:8px;"><b>{{ $title }}</b> — {{ $cap }}</p>
     </div>

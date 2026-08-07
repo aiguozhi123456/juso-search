@@ -25,7 +25,7 @@
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
       <div class="hero__card">
-        <img src="/img/screenshot-search.png" alt="{{ i18n "cap_search" }}" loading="eager" fetchpriority="high" decoding="async" width="1200" height="750">
+        <img src="{{ "img/screenshot-search.png" | relURL }}" alt="{{ i18n "cap_search" }}" loading="eager" fetchpriority="high" decoding="async" width="1200" height="750">
         <div class="caption"><span class="tag">AI</span>{{ i18n "cap_search" }}</div>
       </div>
     </div>
@@ -67,17 +67,17 @@
     <div class="showcase">
       <div class="showcase__pair reveal">
         <div class="shot">
-          <img src="/img/screenshot-serp.png" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="750">
+          <img src="{{ "img/screenshot-serp.png" | relURL }}" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="750">
           <div class="shot__cap"><b>{{ i18n "cap_serp" }}</b></div>
         </div>
         <div class="shot">
-          {{ $arch := "/img/architecture.svg" }}{{ if $isEn }}{{ $arch = "/img/architecture-en.svg" }}{{ end }}
-          <img src="{{ $arch }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy">
+          {{ $arch := "img/architecture.svg" }}{{ if $isEn }}{{ $arch = "img/architecture-en.svg" }}{{ end }}
+          <img src="{{ $arch | relURL }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy">
           <div class="shot__cap"><b>{{ if $isEn }}Two-sided architecture{{ else }}双面架构{{ end }}</b></div>
         </div>
       </div>
       <div class="showcase__demo reveal">
-        <img src="/img/demo.gif" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="1200" height="750">
+        <img src="{{ "img/demo.gif" | relURL }}" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="1200" height="750">
         <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span style="color:var(--faint);font-size:.78rem;">{{ i18n "showcase_lazy_note" }}</span></div>
       </div>
     </div>

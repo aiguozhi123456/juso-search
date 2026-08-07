@@ -1,0 +1,16 @@
+{{/* 品牌化 404 —— 复用 baseof，双语文案走 i18n */}}
+{{ define "title" }}404 — {{ .Site.Title }}{{ end }}
+
+{{ define "main" }}
+<section class="section" style="text-align:center;display:flex;align-items:center;min-height:60vh;">
+  <div class="wrap">
+    <div class="eyebrow reveal" style="justify-content:center;"><span class="dot"></span>404</div>
+    <h1 class="wordmark reveal" style="font-size:clamp(3.4rem,11vw,7rem);margin-top:18px;">404</h1>
+    <p class="lead reveal" style="margin:18px auto 30px;max-width:40ch;">{{ i18n "not_found_text" }}</p>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;">
+      <a class="btn btn--primary" href="{{ "" | relLangURL }}">{{ i18n "not_found_home" }}</a>
+      <a class="btn btn--ghost" href="{{ "agents/" | relLangURL }}">{{ i18n "nav_agent" }}</a>
+    </div>
+  </div>
+</section>
+{{ end }}

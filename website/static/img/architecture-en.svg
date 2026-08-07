@@ -109,7 +109,7 @@
   <text x="190" y="304" fill="#94a3b8" font-size="8" text-anchor="middle">Bilibili · Yandex · DuckDuckGo</text>
   <text x="190" y="316" fill="#94a3b8" font-size="8" text-anchor="middle">in-page switching</text>
   <text x="190" y="388" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Options</text>
-  <text x="190" y="408" fill="#94a3b8" font-size="8" text-anchor="middle">BYOK keys · Site/Custom Engines · instances</text>
+  <text x="190" y="408" fill="#94a3b8" font-size="8" text-anchor="middle">local keys · Site/Custom Engines · instances</text>
 
   <!-- agent side boxes -->
   <text x="850" y="223" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Agent Skill · Python CLI</text>
@@ -124,7 +124,7 @@
   <text x="850" y="548" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Provider Adapters</text>
   <text x="850" y="570" fill="#94a3b8" font-size="8" text-anchor="middle">Tavily · Exa · Brave · Stepfun · Jina · Doubao</text>
   <text x="500" y="718" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">chrome.storage.local</text>
-  <text x="500" y="734" fill="#94a3b8" font-size="9" text-anchor="middle">BYOK keys · prefs · cache</text>
+  <text x="500" y="734" fill="#94a3b8" font-size="9" text-anchor="middle">local keys · prefs · cache</text>
 
   <!-- external services -->
   <text x="190" y="894" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Search Engines</text>

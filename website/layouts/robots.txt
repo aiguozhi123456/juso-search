@@ -1,4 +1,4 @@
+# NOTE: 项目页（子路径）的 robots.txt 不被爬虫读取——爬虫只读域根 /robots.txt。
+# sitemap 曝光应通过 Google Search Console / Bing Webmaster Tools 提交。
 User-agent: *
 Allow: /
-
-Sitemap: {{ "sitemap.xml" | absURL }}
