@@ -11,7 +11,7 @@
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site-scoped searches (Site Engines), and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo work with zero AI service configuration, and you can save site-scoped searches in settings without any API key.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site-scoped searches (Site Engines), custom engines, AI chat engines, and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo work with zero AI service configuration, and you can save site-scoped searches or any URL-template-based custom engines in settings, and use AI chat sites as switchable search engines, all without any API key.
 
 | For | What it does today |
 | --- | --- |
@@ -36,24 +36,26 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 ## Current Capabilities and Sources
 
-Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Engine**, or a configured AI search service; those three types use different execution paths.
+Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Engine**, a user-defined **Custom Engine**, a configured AI search service (which can have multiple tuned **instances**), or a preset **AI Chat Engine**; those five types use different execution paths.
 
 - Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo. They use no API key; Juso navigates a browser for people to use directly; all eight engines also let agents extract ordinary search results (Bilibili, Xiaohongshu, and Douyin extraction runs in a logged-in browser profile).
 - Site Engines: save multiple site-scoped searches in extension settings. Each entry fixes Google, Bing, or Baidu as the underlying engine and searches that site with a `site:` operator. Targets must be public hostnames; the underlying engine is chosen at create time and does not change afterward. Saved entries appear on the search page and the SERP Switch Bar like other sources. No API key required.
-- AI search services: Tavily, Exa, Brave, Stepfun pay-as-you-go API, Stepfun Step Plan, Jina, and Doubao (Custom and Global endpoints). They are accessed through a normalized adapter interface, while each service retains its own authentication and billing.
-- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Stepfun (including Step Plan), Brave, Jina, and Doubao currently return result lists only.
+- Custom Engines: save any URL containing a `%s` placeholder in extension settings, and it becomes a search engine on the search page and SERP Switch Bar. Unlike Site Engines, a Custom Engine navigates directly to a user-specified URL with no underlying engine. No API key required.
+- AI search services: Tavily, Exa, Brave, Stepfun pay-as-you-go API, Stepfun Step Plan, Jina, and Doubao (Custom and Global endpoints). They are accessed through a normalized adapter interface, while each service retains its own authentication and billing. Services that support instances (currently Exa and Doubao Custom) can save multiple tuned variants (e.g. different search scenarios or filter directions); each instance is a first-class switchable target in the quick-switch bar. Instances hold no credentials — keys remain shared per service type.
+- AI Chat Engines: Grok, ChatGPT, DeepSeek, Doubao, and Gemini. They turn AI chat sites into search engines: switching to one auto-fills the query, with optional auto-submit. These sources are hidden by default (login required) and appear in the quick-switch bar after you show them in settings. No API key required.
+- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Stepfun (including Step Plan), Brave, Jina, and Doubao currently return result lists only. AI Chat Engines are conversational interfaces and are not included here.
 
 In the current release, “aggregation” means unified access, selection, and fast source switching. It does **not** mean a query retrieves from several sources in parallel by default, nor that results are merged, deduplicated, or fused by default.
 
 ## For People
 
-The independent search page lets you choose and switch Search Sources, including saved Site Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo result pages, the SERP Switch Bar can move the current query to another search engine, a Site Engine, or hand it off to Juso’s AI search page.
+The independent search page lets you choose and switch Search Sources, including saved Site Engines and Custom Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo result pages, the SERP Switch Bar can move the current query to another search source, or hand it off to Juso’s AI search page.
 
 Successful AI searches are cached on the current device and appear in local search history that can be reviewed and replayed. Cache entries are scoped to a service plus normalized query, and are not shared across services. Use explicit refresh when you need fresh results; it bypasses the cache and may incur charges from the selected AI service.
 
 ## Quick Start
 
-Juso v1.3.0 is available on GitHub Release (Chrome Web Store currently shows v1.2.0; v1.3.0 pending review).
+Juso v1.4.0 is available on GitHub Release (Chrome Web Store currently shows v1.3.0; v1.4.0 pending review).
 
 ### Install the extension
 
@@ -64,9 +66,9 @@ Juso v1.3.0 is available on GitHub Release (Chrome Web Store currently shows v1.
 
 Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
 
-**From GitHub Release (v1.3.0)**
+**From GitHub Release (v1.4.0)**
 
-1. Download `juso-search-1.3.0-chrome-dev.zip` from the [GitHub Release v1.3.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.3.0).
+1. Download `juso-search-1.4.0-chrome-dev.zip` from the [GitHub Release v1.4.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.4.0).
 2. Extract the ZIP.
 3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
 
@@ -76,43 +78,27 @@ See the [development document](docs/DEVELOPMENT.en.md) for development commands,
 
 ### People
 
-1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no configuration (engines hidden by default can be shown from settings). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). Configure the corresponding key only when using an AI search service.
+1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no configuration (engines hidden by default can be shown from settings). AI Chat Engines likewise need no API key (hidden by default, login required). To add site-scoped search, create Site Engines in extension settings (site + underlying engine). You can also add Custom Engines (any URL with a `%s` placeholder). Configure the corresponding key only when using an AI search service.
 
-You can now search and switch among conventional engines, saved Site Engines, and configured AI search services from one entry point.
+You can now search and switch among conventional engines, Site Engines, Custom Engines, AI Chat Engines, and configured AI search services from one entry point.
 
 ### Local AI Agents
 
 1. Install and enable the extension in the **Chromium-family browser that will run Agent calls** (Chrome, Edge, Chromium, etc.). `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
-2. Choose the skill that matches your Juso installation:
-   - **Chrome Web Store installation** (recommended): install or copy `skills/juso-search/` into your agent's skills directory, for example `.agents/skills/juso-search/`. The extension ID is built in by default—no setup needed.
-   - **Developer build** (self-built via `npm run build:dev`): install or copy `skills/juso-search-dev/` into your agent's skills directory, for example `.agents/skills/juso-search-dev/`. The only difference between the two skills is the extension ID; choose based on how you installed Juso.
-   Or download the companion Agent Skill from Options → General → Agent Bridge (auto-stamped with this extension's ID; unzip into `.agents/skills/`. Custom dev builds are supported too).
-3. Only set `JUSO_EXTENSION_ID` or pass `--extension-id` when you self-sign a pack (or the ID differs from the default).
-4. If auto-discovery cannot find a browser, or Juso is installed only in Edge (or another non-default binary), point the skill at **the executable whose profile has Juso** (optionally set a profile directory name):
-
-```powershell
-$env:JUSO_CHROME_PATH = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-# optional: $env:JUSO_CHROME_PROFILE = "Default"
-# optional: $env:JUSO_EXTENSION_ID = "YOUR_EXTENSION_ID"
-```
-
-```bash
-export JUSO_CHROME_PATH="/path/to/msedge-or-chrome"
-# optional: export JUSO_CHROME_PROFILE="Default"
-# optional: export JUSO_EXTENSION_ID="YOUR_EXTENSION_ID"
-```
-
-5. Run commands from the skill directory, for example:
+2. Open Options → General → Agent Bridge and turn on the Agent Bridge master switch (off by default; must be enabled explicitly). To use `engine-search` for conventional engines, also enable its sub-switch.
+3. On the same page, click **Download companion Agent Skill** — the skill is auto-stamped with this machine's extension ID; unzip it into `.agents/skills/`.
+4. Run commands from the skill directory, for example:
 
 ```bash
 python scripts/juso_search.py list-providers
 python scripts/juso_search.py search "latest AI research" --provider tavily
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
+# Services that support instances (Exa, Doubao) can be searched per instance:
+python scripts/juso_search.py list-instances
+python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
 ```
 
-To override temporarily: `python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`.
-
-The local agent can now list configured services, perform API searches with an **explicit** provider, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials.
+The local agent can now list configured services, perform API searches with an **explicit** provider, search instance-supporting services per instance, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials. Edge-case settings such as browser path, profile, extension ID, and timeout are documented in the skill's reference files.
 
 ## Security and Data Boundaries
 
@@ -125,7 +111,7 @@ The local agent can now list configured services, perform API searches with an *
 
 Agents invoke bounded extension-worker actions through the Agent Bridge: a short-lived, loopback-only capability channel, not a persistent local API. Every invocation uses a new local port, token, and request identity, and expires on completion or timeout.
 
-`search` requires `--provider`; it never silently follows the extension’s current provider. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Launch and bridge failures return structured `error.kind` values on stdout (for example `chrome_not_found`, `chrome_launch_failed`, `extension_did_not_claim`, `extension_did_not_complete`). Fix browser path, profile, extension id, and confirm Juso is enabled in the opened browser—do not retry by exposing keys. Engine searches also fail on challenges, consent pages, unsupported layouts, and no results. See `skills/juso-search/SKILL.md` for the full kind table.
+`search` requires `--provider`; it never silently follows the extension’s current provider. Services that support instances (Exa, Doubao) can be searched per instance with `search-instance --instance-id`; obtain instance ids from `list-instances`. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Launch and bridge failures return structured `error.kind` values on stdout (for example `chrome_not_found`, `chrome_launch_failed`, `extension_did_not_claim`, `extension_did_not_complete`). Fix browser path, profile, extension id, and confirm Juso is enabled in the opened browser—do not retry by exposing keys. Engine searches also fail on challenges, consent pages, unsupported layouts, and no results. See `skills/juso-search/SKILL.md` for the full kind table.
 
 ## Development
 

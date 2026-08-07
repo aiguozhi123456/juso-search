@@ -1,7 +1,7 @@
 ---
 title: Chrome Extension Dual-Version Release Process
 date: 2026-07-26
-last_updated: 2026-08-01
+last_updated: 2026-08-07
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -49,6 +49,7 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 7. **GitHub Release**：创建 Release，**仅附加 dev ZIP**
 8. **CWS 提交**：将生产 ZIP 上传至 Chrome Web Store Developer Dashboard
 9. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）；提交被拒（如关键字垃圾、字符超限）时按 [cws-listing-copy-submission-constraints.md](cws-listing-copy-submission-constraints.md) 的文案纪律重写后重新提交
+10. **仓库文档与架构图同步**：审计 `README.md` / `README.en.md`（中英两份对称）、`docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.en.md`、`AGENTS.md` 的架构章节，以及 `docs/assets/architecture*.svg`——确保来源类型、provider/引擎清单、agent 命令、版本号与当前代码一致。改完 SVG 后须重新导出 `architecture@2x.png` / `architecture-en@2x.png`（`node -e "require('sharp')(svg,{density:192}).resize(2080,2060,{fit:'fill'}).png().toFile(out)"`）。
 
 ### 两个构建变体的差异
 

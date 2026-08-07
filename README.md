@@ -11,7 +11,7 @@
 
 > **一面为人，一面为智能体。**
 
-Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎、站外搜索（Site Engine）与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。即使只使用人类这一面，它也是一个功能完整、开箱即用的搜索聚合与切换工具——无需配置任何 AI 服务即可使用 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex 和 DuckDuckGo，也可在设置中保存面向指定站点的站外搜索。
+Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎、站外搜索（Site Engine）、自定义引擎、AI 对话引擎与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。即使只使用人类这一面，它也是一个功能完整、开箱即用的搜索聚合与切换工具——无需配置任何 AI 服务即可使用 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex 和 DuckDuckGo，也可在设置中保存面向指定站点的站外搜索、任意带查询参数的自定义引擎，并把 AI 对话站点当作搜索引擎切换。
 
 | 面向谁 | 现在能做什么 |
 | --- | --- |
@@ -36,24 +36,26 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 
 ## 当前能力与来源
 
-Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索引擎**、用户保存的**站外搜索（Site Engine）**，或已配置的 AI 搜索服务；三者的执行方式不同。
+Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索引擎**、用户保存的**站外搜索（Site Engine）**或**自定义引擎（Custom Engine）**、已配置的 AI 搜索服务（可为同一服务创建多个调好参数的**实例**），或预置的 **AI 对话引擎**；五类来源的执行方式不同。
 
 - 传统搜索引擎：Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo。它们不使用 API 密钥；Juso 通过浏览器导航，供人直接使用；八个引擎均支持智能体提取普通搜索结果（哔哩哔哩、小红书、抖音在浏览器已登录状态下提取）。
 - 站外搜索（Site Engine）：在扩展设置中保存多个站点；每个条目固定选用 Google、Bing 或 Baidu 之一，用 `site:` 限定到该站点后搜索。目标须为公网域名；底层引擎在创建时选定，之后不再更改。创建后会出现在搜索页与 SERP 切换栏，与其他来源一样可切换。无需 API 密钥。
-- AI 搜索服务：Tavily、Exa、Brave、Stepfun 按量 API、Stepfun Step Plan、Jina、Doubao（Custom 与 Global 双端点）。服务经由统一的适配器接口访问，但各自的鉴权与计费由相应服务决定。
-- 答案能力：Tavily 和 Exa 可返回综合答案及结果列表；Stepfun（含 Step Plan）、Brave、Jina、Doubao 当前仅返回结果列表。
+- 自定义引擎（Custom Engine）：在扩展设置中保存任意带 `%s` 占位符的网址，即可把它当作搜索引擎加入搜索页与 SERP 切换栏。与站外搜索不同，自定义引擎直接导航到用户指定的 URL，不依赖底层引擎。无需 API 密钥。
+- AI 搜索服务：Tavily、Exa、Brave、Stepfun 按量 API、Stepfun Step Plan、Jina、Doubao（Custom 与 Global 双端点）。服务经由统一的适配器接口访问，但各自的鉴权与计费由相应服务决定。支持实例的服务（当前为 Exa 与 Doubao Custom）可保存多套调好参数的实例（如不同搜索场景或过滤方向），每个实例是快切栏里的一等可切换目标；实例不持有密钥，密钥仍按服务类型共享。
+- AI 对话引擎：Grok、ChatGPT、DeepSeek、豆包、Gemini。把 AI 对话站点当作搜索引擎，切换过去时自动填入查询、可选自动提交。这类来源默认隐藏（需登录），在设置页显示后进入快切栏。不使用 API 密钥。
+- 答案能力：Tavily 和 Exa 可返回综合答案及结果列表；Stepfun（含 Step Plan）、Brave、Jina、Doubao 当前仅返回结果列表。AI 对话引擎为对话界面，不在此列。
 
 “聚合”在当前版本中指统一接入、选择与快速切换搜索来源，**不表示**一次查询默认并行请求多个来源，也不表示默认合并、去重或融合结果。
 
 ## 人类使用
 
-独立搜索页提供搜索来源选择和切换（含已保存的站外搜索）；在 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 的受支持结果页上，SERP 切换栏可将当前查询直接切到其他搜索引擎、站外搜索，或跳转至 Juso 的 AI 搜索页。
+独立搜索页提供搜索来源选择和切换（含已保存的站外搜索与自定义引擎）；在 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 的受支持结果页上，SERP 切换栏可将当前查询直接切到其他搜索来源，或跳转至 Juso 的 AI 搜索页。
 
 成功的 AI 搜索会缓存在当前设备上，并形成可查看、可重放的本地搜索历史。缓存按“服务 + 规范化查询”区分，不在服务之间共享。需要最新结果时，请显式刷新；刷新会绕过缓存，并可能产生所选 AI 服务的费用。
 
 ## 快速开始
 
-Juso v1.3.0 已在 GitHub Release 发布（Chrome Web Store 目前为 v1.2.0，v1.3.0 审核中）。
+Juso v1.4.0 已在 GitHub Release 发布（Chrome Web Store 目前为 v1.3.0，v1.4.0 审核中）。
 
 ### 安装扩展
 
@@ -64,9 +66,9 @@ Juso v1.3.0 已在 GitHub Release 发布（Chrome Web Store 目前为 v1.2.0，v
 
 Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
-**从 GitHub Release 安装（v1.3.0）**
+**从 GitHub Release 安装（v1.4.0）**
 
-1. 从 [GitHub Release v1.3.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.3.0) 下载 `juso-search-1.3.0-chrome-dev.zip`。
+1. 从 [GitHub Release v1.4.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.4.0) 下载 `juso-search-1.4.0-chrome-dev.zip`。
 2. 解压 ZIP。
 3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
 
@@ -76,43 +78,27 @@ Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
 ### 人类用户
 
-1. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 无需配置（默认隐藏的可在设置页点「显示」启用）；若要站外搜索，在扩展设置中添加 Site Engine（站点 + 底层引擎）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
+1. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 无需配置（默认隐藏的可在设置页点「显示」启用）；AI 对话引擎同样无需 API 密钥（默认隐藏，需登录）；若要站外搜索，在扩展设置中添加 Site Engine（站点 + 底层引擎）；也可添加自定义引擎（带 `%s` 占位符的网址）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
 
-完成后，你可以在一个入口搜索、切换传统引擎、已保存的站外搜索和已配置的 AI 搜索服务。
+完成后，你可以在一个入口搜索、切换传统引擎、站外搜索、自定义引擎、AI 对话引擎和已配置的 AI 搜索服务。
 
 ### 本地 AI 智能体
 
 1. 按上面的步骤在 **装有 Juso 的 Chromium 系浏览器**（Chrome / Edge / Chromium 等）中安装并启用扩展。使用 `engine-search` 检索传统搜索引擎无需配置 AI 搜索服务；只有通过 `search --provider` 调用 AI 搜索 API 时，才需要先配置对应服务。
-2. 根据你的 Juso 安装方式选择技能：
-   - **Chrome Web Store 安装**（推荐）：将 `skills/juso-search/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search/`。扩展 ID 已内置默认值，一般无需配置。
-   - **开发版（自行 `npm run build:dev` 构建）**：将 `skills/juso-search-dev/` 安装或复制到你的智能体技能目录，例如 `.agents/skills/juso-search-dev/`。两个技能的唯一区别在于扩展 ID 不同，请按需选择。
-   或从扩展 Options → 通用 → Agent Bridge 一键下载配套 Agent Skill（自动按本机扩展 ID 盖章，解压后拷到 `.agents/skills/` 即可；自定义 dev 构建亦可）。
-3. 仅在自行签名打包（或扩展 ID 与默认不一致）时，才设置 `JUSO_EXTENSION_ID` 或传入 `--extension-id`。
-4. 若自动发现找不到浏览器，或扩展装在 Edge 等非默认二进制上，请把可执行文件路径指到**已安装 Juso 的那一份浏览器**（可同时指定 profile 目录名）：
-
-```powershell
-$env:JUSO_CHROME_PATH = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-# 可选：$env:JUSO_CHROME_PROFILE = "Default"
-# 可选：$env:JUSO_EXTENSION_ID = "你的扩展 ID"
-```
-
-```bash
-export JUSO_CHROME_PATH="/path/to/msedge-or-chrome"
-# optional: export JUSO_CHROME_PROFILE="Default"
-# optional: export JUSO_EXTENSION_ID="YOUR_EXTENSION_ID"
-```
-
-5. 从技能目录运行命令，例如：
+2. 打开扩展 Options → 通用 → Agent Bridge，开启 Agent Bridge 总开关（默认关闭，需显式开启）。若要用 `engine-search` 检索传统搜索引擎，再单独开启其子开关。
+3. 在同一页面点「下载配套 Agent Skill」，得到自动按本机扩展 ID 盖章的技能包，解压后拷到 `.agents/skills/` 即可。
+4. 从技能目录运行命令，例如：
 
 ```bash
 python scripts/juso_search.py list-providers
 python scripts/juso_search.py search "latest AI research" --provider tavily
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
+# 支持实例的服务（Exa、Doubao）可按实例搜索：
+python scripts/juso_search.py list-instances
+python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
 ```
 
-也可以临时覆盖：`python scripts/juso_search.py --chrome /path/to/browser --extension-id YOUR_EXTENSION_ID list-providers`。
-
-完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索，或通过浏览器检索受支持的传统搜索引擎（Google、Bing、Baidu、Yandex、DuckDuckGo、哔哩哔哩、小红书、抖音），而不会取得已存储的密钥。
+完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索、按实例搜索支持实例的服务，或通过浏览器检索受支持的传统搜索引擎（Google、Bing、Baidu、Yandex、DuckDuckGo、哔哩哔哩、小红书、抖音），而不会取得已存储的密钥。浏览器路径、profile、扩展 ID、超时等边缘配置见技能包内的参考文档。
 
 ## 安全与数据边界
 
@@ -125,7 +111,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 
 智能体通过短生命周期、仅回环地址的 Agent Bridge 调用扩展后台的一次受限操作，而不是连接一个常驻本地 API。每次调用使用新的本地端口、令牌与请求标识，完成或超时后即失效。
 
-`search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
+`search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。支持实例的服务（Exa、Doubao）可用 `search-instance --instance-id` 按实例搜索，实例 id 从 `list-instances` 取得。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
 
 ## 开发
 
