@@ -1,7 +1,7 @@
 ---
 title: Chrome Web Store Listing Copy Submission Constraints (Keyword Enumeration and Character Limits)
 date: 2026-08-01
-last_updated: 2026-08-01
+last_updated: 2026-08-07
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -12,7 +12,7 @@ applies_when:
   - Writing store listing copy that enumerates search engines or services by brand name
   - Drafting privacy questionnaire justifications for permission grants
   - Responding to a CWS rejection for excessive or irrelevant keywords
-  - Fitting a permission justification into the 1000-character questionnaire limit
+  - Fitting a permission justification or single-purpose statement into the 1000-character questionnaire limit
 tags:
   - cws
   - chrome-web-store
@@ -24,7 +24,7 @@ tags:
   - release-docs
 ---
 
-# CWS 发版文案三防：不枚举品牌名、权限理由先量字数、商店文档单主版
+# CWS 发版文案三防：品牌名 ≤3+等、四节权限理由先量字数、商店文档单主版
 
 ## Context
 
@@ -40,18 +40,18 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 
 三条核心经验，对应三个问题：
 
-### 1. 商店说明不枚举品牌名，用类别词概括（防 keyword spam）
+### 1. 商店说明品牌名 ≤3+等，不堆砌（防 keyword spam）
 
-- 商店说明字段里不写品牌/引擎名枚举。v1.3.0 修复时把 8 个引擎 + 7 个 provider 的枚举全部删除，改为概括表述。
-- 用类别词概括功能：如「传统搜索引擎」「你已配置的 AI 搜索服务」，而不是逐个点名。**不枚举不算虚假描述**——扩展确实支持这些类别，概括并未夸大。
-- 功能亮点写特性本身，不堆砌品牌名：例如 SERP 快切栏写「栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏下改为固定底栏」，这是功能特性，不依赖任何品牌名。
+- 商店说明字段里**不堆砌**品牌/引擎名（6+ 个触发关键字垃圾判罚）。但 **≤3 个品牌名 + "等"** 可接受且利于 SEO——v1.3.0 过审版本用了"聚合baidu、bing和Google等传统搜索引擎"（3 个 + 等），v1.4.0 沿用此模式分三类各列 3 个 + 等（"Google、Bing、百度等"、"ChatGPT、DeepSeek、Gemini 等"、"Tavily、Exa、Stepfun 等"）。
+- 用类别词概括功能：如「传统搜索引擎」「你已配置的 AI 搜索服务」，而不是逐个点名。**概括不算虚假描述**——扩展确实支持这些类别，概括并未夸大。≤3+等 是概括与可发现性的平衡点。
+- 功能亮点写特性本身，不靠品牌名堆砌支撑：例如 SERP 快切栏写「栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏下改为固定底栏」，这是功能特性，不依赖任何品牌名。
 - 以已过审版本（v1.2.0）的措辞结构为基线重写：【它解决什么问题】【核心功能】【为谁而做】【隐私与安全】【开源与免费】。已过审的措辞本身就是「什么样的文案能过审」的最佳样本。
 
-### 2. 权限理由 ≤1000 字符，先量后写
+### 2. 隐私问卷四节全部 ≤1000 字符，先量后写
 
-- CWS 隐私问卷每个权限理由限 1000 字符，超限必须返工。当前仓库的安全实践是实测 ~981 字符（见 `privacy.md` §4 主机权限理由的标注）。
-- 写前先量字符数（中英文都按字符计），不要凭感觉写。
-- 压缩有明确优先级：**先砍品牌枚举、合并偏好列举，保留全部审核关键披露**。storage 理由从 1086 → 732 字符时，删除的是 provider 名枚举，偏好项合并为一行概括（保留来源分组 / maxResults / 栏位位置等关键项），而安全披露一条不砍：`chrome.storage.local` 仅本机、不同步、不记录；API key 仅由 worker 读取、页面与内容脚本不读；key 仅发往用户所选 provider。
+- CWS 隐私问卷**四节都限 1000 字符**，不只权限理由：§1 Single Purpose、§2 storage、§3 downloads、§4 host permissions 各限 1000。v1.4.0 在 §1 加入 AI 对话引擎 + 自定义引擎后，单一用途声明从 1227 字符压到 988（见 `privacy.md` §1）。
+- 写前先量**全部四节**字符数（中英文都按字符计），不要凭感觉写，也不要只量 §4。
+- 压缩有明确优先级：**先砍冗余限定词、合并偏好列举，保留全部审核关键披露与品牌/宿主枚举**。§1 从 1227 → 988 时，删除的是 "Provides a"、"user-defined"、"user-saved"、"of their own" 等冗余限定词；storage 理由从 1086 → 732 时，删除的是 provider 名枚举，偏好项合并为一行概括。安全披露一条不砍：`chrome.storage.local` 仅本机、不同步、不记录；API key 仅由 worker 读取、页面与内容脚本不读；key 仅发往用户所选 provider。
 
 ### 3. 商店文档单主版，无副本
 
@@ -73,22 +73,28 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 ## When to Apply
 
 - 每次向 Chrome Web Store 提交新版本或修改商店详情文案时
-- 修改隐私问卷任一权限理由时（先量字符数，再按「砍枚举、保披露」压缩）
-- 在商店说明或问卷里写下任何品牌名/引擎名/服务名枚举之前
+- 修改隐私问卷任一节（§1 单一用途 / §2-§4 权限理由）时（先量全部四节字符数，再按「砍冗余限定词、保披露与枚举」压缩）
+- 在商店说明里写品牌名枚举之前（≤3+等 可接受且利于 SEO，6+ 是 spam）
 - 新增商店文档文件之前（先确认是否已有主版文件可改）
 - 收到 CWS 任何文档相关拒绝理由时（对照本纪律逐条自查）
 
 ## Examples
 
-### 1. 被拒的枚举文案 → 过审的概括文案
+### 1. 被拒的堆砌枚举 → 过审的 ≤3+等 概括
 
-**Before（被拒）**：商店说明中枚举引擎名 "Google, Bing, Baidu, Bilibili, Douyin, and Xiaohongshu"，拒绝理由为「产品说明中有过多和/或不相关的关键字」。
+**Before（被拒）**：商店说明中枚举引擎名 "Google, Bing, Baidu, Bilibili, Douyin, and Xiaohongshu"（6 个），拒绝理由为「产品说明中有过多和/或不相关的关键字」。
 
-**After（过审）**：删除全部引擎名枚举，改为概括表述并回退到 v1.2.0 已过审措辞结构，例如：
+**After（v1.3.0 过审）**：改为 ≤3+等 概括表述并回退到 v1.2.0 已过审措辞结构：
 
 > 双面搜 / Juso 是一个开源的搜索聚合与切换工具：它把传统搜索引擎、站外搜索（Site Engine）和你已配置的 AI 搜索服务统一到同一个入口。
 
-功能特性照写，但不靠品牌名支撑——「SERP 快切栏：栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏（≤480px）下自动改为固定在页面底部的紧凑底栏」。
+**After（v1.4.0 沿用 ≤3+等）**：分三类各列 3 个品牌名 + 等，利于 SEO 且过审：
+
+> 聚合 Google、Bing、百度等传统搜索引擎……
+> ChatGPT、DeepSeek、Gemini 等 AI 对话站点……
+> Tavily、Exa、Stepfun 等 AI 搜索能力……
+
+功能特性照写，但不靠品牌名堆砌支撑——「SERP 快切栏：栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏（≤480px）下自动改为固定在页面底部的紧凑底栏」。
 
 ### 2. storage 权限理由 1086 字符 → 732 字符
 
@@ -104,6 +110,7 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 
 ## Related
 
+- [cws-release-documentation-discipline.md](./cws-release-documentation-discipline.md) — v1.4.0 发版预备的六条经验，第 1、2 条直接修正本文档（品牌阈值 ≤3+等、四节字符上限）
 - [cws-store-docs-must-sync-with-release-features.md](./cws-store-docs-must-sync-with-release-features.md) — 商店三件套随版本同步的审计纪律；本经验补充了边界：引擎枚举发生在隐私问卷与隐私政策里，**不在商店说明里**
 - [chrome-extension-release-process.md](./chrome-extension-release-process.md) — 双版本发布全流程，商店文档同步是其第 9 步
 - [default-off-capability-gating-for-cws-compliance.md](../architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — 隐私问卷文案背后的代码门控事实（审核员真机核对一致）
