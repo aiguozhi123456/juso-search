@@ -148,7 +148,7 @@ describe('fillAndSubmit autoSubmit 门控（enter=1 缺失场景）', () => {
     expect(url.searchParams.has('enter')).toBe(false);
   });
 
-  it('autoSubmit:false 时 chatgpt 仅聚焦不派发 Enter，并清 URL 参数', async () => {
+  it('autoSubmit:false 时 chatgpt 仅预填不派发 Enter，并清 URL 参数', async () => {
     document.body.innerHTML = '<textarea id="prompt-textarea"></textarea>';
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     const keydowns: KeyboardEvent[] = [];
@@ -158,7 +158,7 @@ describe('fillAndSubmit autoSubmit 门控（enter=1 缺失场景）', () => {
     await chatgptInjector.fillAndSubmit('test', { autoSubmit: false });
 
     expect(keydowns.some((e) => e.key === 'Enter')).toBe(false); // 未派发 Enter
-    expect(document.activeElement).toBe(textarea); // 输入框已聚焦（原生预填，仅补提交）
+    expect(document.activeElement).toBe(textarea); // 输入框已聚焦
     const url = new URL(window.location.href);
     expect(url.searchParams.has('q')).toBe(false);
     expect(url.searchParams.has('enter')).toBe(false);

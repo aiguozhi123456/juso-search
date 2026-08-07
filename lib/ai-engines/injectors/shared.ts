@@ -95,7 +95,7 @@ export function dispatchEnter(target: Element): void {
  * Lexical 编辑器需要完整链 + composed:true 才能识别提交。
  */
 export function dispatchEnterFullChain(target: Element): void {
-  const props: KeyboardEventInit = {
+  const keyProps: KeyboardEventInit = {
     key: 'Enter',
     code: 'Enter',
     keyCode: 13,
@@ -105,9 +105,27 @@ export function dispatchEnterFullChain(target: Element): void {
     shiftKey: false,
     isComposing: false,
   };
-  target.dispatchEvent(new KeyboardEvent('keydown', props));
-  target.dispatchEvent(new KeyboardEvent('keypress', props));
-  target.dispatchEvent(new KeyboardEvent('keyup', props));
+  target.dispatchEvent(new KeyboardEvent('keydown', keyProps));
+  target.dispatchEvent(new KeyboardEvent('keypress', keyProps));
+  // ProseMirror/Lexical 监听 beforeinput（inputType: insertParagraph）触发提交，
+  // 而非原生 keydown——补 beforeinput/input 两步才能触达提交路径。
+  target.dispatchEvent(
+    new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      inputType: 'insertParagraph',
+    }),
+  );
+  target.dispatchEvent(
+    new InputEvent('input', {
+      bubbles: true,
+      cancelable: false,
+      composed: true,
+      inputType: 'insertParagraph',
+    }),
+  );
+  target.dispatchEvent(new KeyboardEvent('keyup', keyProps));
 }
 
 /** 轮询直到 predicate 返回 true 或超时。 */

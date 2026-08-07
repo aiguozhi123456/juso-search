@@ -4,18 +4,17 @@
 //   - document_idle 运行时 SPA 可能已重定向清参（/chat/?q= → /chat/{id}），
 //     用 extractQueryWithNavFallback 回退到 navigation entry 的原始 URL 取参
 //   - 必须用 execCommand('insertText') 填充（React 受控组件直接设 value 不同步）
-//   - 点发送按钮 [data-testid="chat_input_send_button"]；pollUntil(clickIfEnabled)
-//     等按钮激活（输入被识别后 enabled），超时则兜底合成 Enter
+//   - 发送按钮无稳定选择器（data-testid/class 均已漂移，实测 2026-08），
+//     直接合成 Enter——textarea 是 Semi Design 普通 textarea，单 keydown 即可触发提交
 //
 // 来源：@librarian 规格表 §豆包（3 源交叉验证，技术细节最全）。
 
 import type { AiEngineInjector } from '../types';
 import {
   clearUrlQuery,
-  clickIfEnabled,
+  dispatchEnter,
   execCommandInsertText,
   extractQueryWithNavFallback,
-  pollUntil,
   setReactTextareaValue,
   sleep,
   waitForElement,
@@ -25,12 +24,6 @@ const INPUT_SELECTORS = [
   'textarea[data-testid="chat_input_input"]',
   'textarea.semi-input-textarea',
   'textarea[placeholder*="发消息"]',
-] as const;
-
-const SEND_BUTTON_SELECTORS = [
-  '[data-testid="chat_input_send_button"]',
-  '.send-btn-DDB6yN:not([disabled])',
-  'button[type="submit"]:not([disabled])',
 ] as const;
 
 export const doubaoInjector: AiEngineInjector = {
@@ -67,33 +60,11 @@ export const doubaoInjector: AiEngineInjector = {
       if (textarea.value !== query) return; // 静默降级
     }
 
-    if (!autoSubmit) {
-      clearUrlQuery(); // 仅预填不提交（enter=1 缺失场景）；同样清参防刷新重复填充
-      return;
+    if (autoSubmit) {
+      // 豆包发送按钮无稳定选择器（data-testid/class 均已漂移），
+      // 直接合成 Enter——textarea 是 Semi Design 普通 textarea，单 keydown 即可触发提交。
+      dispatchEnter(textarea);
     }
-
-    // 先等发送按钮出现，再轮询点击——predicate 内每次重新查询，
-    // 避免 React 重渲染替换按钮节点后对 detached 节点 click() 静默无效
-    await waitForElement(SEND_BUTTON_SELECTORS, 3000);
-    const ready = await pollUntil(() => {
-      const btn = document.querySelector(SEND_BUTTON_SELECTORS.join(', '));
-      return btn ? clickIfEnabled(btn) : false;
-    }, 3000, 200);
-    if (ready) {
-      clearUrlQuery(); // 清 URL 参数，防刷新重复提交
-      return;
-    }
-
-    // 兜底：合成 Enter
-    textarea.dispatchEvent(
-      new KeyboardEvent('keydown', {
-        key: 'Enter',
-        code: 'Enter',
-        keyCode: 13,
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
-    clearUrlQuery();
+    clearUrlQuery(); // 清 URL 参数，防刷新重复提交
   },
 };
