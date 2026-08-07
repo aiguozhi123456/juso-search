@@ -23,7 +23,7 @@
   <meta property="og:title" content="{{ .Title }}">
   <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.githubDesc }}{{ end }}">
   <meta property="og:image" content="{{ "img/promo-1400x560.png" | absURL }}">
-  <meta property="og:locale" content="{{ .Site.Language.Lang }}">
+  <meta property="og:locale" content="{{ replace .Site.Language.Locale "-" "_" }}">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="{{ "img/promo-1400x560.png" | absURL }}">

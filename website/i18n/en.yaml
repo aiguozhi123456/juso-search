@@ -21,16 +21,12 @@ tagline_en:
   other: "One face for humans — one for agents."
 hero_positioning_human:
   other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
-hero_positioning_en:
-  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
 # Agent-face tagline variant (newly written)
 tagline_agents_zh:
   other: "让本地智能体，借同一台浏览器搜索。"
 tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
-  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
-hero_positioning_agents_en:
   other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
 
 # Section headings

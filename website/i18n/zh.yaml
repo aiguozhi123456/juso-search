@@ -21,8 +21,6 @@ tagline_en:
   other: "One face for humans — one for agents."
 hero_positioning_human:
   other: "双面搜 / Juso 是一个开源的搜索聚合与切换工具：把传统搜索引擎、站外搜索（Site Engine）和你已配置的 AI 搜索服务统一到同一个入口。"
-hero_positioning_en:
-  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
 # 智能体面 tagline 变体（新写）
 tagline_agents_zh:
   other: "让本地智能体，借同一台浏览器搜索。"
@@ -30,8 +28,6 @@ tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
   other: "在装有双面搜的 Chromium 浏览器里，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
-hero_positioning_agents_en:
-  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
 
 # 区块标题
 sec_sources:
