@@ -57,16 +57,21 @@ searchCacheEntry:<id>     -> slimmed full response (replayable for result page)
 ```
 
 - **Index** (`searchCacheIndex`): holds ordering, a `byKey` map for O(1) lookup
-  by `providerId:normalizedQuery`, and `summaries` with query preview, answer
+  by `<instanceId|providerId>:normalizedQuery`, and `summaries` with query preview, answer
   preview, and result title/url previews. The history panel reads only the index.
 - **Entry** (`searchCacheEntry:<id>`): holds the slimmed `NormalizedSearchResponse`.
   Loaded lazily when the user selects a history item.
 
 ### Cache key
 
-Key by `providerId + normalizedQuery` (trimmed, whitespace-collapsed).
+Key by `(instanceId ?? providerId) + normalizedQuery` (trimmed, whitespace-collapsed) via `makeSearchCacheKey(id, query)`.
 Different providers do not share cache — a Tavily result for "hello" is a
-different search object from an Exa result for "hello".
+different search object from an Exa result for "hello". Since the provider-instances
+feature, different **instances** of the same provider also do not share cache: a
+result for `inst:exa:<uuid-A>` is distinct from `inst:exa:<uuid-B>`, and a bare
+`exa` search is distinct from any of its instances. The cache schema was bumped
+1→2 to drop all entries when this keying changed (see `cacheMigrations` in
+`lib/search-cache.ts`; cross-ref [provider-instance-multi-config-model](./provider-instance-multi-config-model.md)).
 
 ### Slimmed responses
 
@@ -224,7 +229,7 @@ if (!providerId && request.providerId) {
 ### History panel lazy loading
 
 ```typescript
-// lib/useSearchCache.ts — selection guard
+// components/SearchCachePanel.tsx — selection guard (useSearchCache.ts holds the loadEntry/refresh/clear guards)
 async function select(summary: SearchCacheSummary) {
   const reqId = ++selectReqIdRef.current;
   const entry = await loadEntry(summary.id);

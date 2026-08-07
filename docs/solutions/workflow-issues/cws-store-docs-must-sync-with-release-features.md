@@ -90,4 +90,4 @@ The v1.2.0 examples above were behind the live codebase: the Brave, Jina, and Do
 
 - [Chrome Extension Dual-Version Release Process](./chrome-extension-release-process.md) — the full release workflow (version bump, dual-ZIP build, tagging, GitHub Release, CWS upload)
 - [WXT Self-Contained Development Build with Stable Extension ID](../tooling-decisions/wxt-self-contained-dev-build.md) — technical background for the dev vs production ZIP distinction
-- [Default-off capability gating for Agent Bridge and engine-search (CWS compliance)](./architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — the two-layer opt-in gate required to pass CWS review
+- [Default-off capability gating for Agent Bridge and engine-search (CWS compliance)](../architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — the two-layer opt-in gate required to pass CWS review

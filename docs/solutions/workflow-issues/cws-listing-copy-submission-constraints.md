@@ -1,5 +1,5 @@
 ---
-title: Chrome Web Store Listing Copy Submission Constraints (Keyword Enumeration and Character Limits)
+title: Chrome Web Store Listing Copy & Privacy Questionnaire Submission Constraints
 date: 2026-08-01
 last_updated: 2026-08-07
 category: workflow-issues
@@ -13,6 +13,8 @@ applies_when:
   - Drafting privacy questionnaire justifications for permission grants
   - Responding to a CWS rejection for excessive or irrelevant keywords
   - Fitting a permission justification or single-purpose statement into the 1000-character questionnaire limit
+  - Auditing privacy.md or store docs against actual code behavior (e.g. SERP bar position modes)
+  - Editing GitHub Release notes for an already-published release
 tags:
   - cws
   - chrome-web-store
@@ -22,9 +24,14 @@ tags:
   - character-limit
   - review-rejection
   - release-docs
+  - documentation-audit
+  - gh-release
+  - provider-instances
 ---
 
-# CWS 发版文案三防：品牌名 ≤3+等、四节权限理由先量字数、商店文档单主版
+# CWS 发版文案与隐私问卷纪律：品牌名阈值、四节字符上限、代码一致、Release 双产物分轨
+
+> This is the canonical CWS-copy discipline doc. It consolidates the v1.3.0 keyword-spam lessons with the v1.4.0 release-prep code-accuracy audit (formerly a separate doc, now merged here).
 
 ## Context
 
@@ -77,6 +84,40 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 - 在商店说明里写品牌名枚举之前（≤3+等 可接受且利于 SEO，6+ 是 spam）
 - 新增商店文档文件之前（先确认是否已有主版文件可改）
 - 收到 CWS 任何文档相关拒绝理由时（对照本纪律逐条自查）
+- 任何描述 SERP 快切栏栏位行为（inline/top/bottom）的商店文档或隐私文档落笔时（对照 `serp-bar.content.ts` `applyPositionChrome` 校准，见 §6）
+- 用 `gh release edit` 修改已发布 Release 的 notes 时（edit 后必补 `gh release upload --clobber`，见 §7）
+- 写或审涉及 provider 实例的文档/文案时（实例 = 调参变体、共享 key、仅 Exa 与豆包支持，见 §8）
+- 同一轮发版既改 GitHub Release notes 又改 CWS 商店说明时（分轨编辑，见 §9）
+
+## Guidance — v1.4.0 release-prep additions
+
+The v1.4.0 release-prep pass exposed four further lessons (a code-accuracy audit of the privacy questionnaire, a `gh release edit` asset-drop gotcha, a provider-instance terminology fix, and a dual-product separation rule). They are consolidated here as sections 6–9 so the whole CWS-copy discipline lives in one place.
+
+### 6. CWS 文档准确度审计：样式注入模式描述必须与代码一致
+
+隐私问卷 `privacy.md` §4(3) 原写 "top: repositions Baidu/Douyin toolbars"，但代码（`entrypoints/serp-bar.content.ts:96-119` `applyPositionChrome`）的实际行为是：
+
+- `inline` 模式 → `injectPageStyles(state.engine)` → 注入百度/抖音的 `PAGE_STYLES`（位移引擎自身工具栏）；移除覆盖层垫高
+- `top` 模式 → `removePageStyles()` + `injectTopPadStyles()` → 移除引擎样式，页面顶部垫高
+- `bottom` 模式 → `removePageStyles()` + `injectBottomPadStyles()` → 移除引擎样式，页面底部垫高
+
+即工具栏位移发生在 **inline 模式**，不是 top 模式。修正为 "(inline: repositions Baidu/Douyin toolbars; top/bottom: pads page)"（`privacy.md:27` 现状）。中文公开政策 `privacy-policy.md` §6 本就写对（"内联模式……位移……覆盖层模式……内边距"），英文版也已正确。
+
+另发现 §1 provider 枚举漏了 2 个变体（stepfun-plan、doubao-global）——风险低（宿主共享且已披露），但技术上不完整。修正把 "Stepfun, Jina, Doubao" 改为 "Stepfun (REST + MCP), Jina, Doubao (web + global)"。
+
+### 7. `gh release edit` 静默丢弃已附资产
+
+`gh release edit v1.4.0 --notes-file <file>` 会静默丢弃该 Release 已附的资产（dev ZIP）。资产在 edit 后从 Release 页面消失。本轮连撞两次（一次更新为双语 notes、一次精修 notes）。修复纪律：**`gh release edit` 之后必须补跑 `gh release upload v1.4.0 <dev-zip> --clobber`** 把资产重新挂回。
+
+### 8. provider 实例 = 调好参数的变体，不是账号
+
+provider 实例（见 `provider-instance-multi-config-model.md`）是同一 provider 的调参变体——例如 Exa "AI 研究"（category=publication, includeDomains=[arxiv.org]）对 "创业资讯"（category=news）。它们**共享同一把 API key**（R7：API key 仍 per-provider-type 共享），不是不同账号（不同账号需不同 key）。术语修正：把 "如不同账号或参数" 改为 "如不同搜索场景或过滤方向"。
+
+且只有 Exa 与豆包支持 per-instance options（`lib/provider-instances.ts` `PROVIDERS_WITH_INSTANCE_OPTIONS = new Set(['exa', 'doubao'])`）。商店说明原写 "每个服务" 是 overclaim，修正为 "支持的服务（如 Exa、豆包）"。
+
+### 9. GitHub Release notes 与 CWS 商店说明是两份产物
+
+GitHub Release notes（双语、经用户审定、附在 GitHub Release 上）与 CWS 商店说明（`docs/assets/store/cws-release.md`，CWS Developer Dashboard 填表文档）是**两份独立产物**。`chrome-extension-release-process.md` 已把它们分为两步（步骤 7 = GitHub Release，步骤 9 = CWS），但本轮一度把改给 CWS 说明的文案误贴进 Release notes、反之亦然。纪律：**两份产物分轨编辑，不要把一方的改动落到另一方**。
 
 ## Examples
 
@@ -108,9 +149,59 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 
 **After**：删除 `description.md`，`docs/assets/store/` 只剩三个职责清晰的文件（填表文案 / 隐私问卷 / 公开政策），商店文案只有一个主版文件。
 
+### 4. 模式描述：top 位移（错）→ inline 位移（对）
+
+**Before（错）**：`privacy.md` §4(3) 写 "top: repositions Baidu/Douyin toolbars"。
+
+**代码事实（`entrypoints/serp-bar.content.ts` `applyPositionChrome`）**：
+
+```ts
+if (pos === 'inline') {
+  removeBottomPadStyles(); removeTopPadStyles();
+  injectPageStyles(state.engine);   // ← 位移百度/抖音工具栏
+} else {
+  removePageStyles();                // ← 移除引擎样式
+  if (pos === 'bottom') { injectBottomPadStyles(); }   // ← 底部垫高
+  else { injectTopPadStyles(); }                        // ← 顶部垫高
+}
+```
+
+**After（对，`privacy.md:27`）**：
+
+> (inline: repositions Baidu/Douyin toolbars; top/bottom: pads page)
+
+中文 `privacy-policy.md` 本就正确："内联模式在百度与抖音上仅位移引擎自身工具栏,覆盖层模式(顶部/底部)则为页面添加对应方向的内边距"。
+
+### 5. `gh release edit` 丢资产 → 补 `--clobber`
+
+**Before（丢资产）**：
+
+```bash
+gh release edit v1.4.0 --notes-file release-notes.md
+# Release 页面的 dev ZIP 消失，无报错
+```
+
+**After（补传）**：
+
+```bash
+gh release edit v1.4.0 --notes-file release-notes.md
+gh release upload v1.4.0 juso-search-1.4.0-chrome-dev.zip --clobber
+```
+
+### 6. 实例术语与 overclaim 修正
+
+**Before（错）**：文档称实例为 "如不同账号或参数"；商店说明称 "每个服务"可建实例。
+
+**After（对）**：实例为 "如不同搜索场景或过滤方向"（共享同一 key，R7）；商店说明改为 "支持的服务（如 Exa、豆包）"。代码门控事实（`lib/provider-instances.ts`）：
+
+```ts
+export const PROVIDERS_WITH_INSTANCE_OPTIONS: ReadonlySet<ProviderId> =
+  new Set<ProviderId>(['exa', 'doubao']);
+```
+
 ## Related
 
-- [cws-release-documentation-discipline.md](./cws-release-documentation-discipline.md) — v1.4.0 发版预备的六条经验，第 1、2 条直接修正本文档（品牌阈值 ≤3+等、四节字符上限）
-- [cws-store-docs-must-sync-with-release-features.md](./cws-store-docs-must-sync-with-release-features.md) — 商店三件套随版本同步的审计纪律；本经验补充了边界：引擎枚举发生在隐私问卷与隐私政策里，**不在商店说明里**
-- [chrome-extension-release-process.md](./chrome-extension-release-process.md) — 双版本发布全流程，商店文档同步是其第 9 步
+- [cws-store-docs-must-sync-with-release-features.md](./cws-store-docs-must-sync-with-release-features.md) — 商店三件套随版本同步的审计纪律；本经验补充了边界：引擎枚举发生在隐私问卷与隐私政策里，**不在商店说明里**；§6 模式描述对齐是其代码落地准确度的具体实例
+- [chrome-extension-release-process.md](./chrome-extension-release-process.md) — 双版本发布全流程；§7（`gh release edit` 丢资产）与 §9（双产物分轨）分别补充其步骤 7（GitHub Release）与步骤 9（CWS）
+- [provider-instance-multi-config-model.md](../architecture-patterns/provider-instance-multi-config-model.md) — provider 实例模型权威；§8 术语（实例=调参变体、共享 key、`PROVIDERS_WITH_INSTANCE_OPTIONS`）以此为准
 - [default-off-capability-gating-for-cws-compliance.md](../architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — 隐私问卷文案背后的代码门控事实（审核员真机核对一致）

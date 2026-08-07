@@ -615,7 +615,7 @@ export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 't
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ```
 
-The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` joined the 15-key whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
+The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` (and later `aiAutoEnter` / `flatLayoutFewSources`) joined the whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
 
 ```typescript
 export async function getBarPositionPref(): Promise<BarPositionPref> {

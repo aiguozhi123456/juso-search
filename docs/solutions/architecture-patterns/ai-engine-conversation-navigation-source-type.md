@@ -39,12 +39,13 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 
 ### 2. 三种执行机制 + injectorKey 桥接（核心决策）
 
-`AiEngine.execution` 是一个判别联合，把三种机制统一在单一类型下：
+`AiEngine.execution` 是一个判别联合（两种 `kind`：`url-only` / `inject`），但语义上区分三种机制，统一在单一类型下（`inject` 内部按 `injectorKey` 再分机制 2/3）：
 
-| 机制 | 站 | 行为 |
-|------|-----|------|
-| `url-only` | Grok | 原生支持 `?q=` 预填+自动提交，零注入 |
-| `inject`（完整） | ChatGPT / DeepSeek / 豆包 / Gemini | 等 SPA 输入框 → 按框架填充 → 提交（点击发送按钮或合成 Enter，取决于编辑器框架） |
+| 机制 | kind | 站 | injectorKey | 行为 |
+|------|------|-----|-------------|------|
+| 1 — url-only | `url-only` | Grok | — | 原生支持 `?q=` 预填+自动提交，零注入 |
+| 2 — inject（补 Enter） | `inject` | ChatGPT | `generic-enter:chatgpt` | 原生已预填 `?q=` 但不自动提交，仅补合成 Enter（共享 generic 注入器） |
+| 3 — inject（完整） | `inject` | DeepSeek / 豆包 / Gemini | `deepseek` / `doubao` / `gemini` | 等 SPA 输入框 → 按框架填充 → 提交（点击发送按钮或合成 Enter，取决于编辑器框架） |
 
 **registry 保持纯数据、且是 injectorKey 的唯一真相源**：`execution.injectorKey` 类型为 `InjectorKey` 字面量联合（定义在 types.ts，拼错即编译错），registry 不引用任何 DOM API（被 worker/UI/content 共享）。content script 按 host → 单一表 `INJECT_HOST_TABLE`（host → engineId，并吸收 matches 覆盖）→ `getAiEngine(engineId).execution.injectorKey` → `INJECTORS`（key → injector 函数）解析，在 `entrypoints/ai-engine-inject.content.ts` 汇合。这样 DOM 触碰代码永不进入 worker/UI 共享层。结构不变量（inject engine ↔ host 表一一对应、injectorKey 必在 `INJECTORS`、matches 条目数 === host 表条目数）由测试锁住——新增站点不会因漏同步某处而静默死功能。
 

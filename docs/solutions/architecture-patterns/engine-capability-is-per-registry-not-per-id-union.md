@@ -123,7 +123,7 @@ const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo'];
 ```
 
-Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 6`，v5→v6 迁移把 yandex/duckduckgo 并入 `sourceHidden`（schema.ts:48-49），沿用同一「新引擎开箱默认隐藏」惯例。
+Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 8`；本层只覆盖传统引擎，v6→v7 迁移把 AI 对话引擎（DeepSeek/ChatGPT/Gemini/豆包/Grok）默认隐藏进 `sourceHidden`（见 `DEFAULT_HIDDEN_AI_ENGINE_IDS`，AI 引擎有独立的注册表与能力分层，不在 `EngineId` union 内）。
 
 ### The rule
 
@@ -188,7 +188,7 @@ When adding a new engine:
 | 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 8 engines | — |
 | 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 8 engines (Chinese sites added 2026-07-31) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
 | 3 — Skill CLI whitelist | `juso_search.py` `ENGINES` + `SKILL.md` | all 8 engines | — |
-| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6) | google/bing/baidu are never default-hidden |
+| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6) | google/bing/baidu are never default-hidden; AI engines have a parallel default-hidden layer at v6→v7 |
 
 ### Misleading signal that caused the incident
 

@@ -49,7 +49,7 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on fifteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on seventeen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
@@ -64,10 +64,12 @@ export const migrations: Migration[] = [
 ];
 
 // lib/search-cache.ts — cache pool domain
-export const CURRENT_CACHE_SCHEMA_VERSION = 1;
+export const CURRENT_CACHE_SCHEMA_VERSION = 2;
 
 export const cacheMigrations: CacheMigration[] = [
-  // cache pool shape changes here; evolves independently of config
+  // v1 → v2: cache key changed from `${providerId}:${query}` to `${id}:${query}`
+  // (id may be a ProviderInstanceId); drop all entries to avoid key collisions.
+  // Evolves independently of config.
 ];
 ```
 

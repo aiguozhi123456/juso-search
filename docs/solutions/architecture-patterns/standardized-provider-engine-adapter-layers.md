@@ -559,8 +559,5 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor
   flat `ProviderAdapter` + inline `TavilyAdapter` error mapping this learning
-  extracts into `restTransport`/`defineProvider`.
-- `google-bing-serp-scope-minimization.md` — still treats `/search` as universal
-  and should be refreshed for Baidu's `/s` route and route-aware content patterns.
-- `serp-bar-engine-specific-anchors.md` — should add Baidu's `#content_left`
-  strategy while retaining live-browser validation as a residual risk.
+  extracts into `restTransport`/`defineProvider`. (That doc is self-labeled as
+  historical/superseded by this one; the snippet drift is intentional context.)

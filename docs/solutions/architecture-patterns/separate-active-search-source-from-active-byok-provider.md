@@ -34,7 +34,9 @@ The extension has two kinds of search choices with different runtime contracts:
 
 Delete-key support exposed the architecture gap. After removing provider keys, the extension was still legitimately usable through Google or Bing, but the options page selector labeled “激活的搜索引擎” listed only configured BYOK providers. Treating engines as providers would make the selector look right while allowing engine IDs to leak into provider-only code paths such as `resolveSearchProvider()`, `getAdapter()`, key lookup, and cache refresh.
 
-The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as `SourceId = ProviderId | EngineId | SiteEngineId`. The composition point belongs at the UI/default-source layer, not in the worker provider path.
+The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as a `SourceId` union (initially `ProviderId | EngineId | SiteEngineId`). The composition point belongs at the UI/default-source layer, not in the worker provider path.
+
+> **Note (updated 2026-08-07):** the `SourceId` union has since grown to six members — `ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId` (`lib/sources.ts`) — as Custom Engines, Provider Instances, and AI Engines each became selectable source kinds. `selectActiveSourceId` resolves a `ProviderInstanceId` by dual-writing its base provider to `activeProvider` so worker search fallback still works. See [provider-instance-multi-config-model](./provider-instance-multi-config-model.md) for the instance dimension and [ai-engine-conversation-navigation-source-type](./ai-engine-conversation-navigation-source-type.md) for AI engines.
 
 ## Guidance
 

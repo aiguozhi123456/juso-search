@@ -348,7 +348,7 @@ This is the kind of detail that only matters once data has been persisted and pa
 
 ### The v4→v5 no-migration decision
 
-The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v6 — the v5→v6 migration again writes real data, hiding yandex/duckduckgo by default — but the no-op lesson here still holds):
+The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v8 — v5→v6 hides yandex/duckduckgo, v6→v7 hides AI engines, v7→v8 rewrites `serpBarPosition: 'top'`→`'inline'` — but the no-op lesson here still holds):
 
 ```ts
 // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.

@@ -17,9 +17,9 @@ tags: [config-import, schema-versioning, backward-compatibility, convention, par
 
 ## Context
 
-`parseImportPayload`（`lib/config-io.ts`）最初用一个**硬编码版本列表**给导入做门控——`schemaVersion !== 3 && !== 4 && !== CURRENT_SCHEMA_VERSION`。在 `CURRENT_SCHEMA_VERSION = 6` 时，这等价于接受 `{3, 4, 6}` 而拒绝 `5`；其上方注释也已过期（声称「CURRENT (v5)」）。
+`parseImportPayload`（`lib/config-io.ts`）最初用一个**硬编码版本列表**给导入做门控——`schemaVersion !== 3 && !== 4 && !== CURRENT_SCHEMA_VERSION`。在 `CURRENT_SCHEMA_VERSION = 8` 时，这等价于接受 `{3, 4, 8}` 而拒绝 `5/6/7`；其上方注释也已过期（声称「CURRENT (v5)」）。
 
-结构性问题在于：这个列表写死了「两个遗留版本 + HEAD」，而且**永远不会增长**。下一次 bump（CURRENT → 7）时，它会静默拒绝**所有**当前 v6 的备份——也就是 v1.3.0 导出的每一份文件。这正是代码库在别处努力避免的「旧备份无法恢复」失败模式。
+结构性问题在于：这个列表写死了「两个遗留版本 + HEAD」，而且**永远不会增长**。下一次 bump（CURRENT → 9）时，它会静默拒绝**所有**当前 v8 的备份——也就是刚导出的每一份文件。这正是代码库在别处努力避免的「旧备份无法恢复」失败模式。
 
 ## Guidance
 
@@ -51,8 +51,8 @@ typeof schemaVersion !== 'number'
 **之前**（硬编码列表，bump 即坏）：
 
 ```ts
-// CURRENT_SCHEMA_VERSION = 6 时接受 {3,4,6}，拒绝 5；
-// bump 到 7 后，所有 v6 备份被静默拒绝。
+// CURRENT_SCHEMA_VERSION = 8 时接受 {3,4,8}，拒绝 5/6/7；
+// bump 到 9 后，所有 v8 备份被静默拒绝。
 if (schemaVersion !== 3 && schemaVersion !== 4 && schemaVersion !== CURRENT_SCHEMA_VERSION) {
   return { ok: false, error: 'schema_version_mismatch' };
 }
