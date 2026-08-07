@@ -1,6 +1,7 @@
 ---
 title: "AI Engine as Fifth Search Source: Conversation-Navigation Target with Layered URL/Content-Script Injection"
 date: 2026-08-03
+last_updated: 2026-08-07
 category: architecture-patterns
 module: "ai-engines / sources / storage / serp / content-script"
 problem_type: architecture_pattern
@@ -43,14 +44,13 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 | 机制 | 站 | 行为 |
 |------|-----|------|
 | `url-only` | Grok | 原生支持 `?q=` 预填+自动提交，零注入 |
-| `inject`（轻量） | ChatGPT | 原生预填但不提交，content script 只补一个合成 Enter |
-| `inject`（完整） | DeepSeek / 豆包 / Gemini | 等 SPA 输入框 → 按框架填充 → 提交 |
+| `inject`（完整） | ChatGPT / DeepSeek / 豆包 / Gemini | 等 SPA 输入框 → 按框架填充 → 提交（点击发送按钮或合成 Enter，取决于编辑器框架） |
 
 **registry 保持纯数据、且是 injectorKey 的唯一真相源**：`execution.injectorKey` 类型为 `InjectorKey` 字面量联合（定义在 types.ts，拼错即编译错），registry 不引用任何 DOM API（被 worker/UI/content 共享）。content script 按 host → 单一表 `INJECT_HOST_TABLE`（host → engineId，并吸收 matches 覆盖）→ `getAiEngine(engineId).execution.injectorKey` → `INJECTORS`（key → injector 函数）解析，在 `entrypoints/ai-engine-inject.content.ts` 汇合。这样 DOM 触碰代码永不进入 worker/UI 共享层。结构不变量（inject engine ↔ host 表一一对应、injectorKey 必在 `INJECTORS`、matches 条目数 === host 表条目数）由测试锁住——新增站点不会因漏同步某处而静默死功能。
 
 ### 3. 注入器实现约定（`lib/ai-engines/injectors/`）
 
-- **按框架选填充路径**：React 受控 textarea 用 native value setter + `InputEvent`（直接设 `.value` 不同步）；Lexical/Slate 富文本用 `document.execCommand('insertText')`（改 innerHTML 无效）；MutationObserver 同步型编辑器（Gemini）直接设 `innerText` + input 事件。
+- **按框架选填充路径**：React 受控 textarea 用 native value setter + `InputEvent`（直接设 `.value` 不同步）；ProseMirror/Lexical/Slate 等 contenteditable 富文本编辑器用 `document.execCommand('insertText')` 填充（改 innerHTML 无效）；提交时 ProseMirror 需点击发送按钮或派发 `insertParagraph` beforeinput 事件（合成 keydown 不触发提交）；MutationObserver 同步型编辑器（Gemini）直接设 `innerText` + input 事件。
 - **失败静默降级**：所有 `fillAndSubmit` 路径 `return` 而非 `throw`，content script 入口再套一层 `try/catch`。选择器超时 / 未登录 / 页面改版时不打扰用户，让用户看到带 `?q=` 的页面手动操作。例外：机制 3 站点若 SPA 已客户端清参（如豆包），降级时 query 在地址栏不可恢复，需回 Juso 重搜。
 - **幂等性 = 提交后清 URL 参数**：`clearUrlQuery()` 在成功提交后 `history.replaceState` 仅删 `q`/`prompt`/`enter`（保留其余参数与 hash），防用户手动刷新重跑。MV3 静态 content script 不会在 pushState 时重跑，所以幂等性不依赖"只跑一次"，而依赖清参。机制 3 站点提交前会校验填充成功，校验失败静默降级且不清参，保留刷新重试。
 - **SPA 清参兜底**：`extractQueryWithNavFallback` 先读当前 URL，取不到时回退 `performance.getEntriesByType('navigation')[0].name`（原始导航 URL），处理豆包这类在 document_idle 前客户端清参的站。
@@ -83,7 +83,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 **门控后的残余风险（已接受）**：攻击面收窄为「**主动显示过该 engine 的用户** + 点击了**指向该站的构造链接** + 已登录」。评估：
 
 - DeepSeek/豆包/Gemini 的 `?q=` 并非这些站点的原生约定——野外不存在这种链接，只有 Juso 自己生成；攻击者须先知道 Juso 的私有约定。
-- ChatGPT 的 `?q=` 是原生的，但注入器的边际作用只是补一个 Enter（预填是站点自己做的）；危害 = 用户自己会话里多一条已显示在地址栏的 prompt。
+- ChatGPT 的 `?q=` 是原生的（预填是站点自己做的），但 2025-07 后 ChatGPT 自身的 auto-submit 被 sec-fetch-site 门控（web-initiated 跨站导航不触发），注入器需自行点击发送按钮或派发完整 Enter 链提交；危害 = 用户自己会话里多一条已显示在地址栏的 prompt。
 - **只去不回**：query 唯一来源是本页 URL，注入器不读 storage、不读其他源、无跨源数据流——无数据泄露面。
 - **缓解已内置**：提交后 `clearUrlQuery()` 清参防刷新重放；失败静默降级，用户可见输入框内容。
 

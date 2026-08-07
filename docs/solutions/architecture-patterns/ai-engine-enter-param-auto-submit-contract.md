@@ -1,6 +1,7 @@
 ---
 title: "AI Engine Auto-Submit Consent via enter=1 URL Contract (Decoupled from Native Prefill)"
 date: 2026-08-05
+last_updated: 2026-08-07
 category: architecture-patterns
 module: "ai-engines / storage / serp-handoff / content-script / config-io / options-ui"
 problem_type: architecture_pattern
@@ -28,7 +29,7 @@ tags: [ai-engine, url-contract, auto-submit, consent, prefill, toggle, content-s
 
 ## Context
 
-Juso（Chrome MV3，WXT + React + TypeScript）的 AI Engine 功能（见姊妹文档 `ai-engine-conversation-navigation-source-type.md`）把当前查询通过 `?q=` URL 参数带到 AI 对话站。注入型站点（ChatGPT / DeepSeek / 豆包 / Gemini）由 content script 填充输入框并派发合成 Enter 提交；url-only 站点（Grok）原生支持 `?q=` 预填+自动提交，零注入。
+Juso（Chrome MV3，WXT + React + TypeScript）的 AI Engine 功能（见姊妹文档 `ai-engine-conversation-navigation-source-type.md`）把当前查询通过 `?q=` URL 参数带到 AI 对话站。注入型站点（ChatGPT / DeepSeek / 豆包 / Gemini）由 content script 填充输入框并提交（点击发送按钮或派发合成 Enter，取决于目标站编辑器框架）；url-only 站点（Grok）原生支持 `?q=` 预填+自动提交，零注入。
 
 **问题**：注入型 content script 把「URL 上存在 `?q=`」当作自动提交的信号——只要带 `?q=` 就补一个 Enter。这改变了站点原生行为：ChatGPT 的 `?q=` 原生只预填、不提交，扩展却额外自动提交。这是**同意权 / 行为耦合缺陷**：扩展劫持了一个原生预填参数，让它同时隐含「自动提交」语义。用户无法只预填不提交，也无法区分「扩展主动提交」与「站点原生预填」。
 
@@ -84,34 +85,58 @@ const autoSubmit = extractQueryWithNavFallback(window.location.href, 'enter') ==
 
 ### 2. 注入器 `fillAndSubmit` 的 `autoSubmit` 语义
 
-`fillAndSubmit(query, opts?: { autoSubmit?: boolean; timeoutMs?: number })` 的 `autoSubmit` **默认 `true`**（向后兼容：旧调用方不传即自动提交）。为 `false` 时，注入器填充输入框但跳过提交（`dispatchEnter` / 发送按钮轮询），仍执行 `clearUrlQuery()` 清参。
+`fillAndSubmit(query, opts?: { autoSubmit?: boolean; timeoutMs?: number })` 的 `autoSubmit` **默认 `true`**（向后兼容：旧调用方不传即自动提交）。为 `false` 时，注入器填充输入框但跳过提交（合成 Enter / 发送按钮点击 / `dispatchEnterFullChain`），仍执行 `clearUrlQuery()` 清参。
 
 | 注入器 | `autoSubmit=false` 时跳过 | 仍执行 |
 |--------|--------------------------|--------|
-| `generic-enter.ts`（ChatGPT） | `dispatchEnter` | `clearUrlQuery` |
-| `deepseek.ts` | `dispatchEnter` | `clearUrlQuery` |
-| `doubao.ts` | 发送按钮轮询 + 兜底 Enter | 填充 + `clearUrlQuery` |
+| `generic-enter.ts`（ChatGPT） | 发送按钮点击 + `dispatchEnterFullChain` 兜底 | 填充（若原生预填失败）+ `clearUrlQuery` |
+| `deepseek.ts` | `dispatchEnter` | 填充 + `clearUrlQuery` |
+| `doubao.ts` | `dispatchEnter` | 填充 + `clearUrlQuery` |
 | `gemini.ts` | 发送按钮轮询 + 兜底 Enter | 填充 + `clearUrlQuery` |
 
-`generic-enter.ts`（ChatGPT）示例——`autoSubmit=false` 时只聚焦不补 Enter：
+`generic-enter.ts`（ChatGPT）示例——`autoSubmit=false` 时填充（若原生预填失败）但不提交：
 
 ```ts
 async fillAndSubmit(query: string, opts?: { autoSubmit?: boolean; timeoutMs?: number }) {
-  void query;
   const autoSubmit = opts?.autoSubmit !== false;
-  const input = await waitForElement(CHATGPT_INPUT_SELECTORS, opts?.timeoutMs);
-  if (!input) return; // 静默降级
-  const htmlEl = input as HTMLElement;
-  htmlEl.focus();
-  await sleep(200); // 等 focus 生效
-  if (autoSubmit) {
-    dispatchEnter(input);
+  const el = await waitForElement(CHATGPT_INPUT_SELECTORS, opts?.timeoutMs);
+  if (!el) return; // 静默降级
+  const editor = el as HTMLElement;
+  editor.focus();
+  await sleep(200);
+
+  // 原生 ?q= 预填可能已填入；若编辑器为空（预填失败/sec-fetch-site 门控），自行填充
+  const current = (editor.textContent ?? '').trim();
+  if (!current) {
+    const inserted = execCommandInsertText(query);
+    if (!inserted) {
+      editor.textContent = query;
+      editor.dispatchEvent(new InputEvent('input', {
+        bubbles: true, composed: true, data: query, inputType: 'insertFromPaste',
+      }));
+    }
+    await sleep(300);
   }
-  clearUrlQuery(); // 清 URL 参数，防刷新重复提交
+
+  if (!autoSubmit) {
+    clearUrlQuery(); // 仅预填不提交
+    return;
+  }
+
+  // 提交：优先点击发送按钮（ProseMirror 最可靠路径），兜底 dispatchEnterFullChain
+  // （含 insertParagraph beforeinput/input，ProseMirror 监听此事件触发提交）
+  await waitForElement(SEND_BUTTON_SELECTORS, 3000);
+  const ready = await pollUntil(() => {
+    const btn = document.querySelector(SEND_BUTTON_SELECTORS.join(', '));
+    return btn ? clickIfEnabled(btn) : false;
+  }, 3000, 200);
+  if (ready) { clearUrlQuery(); return; }
+  dispatchEnterFullChain(editor);
+  clearUrlQuery();
 }
 ```
 
-`doubao.ts` / `gemini.ts` 的机制 3 注入器在 `autoSubmit=false` 时提前返回（跳过发送按钮轮询与兜底 Enter），但仍清参：
+`gemini.ts` 的机制 3 注入器在 `autoSubmit=false` 时提前返回（跳过发送按钮轮询与兜底 Enter）；`doubao.ts` 发送按钮选择器已漂移（2026-08），改为直接 `if (autoSubmit) dispatchEnter(textarea)` 条件式（无轮询、无提前返回）。两者仍清参：
 
 ```ts
 if (!autoSubmit) {
