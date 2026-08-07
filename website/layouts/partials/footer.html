@@ -1,0 +1,32 @@
+{{/* 页脚 */}}
+{{ $lp := .Site.LanguagePrefix }}
+<footer class="site-foot">
+  <div class="wrap site-foot__inner">
+    <div class="site-foot__top">
+      <div class="site-foot__brand">
+        <a class="brandlock" href="{{ $lp }}/">
+          <span class="brandlock__cn">双面搜</span>
+          <span class="brandlock__sep">/</span>
+          <span class="brandlock__en">Juso</span>
+        </a>
+        <p>{{ i18n "footer_tagline" }}</p>
+      </div>
+      <div class="site-foot__col">
+        <h4>{{ i18n "footer_get" }}</h4>
+        <a href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">Chrome Web Store</a>
+        <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">GitHub Release</a>
+        <a href="{{ $lp }}/agents/">{{ i18n "nav_agent" }}</a>
+      </div>
+      <div class="site-foot__col">
+        <h4>{{ i18n "footer_code" }}</h4>
+        <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">GitHub</a>
+        <a href="{{ .Site.Params.githubURL }}/releases/latest" target="_blank" rel="noopener">{{ i18n "footer_releases" }}</a>
+        <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ .Site.Params.githubDesc }}</a>
+      </div>
+    </div>
+    <div class="site-foot__bottom">
+      <span>{{ i18n "footer_license" .Params.license }}</span>
+      <span class="tm">{{ i18n "footer_tm" }}</span>
+    </div>
+  </div>
+</footer>

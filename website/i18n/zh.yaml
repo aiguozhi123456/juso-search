@@ -1,0 +1,149 @@
+# 中文界面文案（zh）
+brand_lockup:
+  other: "双面搜 / Juso"
+face_switch_label:
+  other: "双面切换"
+lang_label:
+  other: "语言"
+nav_human:
+  other: "人类"
+nav_agent:
+  other: "智能体"
+nav_install:
+  other: "安装"
+
+# Hero —— 双语 tagline 各持两份，便于互为副标
+hero_eyebrow:
+  other: "DUAL-FACE SEARCH"
+tagline_zh:
+  other: "一面为人，一面为智能体。"
+tagline_en:
+  other: "One face for humans — one for agents."
+hero_positioning_human:
+  other: "双面搜 / Juso 是一个开源的搜索聚合与切换工具：把传统搜索引擎、站外搜索（Site Engine）和你已配置的 AI 搜索服务统一到同一个入口。"
+hero_positioning_en:
+  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+# 智能体面 tagline 变体（新写）
+tagline_agents_zh:
+  other: "让本地智能体，借同一台浏览器搜索。"
+tagline_agents_en:
+  other: "Let local agents search through the same browser."
+hero_positioning_agents:
+  other: "在装有双面搜的 Chromium 浏览器里，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
+hero_positioning_agents_en:
+  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
+
+# 区块标题
+sec_sources:
+  other: "搜索来源"
+sec_sources_sub:
+  other: "五类来源，同一个入口。传统引擎无需配置即可使用；AI 搜索服务需配置对应密钥。"
+sec_showcase_human:
+  other: "切换与搜索"
+sec_showcase_human_sub:
+  other: "独立搜索页选择来源，结果页内一键切换——AI 搜索的综合答案与传统引擎的结果，在同一套切换里流动。"
+sec_trust_human:
+  other: "隐私模型"
+sec_trust_human_sub:
+  other: "只陈述可验证的事实：密钥本地存、仅 worker 读、直达所选服务、无中转无遥测。"
+sec_cta_human:
+  other: "开始使用"
+
+sec_capability_agents:
+  other: "智能体能力"
+sec_capability_agents_sub:
+  other: "四项能力，覆盖 AI 搜索 API 调用与传统引擎检索。"
+sec_cli_agents:
+  other: "命令行接口"
+sec_cli_agents_sub:
+  other: "真实命令，取自配套 Agent Skill。密钥从不离开扩展，智能体只收到结构化结果。"
+sec_trust_agents:
+  other: "安全模型"
+sec_trust_agents_sub:
+  other: "密钥零接触、仅回环地址、双层 opt-in 默认关闭。"
+sec_setup_agents:
+  other: "如何接入"
+sec_setup_agents_sub:
+  other: "四步：安装扩展 → 开启 Agent Bridge → 下载配套技能 → 运行命令。"
+sec_cta_agents:
+  other: "让智能体开始搜索"
+
+# 矩阵面标题
+face_human:
+  other: "人类"
+face_agent:
+  other: "智能体"
+matrix_item_tag:
+  other: "能力"
+
+# 图标墙分组
+group_engines:
+  other: "传统搜索引擎"
+group_ai_search:
+  other: "AI 搜索服务"
+group_ai_chat:
+  other: "AI 对话引擎"
+group_custom:
+  other: "站外搜索与自定义引擎"
+iconwall_note:
+  other: "图标仅用于指代对应搜索来源与服务，商标归各自所有者所有。"
+
+# 展示区说明（复用 README）
+cap_serp:
+  other: "SERP 切换栏：在搜索引擎结果页内一键切换"
+cap_search:
+  other: "AI 搜索：综合答案与结果列表同屏"
+cap_demo:
+  other: "完整流程演示"
+showcase_lazy_note:
+  other: "演示动图较大，已延迟加载。"
+
+# 按钮与链接
+cta_cws:
+  other: "从 Chrome Web Store 安装"
+cta_release:
+  other: "GitHub Release 下载"
+cta_github:
+  other: "在 GitHub 查看"
+cta_install_ext:
+  other: "安装扩展"
+cta_install_ext_sub:
+  other: "Chrome Web Store 推荐，可自动更新"
+
+# 开源卡片
+os_badge:
+  other: "MPL-2.0"
+os_title:
+  other: "完全开源"
+os_body:
+  other: "双面搜的完整本地搜索闭环——扩展、来源集成、智能体访问、本地配置与缓存——以 MPL-2.0 开放。该承诺不表示未来可能出现的托管或运营服务必然开源或免费。"
+os_view:
+  other: "在 GitHub 查看"
+
+# CTA band
+cta_human_h2:
+  other: "在一个入口，搜索与切换"
+cta_human_p:
+  other: "Google、Bing、百度等传统引擎，加上站外搜索、自定义引擎、AI 对话引擎与已配置的 AI 搜索服务，统一到同一个入口。"
+cta_agents_h2:
+  other: "让本地智能体开始搜索"
+cta_agents_p:
+  other: "安装扩展，开启 Agent Bridge，下载配套技能——智能体即可调用已配置的 AI 搜索或检索传统引擎，密钥始终留在扩展内。"
+
+# 页脚
+footer_tagline:
+  other: "一面为人，一面为智能体。"
+footer_get:
+  other: "获取"
+footer_code:
+  other: "代码"
+footer_releases:
+  other: "版本发布"
+footer_license:
+  other: "© 2026 双面搜 / Juso · MPL-2.0 开源"
+footer_tm:
+  other: "本站出现的第三方产品名、品牌名、服务名与商标均归各自所有者所有，仅用于指代对应搜索来源与服务，不表示关联、赞助或背书。"
+
+# 跳转
+skip_to_content:
+  other: "跳到正文"

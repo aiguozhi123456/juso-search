@@ -1,0 +1,45 @@
+# 安全模型与隐私模型 —— 结构化事实清单（取自 README 安全章节，措辞为复述）
+# face: human | agent
+human:
+  - mark: "01"
+    title_zh: 密钥只存本地
+    title_en: Keys live only locally
+    body_zh: AI 搜索服务密钥保存在 <code>chrome.storage.local</code>，仅后台 service worker 读取；UI 页面与本地智能体都不会读取已存储的密钥。
+    body_en: AI search-service keys are stored in <code>chrome.storage.local</code> and read only by the background service worker. UI pages and local agents never read stored keys.
+  - mark: "02"
+    title_zh: 请求直达所选服务
+    title_en: Requests go direct to the selected service
+    body_zh: 需要鉴权时，密钥发送给你选择的 AI 搜索服务；查询到达你选择的服务或传统搜索引擎。
+    body_en: When authentication requires it, a key is sent to the AI search service you select. Queries reach the selected service or conventional engine.
+  - mark: "03"
+    title_zh: 不运营中转，不发送遥测
+    title_en: No relay, no telemetry
+    body_zh: 当前本地模式不运营请求中转服务，也不发送遥测。浏览器、网络与第三方服务可能记录请求，双面搜无法保证匿名或控制其记录实践。
+    body_en: In its current local mode, Juso operates no request proxy and sends no telemetry. Browsers, networks, and third-party services may still record requests; Juso cannot guarantee anonymity or control their logging.
+  - mark: "04"
+    title_zh: 配置导出由你掌控
+    title_en: Export stays in your custody
+    body_zh: 配置导出由你主动触发，包含未加密的密钥与偏好；导出文件敏感且由你自行保管，双面搜不运营备份或同步服务。
+    body_en: Configuration export is user-initiated and includes unencrypted keys and preferences. The export is sensitive and remains in your custody; Juso operates no backup or sync service.
+
+agent:
+  - mark: "01"
+    title_zh: 密钥零接触
+    title_en: Zero-touch keys
+    body_zh: 智能体通过 Agent Bridge 调用扩展后台的受限操作，绝不会获得已存储的密钥。
+    body_en: Agents invoke bounded extension-worker actions through the Agent Bridge and never receive stored keys.
+  - mark: "02"
+    title_zh: 仅回环地址
+    title_en: Loopback only
+    body_zh: Agent Bridge 是短生命周期、仅回环地址的能力通道，每次调用使用新的本地端口、令牌与请求标识，完成或超时后即失效。
+    body_en: The Agent Bridge is a short-lived, loopback-only capability channel. Each call uses a new local port, token, and request identity, and expires on completion or timeout.
+  - mark: "03"
+    title_zh: 双层 opt-in，默认关闭
+    title_en: Two-layer opt-in, off by default
+    body_zh: 总开关默认关闭；<code>engine-search</code> 子开关单独控制浏览器检索传统引擎的能力，需显式开启。
+    body_en: The master switch is off by default; a separate <code>engine-search</code> sub-switch gates browser-powered conventional-engine search and must be enabled explicitly.
+  - mark: "04"
+    title_zh: 显式 provider，不跟随状态
+    title_en: Explicit provider, no silent state
+    body_zh: <code>search</code> 必须提供 <code>--provider</code>，不会悄悄跟随扩展当前服务；<code>engine-search</code> 仅提取普通结果链接，不承诺 AI 摘要或知识面板。
+    body_en: <code>search</code> requires <code>--provider</code> and never silently follows the extension's current provider; <code>engine-search</code> extracts ordinary result links only, with no promise of AI summaries or knowledge panels.

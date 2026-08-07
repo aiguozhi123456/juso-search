@@ -1,0 +1,15 @@
+{{/* 智能体接入步骤 —— data/agent-setup.yaml */}}
+{{ $lang := .Site.Language.Lang }}
+<div class="steps reveal">
+  {{ range hugo.Data.agent_setup.steps }}
+    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
+    {{ $body := .body_zh }}{{ if eq $lang "en" }}{{ $body = .body_en }}{{ end }}
+    <div class="step">
+      <span class="n">{{ .n }}</span>
+      <div>
+        <h3>{{ $title }}</h3>
+        <p>{{ $body | safeHTML }}</p>
+      </div>
+    </div>
+  {{ end }}
+</div>

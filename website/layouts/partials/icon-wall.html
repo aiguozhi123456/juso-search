@@ -1,0 +1,23 @@
+{{/* 来源图标墙 —— data/sources.yaml */}}
+{{ $lang := .Site.Language.Lang }}
+<div class="iconwall">
+  {{ range hugo.Data.sources.groups }}
+    {{ $g := . }}
+    <div class="iconwall__group">
+      <h3>{{ i18n (printf "group_%s" .key) }} <span class="count">{{ .count }}</span></h3>
+      <div class="iconwall__items">
+        {{ range .items }}
+          {{ $name := .name }}
+          {{ if and (eq $lang "en") .name_en }}{{ $name = .name_en }}{{ end }}
+          <div class="srcchip">
+            <img src="/icons/{{ .icon }}.svg" alt="{{ $name }}" loading="lazy" width="30" height="30">
+            <span class="lbl">{{ $name }}</span>
+          </div>
+        {{ end }}
+      </div>
+    </div>
+  {{ end }}
+</div>
+<p class="iconwall-note" style="margin-top:24px;font-size:.8rem;color:var(--faint);max-width:60ch;">
+  {{ i18n "iconwall_note" }}
+</p>

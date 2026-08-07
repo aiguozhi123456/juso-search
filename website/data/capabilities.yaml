@@ -1,0 +1,23 @@
+# 人类面能力矩阵 —— 四行，取自 README.md:16-21 表格原文（逐字）。
+# face: human | agent；title 为短标签（新写）；text 为 README 表格原文。
+rows:
+  - face: human
+    title_zh: 聚合与切换
+    title_en: Aggregate & switch
+    text_zh: 聚合传统搜索引擎与可保存的站外搜索，并在独立搜索页与结果页中快速切换
+    text_en: Aggregates conventional engines and saved site-scoped searches with fast switching on the Juso page and result pages
+  - face: human
+    title_zh: AI 搜索 API
+    title_en: AI search APIs
+    text_zh: 把 AI 搜索 API 变成可直接使用、可与传统引擎快切的搜索体验
+    text_en: Turns AI search APIs into a search experience that can fast-switch with conventional engines
+  - face: agent
+    title_zh: 统一入口
+    title_en: One access path
+    text_zh: 通过统一入口调用已配置的 AI 搜索 API
+    text_en: Provides one access path to configured AI search APIs
+  - face: agent
+    title_zh: 真实浏览器
+    title_en: Real browser
+    text_zh: 借助真实浏览器检索传统搜索引擎
+    text_en: Searches conventional engines through a real browser

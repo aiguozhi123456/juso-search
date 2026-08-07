@@ -1,0 +1,36 @@
+# 双面搜 / Juso — 官网展示站
+# Hugo v0.164.0 extended, 无主题，全部自写 layouts。
+
+baseURL = "/"
+title = "双面搜 / Juso"
+defaultContentLanguage = "zh"
+defaultContentLanguageInSubdir = false
+# 中文在根路径，英文在 /en/（Hugo 对非默认语言自动加前缀）。
+disableKinds = ["taxonomy", "term", "RSS"]
+enableRobotsTXT = true
+
+[params]
+  cwsURL = "https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji"
+  githubURL = "https://github.com/aiguozhi123456/juso-search"
+  releaseURL = "https://github.com/aiguozhi123456/juso-search/releases/latest"
+  githubDesc = "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+  license = "MPL-2.0"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  codeFences = false
+  style = "monokai"
+
+[languages]
+  [languages.zh]
+    label = "中文"
+    locale = "zh-CN"
+    weight = 1
+    title = "双面搜 / Juso"
+  [languages.en]
+    label = "English"
+    locale = "en-US"
+    weight = 2
+    title = "Juso / 双面搜"

@@ -1,0 +1,33 @@
+# 智能体面 CLI 展示 —— 命令取自 skills/juso-search/SKILL.md 与 README（逐字）。
+# html 为带语法着色 span 的代码（语言中立）；标题/说明为双语。
+items:
+  - title_zh: 列出已配置的服务
+    title_en: List configured services
+    cap_zh: 返回已配置的 AI 搜索服务，智能体据此选择 provider。
+    cap_en: Returns configured AI search services so the agent can choose a provider.
+    html: |-
+      <span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-providers</span>
+  - title_zh: 调用 AI 搜索 API
+    title_en: Call an AI search API
+    cap_zh: 显式指定 provider 进行搜索，不跟随扩展当前服务。
+    cap_en: Search with an explicit provider; never follows the extension's current provider.
+    html: |-
+      <span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search</span> <span class="str">"latest AI research"</span> <span class="flag">--provider</span> <span class="arg">tavily</span>
+  - title_zh: 检索传统引擎
+    title_en: Search a conventional engine
+    cap_zh: 借真实浏览器检索传统引擎，仅提取普通结果链接。
+    cap_en: Search a conventional engine through a real browser; extracts ordinary result links only.
+    html: |-
+      <span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">engine-search</span> <span class="str">"latest AI research"</span> <span class="flag">--engine</span> <span class="arg">google</span> <span class="flag">--max-results</span> <span class="arg">10</span>
+  - title_zh: 列出实例
+    title_en: List instances
+    cap_zh: 对支持实例的服务（Exa、豆包）取得实例 id。
+    cap_en: Obtain instance ids for instance-supporting services (Exa, Doubao).
+    html: |-
+      <span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-instances</span>
+  - title_zh: 按实例搜索
+    title_en: Search per instance
+    cap_zh: 用实例 id 搜索支持实例的服务；实例是同一服务的多套调好参数的变体，共享同一密钥。
+    cap_en: Search an instance-supporting service by instance id; an instance is a tuned variant of the same service, sharing one key.
+    html: |-
+      <span class="prompt">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search-instance</span> <span class="str">"latest AI research"</span> <span class="flag">--instance-id</span> <span class="arg">inst:exa:abc123</span>

@@ -1,0 +1,17 @@
+{{/* 安全/隐私事实清单 —— data/security.yaml，face=human|agent */}}
+{{ $face := .face }}
+{{ $lang := .Page.Site.Language.Lang }}
+{{ $items := index hugo.Data.security $face }}
+<div class="facts reveal">
+  {{ range $items }}
+    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
+    {{ $body := .body_zh }}{{ if eq $lang "en" }}{{ $body = .body_en }}{{ end }}
+    <div class="fact">
+      <span class="mark">{{ .mark }}</span>
+      <div>
+        <h3>{{ $title }}</h3>
+        <p>{{ $body | safeHTML }}</p>
+      </div>
+    </div>
+  {{ end }}
+</div>

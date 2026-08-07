@@ -1,0 +1,19 @@
+{{/* CLI 代码块 —— data/cli.yaml */}}
+<div class="cli reveal">
+  {{ range hugo.Data.cli.items }}
+    {{ $lang := $.Site.Language.Lang }}
+    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
+    {{ $cap := .cap_zh }}{{ if eq $lang "en" }}{{ $cap = .cap_en }}{{ end }}
+    <div>
+      <div class="cli__block">
+        <div class="cli__bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="title">{{ $title }}</span>
+          <span class="lang">bash</span>
+        </div>
+        <pre class="cli__pre">{{ .html | safeHTML }}</pre>
+      </div>
+      <p class="cli__caption" style="margin-top:8px;"><b>{{ $title }}</b> — {{ $cap }}</p>
+    </div>
+  {{ end }}
+</div>

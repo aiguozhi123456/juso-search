@@ -1,0 +1,32 @@
+{{/* 双面能力矩阵 —— data/capabilities.yaml，两列对称，朱砂红脊柱 */}}
+{{ $lang := .Site.Language.Lang }}
+{{ $data := hugo.Data.capabilities.rows }}
+<div class="matrix reveal">
+  <div class="matrix__face">
+    <h3><span class="num">人</span>{{ i18n "face_human" }}</h3>
+    <div class="matrix__items">
+      {{ range where $data "face" "human" }}
+        {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
+        {{ $text := .text_zh }}{{ if eq $lang "en" }}{{ $text = .text_en }}{{ end }}
+        <div class="matrix__item">
+          <div class="item-tag">{{ i18n "matrix_item_tag" }}</div>
+          <p>{{ $title }} — {{ $text }}</p>
+        </div>
+      {{ end }}
+    </div>
+  </div>
+  <div class="matrix__spine" aria-hidden="true"></div>
+  <div class="matrix__face">
+    <h3><span class="num">智</span>{{ i18n "face_agent" }}</h3>
+    <div class="matrix__items">
+      {{ range where $data "face" "agent" }}
+        {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
+        {{ $text := .text_zh }}{{ if eq $lang "en" }}{{ $text = .text_en }}{{ end }}
+        <div class="matrix__item">
+          <div class="item-tag">{{ i18n "matrix_item_tag" }}</div>
+          <p>{{ $title }} — {{ $text }}</p>
+        </div>
+      {{ end }}
+    </div>
+  </div>
+</div>

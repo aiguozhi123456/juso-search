@@ -1,0 +1,26 @@
+# 智能体面能力网格 —— 四项能力（标题与描述为新写，命令标识符取自 SKILL.md）
+items:
+  - num: "01"
+    cmd: search --provider
+    title_zh: 调用已配置的 AI 搜索 API
+    title_en: Call configured AI search APIs
+    desc_zh: 通过 <code>search --provider</code> 显式指定服务，调用你已配置的 AI 搜索 API。<code>--provider</code> 必填，不会悄悄跟随扩展当前服务。支持实例的服务可按实例搜索。
+    desc_en: Call configured AI search APIs with an explicit <code>search --provider</code>. <code>--provider</code> is required and never silently follows the extension's current provider. Instance-supporting services can be searched per instance.
+  - num: "02"
+    cmd: engine-search
+    title_zh: 借真实浏览器检索传统引擎
+    title_en: Search conventional engines via a real browser
+    desc_zh: <code>engine-search</code> 在真实浏览器中检索 8 个传统引擎（Google、Bing、百度等），提取普通结果链接，不承诺 AI 摘要或知识面板。
+    desc_en: <code>engine-search</code> retrieves 8 conventional engines (Google, Bing, Baidu, and more) through a real browser, extracting ordinary result links only — no AI summaries or knowledge panels.
+  - num: "03"
+    cmd: list-providers
+    title_zh: 列出已配置的服务
+    title_en: List configured services
+    desc_zh: <code>list-providers</code> 返回已配置的 AI 搜索服务，智能体据此选择 provider，而不接触任何密钥。
+    desc_en: <code>list-providers</code> returns configured AI search services so the agent can choose a provider, without touching any key.
+  - num: "04"
+    cmd: list-instances / search-instance
+    title_zh: 按实例搜索
+    title_en: Search per instance
+    desc_zh: 对支持实例的服务（Exa、豆包）用 <code>list-instances</code> 取得实例 id，再用 <code>search-instance --instance-id</code> 按实例搜索。实例是同一服务的多套调好参数的变体，共享同一密钥。
+    desc_en: For instance-supporting services (Exa, Doubao), use <code>list-instances</code> to get an instance id, then <code>search-instance --instance-id</code> to search per instance. An instance is a tuned variant of the same service, sharing one key.

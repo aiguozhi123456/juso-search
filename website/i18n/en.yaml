@@ -1,0 +1,148 @@
+# English UI strings (en)
+brand_lockup:
+  other: "Juso / 双面搜"
+face_switch_label:
+  other: "Face switch"
+lang_label:
+  other: "Language"
+nav_human:
+  other: "People"
+nav_agent:
+  other: "Agents"
+nav_install:
+  other: "Install"
+
+# Hero —— bilingual taglines, each holds both, to render counterpart as subtitle
+hero_eyebrow:
+  other: "DUAL-FACE SEARCH"
+tagline_zh:
+  other: "一面为人，一面为智能体。"
+tagline_en:
+  other: "One face for humans — one for agents."
+hero_positioning_human:
+  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+hero_positioning_en:
+  other: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+# Agent-face tagline variant (newly written)
+tagline_agents_zh:
+  other: "让本地智能体，借同一台浏览器搜索。"
+tagline_agents_en:
+  other: "Let local agents search through the same browser."
+hero_positioning_agents:
+  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
+hero_positioning_agents_en:
+  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
+
+# Section headings
+sec_sources:
+  other: "Search sources"
+sec_sources_sub:
+  other: "Five source types, one entry. Conventional engines need no setup; AI search services need a configured key."
+sec_showcase_human:
+  other: "Switching & search"
+sec_showcase_human_sub:
+  other: "Choose a source on the search page, switch with one click on result pages — AI answers and conventional results flow through the same switching."
+sec_trust_human:
+  other: "Privacy model"
+sec_trust_human_sub:
+  other: "Only verifiable facts: keys stored locally, read only by the worker, direct to the selected service, no relay and no telemetry."
+sec_cta_human:
+  other: "Get started"
+
+sec_capability_agents:
+  other: "Agent capabilities"
+sec_capability_agents_sub:
+  other: "Four capabilities, covering AI search API calls and conventional-engine search."
+sec_cli_agents:
+  other: "Command-line interface"
+sec_cli_agents_sub:
+  other: "Real commands, taken from the companion Agent Skill. Keys never leave the extension; the agent receives only structured results."
+sec_trust_agents:
+  other: "Security model"
+sec_trust_agents_sub:
+  other: "Zero-touch keys, loopback only, two-layer opt-in off by default."
+sec_setup_agents:
+  other: "How to connect"
+sec_setup_agents_sub:
+  other: "Four steps: install → enable Agent Bridge → download the skill → run commands."
+sec_cta_agents:
+  other: "Let agents start searching"
+
+# Matrix face headers
+face_human:
+  other: "People"
+face_agent:
+  other: "Agents"
+matrix_item_tag:
+  other: "Capability"
+
+# Icon wall groups
+group_engines:
+  other: "Conventional engines"
+group_ai_search:
+  other: "AI search services"
+group_ai_chat:
+  other: "AI chat engines"
+group_custom:
+  other: "Site & custom engines"
+iconwall_note:
+  other: "Icons refer only to the corresponding search sources and services; trademarks belong to their respective owners."
+
+# Showcase captions (reused from README)
+cap_serp:
+  other: "SERP Switch Bar: switch engines from any result page"
+cap_search:
+  other: "AI search: synthesized answer and results side by side"
+cap_demo:
+  other: "Full flow demo"
+showcase_lazy_note:
+  other: "The demo GIF is large and loads lazily."
+
+# Buttons & links
+cta_cws:
+  other: "Install from Chrome Web Store"
+cta_release:
+  other: "Download from GitHub Release"
+cta_github:
+  other: "View on GitHub"
+cta_install_ext:
+  other: "Install the extension"
+cta_install_ext_sub:
+  other: "Chrome Web Store recommended, with auto-update"
+
+# Open-source card
+os_badge:
+  other: "MPL-2.0"
+os_title:
+  other: "Fully open source"
+os_body:
+  other: "Juso's complete local search loop — the extension, source integrations, agent access, local configuration, and cache — is open under MPL-2.0. This does not imply that possible future hosted or operational services will be open source or free."
+os_view:
+  other: "View on GitHub"
+
+# CTA band
+cta_human_h2:
+  other: "Search and switch from one entry"
+cta_human_p:
+  other: "Conventional engines like Google, Bing, and Baidu, plus site engines, custom engines, AI chat engines, and configured AI search services — all in one entry."
+cta_agents_h2:
+  other: "Let local agents start searching"
+cta_agents_p:
+  other: "Install the extension, enable Agent Bridge, download the companion skill — agents can call configured AI search or search conventional engines, with credentials staying inside the extension."
+
+# Footer
+footer_tagline:
+  other: "One face for humans — one for agents."
+footer_get:
+  other: "Get"
+footer_code:
+  other: "Code"
+footer_releases:
+  other: "Releases"
+footer_license:
+  other: "© 2026 Juso / 双面搜 · MPL-2.0 open source"
+footer_tm:
+  other: "Third-party product, brand, service names and trademarks appearing on this site belong to their respective owners and are used solely to refer to the corresponding search sources and services; no affiliation, sponsorship, or endorsement is implied."
+
+skip_to_content:
+  other: "Skip to content"

@@ -1,0 +1,125 @@
+{{/* 人类面落地页 —— 默认 /  */}}
+{{ define "title" }}{{ i18n "nav_human" }} · {{ .Site.Title }}{{ end }}
+{{ define "description" }}{{ i18n "hero_positioning_human" }}{{ end }}
+
+{{ define "main" }}
+{{ $tz := i18n "tagline_zh" }}{{ $te := i18n "tagline_en" }}
+{{ $isEn := eq .Site.Language.Lang "en" }}
+
+<section class="hero">
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <div class="eyebrow hero__eyebrow reveal-load d1"><span class="dot"></span>{{ i18n "hero_eyebrow" }}</div>
+      <h1 class="wordmark reveal-load d2">双面搜<span class="wordmark__latin">Juso</span></h1>
+      <p class="hero__tagline reveal-load d3">
+        {{ if $isEn }}{{ $te }}<span class="en-sub">{{ $tz }}</span>{{ else }}{{ $tz }}<span class="en-sub">{{ $te }}</span>{{ end }}
+      </p>
+      <p class="hero__positioning reveal-load d4">{{ i18n "hero_positioning_human" }}</p>
+      <div class="hero__cta reveal-load d5">
+        <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">
+          {{ partial "icon/chrome.svg" . }}{{ i18n "cta_cws" }}
+        </a>
+        <a class="btn btn--ghost" href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "cta_release" }}</a>
+      </div>
+    </div>
+    <div class="hero__visual reveal-load d6 crop-frame">
+      <span class="crop-bl"></span><span class="crop-br"></span>
+      <div class="hero__card">
+        <img src="/img/screenshot-search.png" alt="{{ i18n "cap_search" }}" loading="eager" fetchpriority="high" decoding="async" width="1200" height="750">
+        <div class="caption"><span class="tag">AI</span>{{ i18n "cap_search" }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{/* 能力矩阵 —— 双面对称 */}}
+<section class="section section--sunk">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_human" }} · {{ i18n "face_agent" }}</div>
+      <h2>{{ i18n "nav_human" }} — {{ i18n "nav_agent" }}</h2>
+      <p>{{ i18n "hero_positioning_human" }}</p>
+    </div>
+    {{ partial "capability-matrix.html" . }}
+  </div>
+</section>
+
+{{/* 搜索来源图标墙 */}}
+<section class="section">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_sources" }}</div>
+      <h2>{{ i18n "sec_sources" }}</h2>
+      <p>{{ i18n "sec_sources_sub" }}</p>
+    </div>
+    {{ partial "icon-wall.html" . }}
+  </div>
+</section>
+
+{{/* 展示区 —— 切换栏 / 架构 / 演示 */}}
+<section class="section section--sunk">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_showcase_human" }}</div>
+      <h2>{{ i18n "sec_showcase_human" }}</h2>
+      <p>{{ i18n "sec_showcase_human_sub" }}</p>
+    </div>
+    <div class="showcase">
+      <div class="showcase__pair reveal">
+        <div class="shot">
+          <img src="/img/screenshot-serp.png" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="750">
+          <div class="shot__cap"><b>{{ i18n "cap_serp" }}</b></div>
+        </div>
+        <div class="shot">
+          {{ $arch := "/img/architecture.svg" }}{{ if $isEn }}{{ $arch = "/img/architecture-en.svg" }}{{ end }}
+          <img src="{{ $arch }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy">
+          <div class="shot__cap"><b>{{ if $isEn }}Two-sided architecture{{ else }}双面架构{{ end }}</b></div>
+        </div>
+      </div>
+      <div class="showcase__demo reveal">
+        <img src="/img/demo.gif" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="1200" height="750">
+        <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span style="color:var(--faint);font-size:.78rem;">{{ i18n "showcase_lazy_note" }}</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{/* 隐私模型 + 开源 */}}
+<section class="section">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_trust_human" }}</div>
+      <h2>{{ i18n "sec_trust_human" }}</h2>
+      <p>{{ i18n "sec_trust_human_sub" }}</p>
+    </div>
+    <div class="trust">
+      {{ partial "security.html" (dict "face" "human" "Page" .) }}
+      <div class="opensource reveal">
+        <span class="badge">{{ partial "icon/oss.svg" . }}{{ i18n "os_badge" }}</span>
+        <h3>{{ i18n "os_title" }}</h3>
+        <p>{{ i18n "os_body" }}</p>
+        <div class="links">
+          <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "os_view" }}</a>
+          <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "cta_release" }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{/* CTA */}}
+<section class="section section--sunk">
+  <div class="wrap">
+    <div class="ctaband reveal">
+      <div class="ctaband__inner">
+        <h2>{{ i18n "cta_human_h2" }}</h2>
+        <p>{{ i18n "cta_human_p" }}</p>
+        <div class="ctaband__cta">
+          <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" . }}{{ i18n "cta_cws" }}</a>
+          <a class="btn btn--ghost" href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "cta_release" }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}
