@@ -358,6 +358,13 @@ p { color: var(--fg); }
 .showcase__demo { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg-soft); box-shadow: var(--shadow-2); }
 .showcase__demo img { width: 100%; }
 
+/* ---------- 深入三连（实例 / 缓存 / 来源） ---------- */
+.deepgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 2vw, 24px); }
+
+/* ---------- 双面桥（Agent Bridge 揭示另一面） ---------- */
+.bridge { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(24px, 3vw, 40px); align-items: center; }
+.bridge__copy p { color: var(--muted); font-size: 1.05rem; line-height: 1.7; margin-bottom: 22px; }
+
 /* ---------- 浏览器窗框（截图呈现） ---------- */
 .browser-chrome__bar {
   display: flex; align-items: center; gap: 7px;
@@ -500,6 +507,8 @@ html.js .reveal.in { opacity: 1; transform: none; }
   .trust { grid-template-columns: 1fr; }
   .capgrid { grid-template-columns: 1fr; }
   .showcase__pair { grid-template-columns: 1fr; }
+  .deepgrid { grid-template-columns: 1fr; }
+  .bridge { grid-template-columns: 1fr; }
   .site-foot__top { grid-template-columns: 1fr 1fr; }
   .site-foot__brand { grid-column: 1 / -1; }
 }

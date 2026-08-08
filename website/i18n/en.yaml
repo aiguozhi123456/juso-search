@@ -43,6 +43,11 @@ sec_trust_human:
 sec_trust_human_sub:
   other: "Only verifiable facts: keys stored locally, read only by the worker, direct to the selected service, no relay and no telemetry."
 
+sec_deeper_human:
+  other: "Deeper: instances / cache / sources"
+sec_deeper_human_sub:
+  other: "Multiple tuned instances per service, locally cached results and history, and all search sources managed in one place."
+
 sec_capability_agents:
   other: "Agent capabilities"
 sec_capability_agents_sub:
@@ -59,6 +64,13 @@ sec_setup_agents:
   other: "How to connect"
 sec_setup_agents_sub:
   other: "Four steps: install → enable Agent Bridge → download the skill → run commands."
+
+sec_bridge:
+  other: "There's another face: Agent Bridge"
+sec_bridge_sub:
+  other: "Toggle Agent Bridge in settings and local agents can search through the same browser — credentials stay inside the extension."
+sec_bridge_link:
+  other: "Step into the agent face →"
 
 # Matrix face headers
 face_human:
@@ -89,6 +101,15 @@ cap_demo:
   other: "Full flow demo"
 showcase_lazy_note:
   other: "The demo GIF is large and loads lazily."
+
+cap_instances:
+  other: "Multiple instances: several tuned variants per service"
+cap_cache:
+  other: "Local cache & history: results kept close by"
+cap_sources:
+  other: "Source management: conventional engines and AI services in one place"
+cap_agent_bridge:
+  other: "Agent Bridge toggle: the door to the other face"
 
 # Buttons & links
 cta_cws:

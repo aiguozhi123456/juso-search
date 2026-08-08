@@ -92,6 +92,43 @@
   </div>
 </section>
 
+{{/* 深入一面 —— 实例 / 缓存 / 来源（设置页三连） */}}
+<section class="section">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_human" }}</div>
+      <h2>{{ i18n "sec_deeper_human" }}</h2>
+      <p>{{ i18n "sec_deeper_human_sub" }}</p>
+    </div>
+    <div class="deepgrid reveal">
+      <div class="shot">
+        <div class="browser-chrome__bar" aria-hidden="true">
+          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
+          <span class="browser-chrome__addr">juso-search/options/instances</span>
+        </div>
+        <img src="{{ "img/screenshot-instances.png" | relURL }}" alt="{{ i18n "cap_instances" }}" loading="lazy" decoding="async" width="1200" height="641">
+        <div class="shot__cap"><b>{{ i18n "cap_instances" }}</b></div>
+      </div>
+      <div class="shot">
+        <div class="browser-chrome__bar" aria-hidden="true">
+          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
+          <span class="browser-chrome__addr">juso-search/options/history</span>
+        </div>
+        <img src="{{ "img/screenshot-cache.png" | relURL }}" alt="{{ i18n "cap_cache" }}" loading="lazy" decoding="async" width="1200" height="641">
+        <div class="shot__cap"><b>{{ i18n "cap_cache" }}</b></div>
+      </div>
+      <div class="shot">
+        <div class="browser-chrome__bar" aria-hidden="true">
+          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
+          <span class="browser-chrome__addr">juso-search/options/sources</span>
+        </div>
+        <img src="{{ "img/screenshot-sources.png" | relURL }}" alt="{{ i18n "cap_sources" }}" loading="lazy" decoding="async" width="1200" height="641">
+        <div class="shot__cap"><b>{{ i18n "cap_sources" }}</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 {{/* 隐私模型 + 开源 */}}
 <section class="section">
   <div class="wrap">
@@ -110,6 +147,31 @@
           <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "os_view" }}</a>
           <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "cta_release" }}</a>
         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{{/* 双面桥 —— Agent Bridge 揭示另一面 */}}
+<section class="section section--sunk">
+  <div class="wrap">
+    <div class="section__head reveal">
+      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_agent" }}</div>
+      <h2>{{ i18n "sec_bridge" }}</h2>
+      <p>{{ i18n "sec_bridge_sub" }}</p>
+    </div>
+    <div class="bridge reveal">
+      <div class="shot">
+        <div class="browser-chrome__bar" aria-hidden="true">
+          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
+          <span class="browser-chrome__addr">juso-search/options/general</span>
+        </div>
+        <img src="{{ "img/screenshot-agent-bridge.png" | relURL }}" alt="{{ i18n "cap_agent_bridge" }}" loading="lazy" decoding="async" width="1200" height="641">
+        <div class="shot__cap"><b>{{ i18n "cap_agent_bridge" }}</b></div>
+      </div>
+      <div class="bridge__copy">
+        <p>{{ i18n "hero_positioning_agents" }}</p>
+        <a class="btn btn--ghost" href="{{ "agents/" | relLangURL }}">{{ i18n "sec_bridge_link" }}</a>
       </div>
     </div>
   </div>

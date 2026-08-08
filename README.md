@@ -32,6 +32,22 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 
 ![Bing 结果页顶部的 Juso 切换栏，可切到其他引擎或 AI 搜索](docs/assets/screenshot-serp.png)
 
+**多实例：同一 AI 服务的多套参数，快切栏一等切换**
+
+![Juso 设置页的实例管理：为同一 AI 搜索服务保存多套调好参数的实例](docs/assets/screens/settings-instances-clean.png)
+
+**本地缓存与历史：成功的 AI 搜索可查看、可重放**
+
+![Juso 搜索页的缓存与历史面板](docs/assets/screens/search-cache-panel-clean.png)
+
+**搜索来源管理：五类来源统一管理**
+
+![Juso 设置页的搜索来源管理](docs/assets/screens/settings-sources-clean.png)
+
+**Agent Bridge：本地智能体的搜索入口**
+
+![Juso 设置页通用页的 Agent Bridge 开关](docs/assets/screens/settings-general-clean.png)
+
 **完整流程演示**
 
 ![在 Juso 搜索页与搜索引擎结果页之间切换的演示](docs/assets/demo.gif)

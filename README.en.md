@@ -32,6 +32,22 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 ![Juso switch bar at the top of a Bing result page](docs/assets/screenshot-serp.png)
 
+**Instances: multiple tuned presets per AI service, first-class in the switch bar**
+
+![Juso settings: instance management — save multiple tuned presets for one AI search service](docs/assets/screens/settings-instances-clean.png)
+
+**Local cache & history: successful AI searches are viewable and replayable**
+
+![Juso search page: cache and history panel](docs/assets/screens/search-cache-panel-clean.png)
+
+**Source management: all five source types in one place**
+
+![Juso settings: search source management](docs/assets/screens/settings-sources-clean.png)
+
+**Agent Bridge: the search entry for local agents**
+
+![Juso settings (general): the Agent Bridge toggle](docs/assets/screens/settings-general-clean.png)
+
 **Full flow demo**
 
 ![Switching between the Juso search page and engine result pages](docs/assets/demo.gif)

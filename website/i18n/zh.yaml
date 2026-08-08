@@ -43,6 +43,11 @@ sec_trust_human:
 sec_trust_human_sub:
   other: "只陈述可验证的事实：密钥本地存、仅 worker 读、直达所选服务、无中转无遥测。"
 
+sec_deeper_human:
+  other: "深入：实例 / 缓存 / 来源"
+sec_deeper_human_sub:
+  other: "同一服务可并存多套调好参数的实例，搜索结果与历史就近缓存，搜索来源在本地集中管理。"
+
 sec_capability_agents:
   other: "智能体能力"
 sec_capability_agents_sub:
@@ -59,6 +64,13 @@ sec_setup_agents:
   other: "如何接入"
 sec_setup_agents_sub:
   other: "四步：安装扩展 → 开启 Agent Bridge → 下载配套技能 → 运行命令。"
+
+sec_bridge:
+  other: "还有另一面：Agent Bridge"
+sec_bridge_sub:
+  other: "在设置里开启 Agent Bridge，本地智能体即可借同一台浏览器搜索——密钥始终留在扩展内。"
+sec_bridge_link:
+  other: "走进智能体面 →"
 
 # 矩阵面标题
 face_human:
@@ -89,6 +101,15 @@ cap_demo:
   other: "完整流程演示"
 showcase_lazy_note:
   other: "演示动图较大，已延迟加载。"
+
+cap_instances:
+  other: "多实例：同一服务可并存多套参数变体"
+cap_cache:
+  other: "本地缓存与历史：结果就近留存"
+cap_sources:
+  other: "来源管理：传统引擎与 AI 服务一站配置"
+cap_agent_bridge:
+  other: "Agent Bridge 开关：通往另一面的门"
 
 # 按钮与链接
 cta_cws:
