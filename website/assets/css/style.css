@@ -284,6 +284,37 @@ p { color: var(--fg); }
 }
 .hero__card .caption .tag { font-family: var(--font-mono); font-size: .72rem; color: var(--brand); font-weight: 600; }
 
+/* ---------- Hero 截图轮播 ---------- */
+.carousel { display: flex; flex-direction: column; }
+.carousel__viewport {
+  position: relative; width: 100%; aspect-ratio: 1200 / 641;
+  background: var(--bg-sunk); overflow: hidden;
+}
+.carousel__slide {
+  position: absolute; inset: 0; opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
+  pointer-events: none;
+}
+.carousel__slide.is-active { opacity: 1; pointer-events: auto; }
+.carousel__slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.carousel__caption {
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  padding: 12px 16px; min-height: 46px;
+  border-top: 1px solid var(--border-soft); background: var(--bg);
+}
+.carousel__captext { flex: 1 1 auto; font-size: .82rem; color: var(--muted); line-height: 1.4; }
+
+.carousel__dots { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+.carousel__dot {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 999px;
+  background: var(--border); cursor: pointer;
+  transition: width var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+.carousel__dot:hover { background: var(--faint); }
+.carousel__dot.is-active { width: 18px; background: var(--brand); }
+.carousel__dot:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 999px; }
+
 /* ---------- 能力矩阵（双面对称） ---------- */
 .matrix {
   display: grid; grid-template-columns: 1fr 1px 1fr; gap: 0;
@@ -365,16 +396,24 @@ p { color: var(--fg); }
 .bridge { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(24px, 3vw, 40px); align-items: center; }
 .bridge__copy p { color: var(--muted); font-size: 1.05rem; line-height: 1.7; margin-bottom: 22px; }
 
-/* ---------- 浏览器窗框（截图呈现） ---------- */
-.browser-chrome__bar {
-  display: flex; align-items: center; gap: 7px;
-  padding: 10px 14px; background: var(--bg-sunk);
-  border-bottom: 1px solid var(--border-soft); flex: 0 0 auto;
+/* ---------- 精炼窗框（截图统一呈现） ----------
+   品牌签名细线 + 内凹小圆点，替代廉价的红绿灯 + 假地址。 */
+.windowbar {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 16px; background: var(--bg-soft);
+  border-bottom: 1px solid var(--border-soft);
+  flex: 0 0 auto;
 }
-.browser-chrome__bar .bc-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--border); flex: 0 0 auto; }
-.browser-chrome__addr {
-  margin-left: 9px; font-family: var(--font-mono); font-size: .72rem;
-  color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.windowbar::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brand) 72%, transparent), transparent 55%);
+  pointer-events: none;
+}
+.windowbar__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--bg-sunk);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* ---------- CLI 代码块 ---------- */

@@ -58,6 +58,49 @@
       }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
       els.forEach(function(el){ io.observe(el); });
     })();
+
+    /* Hero 截图轮播：自动切换 + 圆点跳转 + 悬停暂停；尊重 prefers-reduced-motion（不自动播放） */
+    (function(){
+      var roots = document.querySelectorAll('[data-carousel]');
+      if (!roots.length) return;
+      var INTERVAL = 6000;
+      var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      var reduced = function(){ return !!(mq && mq.matches); };
+
+      roots.forEach(function(root){
+        var slides = root.querySelectorAll('[data-slide]');
+        var dots   = root.querySelectorAll('.carousel__dot');
+        var capEl  = root.querySelector('[data-carousel-caption]');
+        var n = slides.length;
+        if (n < 2) return;
+        var i = 0, timer = null, hovered = false;
+
+        function show(idx){
+          i = (idx + n) % n;
+          for (var k = 0; k < n; k++) {
+            var on = k === i;
+            if (slides[k]) { slides[k].classList.toggle('is-active', on); slides[k].setAttribute('aria-hidden', on ? 'false' : 'true'); }
+            if (dots[k])   { dots[k].classList.toggle('is-active', on); dots[k].setAttribute('aria-selected', on ? 'true' : 'false'); }
+          }
+          if (capEl && slides[i]) capEl.textContent = slides[i].getAttribute('data-caption') || '';
+        }
+        function stop(){ if (timer) { clearTimeout(timer); timer = null; } }
+        function start(){
+          if (reduced() || hovered || document.hidden) return;
+          stop();
+          timer = setTimeout(function tick(){ show(i + 1); timer = setTimeout(tick, INTERVAL); }, INTERVAL);
+        }
+
+        dots.forEach(function(d, idx){ d.addEventListener('click', function(){ show(idx); start(); }); });
+        root.addEventListener('mouseenter', function(){ hovered = true; stop(); });
+        root.addEventListener('mouseleave', function(){ hovered = false; start(); });
+        document.addEventListener('visibilitychange', function(){ if (document.hidden) stop(); else start(); });
+        if (mq && mq.addEventListener) mq.addEventListener('change', function(){ if (reduced()) stop(); else start(); });
+
+        show(0);
+        start();
+      });
+    })();
   </script>
 </body>
 </html>

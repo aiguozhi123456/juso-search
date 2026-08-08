@@ -24,14 +24,32 @@
     </div>
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
-      <div class="hero__card">
-        <div class="browser-chrome__bar" aria-hidden="true">
-          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-          <span class="browser-chrome__addr">juso-search/search</span>
+        {{ $heroShots := slice
+          (dict "img" "img/screenshot-search.png" "cap" "cap_search" "eager" true)
+          (dict "img" "img/screenshot-instances.png" "cap" "cap_instances")
+          (dict "img" "img/screenshot-cache.png" "cap" "cap_cache")
+          (dict "img" "img/screenshot-sources.png" "cap" "cap_sources")
+        }}
+        <div class="hero__card carousel" data-carousel role="group" aria-roledescription="carousel" aria-label="{{ i18n "carousel_label" }}">
+          <div class="windowbar" aria-hidden="true">
+            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+          </div>
+          <div class="carousel__viewport">
+            {{ range $i, $s := $heroShots }}
+            <div class="carousel__slide{{ if eq $i 0 }} is-active{{ end }}" data-slide data-caption="{{ i18n $s.cap }}" aria-hidden="{{ if ne $i 0 }}true{{ else }}false{{ end }}">
+              <img src="{{ $s.img | relURL }}" alt="{{ i18n $s.cap }}" loading="{{ if $s.eager }}eager{{ else }}lazy{{ end }}"{{ if $s.eager }} fetchpriority="high"{{ end }} decoding="async" width="1200" height="641">
+            </div>
+            {{ end }}
+          </div>
+          <div class="carousel__caption">
+            <span class="carousel__captext" data-carousel-caption>{{ i18n "cap_search" }}</span>
+            <div class="carousel__dots" role="tablist" aria-label="{{ i18n "carousel_label" }}">
+              {{ range $i, $s := $heroShots }}
+              <button type="button" class="carousel__dot{{ if eq $i 0 }} is-active{{ end }}" role="tab" aria-selected="{{ if eq $i 0 }}true{{ else }}false{{ end }}" aria-label="{{ i18n "carousel_slide" (dict "n" (add $i 1) "m" (len $heroShots)) }}"></button>
+              {{ end }}
+            </div>
+          </div>
         </div>
-        <img src="{{ "img/screenshot-search.png" | relURL }}" alt="{{ i18n "cap_search" }}" loading="eager" fetchpriority="high" decoding="async" width="1200" height="750">
-        <div class="caption"><span class="tag">AI</span>{{ i18n "cap_search" }}</div>
-      </div>
     </div>
   </div>
 </section>
@@ -71,9 +89,8 @@
     <div class="showcase">
       <div class="showcase__pair reveal">
         <div class="shot">
-          <div class="browser-chrome__bar" aria-hidden="true">
-            <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-            <span class="browser-chrome__addr">bing.com/search</span>
+          <div class="windowbar" aria-hidden="true">
+            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
           </div>
           <img src="{{ "img/screenshot-serp.png" | relURL }}" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="750">
           <div class="shot__cap"><b>{{ i18n "cap_serp" }}</b></div>
@@ -102,25 +119,22 @@
     </div>
     <div class="deepgrid reveal">
       <div class="shot">
-        <div class="browser-chrome__bar" aria-hidden="true">
-          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-          <span class="browser-chrome__addr">juso-search/options/instances</span>
+        <div class="windowbar" aria-hidden="true">
+          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
         <img src="{{ "img/screenshot-instances.png" | relURL }}" alt="{{ i18n "cap_instances" }}" loading="lazy" decoding="async" width="1200" height="641">
         <div class="shot__cap"><b>{{ i18n "cap_instances" }}</b></div>
       </div>
       <div class="shot">
-        <div class="browser-chrome__bar" aria-hidden="true">
-          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-          <span class="browser-chrome__addr">juso-search/options/history</span>
+        <div class="windowbar" aria-hidden="true">
+          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
         <img src="{{ "img/screenshot-cache.png" | relURL }}" alt="{{ i18n "cap_cache" }}" loading="lazy" decoding="async" width="1200" height="641">
         <div class="shot__cap"><b>{{ i18n "cap_cache" }}</b></div>
       </div>
       <div class="shot">
-        <div class="browser-chrome__bar" aria-hidden="true">
-          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-          <span class="browser-chrome__addr">juso-search/options/sources</span>
+        <div class="windowbar" aria-hidden="true">
+          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
         <img src="{{ "img/screenshot-sources.png" | relURL }}" alt="{{ i18n "cap_sources" }}" loading="lazy" decoding="async" width="1200" height="641">
         <div class="shot__cap"><b>{{ i18n "cap_sources" }}</b></div>
@@ -162,9 +176,8 @@
     </div>
     <div class="bridge reveal">
       <div class="shot">
-        <div class="browser-chrome__bar" aria-hidden="true">
-          <span class="bc-dot"></span><span class="bc-dot"></span><span class="bc-dot"></span>
-          <span class="browser-chrome__addr">juso-search/options/general</span>
+        <div class="windowbar" aria-hidden="true">
+          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
         <img src="{{ "img/screenshot-agent-bridge.png" | relURL }}" alt="{{ i18n "cap_agent_bridge" }}" loading="lazy" decoding="async" width="1200" height="641">
         <div class="shot__cap"><b>{{ i18n "cap_agent_bridge" }}</b></div>

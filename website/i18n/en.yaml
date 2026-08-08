@@ -29,6 +29,12 @@ tagline_agents_en:
 hero_positioning_agents:
   other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
 
+# Hero 截图轮播（无障碍标注）
+carousel_label:
+  other: "Homepage screenshot carousel"
+carousel_slide:
+  other: "Slide {{ .n }} of {{ .m }}"
+
 # Section headings
 sec_sources:
   other: "Search sources"

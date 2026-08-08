@@ -29,6 +29,12 @@ tagline_agents_en:
 hero_positioning_agents:
   other: "在装有双面搜的 Chromium 浏览器里，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
 
+# Hero 截图轮播（无障碍标注）
+carousel_label:
+  other: "首页截图轮播"
+carousel_slide:
+  other: "第 {{ .n }} 张，共 {{ .m }} 张"
+
 # 区块标题
 sec_sources:
   other: "搜索来源"
