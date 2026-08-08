@@ -35,7 +35,7 @@
   {{ $css := resources.Get "css/style.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}">
 </head>
-<body class="{{ if .IsHome }}face-human{{ else }}face-agents{{ end }}">
+<body{{ if .IsHome }} class="hero-enlarged"{{ end }}>
   <a href="#main" class="skip-link">{{ i18n "skip_to_content" }}</a>
   {{ partial "header.html" . }}
   <main id="main">
@@ -59,7 +59,7 @@
       els.forEach(function(el){ io.observe(el); });
     })();
 
-    /* Hero 截图轮播：自动切换 + 圆点跳转 + 悬停暂停；尊重 prefers-reduced-motion（不自动播放） */
+    /* Hero 截图轮播：自动切换 + 圆点跳转 + 悬停/聚焦暂停 + 箭头键导航；尊重 prefers-reduced-motion */
     (function(){
       var roots = document.querySelectorAll('[data-carousel]');
       if (!roots.length) return;
@@ -70,7 +70,8 @@
       roots.forEach(function(root){
         var slides = root.querySelectorAll('[data-slide]');
         var dots   = root.querySelectorAll('.carousel__dot');
-        var capEl  = root.querySelector('[data-carousel-caption]');
+        var capEl = root.querySelector('[data-carousel-caption]');
+        var tabList = root.querySelector('.carousel__dots');
         var n = slides.length;
         if (n < 2) return;
         var i = 0, timer = null, hovered = false;
@@ -94,8 +95,23 @@
         dots.forEach(function(d, idx){ d.addEventListener('click', function(){ show(idx); start(); }); });
         root.addEventListener('mouseenter', function(){ hovered = true; stop(); });
         root.addEventListener('mouseleave', function(){ hovered = false; start(); });
+        root.addEventListener('focusin', function(){ hovered = true; stop(); });
+        root.addEventListener('focusout', function(e){ if (!root.contains(e.relatedTarget)) { hovered = false; start(); } });
         document.addEventListener('visibilitychange', function(){ if (document.hidden) stop(); else start(); });
         if (mq && mq.addEventListener) mq.addEventListener('change', function(){ if (reduced()) stop(); else start(); });
+
+        // 左右箭头键在幻灯片间导航（WAI-ARIA 标签模式）
+        if (tabList) {
+          tabList.addEventListener('keydown', function(e){
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            var dir = e.key === 'ArrowRight' ? 1 : -1;
+            var next = (i + dir + n) % n;
+            show(next);
+            if (dots[next]) dots[next].focus();
+            start();
+          });
+        }
 
         show(0);
         start();

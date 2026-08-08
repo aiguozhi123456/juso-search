@@ -238,11 +238,11 @@ p { color: var(--fg); }
   .hero__visual { max-width: 520px; justify-self: end; }
 }
 /* —— 仅人类首页：放大的轮播英雄（智能体页保持上面的原始比例）—— */
-.face-human .hero__visual { padding: 12px; }
+.hero-enlarged .hero__visual { padding: 12px; }
 @media (min-width: 940px) {
   /* 英雄区比正文宽一档（1240 vs 1160），视觉列占多数 —— 让轮播成为页面主角。 */
-  .face-human .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
-  .face-human .hero__visual { max-width: none; justify-self: stretch; }
+  .hero-enlarged .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
+  .hero-enlarged .hero__visual { max-width: none; justify-self: stretch; }
 }
 .hero__copy { max-width: 760px; }
 .hero__eyebrow { margin-bottom: clamp(22px, 3vw, 32px); }
