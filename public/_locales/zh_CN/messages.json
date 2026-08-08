@@ -157,6 +157,7 @@
   "opts_about_tagline": { "message": "一面为人，一面为智能体" },
   "opts_about_description": { "message": "为人类与本地 AI 智能体统一选择和切换搜索引擎与 AI 搜索服务。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。" },
   "opts_about_links_heading": { "message": "链接" },
+  "opts_about_link_home": { "message": "官网" },
   "opts_about_link_github": { "message": "GitHub 仓库" },
   "opts_about_link_store": { "message": "Chrome Web Store" },
   "opts_about_link_docs": { "message": "开发文档" },

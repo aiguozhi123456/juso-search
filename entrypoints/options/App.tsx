@@ -57,6 +57,7 @@ function getAppVersion(): string {
 
 /** 关于页外链常量。 */
 const ABOUT_LINKS = {
+  home: 'https://aiguozhi123456.github.io/juso-search/',
   github: 'https://github.com/aiguozhi123456/juso-search',
   store: 'https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji',
   docs: 'https://github.com/aiguozhi123456/juso-search/blob/main/docs/DEVELOPMENT.md',
@@ -479,6 +480,10 @@ export default function App() {
           <section data-section="about-links">
             <h2>{t(MSG.opts_about_links_heading)}</h2>
             <div className="about-links-list">
+              <a className="about-link-row" href={ABOUT_LINKS.home} target="_blank" rel="noopener noreferrer">
+                <span className="about-link-label">{t(MSG.opts_about_link_home)}</span>
+                <ExternalLinkIcon size={14} />
+              </a>
               <a className="about-link-row" href={ABOUT_LINKS.github} target="_blank" rel="noopener noreferrer">
                 <span className="about-link-label">{t(MSG.opts_about_link_github)}</span>
                 <ExternalLinkIcon size={14} />

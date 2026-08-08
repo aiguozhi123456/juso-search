@@ -299,6 +299,7 @@ export const MSG = {
   opts_about_tagline: 'opts_about_tagline',
   opts_about_description: 'opts_about_description',
   opts_about_links_heading: 'opts_about_links_heading',
+  opts_about_link_home: 'opts_about_link_home',
   opts_about_link_github: 'opts_about_link_github',
   opts_about_link_store: 'opts_about_link_store',
   opts_about_link_docs: 'opts_about_link_docs',
