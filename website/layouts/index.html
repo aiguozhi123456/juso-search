@@ -3,65 +3,24 @@
 {{ define "description" }}{{ i18n "hero_positioning_human" }}{{ end }}
 
 {{ define "main" }}
-{{ $tz := i18n "tagline_zh" }}{{ $te := i18n "tagline_en" }}
 {{ $isEn := eq .Site.Language.Lang "en" }}
 
-<section class="hero">
-  <div class="wrap hero__inner">
-    <div class="hero__copy">
-      <div class="eyebrow hero__eyebrow reveal-load d1"><span class="dot"></span>{{ i18n "hero_eyebrow" }}</div>
-      <h1 class="wordmark reveal-load d2">双面搜<span class="wordmark__latin">Juso</span></h1>
-      <p class="hero__tagline reveal-load d3">
-        {{ if $isEn }}{{ $te }}<span class="en-sub">{{ $tz }}</span>{{ else }}{{ $tz }}<span class="en-sub">{{ $te }}</span>{{ end }}
-      </p>
-      <p class="hero__positioning reveal-load d4">{{ i18n "hero_positioning_human" }}</p>
-      <div class="hero__cta reveal-load d5">
-        <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">
-          {{ partial "icon/chrome.svg" . }}{{ i18n "cta_cws" }}
-        </a>
-        <a class="btn btn--ghost" href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "cta_release" }}</a>
-      </div>
-    </div>
-    <div class="hero__visual reveal-load d6 crop-frame">
-      <span class="crop-bl"></span><span class="crop-br"></span>
-        {{ $heroShots := slice
-          (dict "img" "img/screenshot-search.png" "cap" "cap_search" "eager" true)
-          (dict "img" "img/screenshot-instances.png" "cap" "cap_instances")
-          (dict "img" "img/screenshot-cache.png" "cap" "cap_cache")
-          (dict "img" "img/screenshot-sources.png" "cap" "cap_sources")
-        }}
-        <div class="hero__card carousel" data-carousel role="region" aria-roledescription="carousel" aria-label="{{ i18n "carousel_label" }}">
-          <div class="windowbar" aria-hidden="true">
-            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
-          </div>
-          <div class="carousel__viewport">
-            {{ range $i, $s := $heroShots }}
-            <div class="carousel__slide{{ if eq $i 0 }} is-active{{ end }}" data-slide id="slide-{{ $i }}" data-caption="{{ i18n $s.cap }}" role="group" aria-roledescription="slide" aria-label="{{ i18n $s.cap }}" aria-hidden="{{ if ne $i 0 }}true{{ else }}false{{ end }}">
-              <img src="{{ $s.img | relURL }}" alt="{{ i18n $s.cap }}" loading="{{ if $s.eager }}eager{{ else }}lazy{{ end }}"{{ if $s.eager }} fetchpriority="high"{{ end }} decoding="async" width="1200" height="641">
-            </div>
-            {{ end }}
-          </div>
-          <div class="carousel__caption">
-            <span class="carousel__captext" data-carousel-caption aria-live="polite">{{ i18n "cap_search" }}</span>
-            <div class="carousel__dots" role="tablist" aria-label="{{ i18n "carousel_label" }}">
-              {{ range $i, $s := $heroShots }}
-              <button type="button" class="carousel__dot{{ if eq $i 0 }} is-active{{ end }}" role="tab" aria-selected="{{ if eq $i 0 }}true{{ else }}false{{ end }}" aria-controls="slide-{{ $i }}" aria-label="{{ i18n "carousel_slide" (dict "n" (add $i 1) "m" (len $heroShots)) }}"></button>
-              {{ end }}
-            </div>
-          </div>
-        </div>
-    </div>
-  </div>
-</section>
+{{ partial "hero.html" (dict
+  "Page" .
+  "tagline_zh" (i18n "tagline_zh")
+  "tagline_en" (i18n "tagline_en")
+  "positioning_key" "hero_positioning_human"
+  "cta_primary_key" "cta_cws"
+  "cta_primary_href" .Site.Params.cwsURL
+  "cta_ghost_key" "cta_release"
+  "cta_ghost_href" .Site.Params.releaseURL
+  "visual" "hero-visual-home"
+) }}
 
 {{/* 能力矩阵 —— 双面对称 */}}
 <section class="section section--sunk">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_human" }} · {{ i18n "face_agent" }}</div>
-      <h2>{{ i18n "nav_human" }} — {{ i18n "nav_agent" }}</h2>
-      <p>{{ i18n "hero_positioning_human" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (printf "%s · %s" (i18n "face_human") (i18n "face_agent")) "title" (printf "%s — %s" (i18n "nav_human") (i18n "nav_agent")) "sub" (i18n "hero_positioning_human")) }}
     {{ partial "capability-matrix.html" . }}
   </div>
 </section>
@@ -69,11 +28,7 @@
 {{/* 搜索来源图标墙 */}}
 <section class="section">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_sources" }}</div>
-      <h2>{{ i18n "sec_sources" }}</h2>
-      <p>{{ i18n "sec_sources_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_sources") "title" (i18n "sec_sources") "sub" (i18n "sec_sources_sub")) }}
     {{ partial "icon-wall.html" . }}
   </div>
 </section>
@@ -81,11 +36,7 @@
 {{/* 展示区 —— 切换栏 / 架构 / 演示 */}}
 <section class="section section--sunk">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_showcase_human" }}</div>
-      <h2>{{ i18n "sec_showcase_human" }}</h2>
-      <p>{{ i18n "sec_showcase_human_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_showcase_human") "title" (i18n "sec_showcase_human") "sub" (i18n "sec_showcase_human_sub")) }}
     <div class="showcase">
       <div class="showcase__pair reveal">
         <div class="shot">
@@ -100,13 +51,13 @@
             <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
           </div>
           {{ $arch := "img/architecture.svg" }}{{ if $isEn }}{{ $arch = "img/architecture-en.svg" }}{{ end }}
-          <img src="{{ $arch | relURL }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy" width="1040" height="1030">
-          <div class="shot__cap"><b>{{ if $isEn }}Two-sided architecture{{ else }}双面架构{{ end }}</b></div>
+          <img src="{{ $arch | relURL }}" alt="{{ i18n "cap_architecture" }}" loading="lazy" width="1040" height="1030">
+          <div class="shot__cap"><b>{{ i18n "cap_architecture" }}</b></div>
         </div>
       </div>
       <div class="showcase__demo reveal">
         <img src="{{ "img/demo.gif" | relURL }}" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="960" height="519">
-        <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span style="color:var(--faint);font-size:.78rem;">{{ i18n "showcase_lazy_note" }}</span></div>
+        <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span class="shot__note">{{ i18n "showcase_lazy_note" }}</span></div>
       </div>
     </div>
   </div>
@@ -115,11 +66,7 @@
 {{/* 深入一面 —— 实例 / 缓存 / 来源（设置页三连） */}}
 <section class="section">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_human" }}</div>
-      <h2>{{ i18n "sec_deeper_human" }}</h2>
-      <p>{{ i18n "sec_deeper_human_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "face_human") "title" (i18n "sec_deeper_human") "sub" (i18n "sec_deeper_human_sub")) }}
     <div class="deepgrid reveal">
       <div class="shot">
         <div class="windowbar" aria-hidden="true">
@@ -149,11 +96,7 @@
 {{/* 隐私模型 + 开源 */}}
 <section class="section">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_trust_human" }}</div>
-      <h2>{{ i18n "sec_trust_human" }}</h2>
-      <p>{{ i18n "sec_trust_human_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_trust_human") "title" (i18n "sec_trust_human") "sub" (i18n "sec_trust_human_sub")) }}
     <div class="trust">
       {{ partial "security.html" (dict "face" "human" "Page" .) }}
       <div class="opensource reveal">
@@ -172,11 +115,7 @@
 {{/* 双面桥 —— Agent Bridge 揭示另一面 */}}
 <section class="section section--sunk">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "face_agent" }}</div>
-      <h2>{{ i18n "sec_bridge" }}</h2>
-      <p>{{ i18n "sec_bridge_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "face_agent") "title" (i18n "sec_bridge") "sub" (i18n "sec_bridge_sub")) }}
     <div class="bridge reveal">
       <div class="shot">
         <div class="windowbar" aria-hidden="true">
@@ -194,18 +133,13 @@
 </section>
 
 {{/* CTA */}}
-<section class="section section--sunk">
-  <div class="wrap">
-    <div class="ctaband reveal">
-      <div class="ctaband__inner">
-        <h2>{{ i18n "cta_human_h2" }}</h2>
-        <p>{{ i18n "cta_human_p" }}</p>
-        <div class="ctaband__cta">
-          <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" . }}{{ i18n "cta_cws" }}</a>
-          <a class="btn btn--ghost" href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "cta_release" }}</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+{{ partial "cta-band.html" (dict
+  "Page" .
+  "h2_key" "cta_human_h2"
+  "p_key" "cta_human_p"
+  "primary_key" "cta_cws"
+  "primary_href" .Site.Params.cwsURL
+  "ghost_key" "cta_release"
+  "ghost_href" .Site.Params.releaseURL
+) }}
 {{ end }}

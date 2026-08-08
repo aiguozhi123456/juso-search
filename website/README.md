@@ -68,6 +68,6 @@ static/            brand/ icons/ img/ fonts/（静态素材，fonts/ 为自托�
 
 ## 备注
 
-- `baseURL` 保持 `/`，部署时用 `--baseURL` 覆盖。所有站内引用走 Hugo `relURL` / `relLangURL` / `absURL`，子路径部署无需改模板。
+- `baseURL` 已写入 `hugo.toml`（生产地址），CI 不再传 `--baseURL`。本地调试可用 `hugo server --baseURL http://localhost:1313/` 临时覆盖。所有站内引用走 Hugo `relURL` / `relLangURL` / `absURL`，换域名只需改 `hugo.toml`。
 - 字体自托管（Fraunces / Hanken Grotesk / JetBrains Mono，latin 子集 woff2），不请求第三方 CDN；CJK 回退系统字体。
 - 切换器为纯链接，零 JS；滚动揭示用最小内联 IntersectionObserver，渐进增强。

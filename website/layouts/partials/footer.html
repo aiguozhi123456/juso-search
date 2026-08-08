@@ -1,12 +1,12 @@
 {{/* 页脚 */}}
+{{ $curLang := .Site.Language.Lang }}
 <footer class="site-foot">
   <div class="wrap site-foot__inner">
     <div class="site-foot__top">
       <div class="site-foot__brand">
-        <a class="brandlock" href="{{ "" | relLangURL }}">
-          <span class="brandlock__cn">双面搜</span>
-          <span class="brandlock__sep">/</span>
-          <span class="brandlock__en">Juso</span>
+        <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
+          <span class="brandlock__cn">{{ i18n "brand_cn" }}</span>
+          {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">Juso</span>{{ end }}
         </a>
         <p>{{ i18n "footer_tagline" }}</p>
         <a class="foot-agent-link" href="{{ "agents/" | relLangURL }}">

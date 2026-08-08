@@ -1,0 +1,26 @@
+{{ $heroShots := slice
+  (dict "img" "img/screenshot-search.png" "cap" "cap_search" "eager" true)
+  (dict "img" "img/screenshot-instances.png" "cap" "cap_instances")
+  (dict "img" "img/screenshot-cache.png" "cap" "cap_cache")
+  (dict "img" "img/screenshot-sources.png" "cap" "cap_sources")
+}}
+<div class="hero__card carousel" data-carousel role="region" aria-roledescription="carousel" aria-label="{{ i18n "carousel_label" }}">
+  <div class="windowbar" aria-hidden="true">
+    <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+  </div>
+  <div class="carousel__viewport">
+    {{ range $i, $s := $heroShots }}
+    <div class="carousel__slide{{ if eq $i 0 }} is-active{{ end }}" data-slide id="slide-{{ $i }}" data-caption="{{ i18n $s.cap }}" role="group" aria-roledescription="slide" aria-label="{{ i18n $s.cap }}" aria-hidden="{{ if ne $i 0 }}true{{ else }}false{{ end }}">
+      <img src="{{ $s.img | relURL }}" alt="{{ i18n $s.cap }}" loading="{{ if $s.eager }}eager{{ else }}lazy{{ end }}"{{ if $s.eager }} fetchpriority="high"{{ end }} decoding="async" width="1200" height="641">
+    </div>
+    {{ end }}
+  </div>
+  <div class="carousel__caption">
+    <span class="carousel__captext" data-carousel-caption aria-live="polite">{{ i18n "cap_search" }}</span>
+    <div class="carousel__dots" role="tablist" aria-label="{{ i18n "carousel_label" }}">
+      {{ range $i, $s := $heroShots }}
+      <button type="button" class="carousel__dot{{ if eq $i 0 }} is-active{{ end }}" role="tab" aria-selected="{{ if eq $i 0 }}true{{ else }}false{{ end }}" aria-controls="slide-{{ $i }}" aria-label="{{ i18n "carousel_slide" (dict "n" (add $i 1) "m" (len $heroShots)) }}"></button>
+      {{ end }}
+    </div>
+  </div>
+</div>

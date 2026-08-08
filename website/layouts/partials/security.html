@@ -4,8 +4,8 @@
 {{ $items := index hugo.Data.security $face }}
 <div class="facts reveal">
   {{ range $items }}
-    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
-    {{ $body := .body_zh }}{{ if eq $lang "en" }}{{ $body = .body_en }}{{ end }}
+    {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
+    {{ $body := partial "i18n-field.html" (dict "obj" . "field" "body" "lang" $lang) }}
     <div class="fact">
       <span class="mark">{{ .mark }}</span>
       <div>

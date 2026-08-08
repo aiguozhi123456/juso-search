@@ -1,0 +1,15 @@
+{{- $p := .Page -}}
+<section class="section section--sunk">
+  <div class="wrap">
+    <div class="ctaband reveal">
+      <div class="ctaband__inner">
+        <h2>{{ i18n .h2_key }}</h2>
+        <p>{{ i18n .p_key }}</p>
+        <div class="ctaband__cta">
+          <a class="btn btn--primary" href="{{ .primary_href }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" $p }}{{ i18n .primary_key }}</a>
+          <a class="btn btn--ghost" href="{{ .ghost_href }}" target="_blank" rel="noopener">{{ i18n .ghost_key }}</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

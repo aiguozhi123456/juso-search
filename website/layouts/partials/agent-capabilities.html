@@ -2,13 +2,13 @@
 {{ $lang := .Site.Language.Lang }}
 <div class="capgrid reveal">
   {{ range hugo.Data.agent_capabilities.items }}
-    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
-    {{ $desc := .desc_zh }}{{ if eq $lang "en" }}{{ $desc = .desc_en }}{{ end }}
+    {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
+    {{ $desc := partial "i18n-field.html" (dict "obj" . "field" "desc" "lang" $lang) }}
     <div class="capcard">
       <div class="capcard__num">{{ .num }}</div>
       <h3>{{ $title | safeHTML }}</h3>
       <p>{{ $desc | safeHTML }}</p>
-      <div style="margin-top:14px;font-family:var(--font-mono);font-size:.78rem;color:var(--brand);font-weight:600;">{{ .cmd }}</div>
+      <div class="capcard__cmd">{{ .cmd }}</div>
     </div>
   {{ end }}
 </div>

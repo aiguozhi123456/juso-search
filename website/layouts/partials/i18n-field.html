@@ -1,0 +1,4 @@
+{{- $obj := .obj -}}{{- $field := .field -}}{{- $lang := .lang -}}
+{{- $val := index $obj (printf "%s_zh" $field) -}}
+{{- if eq $lang "en" -}}{{- $val = index $obj (printf "%s_en" $field) -}}{{- end -}}
+{{- return $val -}}

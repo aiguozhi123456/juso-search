@@ -3,54 +3,22 @@
 {{ define "description" }}{{ i18n "hero_positioning_agents" }}{{ end }}
 
 {{ define "main" }}
-{{ $tz := i18n "tagline_agents_zh" }}{{ $te := i18n "tagline_agents_en" }}
-{{ $isEn := eq .Site.Language.Lang "en" }}
-
-<section class="hero">
-  <div class="wrap hero__inner">
-    <div class="hero__copy">
-      <div class="eyebrow hero__eyebrow reveal-load d1"><span class="dot"></span>{{ i18n "hero_eyebrow" }}</div>
-      <h1 class="wordmark reveal-load d2">双面搜<span class="wordmark__latin">Juso</span></h1>
-      <p class="hero__tagline reveal-load d3">
-        {{ if $isEn }}{{ $te }}<span class="en-sub">{{ $tz }}</span>{{ else }}{{ $tz }}<span class="en-sub">{{ $te }}</span>{{ end }}
-      </p>
-      <p class="hero__positioning reveal-load d4">{{ i18n "hero_positioning_agents" }}</p>
-      <div class="hero__cta reveal-load d5">
-        <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">
-          {{ partial "icon/chrome.svg" . }}{{ i18n "cta_install_ext" }}
-        </a>
-        <a class="btn btn--ghost" href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ i18n "cta_github" }}</a>
-      </div>
-    </div>
-    <div class="hero__visual reveal-load d6 crop-frame">
-      <span class="crop-bl"></span><span class="crop-br"></span>
-      <div class="hero__card">
-        <div class="cli__block" style="border-radius:0;border:none;box-shadow:none;">
-          <div class="cli__bar">
-            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-            <span class="title">juso-search</span>
-            <span class="lang">bash</span>
-          </div>
-          <pre class="cli__pre"><span class="cmt" aria-hidden="true"># {{ if $isEn }}List configured providers{{ else }}列出已配置的服务{{ end }}</span>
-<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-providers</span>
-
-<span class="cmt" aria-hidden="true"># {{ if $isEn }}Search with an explicit provider{{ else }}显式指定 provider 搜索{{ end }}</span>
-<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search</span> <span class="str">"latest AI research"</span> <span class="flag">--provider</span> <span class="arg">tavily</span></pre>
-        </div>
-        <div class="caption"><span class="tag">CLI</span>{{ i18n "sec_cli_agents" }}</div>
-      </div>
-    </div>
-  </div>
-</section>
+{{ partial "hero.html" (dict
+  "Page" .
+  "tagline_zh" (i18n "tagline_agents_zh")
+  "tagline_en" (i18n "tagline_agents_en")
+  "positioning_key" "hero_positioning_agents"
+  "cta_primary_key" "cta_install_ext"
+  "cta_primary_href" .Site.Params.cwsURL
+  "cta_ghost_key" "cta_github"
+  "cta_ghost_href" .Site.Params.githubURL
+  "visual" "hero-visual-agent"
+) }}
 
 {{/* 智能体能力网格 */}}
 <section class="section section--sunk">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_capability_agents" }}</div>
-      <h2>{{ i18n "sec_capability_agents" }}</h2>
-      <p>{{ i18n "sec_capability_agents_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_capability_agents") "title" (i18n "sec_capability_agents") "sub" (i18n "sec_capability_agents_sub")) }}
     {{ partial "agent-capabilities.html" . }}
   </div>
 </section>
@@ -58,11 +26,7 @@
 {{/* CLI 命令展示 */}}
 <section class="section">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_cli_agents" }}</div>
-      <h2>{{ i18n "sec_cli_agents" }}</h2>
-      <p>{{ i18n "sec_cli_agents_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_cli_agents") "title" (i18n "sec_cli_agents") "sub" (i18n "sec_cli_agents_sub")) }}
     {{ partial "cli.html" . }}
   </div>
 </section>
@@ -70,12 +34,8 @@
 {{/* 安全模型 */}}
 <section class="section section--sunk">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_trust_agents" }}</div>
-      <h2>{{ i18n "sec_trust_agents" }}</h2>
-      <p>{{ i18n "sec_trust_agents_sub" }}</p>
-    </div>
-    <div class="trust" style="grid-template-columns:1fr;">
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_trust_agents") "title" (i18n "sec_trust_agents") "sub" (i18n "sec_trust_agents_sub")) }}
+    <div class="trust trust--single">
       {{ partial "security.html" (dict "face" "agent" "Page" .) }}
     </div>
   </div>
@@ -84,28 +44,19 @@
 {{/* 如何接入 */}}
 <section class="section">
   <div class="wrap">
-    <div class="section__head reveal">
-      <div class="eyebrow"><span class="dot"></span>{{ i18n "sec_setup_agents" }}</div>
-      <h2>{{ i18n "sec_setup_agents" }}</h2>
-      <p>{{ i18n "sec_setup_agents_sub" }}</p>
-    </div>
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_setup_agents") "title" (i18n "sec_setup_agents") "sub" (i18n "sec_setup_agents_sub")) }}
     {{ partial "agent-steps.html" . }}
   </div>
 </section>
 
 {{/* CTA */}}
-<section class="section section--sunk">
-  <div class="wrap">
-    <div class="ctaband reveal">
-      <div class="ctaband__inner">
-        <h2>{{ i18n "cta_agents_h2" }}</h2>
-        <p>{{ i18n "cta_agents_p" }}</p>
-        <div class="ctaband__cta">
-          <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" . }}{{ i18n "cta_install_ext" }}</a>
-          <a class="btn btn--ghost" href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ i18n "cta_github" }}</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+{{ partial "cta-band.html" (dict
+  "Page" .
+  "h2_key" "cta_agents_h2"
+  "p_key" "cta_agents_p"
+  "primary_key" "cta_install_ext"
+  "primary_href" .Site.Params.cwsURL
+  "ghost_key" "cta_github"
+  "ghost_href" .Site.Params.githubURL
+) }}
 {{ end }}

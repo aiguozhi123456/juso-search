@@ -238,11 +238,11 @@ p { color: var(--fg); }
   .hero__visual { max-width: 520px; justify-self: end; }
 }
 /* —— 仅人类首页：放大的轮播英雄（智能体页保持上面的原始比例）—— */
-.hero-enlarged .hero__visual { padding: 12px; }
+.is-home .hero__visual { padding: 12px; }
 @media (min-width: 940px) {
   /* 英雄区比正文宽一档（1240 vs 1160），视觉列占多数 —— 让轮播成为页面主角。 */
-  .hero-enlarged .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
-  .hero-enlarged .hero__visual { max-width: none; justify-self: stretch; }
+  .is-home .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
+  .is-home .hero__visual { max-width: none; justify-self: stretch; }
 }
 .hero__copy { max-width: 760px; }
 .hero__eyebrow { margin-bottom: clamp(22px, 3vw, 32px); }
@@ -359,6 +359,7 @@ p { color: var(--fg); }
 .capcard h3 { font-family: var(--font-display); font-size: 1.15rem; margin-bottom: 8px; }
 .capcard p { color: var(--muted); font-size: .95rem; line-height: 1.6; }
 .capcard code { font-family: var(--font-mono); font-size: .85em; background: var(--bg-sunk); padding: 1px 6px; border-radius: 4px; color: var(--brand-ink); }
+.capcard__cmd { margin-top: 14px; font-family: var(--font-mono); font-size: .78rem; color: var(--brand); font-weight: 600; }
 
 /* ---------- 来源图标墙 ---------- */
 .iconwall { display: grid; gap: clamp(28px, 4vw, 44px); }
@@ -380,6 +381,7 @@ p { color: var(--fg); }
 .srcchip:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); box-shadow: var(--shadow-1); }
 .srcchip img { width: 30px; height: 30px; }
 .srcchip .lbl { font-size: .82rem; font-weight: 500; color: var(--muted); }
+.iconwall-note { margin-top: 24px; font-size: .8rem; color: var(--muted); max-width: 60ch; }
 
 /* ---------- 展示区 ---------- */
 .showcase { display: grid; gap: clamp(24px, 3vw, 36px); }
@@ -393,6 +395,7 @@ p { color: var(--fg); }
 .shot img { width: 100%; height: auto; }
 .shot__cap { padding: 13px 16px; font-size: .85rem; color: var(--muted); border-top: 1px solid var(--border-soft); background: var(--bg); }
 .shot__cap b { color: var(--fg); font-weight: 600; }
+.shot__note { color: var(--faint); font-size: .78rem; }
 .showcase__demo { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg-soft); box-shadow: var(--shadow-2); }
 .showcase__demo img { width: 100%; }
 
@@ -440,6 +443,8 @@ p { color: var(--fg); }
   border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
   background: #1b1716; box-shadow: var(--shadow-2);
 }
+/* 智能体英雄卡内嵌 CLI：去外框融入卡片 */
+.hero__card .cli__block { border-radius: 0; border: none; box-shadow: none; }
 .cli__bar {
   display: flex; align-items: center; gap: 8px;
   padding: 11px 16px; background: #221d1b; border-bottom: 1px solid #34302e;
@@ -453,11 +458,13 @@ p { color: var(--fg); }
 .cli__pre .flag { color: #ffb3a8; }
 .cli__pre .str { color: #c9d6a8; }
 .cli__pre .cmd { color: #f0e6e4; font-weight: 600; }
-.cli__caption { padding: 0 4px; font-size: .85rem; color: var(--muted); }
+.cli__pre .arg { color: #d4c9a8; }
+.cli__caption { margin-top: 8px; padding: 0 4px; font-size: .85rem; color: var(--muted); }
 .cli__caption b { color: var(--fg); }
 
 /* ---------- 信任 / 安全 ---------- */
 .trust { display: grid; grid-template-columns: 1.4fr 1fr; gap: clamp(24px, 3vw, 40px); align-items: start; }
+.trust--single { grid-template-columns: 1fr; }
 .facts { display: flex; flex-direction: column; gap: 2px; }
 .fact {
   display: grid; grid-template-columns: 28px 1fr; gap: 16px; align-items: start;
@@ -538,6 +545,16 @@ p { color: var(--fg); }
 .site-foot__col a:hover { color: var(--brand); }
 .site-foot__bottom { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: center; padding-top: 28px; border-top: 1px solid var(--border-soft); font-size: .82rem; color: var(--faint); }
 .site-foot__bottom .tm { max-width: 60ch; }
+
+/* ---------- 独立页面：404 ---------- */
+.not-found {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
 
 /* ---------- 动效：载入编排 + 滚动揭示 ---------- */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }

@@ -1,0 +1,22 @@
+{{- $p := .Page -}}
+{{- $isEn := eq $p.Site.Language.Lang "en" -}}
+<section class="hero">
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <div class="eyebrow hero__eyebrow reveal-load d1"><span class="dot"></span>{{ i18n "hero_eyebrow" }}</div>
+      <h1 class="wordmark reveal-load d2">双面搜<span class="wordmark__latin">Juso</span></h1>
+      <p class="hero__tagline reveal-load d3">
+        {{ if $isEn }}{{ .tagline_en }}<span class="en-sub">{{ .tagline_zh }}</span>{{ else }}{{ .tagline_zh }}<span class="en-sub">{{ .tagline_en }}</span>{{ end }}
+      </p>
+      <p class="hero__positioning reveal-load d4">{{ i18n .positioning_key }}</p>
+      <div class="hero__cta reveal-load d5">
+        <a class="btn btn--primary" href="{{ .cta_primary_href }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" $p }}{{ i18n .cta_primary_key }}</a>
+        <a class="btn btn--ghost" href="{{ .cta_ghost_href }}" target="_blank" rel="noopener">{{ i18n .cta_ghost_key }}</a>
+      </div>
+    </div>
+    <div class="hero__visual reveal-load d6 crop-frame">
+      <span class="crop-bl"></span><span class="crop-br"></span>
+      {{ partial .visual . }}
+    </div>
+  </div>
+</section>

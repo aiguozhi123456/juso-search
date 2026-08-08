@@ -2,8 +2,8 @@
 <div class="cli reveal">
   {{ range hugo.Data.cli.items }}
     {{ $lang := $.Site.Language.Lang }}
-    {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
-    {{ $cap := .cap_zh }}{{ if eq $lang "en" }}{{ $cap = .cap_en }}{{ end }}
+    {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
+    {{ $cap := partial "i18n-field.html" (dict "obj" . "field" "cap" "lang" $lang) }}
     {{ $html := replaceRE `<span class="(prompt|cmt)"` `<span class="$1" aria-hidden="true"` .html }}
     <div>
       <div class="cli__block">
@@ -14,7 +14,7 @@
         </div>
         <pre class="cli__pre">{{ $html | safeHTML }}</pre>
       </div>
-      <p class="cli__caption" style="margin-top:8px;"><b>{{ $title }}</b> — {{ $cap }}</p>
+      <p class="cli__caption"><b>{{ $title }}</b> — {{ $cap }}</p>
     </div>
   {{ end }}
 </div>

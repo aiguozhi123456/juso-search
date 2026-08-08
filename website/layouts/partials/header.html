@@ -4,9 +4,8 @@
 <header class="site-head">
   <div class="wrap site-head__inner">
     <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
-      <span class="brandlock__cn">双面搜</span>
-      <span class="brandlock__sep">/</span>
-      <span class="brandlock__en">Juso</span>
+      <span class="brandlock__cn">{{ i18n "brand_cn" }}</span>
+      {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">Juso</span>{{ end }}
     </a>
 
     {{/* 双面切换器 —— 链接，呼应扩展快切栏 pill */}}

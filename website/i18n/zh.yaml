@@ -1,6 +1,8 @@
 # 中文界面文案（zh）
 brand_lockup:
   other: "双面搜 / Juso"
+brand_cn:
+  other: "双面搜"
 face_switch_label:
   other: "双面切换"
 lang_label:
@@ -101,6 +103,8 @@ iconwall_note:
 # 展示区说明（复用 README）
 cap_serp:
   other: "SERP 切换栏：在搜索引擎结果页内一键切换"
+cap_architecture:
+  other: "双面架构"
 cap_search:
   other: "AI 搜索：综合答案与结果列表同屏"
 cap_demo:
@@ -170,3 +174,9 @@ not_found_text:
   other: "这一页不存在，或已移动。"
 not_found_home:
   other: "回到首页"
+
+# CLI 命令注释（智能体面终端演示）
+cli_cmt_providers:
+  other: "列出已配置的服务"
+cli_cmt_search:
+  other: "显式指定 provider 搜索"

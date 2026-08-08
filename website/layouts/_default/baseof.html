@@ -35,7 +35,7 @@
   {{ $css := resources.Get "css/style.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}">
 </head>
-<body{{ if .IsHome }} class="hero-enlarged"{{ end }}>
+<body{{ if .IsHome }} class="is-home"{{ end }}>
   <a href="#main" class="skip-link">{{ i18n "skip_to_content" }}</a>
   {{ partial "header.html" . }}
   <main id="main">
@@ -97,7 +97,6 @@
         root.addEventListener('mouseleave', function(){ hovered = false; start(); });
         root.addEventListener('focusin', function(){ hovered = true; stop(); });
         root.addEventListener('focusout', function(e){ if (!root.contains(e.relatedTarget)) { hovered = false; start(); } });
-        document.addEventListener('visibilitychange', function(){ if (document.hidden) stop(); else start(); });
         if (mq && mq.addEventListener) mq.addEventListener('change', function(){ if (reduced()) stop(); else start(); });
 
         // 左右箭头键在幻灯片间导航（WAI-ARIA 标签模式）
@@ -115,6 +114,16 @@
 
         show(0);
         start();
+        root._jusoCarouselStart = start;
+        root._jusoCarouselStop = stop;
+      });
+
+      // 单个共享监听，避免每个轮播各绑定一份（N 个轮播 = N 个泄漏监听器）
+      document.addEventListener('visibilitychange', function () {
+        roots.forEach(function (r) {
+          if (document.hidden && r._jusoCarouselStop) r._jusoCarouselStop();
+          else if (!document.hidden && r._jusoCarouselStart) r._jusoCarouselStart();
+        });
       });
     })();
   </script>

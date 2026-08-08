@@ -1,7 +1,7 @@
 # 双面搜 / Juso — 官网展示站
 # Hugo v0.164.0 extended, 无主题，全部自写 layouts。
 
-baseURL = "/"
+baseURL = "https://aiguozhi123456.github.io/juso-search/"
 title = "双面搜 / Juso"
 defaultContentLanguage = "zh"
 defaultContentLanguageInSubdir = false

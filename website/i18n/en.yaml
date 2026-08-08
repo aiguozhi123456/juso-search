@@ -1,6 +1,8 @@
 # English UI strings (en)
 brand_lockup:
   other: "双面搜 / Juso"
+brand_cn:
+  other: "Juso"
 face_switch_label:
   other: "Face switch"
 lang_label:
@@ -101,6 +103,8 @@ iconwall_note:
 # Showcase captions (reused from README)
 cap_serp:
   other: "SERP Switch Bar: switch engines from any result page"
+cap_architecture:
+  other: "Dual-face architecture"
 cap_search:
   other: "AI search: synthesized answer and results side by side"
 cap_demo:
@@ -170,3 +174,9 @@ not_found_text:
   other: "This page doesn't exist or has moved."
 not_found_home:
   other: "Back to home"
+
+# CLI command comments (agent-face terminal demo)
+cli_cmt_providers:
+  other: "List configured providers"
+cli_cmt_search:
+  other: "Search with an explicit provider"
