@@ -19,8 +19,9 @@ import {
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
-import { getStylePref, getThemePref, getBarPositionPref } from '@/lib/storage';
+import { getStylePref, getThemePref, getBarPositionPref, getLocalePref } from '@/lib/storage';
 import type { StylePref, BarPositionPref } from '@/lib/storage';
+import { applyLocalePref, setLocale } from '@/lib/i18n';
 import { isUiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { serpBarStyles } from '@/entrypoints/shared/serp-bar-styles';
 import { calculateAlignedHostLayout } from '@/lib/serp-bar-layout';
@@ -527,7 +528,14 @@ export default defineContentScript({
     // 实时同步栏位偏好：用户在设置页切换 serpBarPosition 时，已打开的 SERP 标签
     // 无需刷新即可生效。与 theme/style 不同——栏位切换的"无反应"体验比换色更突兀。
     const onPrefMessage = (message: unknown) => {
-      if (!isUiPrefChangedMessage(message) || message.key !== 'serpBarPosition') return;
+      if (!isUiPrefChangedMessage(message)) return;
+      // 实时同步 UI 语言偏好：用户在设置页切换语言时，已打开的 SERP 标签无需刷新即生效。
+      if (message.key === 'localePref') {
+        setLocale(message.value);
+        if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
+        return;
+      }
+      if (message.key !== 'serpBarPosition') return;
       state.barPositionPref = message.value;
       const next = resolveBarPosition(message.value, window.innerWidth);
       if (next === state.resolvedPosition) return;
@@ -571,12 +579,17 @@ interface BarState {
 }
 
 async function loadBarState(engine: SearchEngine, url: string): Promise<BarState> {
-  const [config, themePref, stylePref, barPositionPref] = await Promise.all([
+  const [config, themePref, stylePref, barPositionPref, localePref] = await Promise.all([
     sendMessage('getProviderConfig', undefined),
     getThemePref(),
     getStylePref(),
     getBarPositionPref(),
+    getLocalePref(),
   ]);
+  // 把存储中的 UI 语言偏好应用到 i18n 模块。content script 默认惰性播种自
+  // browser.i18n.getUILanguage()（浏览器语言），若不显式应用扩展设置，会出现
+  // 浏览器为英语、扩展设为中文时快切栏仍显示英语。在首次 render 前应用以避免闪烁。
+  applyLocalePref(localePref);
   const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? [], config.customEngines ?? [], config.providerInstances ?? []);
   const rawQuery = readQuery(engine, url);
   const context = resolveSerpContext(
