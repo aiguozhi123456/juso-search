@@ -16,9 +16,10 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 | For | What it does today |
 | --- | --- |
-| People | Aggregates conventional engines and saved site-scoped searches with fast switching on the Juso page and result pages |
-| People | Turns AI search APIs into a search experience that can fast-switch with conventional engines |
-| Local AI agents | Provides one access path to configured AI search APIs |
+| People | Aggregates conventional engines, saved site-scoped searches, and custom engines with fast switching on the Juso page and result pages |
+| People | Turns AI search APIs into a search experience that can fast-switch with conventional engines (multi-instance support) |
+| People | Uses AI chat sites as search engines, auto-filling the query with optional auto-submit |
+| Local AI agents | Provides one access path to configured AI search APIs (including per-instance search) |
 | Local AI agents | Searches conventional engines through a real browser |
 
 ## Screenshots and Demo
@@ -56,7 +57,7 @@ Successful AI searches are cached on the current device and appear in local sear
 
 ## Quick Start
 
-Juso v1.4.0 is available on GitHub Release (Chrome Web Store currently shows v1.3.0; v1.4.0 pending review).
+Juso v1.4.0 is available on GitHub Release and the Chrome Web Store.
 
 ### Install the extension
 
