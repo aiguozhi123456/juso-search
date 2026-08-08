@@ -234,8 +234,8 @@ p { color: var(--fg); }
 }
 .hero__inner { position: relative; z-index: 1; display: grid; gap: clamp(32px, 5vw, 56px); }
 @media (min-width: 940px) {
-  .hero__inner { grid-template-columns: 1.08fr .92fr; align-items: center; }
-  .hero__visual { max-width: 520px; justify-self: end; }
+  .hero__inner { grid-template-columns: 1fr 1fr; align-items: center; }
+  .hero__visual { max-width: 560px; justify-self: end; }
 }
 .hero__copy { max-width: 760px; }
 .hero__eyebrow { margin-bottom: clamp(22px, 3vw, 32px); }
@@ -376,7 +376,7 @@ p { color: var(--fg); }
 
 /* ---------- 展示区 ---------- */
 .showcase { display: grid; gap: clamp(24px, 3vw, 36px); }
-.showcase__pair { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(16px, 2vw, 24px); }
+.showcase__pair { display: grid; grid-template-columns: 1.85fr 1fr; gap: clamp(16px, 2vw, 24px); align-items: stretch; }
 .shot {
   border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
   background: var(--bg-soft); box-shadow: var(--shadow-2);
@@ -389,8 +389,19 @@ p { color: var(--fg); }
 .showcase__demo { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--bg-soft); box-shadow: var(--shadow-2); }
 .showcase__demo img { width: 100%; }
 
-/* ---------- 深入三连（实例 / 缓存 / 来源） ---------- */
-.deepgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 2vw, 24px); }
+/* ---------- 深入三连（实例 / 缓存 / 来源） ----------
+   2-up 大框（每张可读），第 3 张居中保持等大 —— 避免 3-up 过小。 */
+.deepgrid {
+  --dg-gap: clamp(20px, 2.4vw, 28px);
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--dg-gap);
+}
+@media (min-width: 901px) {
+  .deepgrid > .shot:nth-child(3) {
+    grid-column: 1 / -1;
+    max-width: calc((100% - var(--dg-gap)) / 2);
+    justify-self: center;
+  }
+}
 
 /* ---------- 双面桥（Agent Bridge 揭示另一面） ---------- */
 .bridge { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(24px, 3vw, 40px); align-items: center; }

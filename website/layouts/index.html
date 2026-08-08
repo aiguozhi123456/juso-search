@@ -92,17 +92,20 @@
           <div class="windowbar" aria-hidden="true">
             <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
           </div>
-          <img src="{{ "img/screenshot-serp.png" | relURL }}" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="750">
+          <img src="{{ "img/screenshot-serp.png" | relURL }}" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="641">
           <div class="shot__cap"><b>{{ i18n "cap_serp" }}</b></div>
         </div>
         <div class="shot">
+          <div class="windowbar" aria-hidden="true">
+            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+          </div>
           {{ $arch := "img/architecture.svg" }}{{ if $isEn }}{{ $arch = "img/architecture-en.svg" }}{{ end }}
-          <img src="{{ $arch | relURL }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy">
+          <img src="{{ $arch | relURL }}" alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}" loading="lazy" width="1040" height="1030">
           <div class="shot__cap"><b>{{ if $isEn }}Two-sided architecture{{ else }}双面架构{{ end }}</b></div>
         </div>
       </div>
       <div class="showcase__demo reveal">
-        <img src="{{ "img/demo.gif" | relURL }}" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="1200" height="750">
+        <img src="{{ "img/demo.gif" | relURL }}" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="960" height="519">
         <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span style="color:var(--faint);font-size:.78rem;">{{ i18n "showcase_lazy_note" }}</span></div>
       </div>
     </div>
