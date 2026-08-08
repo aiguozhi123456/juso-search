@@ -177,27 +177,38 @@ p { color: var(--fg); }
 .brandlock__sep { color: var(--faint); font-weight: 400; font-size: .85rem; }
 .brandlock__en { font-size: .95rem; color: var(--fg); letter-spacing: .12em; font-weight: 600; }
 
-/* 双面切换器 —— 呼应扩展快切栏 pill */
+/* 双面切换器 —— 扁平内联文本，呼应页头 langswitch 风格；无胶囊容器，避免在顶端突兀。
+   激活面以品牌色文字 + 实心点指示当前状态，hover 给极淡底色作悬停反馈。 */
 .faceswitch {
-  display: inline-flex; align-items: stretch;
-  background: var(--bg-sunk); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px; gap: 2px;
+  display: inline-flex; align-items: center;
+  gap: 4px;
   margin-inline: auto;
+  font-size: .92rem;
 }
 .faceswitch a {
+  position: relative;
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 18px; border-radius: 999px;
-  font-size: .9rem; font-weight: 600; color: var(--muted);
-  transition: color var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+  padding: 7px 12px; border-radius: 8px;
+  font-weight: 600; color: var(--muted);
+  transition: color var(--dur) var(--ease-out), background var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out);
   white-space: nowrap;
 }
-.faceswitch a:hover { color: var(--fg); }
-.faceswitch a[aria-current="page"] {
-  background: var(--brand); color: var(--brand-on);
-  box-shadow: var(--shadow-1);
+.faceswitch a:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
 }
-.faceswitch a .sw-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .6; }
-.faceswitch a[aria-current="page"] .sw-dot { opacity: .9; }
+.faceswitch a:active { transform: scale(.97); }
+.faceswitch a[aria-current="page"] {
+  color: var(--brand);
+  font-weight: 700;
+}
+.faceswitch a .sw-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; opacity: 0;
+  transition: opacity var(--dur) var(--ease-out), background var(--dur) var(--ease-out);
+}
+.faceswitch a:hover .sw-dot { opacity: .35; }
+.faceswitch a[aria-current="page"] .sw-dot { background: var(--brand); opacity: 1; }
 
 .head-right { display: inline-flex; align-items: center; gap: 14px; margin-left: auto; flex: 0 0 auto; }
 .langswitch { display: inline-flex; align-items: center; gap: 2px; font-size: .85rem; font-weight: 600; }
@@ -575,7 +586,6 @@ html.js .reveal.in { opacity: 1; transform: none; }
 @media (max-width: 900px) {
   .site-head__inner { flex-wrap: wrap; gap: 10px 14px; }
   .faceswitch { order: 3; margin-inline: 0; width: 100%; justify-content: center; }
-  .faceswitch a { flex: 1; justify-content: center; }
   .matrix { grid-template-columns: 1fr; }
   .matrix__spine { height: 1px; width: 100%; background: linear-gradient(90deg, transparent, var(--brand), transparent); opacity: .4; }
   .trust { grid-template-columns: 1fr; }
