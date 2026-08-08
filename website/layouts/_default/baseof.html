@@ -35,7 +35,7 @@
   {{ $css := resources.Get "css/style.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}">
 </head>
-<body>
+<body class="{{ if .IsHome }}face-human{{ else }}face-agents{{ end }}">
   <a href="#main" class="skip-link">{{ i18n "skip_to_content" }}</a>
   {{ partial "header.html" . }}
   <main id="main">

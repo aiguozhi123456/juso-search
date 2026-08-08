@@ -234,8 +234,15 @@ p { color: var(--fg); }
 }
 .hero__inner { position: relative; z-index: 1; display: grid; gap: clamp(32px, 5vw, 56px); }
 @media (min-width: 940px) {
+  .hero__inner { grid-template-columns: 1.08fr .92fr; align-items: center; }
+  .hero__visual { max-width: 520px; justify-self: end; }
+}
+/* —— 仅人类首页：放大的轮播英雄（智能体页保持上面的原始比例）—— */
+.face-human .hero__visual { padding: 12px; }
+@media (min-width: 940px) {
   /* 英雄区比正文宽一档（1240 vs 1160），视觉列占多数 —— 让轮播成为页面主角。 */
-  .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; align-items: center; }
+  .face-human .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
+  .face-human .hero__visual { max-width: none; justify-self: stretch; }
 }
 .hero__copy { max-width: 760px; }
 .hero__eyebrow { margin-bottom: clamp(22px, 3vw, 32px); }
@@ -271,7 +278,7 @@ p { color: var(--fg); }
 .crop-frame .crop-br { bottom: 0; right: 0; border-bottom: 2px solid var(--brand); border-right: 2px solid var(--brand); }
 
 /* hero 视觉卡（来源预览 / 截图） */
-.hero__visual { position: relative; padding: 12px; }
+.hero__visual { position: relative; padding: 16px; }
 .hero__card {
   position: relative; border: 1px solid var(--border); border-radius: 16px;
   background: var(--bg-soft); box-shadow: var(--shadow-3); overflow: hidden;
