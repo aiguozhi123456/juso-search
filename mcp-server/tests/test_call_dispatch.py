@@ -124,3 +124,24 @@ def test_bridge_error_kinds_surface(server, kind):
         result = _call(server, "search", {"query": "q", "provider": "tavily"})
     assert result.is_error is True
     assert kind in result.content[0].text
+
+
+def test_unexpected_exception_becomes_is_error_result(server):
+    """Non-BridgeError exceptions are wrapped as isError results, not propagated."""
+    with _patch_run_bridge() as run_bridge:
+        run_bridge.side_effect = OSError("boom")
+        result = _call(server, "list-providers", {})
+    assert result.is_error is True
+    assert "internal_error" in result.content[0].text
+    assert result.structured_content == {"error": {"kind": "internal_error", "message": "boom"}}
+
+
+def test_cancel_event_passed_to_run_bridge(server):
+    """The cancellation middleware wires a cancel_event into run_bridge."""
+    with _patch_run_bridge() as run_bridge:
+        run_bridge.return_value = {"providers": []}
+        _call(server, "list-providers", {})
+    kwargs = run_bridge.call_args.kwargs
+    assert "cancel_event" in kwargs
+    assert kwargs["cancel_event"] is not None
+    assert hasattr(kwargs["cancel_event"], "set")  # threading.Event-like

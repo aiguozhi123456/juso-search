@@ -16,15 +16,18 @@ claim/complete → validated reply). No long-lived service, no API-key handling.
 from __future__ import annotations
 
 import re
+import threading
 from enum import Enum
 from typing import Annotated
 
 from mcp.server import MCPServer
+from mcp.server.mcpserver.context import Context
 from mcp_types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from . import juso_bridge
+from . import __version__, juso_bridge
 from .bridge_call import call_bridge
+from .cancel_registry import CancelBridgeMiddleware, cancel_event_for
 from .config import Config
 
 # Tool annotations: every tool is a read-only observer of the world (searching
@@ -52,9 +55,25 @@ def _value(member: Enum | None) -> str | None:
     return member.value if member is not None else None
 
 
+def _cancel_event(ctx: Context) -> threading.Event:
+    """Cooperative cancel event for this call's request id.
+
+    The SDK's high-level ``Context`` carries a request id only inside a live
+    dispatch (where ``CancelBridgeMiddleware`` registered the matching event);
+    a direct ``MCPServer.call_tool`` — tests, embedded servers — has no request
+    context, so fall back to a never-set event (such calls cannot be cancelled).
+    """
+    try:
+        request_id = ctx.request_id
+    except ValueError:
+        request_id = None
+    return cancel_event_for(request_id)
+
+
 def build_server(config: Config) -> MCPServer:
     """Create the fully-registered MCP server for ``config``."""
-    server = MCPServer("Juso Search", version="0.1.0")
+    server = MCPServer("Juso Search", version=__version__)
+    server.middleware.append(CancelBridgeMiddleware())
 
     @server.tool(
         name="search",
@@ -66,6 +85,7 @@ def build_server(config: Config) -> MCPServer:
         annotations=_TOOL_ANNOTATIONS,
     )
     def search(
+        ctx: Context,
         query: str,
         provider: ProviderId,
         force_refresh: bool = False,
@@ -76,6 +96,7 @@ def build_server(config: Config) -> MCPServer:
             query=query,
             provider_id=_value(provider),
             force_refresh=force_refresh,
+            cancel_event=_cancel_event(ctx),
         )
 
     @server.tool(
@@ -90,6 +111,7 @@ def build_server(config: Config) -> MCPServer:
         annotations=_TOOL_ANNOTATIONS,
     )
     def engine_search(
+        ctx: Context,
         query: str,
         engine: EngineId,
         max_results: Annotated[int | None, Field(ge=1, le=20)] = None,
@@ -100,6 +122,7 @@ def build_server(config: Config) -> MCPServer:
             query=query,
             engine_id=_value(engine),
             max_results=max_results,
+            cancel_event=_cancel_event(ctx),
         )
 
     @server.tool(
@@ -112,6 +135,7 @@ def build_server(config: Config) -> MCPServer:
         annotations=_TOOL_ANNOTATIONS,
     )
     def search_instance(
+        ctx: Context,
         query: str,
         instance: Annotated[str, Field(pattern=_INSTANCE_ID_PATTERN)],
         force_refresh: bool = False,
@@ -122,6 +146,7 @@ def build_server(config: Config) -> MCPServer:
             query=query,
             instance_id=instance,
             force_refresh=force_refresh,
+            cancel_event=_cancel_event(ctx),
         )
 
     @server.tool(
@@ -132,8 +157,8 @@ def build_server(config: Config) -> MCPServer:
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
-    def list_providers() -> CallToolResult:
-        return call_bridge("list-providers", config)
+    def list_providers(ctx: Context) -> CallToolResult:
+        return call_bridge("list-providers", config, cancel_event=_cancel_event(ctx))
 
     @server.tool(
         name="list-instances",
@@ -144,7 +169,7 @@ def build_server(config: Config) -> MCPServer:
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
-    def list_instances() -> CallToolResult:
-        return call_bridge("list-instances", config)
+    def list_instances(ctx: Context) -> CallToolResult:
+        return call_bridge("list-instances", config, cancel_event=_cancel_event(ctx))
 
     return server

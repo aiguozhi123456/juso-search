@@ -35,7 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.parse_args(argv)
 
     config = load_config()
-    build_server(config).run()
+    try:
+        build_server(config).run()
+    except Exception as error:
+        print(f"juso-search: server error: {error}", file=sys.stderr, flush=True)
+        return 1
     return 0
 
 

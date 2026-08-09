@@ -15,10 +15,13 @@ emits go to stderr. Nothing here ever writes to stdout.
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from dataclasses import dataclass
 from typing import Mapping
+
+from . import juso_bridge
 
 # Seconds to wait for the extension to claim+complete a bridge request.
 # Matches juso_bridge.run_bridge's own default.
@@ -44,7 +47,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     Raises:
         SystemExit: with code :data:`EXIT_CONFIG_ERROR` (after writing an
             explanatory message to stderr) when ``JUSO_EXTENSION_ID`` is
-            missing/empty or ``JUSO_TIMEOUT`` is not a positive number.
+            missing/empty or not a valid extension id, or ``JUSO_TIMEOUT`` is
+            not a positive finite number.
     """
     env = os.environ if env is None else env
 
@@ -54,6 +58,12 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
             "JUSO_EXTENSION_ID is required but not set; add it to the client's "
             "mcp.json env block (find the 32-char extension id at "
             "chrome://extensions) — refusing to guess an extension id"
+        )
+    if not juso_bridge.EXTENSION_ID_RE.fullmatch(extension_id):
+        _die(
+            "JUSO_EXTENSION_ID must be 32 lowercase letters a-p (the Chrome "
+            "extension id found at chrome://extensions); "
+            f"got {extension_id!r}"
         )
 
     chrome_path = (env.get("JUSO_CHROME_PATH") or "").strip() or None
@@ -66,6 +76,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
             parsed = float(raw_timeout)
         except ValueError:
             _die(f"JUSO_TIMEOUT must be a number of seconds, got {raw_timeout!r}")
+        if not math.isfinite(parsed):
+            _die(f"JUSO_TIMEOUT must be a finite number of seconds, got {parsed!r}")
         if parsed <= 0:
             _die(f"JUSO_TIMEOUT must be positive, got {parsed!r}")
         timeout = parsed

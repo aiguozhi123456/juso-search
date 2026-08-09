@@ -72,6 +72,21 @@ def test_nonpositive_timeout_fails(capsys):
         assert "JUSO_TIMEOUT" in capsys.readouterr().err
 
 
+def test_non_finite_timeout_fails(capsys):
+    for raw in ("inf", "nan", "infinity"):
+        with pytest.raises(SystemExit) as excinfo:
+            load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_TIMEOUT": raw})
+        assert excinfo.value.code == EXIT_CONFIG_ERROR
+        assert "JUSO_TIMEOUT" in capsys.readouterr().err
+
+
+def test_invalid_extension_id_fails(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        load_config({"JUSO_EXTENSION_ID": "garbage"})
+    assert excinfo.value.code == EXIT_CONFIG_ERROR
+    assert "JUSO_EXTENSION_ID" in capsys.readouterr().err
+
+
 def test_config_passed_to_run_bridge(server, config, monkeypatch):
     """The resolved config flows into run_bridge exactly (extension_id etc.)."""
     with patch("juso_search.bridge_call.juso_bridge.run_bridge") as run_bridge:

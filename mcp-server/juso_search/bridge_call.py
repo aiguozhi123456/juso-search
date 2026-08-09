@@ -10,6 +10,9 @@ one full bridge cycle and wraps the result into an MCP ``CallToolResult``:
   readable (2026-07-28 "structured + TextContent serialization" compatibility).
 - ``juso_bridge.BridgeError`` (raised by the bridge for real failures): an
   ``is_error=True`` result whose text names ``error.kind`` and ``error.message``.
+- Any other exception (unexpected, e.g. ``OSError`` from the loopback server
+  construction): wrapped as ``BridgeError("internal_error", ...)`` so the
+  client gets a structured ``is_error`` result instead of an opaque error.
 
 Stdout discipline (2026-07-28 gotcha #1): this module never prints to stdout —
 the only place output is allowed is the SDK's JSON-RPC write path.
@@ -18,6 +21,7 @@ the only place output is allowed is the SDK's JSON-RPC write path.
 from __future__ import annotations
 
 import json
+import threading
 
 from mcp_types import CallToolResult, TextContent
 
@@ -53,6 +57,7 @@ def call_bridge(
     instance_id: str | None = None,
     force_refresh: bool = False,
     max_results: int | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> CallToolResult:
     """Run one ``run_bridge`` cycle for ``action`` and wrap its outcome."""
     try:
@@ -68,7 +73,10 @@ def call_bridge(
             chrome_path=config.chrome_path,
             profile=config.profile,
             timeout=config.timeout,
+            cancel_event=cancel_event,
         )
     except juso_bridge.BridgeError as error:
         return failure(error)
+    except Exception as error:
+        return failure(juso_bridge.BridgeError("internal_error", str(error), exit_status=1))
     return success(reply)

@@ -70,6 +70,10 @@ def test_legacy_initialize_then_tools_list():
     assert init["result"]["protocolVersion"] == "2025-11-25"
     assert init["result"]["serverInfo"]["name"] == "Juso Search"
 
+    from juso_search import __version__
+
+    assert init["result"]["serverInfo"]["version"] == __version__
+
     tools = next(m for m in responses if m["id"] == 2)
     names = [tool["name"] for tool in tools["result"]["tools"]]
     assert names == ["search", "engine-search", "search-instance", "list-providers", "list-instances"]

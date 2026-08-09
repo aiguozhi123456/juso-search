@@ -524,11 +524,12 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         max_results,
         instance_id,
     )
-    server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
-    worker = threading.Thread(target=server.serve_forever, daemon=True)
-    worker.start()
+    server: BridgeHTTPServer | None = None
     process: subprocess.Popen | None = None
     try:
+        server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
         url = f"chrome-extension://{extension_id}/bridge.html#v=1&p={server.server_port}&t={token}"
         command = [chrome, url]
         if profile:
@@ -554,8 +555,9 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
             exit_status=1,
         )
     finally:
-        server.shutdown()
-        server.server_close()
+        if server is not None:
+            server.shutdown()
+            server.server_close()
         if process is not None and process.poll() is None:
             process.terminate()
             try:
