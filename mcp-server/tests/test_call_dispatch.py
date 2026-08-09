@@ -40,7 +40,7 @@ def _assert_bridge_kwargs(run_bridge, *, action, query=None, **expected):
 def test_search_dispatch(server):
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = SEARCH_REPLY
-        result = _call(server, "search", {"query": "hello", "provider_id": "tavily", "force_refresh": True})
+        result = _call(server, "search", {"query": "hello", "provider": "tavily", "force_refresh": True})
     _assert_bridge_kwargs(
         run_bridge,
         action="search",
@@ -55,18 +55,10 @@ def test_search_dispatch(server):
     assert result.content[0].type == "text"
 
 
-def test_search_defaults(server):
-    with _patch_run_bridge() as run_bridge:
-        run_bridge.return_value = SEARCH_REPLY
-        result = _call(server, "search", {"query": "hello"})
-    _assert_bridge_kwargs(run_bridge, action="search", query="hello", provider_id=None, force_refresh=False)
-    assert result.is_error is False
-
-
 def test_engine_search_dispatch(server):
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = {"engine": "google", "query": "q", "results": []}
-        result = _call(server, "engine-search", {"query": "q", "engine_id": "google", "max_results": 10})
+        result = _call(server, "engine-search", {"query": "q", "engine": "google", "max_results": 10})
     _assert_bridge_kwargs(run_bridge, action="engine-search", query="q", engine_id="google", max_results=10)
     assert result.is_error is False
 
@@ -76,7 +68,7 @@ def test_engine_search_error_reply_is_success(server):
     reply = {"engine": "google", "query": "q", "error": "extract-failed"}
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = reply
-        result = _call(server, "engine-search", {"query": "q", "engine_id": "google"})
+        result = _call(server, "engine-search", {"query": "q", "engine": "google"})
     _assert_bridge_kwargs(run_bridge, action="engine-search", query="q", engine_id="google", max_results=None)
     assert result.is_error is False
     assert result.structured_content == reply
@@ -87,7 +79,7 @@ def test_search_instance_dispatch(server):
     instance_id = "inst:exa:9f2220a2-f6ed-4ecc-80f9-142605a5e706"
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = SEARCH_REPLY
-        result = _call(server, "search-instance", {"query": "q", "instance_id": instance_id})
+        result = _call(server, "search-instance", {"query": "q", "instance": instance_id})
     _assert_bridge_kwargs(run_bridge, action="search-instance", query="q", instance_id=instance_id, force_refresh=False)
     assert result.is_error is False
 
@@ -129,6 +121,6 @@ def test_bridge_error_kinds_surface(server, kind):
     error = juso_bridge.BridgeError(kind, f"boom {kind}", exit_status=1)
     with _patch_run_bridge() as run_bridge:
         run_bridge.side_effect = error
-        result = _call(server, "search", {"query": "q"})
+        result = _call(server, "search", {"query": "q", "provider": "tavily"})
     assert result.is_error is True
     assert kind in result.content[0].text

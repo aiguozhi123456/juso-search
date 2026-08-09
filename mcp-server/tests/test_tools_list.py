@@ -42,16 +42,17 @@ def test_search_schema(server):
     properties = schema["properties"]
     assert properties["query"]["type"] == "string"
     assert "query" in schema["required"]
+    assert "provider" in schema["required"]
     # provider enum derived from juso_bridge.PROVIDERS (never duplicated)
     assert schema["$defs"]["ProviderId"]["enum"] == list(juso_bridge.PROVIDERS)
-    assert properties["provider_id"]["anyOf"][0]["$ref"] == "#/$defs/ProviderId"
+    assert properties["provider"]["$ref"] == "#/$defs/ProviderId"
     assert properties["force_refresh"]["type"] == "boolean"
 
 
 def test_engine_search_schema(server):
     schema = _by_name(server, "engine-search").input_schema
     assert "query" in schema["required"]
-    assert "engine_id" in schema["required"]
+    assert "engine" in schema["required"]
     assert schema["$defs"]["EngineId"]["enum"] == list(juso_bridge.ENGINES)
     max_results = schema["properties"]["max_results"]
     integer_branch = next(branch for branch in max_results["anyOf"] if branch.get("type") == "integer")
@@ -62,8 +63,8 @@ def test_engine_search_schema(server):
 def test_search_instance_schema(server):
     schema = _by_name(server, "search-instance").input_schema
     assert "query" in schema["required"]
-    assert "instance_id" in schema["required"]
-    pattern = schema["properties"]["instance_id"]["pattern"]
+    assert "instance" in schema["required"]
+    pattern = schema["properties"]["instance"]["pattern"]
     # inst:<providerId>:<token> — provider part constrained to the bridge's vocabulary;
     # token part mirrors the extension's INSTANCE_ID_TOKEN (see the shape test below).
     assert pattern.startswith("^inst:(?:")
@@ -73,12 +74,12 @@ def test_search_instance_schema(server):
 
 
 def test_search_instance_accepts_extension_token_shape(server):
-    """instance_id pattern mirrors the extension's INSTANCE_ID_TOKEN
+    """instance pattern mirrors the extension's INSTANCE_ID_TOKEN
     (lib/provider-instances.ts), not a hard-pinned UUID — so persisted, migrated,
     or non-UUID ids the worker may emit keep working through MCP just like the CLI."""
     import re
 
-    pattern = _by_name(server, "search-instance").input_schema["properties"]["instance_id"]["pattern"]
+    pattern = _by_name(server, "search-instance").input_schema["properties"]["instance"]["pattern"]
     regex = re.compile(pattern)
 
     valid = [

@@ -67,14 +67,14 @@ def build_server(config: Config) -> MCPServer:
     )
     def search(
         query: str,
-        provider_id: ProviderId | None = None,
+        provider: ProviderId,
         force_refresh: bool = False,
     ) -> CallToolResult:
         return call_bridge(
             "search",
             config,
             query=query,
-            provider_id=_value(provider_id),
+            provider_id=_value(provider),
             force_refresh=force_refresh,
         )
 
@@ -91,14 +91,14 @@ def build_server(config: Config) -> MCPServer:
     )
     def engine_search(
         query: str,
-        engine_id: EngineId,
+        engine: EngineId,
         max_results: Annotated[int | None, Field(ge=1, le=20)] = None,
     ) -> CallToolResult:
         return call_bridge(
             "engine-search",
             config,
             query=query,
-            engine_id=_value(engine_id),
+            engine_id=_value(engine),
             max_results=max_results,
         )
 
@@ -113,14 +113,14 @@ def build_server(config: Config) -> MCPServer:
     )
     def search_instance(
         query: str,
-        instance_id: Annotated[str, Field(pattern=_INSTANCE_ID_PATTERN)],
+        instance: Annotated[str, Field(pattern=_INSTANCE_ID_PATTERN)],
         force_refresh: bool = False,
     ) -> CallToolResult:
         return call_bridge(
             "search-instance",
             config,
             query=query,
-            instance_id=instance_id,
+            instance_id=instance,
             force_refresh=force_refresh,
         )
 
