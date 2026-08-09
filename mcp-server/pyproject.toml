@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "juso-search"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server (stdio) that exposes the Juso search extension's five agent-bridge actions as tools."
 readme = "README.md"
 requires-python = ">=3.10"

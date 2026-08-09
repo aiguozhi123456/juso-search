@@ -7,4 +7,4 @@ the extension's existing agent-bridge protocol — it never touches API keys or
 extension-gating state.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
