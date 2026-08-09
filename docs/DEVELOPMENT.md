@@ -19,7 +19,9 @@ npm run build    # 生产构建 → .output/chrome-mv3/
 npm run build:dev    # 开发构建（含签名 key，扩展 ID 稳定）→ .output/chrome-mv3-dev/
 npm run typecheck    # tsc --noEmit
 npm test         # vitest run（单元 + 组件测试）
-npm run test:python  # Python 技能测试
+npm run test:python  # Python 技能测试（juso_bridge 单源 + skill CLI）
+npm run test:mcp     # MCP server 测试（pytest）
+npm run gen-skills   # 重新生成 skill 发布目录 + MCP vendor 副本
 npm run lint     # eslint .
 ```
 
@@ -45,6 +47,7 @@ npm run lint     # eslint .
 - `lib/engines/`、`lib/ai-engines/`、`lib/site-engines.ts`、`lib/custom-engines.ts`：传统搜索引擎、AI 对话引擎（Grok/ChatGPT/DeepSeek/豆包/Gemini，注入或 URL 预填）、站外搜索（`site:`）、自定义引擎（`%s` URL 模板）。
 - SERP Switch Bar 与 `lib/engine-search.ts`：结果页切换栏注入、普通结果提取；其执行契约不同于 API 服务。
 - `lib/storage.ts`、`lib/config-io.ts`、`lib/schema.ts`：本地配置、来源偏好、缓存、配置导入导出与 schema 迁移。
+- `mcp-server/`：独立 pip 包 `juso-search`，把 Agent Bridge 的 5 个 action 暴露为 MCP 工具（stdio），供 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）调用；与 CLI skill 共享 `juso_bridge` 单源模块（drift 锁守卫）。
 
 ## 技术栈
 
@@ -57,6 +60,8 @@ API key 为 BYOK，仅存 `chrome.storage.local`，仅由 background worker 读�
 ## 测试
 
 Vitest + jsdom。适配器 mock `fetch`（REST）/ MCP 端点（stepfun-plan），storage 用内存版 `browser.storage.local`。组件测试 mock `@/lib/messaging` 与 `@/lib/storage`。
+
+Python 测试（`npm run test:python`）覆盖 skill CLI 与 `juso_bridge` 单源模块；MCP server 测试（`npm run test:mcp`，pytest）覆盖配置解析/退出码、工具 schema 与 wire 字段、dual-era 握手（真实子进程）与 stdout 纯净性。
 
 ## 更多参考
 

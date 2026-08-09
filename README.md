@@ -2,6 +2,7 @@
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![PyPI](https://img.shields.io/pypi/v/juso-search?label=PyPI)](https://pypi.org/project/juso-search/)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/illmhdnglkjfcenboepdgopaeejdgoji?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)
 [![Website](https://img.shields.io/badge/Website-双面搜-c8372d)](https://aiguozhi123456.github.io/juso-search/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
@@ -104,8 +105,12 @@ Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
 1. 按上面的步骤在 **装有 Juso 的 Chromium 系浏览器**（Chrome / Edge / Chromium 等）中安装并启用扩展。使用 `engine-search` 检索传统搜索引擎无需配置 AI 搜索服务；只有通过 `search --provider` 调用 AI 搜索 API 时，才需要先配置对应服务。
 2. 打开扩展 Options → 通用 → Agent Bridge，开启 Agent Bridge 总开关（默认关闭，需显式开启）。若要用 `engine-search` 检索传统搜索引擎，再单独开启其子开关。
-3. 在同一页面点「下载配套 Agent Skill」，得到自动按本机扩展 ID 盖章的技能包，解压后拷到 `.agents/skills/` 即可。
-4. 从技能目录运行命令，例如：
+
+智能体接入有 **CLI Skill** 与 **MCP Server** 两种方式，二选一即可。两者走同一个 Agent Bridge、同样的 5 个 action，密钥同样不离开扩展。
+
+#### 方式一：Agent Skill（CLI）
+
+在扩展 Options 同一页面点「下载配套 Agent Skill」，得到自动按本机扩展 ID 盖章的技能包，解压后拷到 `.agents/skills/` 即可。从技能目录运行：
 
 ```bash
 python scripts/juso_search.py list-providers
@@ -116,9 +121,28 @@ python scripts/juso_search.py list-instances
 python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
 ```
 
-完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索、按实例搜索支持实例的服务，或通过浏览器检索受支持的传统搜索引擎（Google、Bing、Baidu、Yandex、DuckDuckGo、哔哩哔哩、小红书、抖音），而不会取得已存储的密钥。浏览器路径、profile、扩展 ID、超时等边缘配置见技能包内的参考文档。
+浏览器路径、profile、扩展 ID、超时等边缘配置见技能包内的参考文档。
 
-步骤 3 的配套 Agent Skill 与 MCP server **二选一**即可。如果你用 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code），可改用 MCP server：`pip install juso-search`，按客户端把 `juso-search` 加进 `mcp.json`（`env` 里设 `JUSO_EXTENSION_ID`），并在扩展 Options 开启 Agent Bridge。完整步骤见 [`mcp-server/README.md`](mcp-server/README.md)。
+#### 方式二：MCP Server
+
+适合 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）。`pip install juso-search` 后，把 `juso-search` 加进客户端的 `mcp.json`，`env` 里设 `JUSO_EXTENSION_ID`（扩展 ID 见 `chrome://extensions`）：
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "env": { "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    }
+  }
+}
+```
+
+各客户端的差异与全部环境变量（`JUSO_CHROME_PATH`、`JUSO_CHROME_PROFILE`、`JUSO_TIMEOUT`）见 [`mcp-server/README.md`](mcp-server/README.md)。
+
+---
+
+无论哪种方式，本地智能体都可列出已配置的服务、以**显式**服务参数进行 API 搜索、按实例搜索支持实例的服务，或通过浏览器检索受支持的传统搜索引擎（Google、Bing、Baidu、Yandex、DuckDuckGo、哔哩哔哩、小红书、抖音），而不会取得已存储的密钥。
 
 ## 安全与数据边界
 

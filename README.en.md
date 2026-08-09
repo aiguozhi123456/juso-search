@@ -2,6 +2,7 @@
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/aiguozhi123456/juso-search?label=Release)](https://github.com/aiguozhi123456/juso-search/releases/latest)
+[![PyPI](https://img.shields.io/pypi/v/juso-search?label=PyPI)](https://pypi.org/project/juso-search/)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/illmhdnglkjfcenboepdgopaeejdgoji?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/%E5%8F%8C%E9%9D%A2%E6%90%9C/illmhdnglkjfcenboepdgopaeejdgoji)
 [![Website](https://img.shields.io/badge/Website-Juso-c8372d)](https://aiguozhi123456.github.io/juso-search/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/develop/migrate)
@@ -102,10 +103,14 @@ You can now search and switch among conventional engines, Site Engines, Custom E
 
 ### Local AI Agents
 
-1. Install and enable the extension in the **Chromium-family browser that will run Agent calls** (Chrome, Edge, Chromium, etc.). `engine-search` needs no AI search service configuration; configure the corresponding service only when calling an AI search API through `search --provider`.
-2. Open Options → General → Agent Bridge and turn on the Agent Bridge master switch (off by default; must be enabled explicitly). To use `engine-search` for conventional engines, also enable its sub-switch.
-3. On the same page, click **Download companion Agent Skill** — the skill is auto-stamped with this machine's extension ID; unzip it into `.agents/skills/`.
-4. Run commands from the skill directory, for example:
+1. Install and enable the extension in a **Chromium-family browser with Juso** (Chrome / Edge / Chromium, etc.) following the steps above. Using `engine-search` to retrieve conventional search engines requires no AI search service; only calling an AI search API via `search --provider` requires configuring that service first.
+2. Open the extension Options → General → Agent Bridge and enable the Agent Bridge master switch (off by default, must be explicitly enabled). To use `engine-search` for conventional engines, also enable its sub-switch.
+
+There are **two ways** for an agent to connect — **CLI Skill** or **MCP Server** — choose one. Both use the same Agent Bridge and the same 5 actions, and credentials never leave the extension.
+
+#### Option 1: Agent Skill (CLI)
+
+On the same Options page, click "Download companion Agent Skill" to get a skill package stamped with your local extension ID. Unzip it and copy to `.agents/skills/`. Run from the skill directory:
 
 ```bash
 python scripts/juso_search.py list-providers
@@ -116,9 +121,28 @@ python scripts/juso_search.py list-instances
 python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
 ```
 
-The local agent can now list configured services, perform API searches with an **explicit** provider, search instance-supporting services per instance, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials. Edge-case settings such as browser path, profile, extension ID, and timeout are documented in the skill's reference files.
+Edge-case settings such as browser path, profile, extension ID, and timeout are documented in the skill's reference files.
 
-The companion Agent Skill from step 3 and the MCP server are **alternatives — use one or the other**. If you use an MCP-native client (Claude Desktop, Cursor, Cline, Claude Code), use the MCP server instead: `pip install juso-search`, register `juso-search` in that client's `mcp.json` (set `JUSO_EXTENSION_ID` in `env`), and enable Agent Bridge in the extension's Options. Full steps are in [`mcp-server/README.md`](mcp-server/README.md).
+#### Option 2: MCP Server
+
+For MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code). After `pip install juso-search`, register `juso-search` in the client's `mcp.json` with `JUSO_EXTENSION_ID` in `env` (find the extension ID at `chrome://extensions`):
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "env": { "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    }
+  }
+}
+```
+
+Per-client differences and all environment variables (`JUSO_CHROME_PATH`, `JUSO_CHROME_PROFILE`, `JUSO_TIMEOUT`) are in [`mcp-server/README.md`](mcp-server/README.md).
+
+---
+
+Either way, the local agent can list configured services, perform API searches with an **explicit** provider, search instance-supporting services per instance, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials.
 
 ## Security and Data Boundaries
 

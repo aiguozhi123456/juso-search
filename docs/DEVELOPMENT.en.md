@@ -19,7 +19,9 @@ npm run build    # Production build → .output/chrome-mv3/
 npm run build:dev    # Development build (with signing key, stable extension ID) → .output/chrome-mv3-dev/
 npm run typecheck    # tsc --noEmit
 npm test         # vitest run (unit + component tests)
-npm run test:python  # Python skill tests
+npm run test:python  # Python skill tests (juso_bridge single source + skill CLI)
+npm run test:mcp     # MCP server tests (pytest)
+npm run gen-skills   # Regenerate published skill dirs + MCP vendor copy
 npm run lint     # eslint .
 ```
 
@@ -45,6 +47,7 @@ The development build (`build:dev`) uses a built-in public key to keep the exten
 - `lib/engines/`, `lib/ai-engines/`, `lib/site-engines.ts`, `lib/custom-engines.ts`: conventional search engines, AI chat engines (Grok/ChatGPT/DeepSeek/Doubao/Gemini, via injection or URL prefill), Site Engines (`site:`), and Custom Engines (`%s` URL templates).
 - SERP Switch Bar and `lib/engine-search.ts`: result-page switch-bar injection and ordinary-result extraction, on an execution path distinct from API services.
 - `lib/storage.ts`, `lib/config-io.ts`, `lib/schema.ts`: local configuration, source preferences, cache, config import/export, and schema migrations.
+- `mcp-server/`: standalone pip package `juso-search` that exposes the Agent Bridge's 5 actions as MCP tools (stdio) for MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code); shares the `juso_bridge` single-source module with the CLI skill (drift-locked).
 
 ## Tech Stack
 
@@ -57,6 +60,8 @@ API keys are BYOK, stored only in `chrome.storage.local`, read only by the backg
 ## Testing
 
 Vitest + jsdom. Adapters mock `fetch` (REST) / MCP endpoints (stepfun-plan), storage uses in-memory `browser.storage.local`. Component tests mock `@/lib/messaging` and `@/lib/storage`.
+
+Python tests (`npm run test:python`) cover the skill CLI and the `juso_bridge` single-source module; MCP server tests (`npm run test:mcp`, pytest) cover config parsing/exit codes, tool schema and wire fields, the dual-era handshake (real subprocesses), and stdout cleanliness.
 
 ## Further Reference
 

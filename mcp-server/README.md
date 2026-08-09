@@ -18,8 +18,8 @@ claims and completes through its Agent Bridge.
 
 ## Install
 
-Requires Python 3.10+ and `mcp>=2.0,<3` (installed automatically as a
-dependency).
+Published on [PyPI](https://pypi.org/project/juso-search/). Requires Python
+3.10+ and `mcp>=2.0,<3` (installed automatically as a dependency).
 
 ```bash
 pip install juso-search
@@ -138,9 +138,9 @@ fallback:
 
 | Tool            | Params                                                  | Notes |
 | --------------- | ------------------------------------------------------- | ----- |
-| `search`        | `query`, `provider_id?`, `force_refresh?`               | Providers: `tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`. |
-| `engine-search` | `query`, `engine_id?`, `max_results?`                   | Engines: `google`, `bing`, `baidu`, `yandex`, `duckduckgo`, `bilibili`, `xiaohongshu`, `douyin`. |
-| `search-instance`| `query`, `instance_id`, `force_refresh?`               | Searches a configured provider instance. |
+| `search`        | `query`, `provider`, `force_refresh?`                   | Providers: `tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`. |
+| `engine-search` | `query`, `engine`, `max_results?`                       | Engines: `google`, `bing`, `baidu`, `yandex`, `duckduckgo`, `bilibili`, `xiaohongshu`, `douyin`. |
+| `search-instance`| `query`, `instance`, `force_refresh?`                 | Searches a configured provider instance. |
 | `list-providers`| —                                                       | Providers and their config state. |
 | `list-instances`| —                                                       | Registered provider instances. |
 
