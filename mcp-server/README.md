@@ -43,12 +43,15 @@ mcp-server/.venv/Scripts/juso-search --help
 | Variable             | Required | Meaning                                                          |
 | -------------------- | -------- | ---------------------------------------------------------------- |
 | `JUSO_EXTENSION_ID`  | **yes**  | The extension's 32-char id (see `chrome://extensions`).          |
-| `JUSO_CHROME_PATH`   | no       | Explicit Chromium-family executable (auto-discovered otherwise). |
+| `JUSO_CHROME_PATH`   | **yes**  | Explicit Chromium-family executable (e.g. Chrome/Chromium/Edge). The server refuses to guess — set it explicitly. |
 | `JUSO_CHROME_PROFILE`| no       | Chromium profile directory (auto-selected if unset).             |
 | `JUSO_TIMEOUT`       | no       | Seconds to wait for the extension to claim a request (default 40). |
 
-`JUSO_EXTENSION_ID` is required — the server refuses to start without it
-(exit code 2 and a stderr message) rather than guessing.
+`JUSO_EXTENSION_ID` and `JUSO_CHROME_PATH` are required — the server refuses
+to start without either (exit code 2 and a stderr message) rather than
+guessing. (Browser auto-discovery is a CLI-skill convenience only; the MCP
+server always needs an explicit executable because a wrong guess is a silent
+failure that is hard to diagnose over stdio.)
 
 ## Client configuration
 
@@ -125,7 +128,7 @@ fallback:
       "args": [],
       "env": {
         "JUSO_EXTENSION_ID": "${JUSO_EXTENSION_ID}",
-        "JUSO_CHROME_PATH": "${JUSO_CHROME_PATH:-}",
+        "JUSO_CHROME_PATH": "${JUSO_CHROME_PATH}",
         "JUSO_CHROME_PROFILE": "${JUSO_CHROME_PROFILE:-}",
         "JUSO_TIMEOUT": "${JUSO_TIMEOUT:-40}"
       }

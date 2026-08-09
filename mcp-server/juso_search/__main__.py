@@ -1,8 +1,9 @@
 """Entry point for the juso-search console script and ``python -m juso_search``.
 
 Startup order: parse trivial CLI flags (``--version``) → load environment
-config (fails fast on stderr with a non-zero exit when ``JUSO_EXTENSION_ID`` is
-missing) → build the server → ``MCPServer.run()`` (defaults to stdio). Once the
+config (fails fast on stderr with a non-zero exit when ``JUSO_EXTENSION_ID`` or
+``JUSO_CHROME_PATH`` is missing) → build the server → ``MCPServer.run()``
+(defaults to stdio). Once the
 server is running, stdout carries only newline-delimited JSON-RPC — all
 diagnostics belong on stderr.
 """

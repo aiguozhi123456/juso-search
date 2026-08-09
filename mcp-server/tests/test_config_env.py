@@ -10,6 +10,7 @@ import pytest
 from juso_search.config import DEFAULT_TIMEOUT, EXIT_CONFIG_ERROR, load_config
 
 EXTENSION_ID = "a" * 32
+CHROME_PATH = r"C:\Chrome\Application\chrome.exe"
 
 
 def test_missing_extension_id_fails(capsys):
@@ -29,9 +30,9 @@ def test_blank_extension_id_fails(capsys):
 
 
 def test_defaults():
-    config = load_config({"JUSO_EXTENSION_ID": EXTENSION_ID})
+    config = load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": CHROME_PATH})
     assert config.extension_id == EXTENSION_ID
-    assert config.chrome_path is None
+    assert config.chrome_path == CHROME_PATH
     assert config.profile is None
     assert config.timeout == DEFAULT_TIMEOUT
 
@@ -51,15 +52,32 @@ def test_env_parsing_and_passthrough():
     assert config.timeout == 15.5
 
 
-def test_blank_optionals_become_none():
-    config = load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": "", "JUSO_CHROME_PROFILE": "  "})
-    assert config.chrome_path is None
+def test_missing_chrome_path_fails(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        load_config({"JUSO_EXTENSION_ID": EXTENSION_ID})
+    assert excinfo.value.code == EXIT_CONFIG_ERROR
+    captured = capsys.readouterr()
+    assert "JUSO_CHROME_PATH" in captured.err
+    assert captured.out == ""  # nothing on stdout
+
+
+def test_blank_chrome_path_fails(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": "  "})
+    assert excinfo.value.code == EXIT_CONFIG_ERROR
+    assert "JUSO_CHROME_PATH" in capsys.readouterr().err
+
+
+def test_blank_profile_becomes_none():
+    config = load_config(
+        {"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": CHROME_PATH, "JUSO_CHROME_PROFILE": "  "}
+    )
     assert config.profile is None
 
 
 def test_invalid_timeout_fails(capsys):
     with pytest.raises(SystemExit) as excinfo:
-        load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_TIMEOUT": "abc"})
+        load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": CHROME_PATH, "JUSO_TIMEOUT": "abc"})
     assert excinfo.value.code == EXIT_CONFIG_ERROR
     assert "JUSO_TIMEOUT" in capsys.readouterr().err
 
@@ -67,7 +85,7 @@ def test_invalid_timeout_fails(capsys):
 def test_nonpositive_timeout_fails(capsys):
     for raw in ("0", "-5"):
         with pytest.raises(SystemExit) as excinfo:
-            load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_TIMEOUT": raw})
+            load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": CHROME_PATH, "JUSO_TIMEOUT": raw})
         assert excinfo.value.code == EXIT_CONFIG_ERROR
         assert "JUSO_TIMEOUT" in capsys.readouterr().err
 
@@ -75,7 +93,7 @@ def test_nonpositive_timeout_fails(capsys):
 def test_non_finite_timeout_fails(capsys):
     for raw in ("inf", "nan", "infinity"):
         with pytest.raises(SystemExit) as excinfo:
-            load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_TIMEOUT": raw})
+            load_config({"JUSO_EXTENSION_ID": EXTENSION_ID, "JUSO_CHROME_PATH": CHROME_PATH, "JUSO_TIMEOUT": raw})
         assert excinfo.value.code == EXIT_CONFIG_ERROR
         assert "JUSO_TIMEOUT" in capsys.readouterr().err
 
@@ -94,7 +112,7 @@ def test_config_passed_to_run_bridge(server, config, monkeypatch):
         asyncio.run(server.call_tool("search", {"query": "q", "provider": "tavily"}))
     kwargs = run_bridge.call_args.kwargs
     assert kwargs["extension_id"] == EXTENSION_ID
-    assert kwargs["chrome_path"] is None
+    assert kwargs["chrome_path"] == config.chrome_path
     assert kwargs["profile"] is None
     assert kwargs["timeout"] == DEFAULT_TIMEOUT
 

@@ -32,7 +32,7 @@ NO_SUCH_CHROME = r"C:\juso-search-test-no-such-chrome.exe"
 
 @pytest.fixture
 def config() -> Config:
-    return Config(extension_id=EXTENSION_ID)
+    return Config(extension_id=EXTENSION_ID, chrome_path=NO_SUCH_CHROME)
 
 
 @pytest.fixture

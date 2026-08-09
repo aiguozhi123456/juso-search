@@ -1,13 +1,16 @@
 """Environment configuration for juso-search.
 
 All configuration arrives through the MCP client's ``mcp.json`` ``env`` block:
-``JUSO_EXTENSION_ID`` (required), ``JUSO_CHROME_PATH``, ``JUSO_CHROME_PROFILE``
-and ``JUSO_TIMEOUT`` (optional). The MCP path intentionally has no CLI flags —
-config is env-only by design.
+``JUSO_EXTENSION_ID`` and ``JUSO_CHROME_PATH`` (both required),
+``JUSO_CHROME_PROFILE`` and ``JUSO_TIMEOUT`` (optional). The MCP path
+intentionally has no CLI flags — config is env-only by design.
 
-``JUSO_EXTENSION_ID`` is required at startup: a missing value fails fast with a
-message on **stderr** and a non-zero exit code. The server never guesses an
-extension id, so a wrong or unset id can never be silently used.
+``JUSO_EXTENSION_ID`` and ``JUSO_CHROME_PATH`` are required at startup: a
+missing value for either fails fast with a message on **stderr** and a non-zero
+exit code. The server never guesses an extension id or a browser executable, so
+a wrong or unset value can never be silently used. (Browser auto-discovery lives
+in ``juso_bridge.find_chrome`` and is reserved for the CLI skill, where a human
+is in the loop to read the ``chrome_not_found`` error.)
 
 Stdout discipline (2026-07-28 gotcha #1): the only diagnostics this module
 emits go to stderr. Nothing here ever writes to stdout.
@@ -36,7 +39,7 @@ class Config:
     """Resolved server configuration."""
 
     extension_id: str
-    chrome_path: str | None = None
+    chrome_path: str
     profile: str | None = None
     timeout: float = DEFAULT_TIMEOUT
 
@@ -47,8 +50,8 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     Raises:
         SystemExit: with code :data:`EXIT_CONFIG_ERROR` (after writing an
             explanatory message to stderr) when ``JUSO_EXTENSION_ID`` is
-            missing/empty or not a valid extension id, or ``JUSO_TIMEOUT`` is
-            not a positive finite number.
+            missing/empty or not a valid extension id, ``JUSO_CHROME_PATH`` is
+            missing/empty, or ``JUSO_TIMEOUT`` is not a positive finite number.
     """
     env = os.environ if env is None else env
 
@@ -66,7 +69,15 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
             f"got {extension_id!r}"
         )
 
-    chrome_path = (env.get("JUSO_CHROME_PATH") or "").strip() or None
+    chrome_path = (env.get("JUSO_CHROME_PATH") or "").strip()
+    if not chrome_path:
+        _die(
+            "JUSO_CHROME_PATH is required but not set; add it to the client's "
+            "mcp.json env block (the Chromium-family executable, e.g. "
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe on Windows "
+            "or /usr/bin/google-chrome on Linux) — refusing to guess a browser "
+            "(auto-discovery is a CLI-skill convenience, not an MCP one)"
+        )
     profile = (env.get("JUSO_CHROME_PROFILE") or "").strip() or None
 
     timeout = DEFAULT_TIMEOUT
