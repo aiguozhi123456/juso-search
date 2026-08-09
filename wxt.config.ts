@@ -21,7 +21,7 @@ export default defineConfig({
     default_locale: 'zh_CN',
     name: '__MSG_ext_name__',
     description: '__MSG_ext_description__',
-    version: '1.4.0',
+    // version 由 WXT 自动从 package.json 读取（单一源），勿在此硬编码。
     action: {
       default_title: '__MSG_ext_name__',
       default_icon: {
