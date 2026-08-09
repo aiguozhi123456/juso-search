@@ -8,6 +8,7 @@ export default tseslint.config(
       '.output/**',
       '.wxt/**',
       'dist/**',
+      '**/.venv/**',
       '**/*.config.{js,mjs,cjs,ts}',
     ],
   },

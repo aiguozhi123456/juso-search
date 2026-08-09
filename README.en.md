@@ -118,6 +118,8 @@ python scripts/juso_search.py search-instance "latest AI research" --instance-id
 
 The local agent can now list configured services, perform API searches with an **explicit** provider, search instance-supporting services per instance, or search any supported conventional engine (Google, Bing, Baidu, Yandex, DuckDuckGo, Bilibili, Xiaohongshu, Douyin) through the browser—without receiving stored credentials. Edge-case settings such as browser path, profile, extension ID, and timeout are documented in the skill's reference files.
 
+The companion Agent Skill from step 3 and the MCP server are **alternatives — use one or the other**. If you use an MCP-native client (Claude Desktop, Cursor, Cline, Claude Code), use the MCP server instead: `pip install juso-search`, register `juso-search` in that client's `mcp.json` (set `JUSO_EXTENSION_ID` in `env`), and enable Agent Bridge in the extension's Options. Full steps are in [`mcp-server/README.md`](mcp-server/README.md).
+
 ## Security and Data Boundaries
 
 - The extension manages AI search-service credentials locally in `chrome.storage.local`; only the background service worker reads them. UI pages do not read stored keys, and local AI agents do not receive them.
@@ -128,6 +130,8 @@ The local agent can now list configured services, perform API searches with an *
 ## Agent Interface and Limits
 
 Agents invoke bounded extension-worker actions through the Agent Bridge: a short-lived, loopback-only capability channel, not a persistent local API. Every invocation uses a new local port, token, and request identity, and expires on completion or timeout.
+
+The `juso-search` MCP server reuses the same Agent Bridge interface and limits: the same 5 actions (`list-providers`, `search`, `list-instances`, `search-instance`, `engine-search`), the same default-off gating, and credentials still never leave the extension. The interface and limits above apply equally to the CLI skill and the MCP server.
 
 `search` requires `--provider`; it never silently follows the extension’s current provider. Services that support instances (Exa, Doubao) can be searched per instance with `search-instance --instance-id`; obtain instance ids from `list-instances`. `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a URL, page retrieval belongs to its host’s own capability, such as `web_fetch`. Launch and bridge failures return structured `error.kind` values on stdout (for example `chrome_not_found`, `chrome_launch_failed`, `extension_did_not_claim`, `extension_did_not_complete`). Fix browser path, profile, extension id, and confirm Juso is enabled in the opened browser—do not retry by exposing keys. Engine searches also fail on challenges, consent pages, unsupported layouts, and no results. See `skills/juso-search/SKILL.md` for the full kind table.
 

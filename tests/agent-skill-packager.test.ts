@@ -22,6 +22,9 @@ const VERSION = '1.3.0';
 const SKILL_MD_FIXTURE =
   '---\nname: juso-search\n---\n\n# Juso Search\n\nextension: __JUSO_EXTENSION_ID__\n';
 const PY_FIXTURE = 'DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"\n';
+// 真实 juso_bridge.py 无占位符（drift 锁在 test_gen_skills.py 断言四处字节相等）；fixture
+// 故意带一个占位符，保住"每个 zip 内文件都被盖章 + 零占位符残留"这条既有不变量的覆盖。
+const BRIDGE_PY_FIXTURE = 'PROTOCOL = 2\n# stamped marker: __JUSO_EXTENSION_ID__\n';
 const REFERENCE_FIXTURE = '# Reference\n\nstamped id: __JUSO_EXTENSION_ID__\n';
 
 const decode = (entry: ZipEntry): string => new TextDecoder().decode(entry.data);
@@ -45,6 +48,8 @@ beforeEach(() => {
       if (url.endsWith('agent-skill/SKILL.md')) return { text: async () => SKILL_MD_FIXTURE };
       if (url.endsWith('agent-skill/scripts/juso_search.py'))
         return { text: async () => PY_FIXTURE };
+      if (url.endsWith('agent-skill/scripts/juso_bridge.py'))
+        return { text: async () => BRIDGE_PY_FIXTURE };
       if (url.includes('/agent-skill/reference/'))
         return { text: async () => REFERENCE_FIXTURE };
       throw new Error(`unexpected fetch url: ${url}`);
@@ -64,10 +69,11 @@ describe('packageAgentSkill', () => {
 
     expect(createStoreZip).toHaveBeenCalledTimes(1);
     const entries = vi.mocked(createStoreZip).mock.calls[0][0];
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(7);
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/scripts/juso_bridge.py',
       'juso-search/reference/engines.md',
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',
@@ -81,6 +87,22 @@ describe('packageAgentSkill', () => {
     }
   });
 
+  it('zip round-trip: contains BOTH scripts/juso_search.py and scripts/juso_bridge.py (same scripts/ sub-structure)', async () => {
+    await packageAgentSkill('prod');
+
+    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const scriptEntries = entries.filter((e) => e.path.startsWith('juso-search/scripts/'));
+    expect(scriptEntries.map((e) => e.path).sort()).toEqual([
+      'juso-search/scripts/juso_bridge.py',
+      'juso-search/scripts/juso_search.py',
+    ]);
+    // juso_bridge.py 也走同一盖章通路：占位符盖章为 runtime id，零残留。
+    const bridge = scriptEntries.find((e) => e.path.endsWith('/juso_bridge.py'));
+    expect(bridge).toBeDefined();
+    expect(decode(bridge!)).toContain(FAKE_ID);
+    expect(decode(bridge!)).not.toContain('__JUSO_EXTENSION_ID__');
+  });
+
   it('dev: filename carries the dev token but the zip folder stays juso-search', async () => {
     const { dataUrl, filename } = await packageAgentSkill('dev');
 
@@ -92,6 +114,7 @@ describe('packageAgentSkill', () => {
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/scripts/juso_bridge.py',
       'juso-search/reference/engines.md',
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',
@@ -115,6 +138,7 @@ describe('packageAgentSkill', () => {
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
+      'juso-search/scripts/juso_bridge.py',
       'juso-search/reference/engines.md',
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',

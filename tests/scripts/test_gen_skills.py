@@ -35,6 +35,39 @@ class GenSkillsTests(unittest.TestCase):
                     f"{key}:{rel} still contains {self.gen.EXTENSION_ID_PLACEHOLDER}",
                 )
 
+    def test_juso_bridge_byte_identical_across_source_prod_dev(self):
+        """juso_bridge.py is a single source vendored verbatim (byte-equal) into both skill dirs."""
+        source = (self.gen.TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_bytes()
+        for key, cfg in self.gen.VARIANTS.items():
+            tracked = cfg["target_dir"] / "scripts" / "juso_bridge.py"
+            self.assertEqual(
+                tracked.read_bytes(),
+                source,
+                f"{key} scripts/juso_bridge.py drifted from the single source",
+            )
+
+    def test_mcp_vendored_bridge_matches_source(self):
+        """gen produces mcp-server/juso_search/juso_bridge.py == source; check() covers it."""
+        source = (self.gen.TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_bytes()
+        mcp = self.gen.MCP_SERVER_DIR / "juso_search" / "juso_bridge.py"
+        self.assertTrue(mcp.is_file(), "mcp-server/juso_search/juso_bridge.py is missing (run gen-skills)")
+        self.assertEqual(mcp.read_bytes(), source, "MCP vendored juso_bridge.py drifted from the single source")
+
+    def test_juso_bridge_never_patched(self):
+        """juso_bridge.py is shared/unpatched: no DEV_PATCH_*, dev render == source."""
+        self.assertNotIn(
+            "scripts/juso_bridge.py",
+            self.gen.DEV_PATCHES,
+            "juso_bridge.py must not carry any DEV_PATCH_* prose diff",
+        )
+        source_text = (self.gen.TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_text(
+            encoding="utf-8", newline=""
+        )
+        prod = self.gen.render("prod")
+        dev = self.gen.render("dev")
+        self.assertEqual(prod["scripts/juso_bridge.py"], source_text)
+        self.assertEqual(dev["scripts/juso_bridge.py"], source_text, "dev render must equal the source verbatim")
+
     def test_dev_differs_from_prod_only_in_expected_dimensions(self):
         prod = self.gen.render("prod")
         dev = self.gen.render("dev")

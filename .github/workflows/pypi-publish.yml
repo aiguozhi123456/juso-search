@@ -1,0 +1,64 @@
+name: Publish to PyPI
+
+# Publishes `juso-search` (the MCP server pip package under mcp-server/) to PyPI
+# using Trusted Publishing (OIDC) — no API tokens or long-lived secrets.
+#
+# One-time PyPI setup (do this before the first release):
+#   pypi.org → Manage the `juso-search` project → Publishing → add a GitHub
+#   Actions publisher with EXACTLY:
+#     - workflow filename: pypi-publish.yml
+#     - environment name:  pypi
+#   (A rename of this file or a different environment name will 403 the upload.)
+# If the project does not yet exist on PyPI, the same form creates it on first upload.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: # manual fallback (e.g. retry a botched release)
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build mcp-server/ # srcdir positional arg → mcp-server/dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: mcp-server/dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # MUST match the environment name registered on PyPI. Required reviewers can
+    # be added to this environment in GitHub settings for a manual approval gate.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/juso-search/
+    permissions:
+      # Only permission this job needs. Keeping build deps out of the OIDC job
+      # prevents dependency-poisoning privilege escalation.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI
+        # PEP 740 Sigstore supply-chain attestations are generated automatically.
+        uses: pypa/gh-action-pypi-publish@release/v1

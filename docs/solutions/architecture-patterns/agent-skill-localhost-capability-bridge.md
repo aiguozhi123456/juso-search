@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-08-06
+last_updated: 2026-08-09
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -131,6 +131,14 @@ Page-state errors (`challenge`, `consent`, `unsupported-layout`, `no-results`) a
 
 The skill is now distributed from one source rather than hand-maintained copies: `public/agent-skill/` is the single template, `scripts/gen_skills.py` renders the two repo-published dirs under a drift lock, and the in-extension download stamps `browser.runtime.id` at runtime. The full design — template, generator, drift lock, runtime id stamping, and the two-channel model — is documented in [`agent-skill-distribution-pipeline.md`](agent-skill-distribution-pipeline.md).
 
+### MCP server variant (stdio)
+
+The MCP server is an **alternative to the CLI skill** — use one or the other, not both. It is pip-distributed as `juso-search` and speaks standard MCP over stdio. MCP-native clients (Claude Desktop, Cursor, Cline, Claude Code) configure it in their own `mcp.json` through `command`/`args`/`env`; the `env` block carries `JUSO_EXTENSION_ID` (required) plus optional `JUSO_CHROME_PATH`, `JUSO_CHROME_PROFILE`, and `JUSO_TIMEOUT`. Per-client snippets live in `mcp-server/README.md`, which is the canonical MCP setup guide.
+
+It is just another bridge client. Every `tools/call` runs one short-lived bridge cycle — spawn Chromium, open `bridge.html` with the claim fragment, wait for the worker to claim and complete — independent of any previous call. The bridge protocol, worker sender-trust checks, loopback-only binding, two-layer opt-in gating, and the "keys never leave the worker" guarantee are all unchanged; the server only relays the reply.
+
+It shares the bridge-client core with the CLI skill through **`juso_bridge`, a build-time single source**: the same generator (`scripts/gen_skills.py`) vendors `public/agent-skill/scripts/juso_bridge.py` byte-identically into the skill, the prod/dev published skill dirs, and `mcp-server/juso_search/`, and a drift test locks all four copies equal — the same single-source-template-and-drift-lock discipline as the skill distribution above, extended to the MCP package.
+
 ## Why This Matters
 
 This pattern separates four concerns that should not share one trust boundary:
@@ -149,7 +157,11 @@ The strict action and reply schemas also prevent a valid response from one actio
 - Chrome being installed, running when invoked, and having the extension enabled in the selected profile is acceptable.
 - The action can finish within a bounded request lifetime.
 
-Do not use this pattern for a long-lived multi-client local service, CAPTCHA bypass, arbitrary page scraping, or workloads requiring strong protection from another malicious process running as the same OS user. Those cases need a managed daemon, OS IPC controls, or Native Messaging. When the bridge does expose a scraping-adjacent capability like engine-search, that capability must ship off by default behind an explicit opt-in — a default-on silent page-loading capability will be read as undeclared scraping by Chrome Web Store review (see `default-off-capability-gating-for-cws-compliance.md`).
+Do not use this pattern for a long-lived multi-client local service, CAPTCHA bypass, arbitrary page scraping, or workloads requiring strong protection from another malicious process running as the same OS user. Those cases need a managed daemon, OS IPC controls, or Native Messaging.
+
+A **stdio MCP server is compatible** with this pattern: the client spawns one server process **per session** and tears it down when done, and each capability call is still a single short-lived bridge cycle. It is **not** a long-lived multi-client daemon serving many simultaneous clients, so it does not cross the managed-daemon / Native Messaging threshold above.
+
+When the bridge does expose a scraping-adjacent capability like engine-search, that capability must ship off by default behind an explicit opt-in — a default-on silent page-loading capability will be read as undeclared scraping by Chrome Web Store review (see `default-off-capability-gating-for-cws-compliance.md`).
 
 ## Examples
 

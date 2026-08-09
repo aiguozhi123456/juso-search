@@ -1,0 +1,169 @@
+# juso-search
+
+An MCP server (stdio) that exposes the Juso search extension's agent-bridge
+search capabilities to MCP clients (Claude Desktop, Cursor, Cline, Claude
+Code, …). It mirrors the CLI agent-skill `juso_search` subcommands over MCP
+JSON-RPC 2.0, with a short-lived Chromium launch per call that the extension
+claims and completes through its Agent Bridge.
+
+- **Transport**: stdio. JSON-RPC flows over stdin/stdout; diagnostics go to
+  stderr (stdout stays clean — only newline-delimited JSON-RPC).
+- **Config**: environment variables via the client's MCP `env` block. No CLI
+  flags besides `--help` / `--version` (prints the package version).
+- **Dual era**: accepts both the legacy `initialize` handshake and the modern
+  `server/discover` (2026-07-28 protocol). Tested at the wire level.
+- **Vendored bridge**: `juso_search/juso_bridge.py` is byte-identical to
+  `public/agent-skill/scripts/juso_bridge.py` (the plan's drift lock). Never
+  edit it by hand — regenerate from the source.
+
+## Install
+
+Requires Python 3.10+ and `mcp>=2.0,<3` (installed automatically as a
+dependency).
+
+```bash
+pip install juso-search
+```
+
+From this repository (development):
+
+```bash
+python -m venv mcp-server/.venv
+mcp-server/.venv/Scripts/pip install -e mcp-server/
+```
+
+Verify:
+
+```bash
+mcp-server/.venv/Scripts/juso-search --help
+```
+
+## Environment variables
+
+| Variable             | Required | Meaning                                                          |
+| -------------------- | -------- | ---------------------------------------------------------------- |
+| `JUSO_EXTENSION_ID`  | **yes**  | The extension's 32-char id (see `chrome://extensions`).          |
+| `JUSO_CHROME_PATH`   | no       | Explicit Chromium-family executable (auto-discovered otherwise). |
+| `JUSO_CHROME_PROFILE`| no       | Chromium profile directory (auto-selected if unset).             |
+| `JUSO_TIMEOUT`       | no       | Seconds to wait for the extension to claim a request (default 40). |
+
+`JUSO_EXTENSION_ID` is required — the server refuses to start without it
+(exit code 2 and a stderr message) rather than guessing.
+
+## Client configuration
+
+Each client injects these variables differently. Pick your client:
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+Claude Desktop does **not** expand `${VAR}`, so write literal values:
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "args": [],
+      "env": {
+        "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "JUSO_CHROME_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "JUSO_TIMEOUT": "40"
+      }
+    }
+  }
+}
+```
+
+### Cursor (`.cursor/mcp.json`)
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "args": [],
+      "env": {
+        "JUSO_EXTENSION_ID": "${env:JUSO_EXTENSION_ID}",
+        "JUSO_CHROME_PATH": "${env:JUSO_CHROME_PATH}",
+        "JUSO_CHROME_PROFILE": "${env:JUSO_CHROME_PROFILE}",
+        "JUSO_TIMEOUT": "${env:JUSO_TIMEOUT}"
+      }
+    }
+  }
+}
+```
+
+### Cline (`cline_mcp_settings.json`)
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "args": [],
+      "env": {
+        "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "JUSO_CHROME_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "JUSO_CHROME_PROFILE": "",
+        "JUSO_TIMEOUT": "40"
+      }
+    }
+  }
+}
+```
+
+### Claude Code (`.mcp.json`)
+
+Claude Code expands `${VAR}` from the shell environment, with `:-default`
+fallback:
+
+```json
+{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "args": [],
+      "env": {
+        "JUSO_EXTENSION_ID": "${JUSO_EXTENSION_ID}",
+        "JUSO_CHROME_PATH": "${JUSO_CHROME_PATH:-}",
+        "JUSO_CHROME_PROFILE": "${JUSO_CHROME_PROFILE:-}",
+        "JUSO_TIMEOUT": "${JUSO_TIMEOUT:-40}"
+      }
+    }
+  }
+}
+```
+
+## Tools
+
+| Tool            | Params                                                  | Notes |
+| --------------- | ------------------------------------------------------- | ----- |
+| `search`        | `query`, `provider_id?`, `force_refresh?`               | Providers: `tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`. |
+| `engine-search` | `query`, `engine_id?`, `max_results?`                   | Engines: `google`, `bing`, `baidu`, `yandex`, `duckduckgo`, `bilibili`, `xiaohongshu`, `douyin`. |
+| `search-instance`| `query`, `instance_id`, `force_refresh?`               | Searches a configured provider instance. |
+| `list-providers`| —                                                       | Providers and their config state. |
+| `list-instances`| —                                                       | Registered provider instances. |
+
+All tools are annotated `readOnlyHint` + `openWorldHint`. Tool results carry
+`structuredContent` plus a text serialization; `engine-search` error replies
+(consent wall, challenge, timeout) surface as **successful** results carrying
+an `error` field — only genuine bridge failures (e.g. Chrome not found,
+bridge not enabled) come back as `isError`.
+
+## Prerequisites (in the extension)
+
+1. Find your extension id: open `chrome://extensions` (enable *Developer
+   mode*), copy the 32-char id from the Juso card.
+2. Enable **Agent Bridge** in the extension's Options. Without it every call
+   fails with `extension_did_not_claim`.
+3. To use `engine-search`, also enable its sub-switch in Options.
+
+## Development / tests
+
+```bash
+python -m pytest mcp-server/tests        # or: npm run test:mcp
+```
+
+The suite covers config parsing/exit codes, `tools/list` schema and wire
+fields, `tools/call` dispatch and error shapes, the dual-era handshake over
+real subprocesses, and stdout cleanliness (only JSON-RPC on stdout).

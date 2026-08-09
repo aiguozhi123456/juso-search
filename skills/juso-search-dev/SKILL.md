@@ -20,6 +20,7 @@ Use this skill when a task needs web search through the user's locally configure
 - 扩展 ID 已内置，无需手动配置。
 - Configure at least one provider in the extension before `search`.
 - Run the script from this skill directory, or use its path relative to the skill root: `scripts/juso_search.py`.
+- The skill folder bundles `scripts/juso_bridge.py` (shared bridge core) alongside `scripts/juso_search.py` (the entry point). Keep both files together when copying the skill.
 
 ## Commands
 

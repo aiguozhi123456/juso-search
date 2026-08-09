@@ -308,7 +308,7 @@ class RunLifecycleTests(unittest.TestCase):
         return args
 
     def test_chrome_not_found_names_custom_path(self):
-        with patch.object(juso_search, "find_chrome", return_value=None):
+        with patch.object(juso_search.juso_bridge, "find_chrome", return_value=None):
             status, payload = juso_search.run(self._namespace(chrome=None))
         self.assertEqual(status, 2)
         self.assertEqual(payload["error"]["kind"], "chrome_not_found")
@@ -317,7 +317,7 @@ class RunLifecycleTests(unittest.TestCase):
 
     def test_chrome_launch_failed_includes_os_reason(self):
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", side_effect=OSError("permission denied")),
         ):
             status, payload = juso_search.run(self._namespace())
@@ -328,7 +328,7 @@ class RunLifecycleTests(unittest.TestCase):
 
     def test_run_timeout_without_claim(self):
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", return_value=None),
         ):
             status, payload = juso_search.run(self._namespace(timeout=0.15))
@@ -362,7 +362,7 @@ class RunLifecycleTests(unittest.TestCase):
             return None
 
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", side_effect=claim_only),
         ):
             status, payload = juso_search.run(self._namespace(timeout=0.4))
@@ -406,7 +406,7 @@ class RunLifecycleTests(unittest.TestCase):
             return None
 
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", side_effect=claim_and_complete),
         ):
             status, payload = juso_search.run(self._namespace(timeout=2.0))
@@ -442,7 +442,7 @@ class RunLifecycleTests(unittest.TestCase):
             return mock_proc
 
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", side_effect=abort_and_return_proc),
         ):
             status, payload = juso_search.run(self._namespace(timeout=5.0))
@@ -461,7 +461,7 @@ class RunLifecycleTests(unittest.TestCase):
         mock_proc.poll.return_value = None  # still running
         mock_proc.wait.return_value = 0  # terminate succeeds
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", return_value=mock_proc),
         ):
             status, payload = juso_search.run(self._namespace(timeout=0.15))
@@ -475,7 +475,7 @@ class RunLifecycleTests(unittest.TestCase):
         mock_proc = MagicMock()
         mock_proc.poll.return_value = 0  # already exited
         with (
-            patch.object(juso_search, "find_chrome", return_value="/fake/chrome"),
+            patch.object(juso_search.juso_bridge, "find_chrome", return_value="/fake/chrome"),
             patch.object(juso_search.subprocess, "Popen", return_value=mock_proc),
         ):
             status, _ = juso_search.run(self._namespace(timeout=0.15))

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "juso-search"
+version = "0.1.0"
+description = "MCP server (stdio) that exposes the Juso search extension's five agent-bridge actions as tools."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MPL-2.0"
+keywords = ["mcp", "juso", "search"]
+dependencies = [
+    "mcp>=2.0,<3",
+]
+
+[project.scripts]
+juso-search = "juso_search.__main__:main"
+
+[tool.setuptools]
+# Explicit package list: juso_search is a regular package (has __init__.py) whose
+# modules include the vendored `juso_bridge.py` single-source module. It is
+# shipped as-is and guarded by the drift lock — never edit it here.
+packages = ["juso_search"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: slow integration tests that spawn a real server subprocess",
+]

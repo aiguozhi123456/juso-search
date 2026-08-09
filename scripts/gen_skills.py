@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Generate the two published Agent Skill dirs (prod + dev) from a single template.
+"""Generate the published Agent Skill dirs (prod + dev) and the MCP vendor copy from one template.
 
-Single source of truth: skills/_template/ holds prod-style content with one placeholder
+Single source of truth: public/agent-skill/ holds prod-style content with one placeholder
 (__JUSO_EXTENSION_ID__ inside scripts/juso_search.py). The prod published dir is the template
 with the prod id substituted; the dev published dir additionally applies DEV_PATCH_* find/replace
 pairs (the encoded prod->dev prose diff), then the dev id. Each patch `find` must match exactly
 once, so any template drift surfaces as a loud generation error.
 
+Shared/unpatched files (reference/, scripts/juso_bridge.py) are copied verbatim into both skill
+variants; scripts/juso_bridge.py is additionally vendored byte-for-byte into the MCP pip package
+(mcp-server/juso_search/juso_bridge.py), which --check also guards.
+
 CLI:
-  python scripts/gen_skills.py               # write both variants
-  python scripts/gen_skills.py --check       # exit 1 if tracked dirs differ from generated
-  python scripts/gen_skills.py --variant dev # write a single variant
+  python scripts/gen_skills.py               # write both variants + MCP vendor copy
+  python scripts/gen_skills.py --check       # exit 1 if tracked dirs / MCP copy differ from generated
+  python scripts/gen_skills.py --variant dev # write a single variant (+ MCP vendor copy)
 """
 from __future__ import annotations
 
@@ -20,6 +24,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = REPO_ROOT / "public" / "agent-skill"
 EXTENSION_ID_PLACEHOLDER = "__JUSO_EXTENSION_ID__"
+
+# MCP pip package vendor target (IU2). juso_bridge.py is shared/unpatched: no DEV_PATCH_*,
+# no extension-id placeholder, so its MCP copy is byte-identical to the template source.
+MCP_SERVER_DIR = REPO_ROOT / "mcp-server"
+MCP_BRIDGE_REL = "juso_search/juso_bridge.py"
 
 VARIANTS = {
     "prod": {
@@ -140,6 +149,22 @@ def write_variant(variant_key: str) -> None:
         target.write_text(text, encoding="utf-8", newline="")
 
 
+def render_mcp() -> dict[str, str]:
+    """The MCP package's vendored copy of juso_bridge.py.
+
+    Shared/unpatched: verbatim byte-for-byte copy of the single source, no DEV_PATCH_*
+    and no extension-id stamping (juso_bridge.py carries no placeholder).
+    """
+    return {MCP_BRIDGE_REL: (TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_text(encoding="utf-8", newline="")}
+
+
+def write_mcp() -> None:
+    for rel, text in render_mcp().items():
+        target = MCP_SERVER_DIR / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8", newline="")
+
+
 def check() -> list[str]:
     diffs: list[str] = []
     for variant_key, cfg in VARIANTS.items():
@@ -150,6 +175,13 @@ def check() -> list[str]:
                 continue
             if tracked.read_text(encoding="utf-8", newline="") != gen_text:
                 diffs.append(f"{variant_key}:{rel}")
+    for rel, gen_text in render_mcp().items():
+        tracked = MCP_SERVER_DIR / rel
+        if not tracked.is_file():
+            diffs.append(f"mcp:{rel} (missing)")
+            continue
+        if tracked.read_text(encoding="utf-8", newline="") != gen_text:
+            diffs.append(f"mcp:{rel}")
     return diffs
 
 
@@ -161,16 +193,18 @@ def main() -> int:
     if args.check:
         diffs = check()
         if diffs:
-            print("gen_skills: tracked skill dirs differ from generator output:")
+            print("gen_skills: tracked skill dirs / MCP vendor copy differ from generator output:")
             for d in diffs:
                 print(f"  {d}")
             print("Run `python scripts/gen_skills.py` to regenerate, or fix skills/_template/.")
             return 1
-        print("gen_skills: tracked skill dirs match generator output (in sync).")
+        print("gen_skills: tracked skill dirs and MCP vendor copy match generator output (in sync).")
         return 0
     for key in ([args.variant] if args.variant else list(VARIANTS)):
         write_variant(key)
         print(f"gen_skills: wrote {VARIANTS[key]['target_dir'].relative_to(REPO_ROOT)}")
+    write_mcp()
+    print(f"gen_skills: wrote {MCP_SERVER_DIR.relative_to(REPO_ROOT)}")
     return 0
 
 

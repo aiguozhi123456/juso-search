@@ -1,8 +1,8 @@
 // 运行时 Agent Skill 打包器（IU6）。
 //
 // 从随包分发的模板（public/agent-skill/，见计划 KTD1）读取 SKILL.md、
-// scripts/juso_search.py 与 reference/ 子目录下的章节文件，把
-// `__JUSO_EXTENSION_ID__` 占位符盖章为当前扩展的 browser.runtime.id（自定义 dev
+// scripts/juso_search.py、scripts/juso_bridge.py 与 reference/ 子目录下的章节文件，
+// 把 `__JUSO_EXTENSION_ID__` 占位符盖章为当前扩展的 browser.runtime.id（自定义 dev
 // 构建的 ID 也可正确盖章，计划 KTD4），经 STORE-mode zip（顶层统一文件夹
 // juso-search，计划 R7/KTD5）打包成 data URL + 文件名，供 worker 触发
 // browser.downloads.download（IU7）。
@@ -61,6 +61,9 @@ export async function packageAgentSkill(
 
   const skillMd = await (await fetch(getUrl('agent-skill/SKILL.md'))).text();
   const py = await (await fetch(getUrl('agent-skill/scripts/juso_search.py'))).text();
+  // juso_bridge.py 是共享/不 patch 的 sibling 源（无 __JUSO_EXTENSION_ID__ 占位符），
+  // 与 juso_search.py 一同进 zip 的 scripts/ 子结构（单源模块，见 plan KTD2/IU2）。
+  const bridgePy = await (await fetch(getUrl('agent-skill/scripts/juso_bridge.py'))).text();
 
   const referenceEntries = await Promise.all(
     REFERENCE_FILES.map(async (name) => {
@@ -71,7 +74,8 @@ export async function packageAgentSkill(
 
   const skillMdStamped = stamp(skillMd, extId);
   const pyStamped = stamp(py, extId);
-  if (skillMdStamped.includes(PLACEHOLDER) || pyStamped.includes(PLACEHOLDER)) {
+  const bridgePyStamped = stamp(bridgePy, extId);
+  if (skillMdStamped.includes(PLACEHOLDER) || pyStamped.includes(PLACEHOLDER) || bridgePyStamped.includes(PLACEHOLDER)) {
     throw new Error(`template drift: "${PLACEHOLDER}" still present after stamping`);
   }
 
@@ -86,6 +90,7 @@ export async function packageAgentSkill(
   const entries: ZipEntry[] = [
     { path: `${TOP_LEVEL_DIR}/SKILL.md`, data: new TextEncoder().encode(skillMdStamped) },
     { path: `${TOP_LEVEL_DIR}/scripts/juso_search.py`, data: new TextEncoder().encode(pyStamped) },
+    { path: `${TOP_LEVEL_DIR}/scripts/juso_bridge.py`, data: new TextEncoder().encode(bridgePyStamped) },
     ...referenceStamped.map(({ name, text }) => ({
       path: `${TOP_LEVEL_DIR}/reference/${name}`,
       data: new TextEncoder().encode(text),

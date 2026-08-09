@@ -1,0 +1,10 @@
+# Local virtualenv (created by `python -m venv .venv`)
+.venv/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/

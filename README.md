@@ -118,6 +118,8 @@ python scripts/juso_search.py search-instance "latest AI research" --instance-id
 
 完成后，本地智能体可列出已配置的服务、以**显式**服务参数进行 API 搜索、按实例搜索支持实例的服务，或通过浏览器检索受支持的传统搜索引擎（Google、Bing、Baidu、Yandex、DuckDuckGo、哔哩哔哩、小红书、抖音），而不会取得已存储的密钥。浏览器路径、profile、扩展 ID、超时等边缘配置见技能包内的参考文档。
 
+步骤 3 的配套 Agent Skill 与 MCP server **二选一**即可。如果你用 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code），可改用 MCP server：`pip install juso-search`，按客户端把 `juso-search` 加进 `mcp.json`（`env` 里设 `JUSO_EXTENSION_ID`），并在扩展 Options 开启 Agent Bridge。完整步骤见 [`mcp-server/README.md`](mcp-server/README.md)。
+
 ## 安全与数据边界
 
 - AI 搜索服务密钥由扩展本地管理，保存在 `chrome.storage.local`；仅后台 service worker 读取。UI 页面不会读取已存储的密钥，本地 AI 智能体也不会获得这些密钥。
@@ -128,6 +130,8 @@ python scripts/juso_search.py search-instance "latest AI research" --instance-id
 ## 智能体接口与边界
 
 智能体通过短生命周期、仅回环地址的 Agent Bridge 调用扩展后台的一次受限操作，而不是连接一个常驻本地 API。每次调用使用新的本地端口、令牌与请求标识，完成或超时后即失效。
+
+MCP server（`juso-search`）复用同一 Agent Bridge 接口与边界：同样 5 个 action（`list-providers`、`search`、`list-instances`、`search-instance`、`engine-search`）、同样的默认关闭门控，密钥同样只由 worker 读取、绝不离开扩展。上述接口与边界对 CLI skill 与 MCP server 同样适用。
 
 `search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。支持实例的服务（Exa、Doubao）可用 `search-instance --instance-id` 按实例搜索，实例 id 从 `list-instances` 取得。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
 
