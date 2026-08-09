@@ -85,9 +85,9 @@ Juso v1.4.0 已在 GitHub Release 与 Chrome Web Store 发布。
 
 Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
-**从 GitHub Release 安装（v1.4.0）**
+**从 GitHub Release 安装**
 
-1. 从 [GitHub Release v1.4.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.4.0) 下载 `juso-search-1.4.0-chrome-dev.zip`。
+1. 从 [GitHub Release 最新版](https://github.com/aiguozhi123456/juso-search/releases/latest) 下载 `juso-search-*-chrome-dev.zip`。
 2. 解压 ZIP。
 3. 打开 Chromium 的 `chrome://extensions`，开启"开发者模式"，选择"加载已解压的扩展程序"，并选择解压后直接包含 `manifest.json` 的目录。
 

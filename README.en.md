@@ -85,9 +85,9 @@ Juso v1.4.0 is available on GitHub Release and the Chrome Web Store.
 
 Chrome Web Store installation has no developer-mode warnings and supports automatic updates.
 
-**From GitHub Release (v1.4.0)**
+**From GitHub Release**
 
-1. Download `juso-search-1.4.0-chrome-dev.zip` from the [GitHub Release v1.4.0](https://github.com/aiguozhi123456/juso-search/releases/tag/v1.4.0).
+1. Download `juso-search-*-chrome-dev.zip` from the [latest GitHub Release](https://github.com/aiguozhi123456/juso-search/releases/latest).
 2. Extract the ZIP.
 3. Open `chrome://extensions` in Chromium, enable Developer mode, choose **Load unpacked**, and select the extracted directory that directly contains `manifest.json`.
 
