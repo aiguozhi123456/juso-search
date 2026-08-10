@@ -160,7 +160,7 @@ User has reduced-motion → start() returns early → no rotation ever
 
 | Page | Body class | Hero grid | Visual column |
 |---|---|---|---|
-| Overview (`/`) | `face-overview` | `0.75fr 1fr`, max-width 1240px | stretched (dual visual: carousel + CLI) |
+| Overview (`/`) | `face-overview` | single column, centered copy | none — copy-only hero with scroll key to the door cards |
 | Human (`/human/`) | `face-human` | `0.75fr 1fr`, max-width 1240px | stretched (carousel) |
 | Agent (`/agents`) | `face-agents` | default (`1fr`), max-width 1160px | `max-width: 520px` |
 

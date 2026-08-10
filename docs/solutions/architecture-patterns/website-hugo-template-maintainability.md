@@ -43,13 +43,13 @@ When two page variants share a layout skeleton but differ in one content region,
     </div>
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
-      {{ partial .visual . }}   {{/* ← sub-partial slot: "hero-visual-home" | "hero-visual-agent" | "hero-visual-overview" */}}
+      {{ partial .visual . }}   {{/* ← sub-partial slot: "hero-visual-home" | "hero-visual-agent"（视觉可选，中性总览页不传 visual） */}}
     </div>
   </div>
 </section>
 ```
 
-**Call site** (human/single.html — the human face; the neutral overview `index.html` is a third call site using `hero-visual-overview`):
+**Call site** (human/single.html — the human face; the neutral overview `index.html` is a third call site that passes **no visual** — copy-only hero with a `scroll_target` param instead):
 ```go
 {{ partial "hero.html" (dict "Page" . "tagline_zh" (i18n "tagline_zh") "tagline_en" (i18n "tagline_en")
   "positioning_key" "hero_positioning_human" "cta_primary_key" "cta_cws"
@@ -57,7 +57,7 @@ When two page variants share a layout skeleton but differ in one content region,
   "cta_ghost_href" .Site.Params.releaseURL "visual" "hero-visual-home") }}
 ```
 
-The variant content lives in `partials/hero-visual-home.html` (carousel), `partials/hero-visual-agent.html` (CLI block), and `partials/hero-visual-overview.html` (dual-face carousel + CLI — added by the symmetric-IA restructure). The third-face promise is now realized: each new face adds one visual partial and one call site — zero edits to the shared skeleton.
+The variant content lives in `partials/hero-visual-home.html` (carousel) and `partials/hero-visual-agent.html` (CLI block). A visual is optional: the neutral overview (`index.html`) passes no `visual` at all and instead passes `scroll_target` — the shared skeleton renders a copy-only hero with a scroll key, zero edits to the skeleton. Each face adds at most one visual partial and one call site — zero edits to the shared skeleton.
 
 **Critical:** preserve every CSS class, every `reveal-load dN` delay number, every ARIA attribute when extracting. The partial must produce byte-identical output (modulo whitespace). Hugo's `--minify` collapses whitespace, so indentation differences are harmless; structural/class differences are not.
 
@@ -187,7 +187,6 @@ New partials created:
 - `partials/hero.html` — shared hero skeleton with visual sub-partial slot
 - `partials/hero-visual-home.html` — carousel visual variant
 - `partials/hero-visual-agent.html` — CLI demo visual variant
-- `partials/hero-visual-overview.html` — dual-face variant (carousel + CLI side by side; added by the symmetric-IA restructure for the neutral overview)
 - `partials/cta-band.html` — shared CTA band
 - `partials/section-head.html` — shared section heading block
 - `partials/i18n-field.html` — value-returning bilingual field resolver
