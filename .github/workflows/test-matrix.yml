@@ -36,7 +36,7 @@ jobs:
       # interpreter resolver); no npm install / JS checks in this matrix.
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: "24"
 
       # `mcp-server[dev]` pulls the runtime deps (mcp, pydantic) declared in
       # pyproject.toml plus pytest via the `dev` optional-dependencies extra.
@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
