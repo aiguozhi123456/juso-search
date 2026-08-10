@@ -19,7 +19,8 @@ resolution_type: tooling_addition
 related_components:
   - scripts/python.mjs
   - package.json
-  - .github/workflows/test-matrix.yml
+  - .github/workflows/test-python-matrix.yml
+  - .github/workflows/test-js-matrix.yml
   - public/agent-skill/scripts/juso_bridge.py
 tags:
   - cross-platform
@@ -144,16 +145,34 @@ Now a developer or CI runner on any OS types `npm run test:python` and it Just W
 
 GitHub Actions for **public repos** are free and effectively unlimited on standard runners (`ubuntu-latest`, `macos-latest`, `windows-latest`), **including macOS**. The 10× billing multiplier for macOS applies only to private repos beyond their free quota; for public repos there is no billing. Constraints to respect: standard labels only (no `-large`/`-xlarge`), up to 20 concurrent jobs (5 on macOS — queuing only, no billing), 10 GB cache per repo, 6-hour job timeout.
 
-The workflow below runs two jobs across all three OSes. `python-matrix` exercises the Python skill CLI + MCP server; `js-matrix` exercises the full JS/extension build pipeline (including the per-platform esbuild/lightningcss/rolldown binaries). `fail-fast: false` ensures one OS's failure doesn't cancel the others.
+The workflow below runs two jobs across all three OSes. `python-matrix` exercises the Python skill CLI + MCP server; `js-matrix` exercises the full JS/extension build pipeline (including the per-platform esbuild/lightningcss/rolldown binaries). `fail-fast: false` ensures one OS's failure doesn't cancel the others. The two jobs were later split into separate workflow files (`test-python-matrix.yml` / `test-js-matrix.yml`) so each gets its own `paths` trigger filter — a Python-only change no longer burns the 3-OS JS matrix (and vice versa), and docs/website-only changes skip the matrix entirely. `workflow_dispatch` stays on both so the matrix can always be run manually.
 
 ```yaml
-# .github/workflows/test-matrix.yml
-name: test-matrix
+# .github/workflows/test-python-matrix.yml
+name: test-python-matrix
 
 on:
   pull_request:
+    paths:
+      - 'public/agent-skill/**'
+      - 'mcp-server/**'
+      - 'skills/**'
+      - 'scripts/python.mjs'
+      - 'scripts/gen_skills.py'
+      - 'tests/scripts/**'
+      - 'package.json'
+      - '.github/workflows/test-python-matrix.yml'
   push:
     branches: [main]
+    paths:
+      - 'public/agent-skill/**'
+      - 'mcp-server/**'
+      - 'skills/**'
+      - 'scripts/python.mjs'
+      - 'scripts/gen_skills.py'
+      - 'tests/scripts/**'
+      - 'package.json'
+      - '.github/workflows/test-python-matrix.yml'
   workflow_dispatch:
 
 jobs:
@@ -181,7 +200,47 @@ jobs:
         run: npm run test:python
       - name: MCP tests
         run: npm run test:mcp
+```
 
+```yaml
+# .github/workflows/test-js-matrix.yml
+name: test-js-matrix
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'components/**'
+      - 'entrypoints/**'
+      - 'tests/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'wxt.config.ts'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'global.d.ts'
+      - '.github/workflows/test-js-matrix.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'components/**'
+      - 'entrypoints/**'
+      - 'tests/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'wxt.config.ts'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'global.d.ts'
+      - '.github/workflows/test-js-matrix.yml'
+  workflow_dispatch:
+
+jobs:
   js-matrix:
     strategy:
       fail-fast: false
@@ -259,7 +318,7 @@ The reusable durable learning, then, is the **cross-platform Python launcher pat
 Apply this guidance when **any** of the following are true:
 
 - **Any npm-scripted project that shells out to Python across Windows/macOS/Linux.** If your `package.json` has `python` or `python3` in any script and you intend developers on more than one OS to run it, you need the launcher. The command-name problem has no single-name solution.
-- **Any public GitHub repo wanting free 3-OS CI.** If the repo is public, the macOS runner is free — there is no cost reason to skip it. A `test-matrix.yml` with ubuntu/macos/windows is pure upside.
+- **Any public GitHub repo wanting free 3-OS CI.** If the repo is public, the macOS runner is free — there is no cost reason to skip it. A `test-python-matrix.yml` / `test-js-matrix.yml` pair with ubuntu/macos/windows (each with `paths` triggers) is pure upside.
 - **Any project where the Windows `python3` Store stub silently breaks things.** If you've ever seen `python3 --version` produce no output on Windows (and especially if it popped the Store), this is the fix. The regex filter is the specific defense.
 - **Any project whose platform-specific branches are written but never executed by tests.** If your tests always mock the discovery layer, add a parametrized `sys.platform` test so the branches actually run in CI.
 - **Any project using per-platform native binaries (esbuild, lightningcss, rolldown, swc, better-sqlite3, etc.).** Running `npm run build` on all three OSes in CI catches missing prebuilt binaries before users do.
@@ -313,7 +372,17 @@ Result: `npm run test:python` picks `python3` on macOS/Linux, `py -3` (or `pytho
 
 ### After: 3-OS CI matrix (abridged)
 
+Two split workflows with `paths` triggers (`test-python-matrix.yml` / `test-js-matrix.yml`), so each surface runs only when its own files change:
+
 ```yaml
+on:
+  pull_request:
+    paths: ['lib/**', 'components/**', 'entrypoints/**', 'tests/**', 'public/**', 'package.json', 'package-lock.json', 'wxt.config.ts', 'vitest.config.ts', 'tsconfig.json', 'eslint.config.mjs', 'global.d.ts', '.github/workflows/test-js-matrix.yml']
+  push:
+    branches: [main]
+    paths: ['lib/**', 'components/**', 'entrypoints/**', 'tests/**', 'public/**', 'package.json', 'package-lock.json', 'wxt.config.ts', 'vitest.config.ts', 'tsconfig.json', 'eslint.config.mjs', 'global.d.ts', '.github/workflows/test-js-matrix.yml']
+  workflow_dispatch:
+
 jobs:
   python-matrix:
     strategy:

@@ -2,16 +2,41 @@
 # Public repos: standard GitHub-hosted runners (ubuntu/macos/windows-latest)
 # are free with unlimited minutes — no -large/-xlarge labels needed.
 # Accounts are capped at 20 concurrent jobs total / 5 macOS (queuing only).
-name: test-matrix
+# Triggered only by changes to the Python surface; the JS/extension surface
+# lives in test-js-matrix.yml.
+name: test-python-matrix
 
 on:
   pull_request:
+    paths:
+      - 'public/agent-skill/**'        # skill 模板源（SKILL.md / scripts/ / reference/）
+      - 'mcp-server/**'                # MCP server 包（pyproject + tests）
+      - 'skills/**'                    # 渲染的 skill 发布目录（drift 锁定测试覆盖）
+      - 'scripts/python.mjs'           # 跨平台解释器解析器
+      - 'scripts/gen_skills.py'        # skill 发布目录渲染器
+      - 'tests/scripts/**'             # Python 单测
+      - 'package.json'                 # test:python / test:mcp / gen-skills 脚本定义
+      - '.github/workflows/test-python-matrix.yml'  # 自身改动自触发
   push:
     branches: [main]
+    paths:
+      - 'public/agent-skill/**'
+      - 'mcp-server/**'
+      - 'skills/**'
+      - 'scripts/python.mjs'
+      - 'scripts/gen_skills.py'
+      - 'tests/scripts/**'
+      - 'package.json'
+      - '.github/workflows/test-python-matrix.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# 同一分支的旧矩阵运行可安全取消（避免排队占满 5 个 macOS runner 配额）。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   python-matrix:
@@ -53,42 +78,3 @@ jobs:
 
       - name: MCP server tests
         run: npm run test:mcp
-
-  # JS/extension surface on the same 3-OS matrix. Covers the extension build
-  # pipeline (wxt build) plus the per-platform native npm binary deps
-  # (esbuild/lightningcss/rolldown darwin/linux packages), which are never
-  # exercised otherwise.
-  js-matrix:
-    name: JS tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: "24"
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit and component tests
-        run: npm test
-
-      - name: Extension build
-        run: npm run build

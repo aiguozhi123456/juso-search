@@ -1,0 +1,81 @@
+# Free 3-OS CI for the JS/extension surface (typecheck, lint, vitest, build).
+# The 3-OS matrix exercises the per-platform native npm binary deps
+# (esbuild/lightningcss/rolldown darwin/linux packages), which are never
+# exercised otherwise. Triggered only by changes to the JS/extension surface;
+# the Python skill/MCP surface lives in test-python-matrix.yml.
+name: test-js-matrix
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'                       # 核心逻辑（providers/engines/gateway/storage/...）
+      - 'components/**'                # UI 组件
+      - 'entrypoints/**'               # 扩展入口（background/search/options/content scripts）
+      - 'tests/**'                     # vitest 单测 + 组件测试 + fixtures
+      - 'public/**'                    # 扩展打包资源（icons / _locales / agent-skill）
+      - 'package.json'
+      - 'package-lock.json'
+      - 'wxt.config.ts'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'global.d.ts'
+      - '.github/workflows/test-js-matrix.yml'  # 自身改动自触发
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'components/**'
+      - 'entrypoints/**'
+      - 'tests/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'wxt.config.ts'
+      - 'vitest.config.ts'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'global.d.ts'
+      - '.github/workflows/test-js-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同一分支的旧矩阵运行可安全取消（避免排队占满 5 个 macOS runner 配额）。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js-matrix:
+    name: JS tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Extension build
+        run: npm run build
