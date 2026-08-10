@@ -78,7 +78,7 @@ sec_capability_agents_sub:
 sec_cli_agents:
   other: "Command-line interface"
 sec_cli_agents_sub:
-  other: "Real commands, taken from the companion Agent Skill. Keys never leave the extension; the agent receives only structured results."
+  other: "Real commands, taken from the companion Agent Skill."
 sec_trust_agents:
   other: "Security model"
 sec_trust_agents_sub:
@@ -159,8 +159,6 @@ os_title:
   other: "Fully open source"
 os_body:
   other: "Juso's complete local search loop — the extension, source integrations, agent access, local configuration, and cache — is open under MPL-2.0. This does not imply that possible future hosted or operational services will be open source or free."
-os_view:
-  other: "View on GitHub"
 
 # CTA band
 cta_human_h2:
@@ -170,13 +168,13 @@ cta_human_p:
 cta_agents_h2:
   other: "Let local agents start searching"
 cta_agents_p:
-  other: "Install the extension, enable Agent Bridge, download the companion skill — agents can call configured AI search or search conventional engines, with credentials staying inside the extension."
+  other: "Install the extension, enable Agent Bridge, download the companion skill — agents can call configured AI search or search conventional engines."
 
 # Neutral CTA
 cta_overview_h2:
   other: "One entry, two ways to use it"
 cta_overview_p:
-  other: "Install Juso to search, switch, and aggregate for yourself; or enable Agent Bridge so local agents search through the same browser. Keys stay inside the extension."
+  other: "Install Juso to search, switch, and aggregate for yourself; or enable Agent Bridge so local agents search through the same browser."
 
 # Footer
 footer_tagline:

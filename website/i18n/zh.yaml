@@ -78,7 +78,7 @@ sec_capability_agents_sub:
 sec_cli_agents:
   other: "命令行接口"
 sec_cli_agents_sub:
-  other: "真实命令，取自配套 Agent Skill。密钥从不离开扩展，智能体只收到结构化结果。"
+  other: "真实命令，取自配套 Agent Skill。"
 sec_trust_agents:
   other: "安全模型"
 sec_trust_agents_sub:
@@ -159,8 +159,6 @@ os_title:
   other: "完全开源"
 os_body:
   other: "双面搜的完整本地搜索闭环——扩展、来源集成、智能体访问、本地配置与缓存——以 MPL-2.0 开放。该承诺不表示未来可能出现的托管或运营服务必然开源或免费。"
-os_view:
-  other: "在 GitHub 查看"
 
 # CTA band
 cta_human_h2:
@@ -170,13 +168,13 @@ cta_human_p:
 cta_agents_h2:
   other: "让本地智能体开始搜索"
 cta_agents_p:
-  other: "安装扩展，开启 Agent Bridge，下载配套技能——智能体即可调用已配置的 AI 搜索或检索传统引擎，密钥始终留在扩展内。"
+  other: "安装扩展，开启 Agent Bridge，下载配套技能——智能体即可调用已配置的 AI 搜索或检索传统引擎。"
 
 # 中性 CTA
 cta_overview_h2:
   other: "一个入口，两种用法"
 cta_overview_p:
-  other: "安装双面搜，为自己搜索、切换与聚合；或开启 Agent Bridge，让本地智能体借同一台浏览器搜索。密钥始终留在扩展内。"
+  other: "安装双面搜，为自己搜索、切换与聚合；或开启 Agent Bridge，让本地智能体借同一台浏览器搜索。"
 
 # 页脚
 footer_tagline:

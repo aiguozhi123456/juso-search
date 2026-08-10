@@ -43,14 +43,6 @@
   </div>
 </section>
 
-{{/* 搜索来源图标墙 */}}
-<section class="section section--sunk">
-  <div class="wrap">
-    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_sources") "title" (i18n "sec_sources") "sub" (i18n "sec_sources_sub")) }}
-    {{ partial "icon-wall.html" . }}
-  </div>
-</section>
-
 {{/* CTA */}}
 {{ partial "cta-band.html" (dict
   "Page" .

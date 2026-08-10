@@ -17,14 +17,6 @@
   "visual" "hero-visual-home"
 ) }}
 
-{{/* 能力矩阵 —— 双面对称 */}}
-<section class="section section--sunk">
-  <div class="wrap">
-    {{ partial "section-head.html" (dict "eyebrow" (printf "%s · %s" (i18n "face_human") (i18n "face_agent")) "title" (printf "%s — %s" (i18n "nav_human") (i18n "nav_agent")) "sub" (i18n "hero_positioning_human")) }}
-    {{ partial "capability-matrix.html" . }}
-  </div>
-</section>
-
 {{/* 搜索来源图标墙 */}}
 <section class="section">
   <div class="wrap">
@@ -104,7 +96,7 @@
         <h3>{{ i18n "os_title" }}</h3>
         <p>{{ i18n "os_body" }}</p>
         <div class="links">
-          <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "os_view" }}</a>
+          <a href="{{ .Site.Params.githubURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "cta_github" }}</a>
           <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ partial "icon/github.svg" . }}{{ i18n "cta_release" }}</a>
         </div>
       </div>
@@ -125,7 +117,6 @@
         <div class="shot__cap"><b>{{ i18n "cap_agent_bridge" }}</b></div>
       </div>
       <div class="bridge__copy">
-        <p>{{ i18n "hero_positioning_agents" }}</p>
         <a class="btn btn--ghost" href="{{ "agents/" | relLangURL }}">{{ i18n "sec_bridge_link" }}</a>
       </div>
     </div>
