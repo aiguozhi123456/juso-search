@@ -1,6 +1,7 @@
 ---
 title: "Website architecture and deployment: Hugo on GitHub Pages project subpath"
 date: 2026-08-08
+last_updated: 2026-08-10
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -38,7 +39,7 @@ The website does not define its own visual language from scratch — it inherits
 - **Light/dark**: follows `prefers-color-scheme`; CLI blocks stay dark in both modes.
 - **Spatial language**: the same "Takram × Experimental Jetset" anchors (rounded function, strong type, geometric blocks) that the extension uses.
 
-When the extension's `tokens.css` changes, the site is **not** automatically in sync — update the site's CSS variables to match.
+When the extension's `tokens.css` changes, a CI drift-lock (`scripts/check-website-tokens.py`) now catches whether the site's CSS variables need the same change — it asserts a must-match token set (brand colors, neutrals, durations) is value-identical across both files and fails the build on drift. Intentional divergences (fonts, shadows, site-only tokens) are documented and allowed. See [`website-drift-lock-enforcement.md`](./website-drift-lock-enforcement.md).
 
 ### Deployment
 
@@ -64,7 +65,7 @@ A subpath deploy can build green while serving a broken site. Verify at the **re
 Without this knowledge, the two failure modes that recur are:
 
 1. **Subpath breakage** — hardcoded paths that pass local `hugo server` (baseURL `/`) but 404 or jump domains on the real subpath. Caught only by resource-level verification. See the concrete incident: [hugo-subpath-hardcoded-paths](integration-issues/hugo-subpath-hardcoded-paths.md).
-2. **Design drift** — the site and extension slowly diverge visually because the inheritance is manual, not automated.
+2. **Design drift** — the site and extension slowly diverge visually because the inheritance is manual, not automated. **Now caught by CI:** `check-website-tokens.py` asserts the must-match token set stays value-identical; see [`website-drift-lock-enforcement.md`](./website-drift-lock-enforcement.md).
 
 Both are invisible to the build and only show up on the live site.
 
@@ -73,7 +74,7 @@ Both are invisible to the build and only show up on the live site.
 - Adding a new page or section → reuse the existing skeleton (baseof + single/home layout) and the data/partial pattern.
 - Adding a language → add `i18n/<lang>.yaml` with the same key set, add `languages.<lang>` to `hugo.toml`, add `content/**.<lang>.md` files.
 - Changing the deployment target or base URL → re-run the resource-level verification; hardcoded paths will silently break.
-- Updating the extension's `tokens.css` → check whether the site's CSS variables need the same change.
+- Updating the extension's `tokens.css` → the CI drift-lock (`check-website-tokens.py`) catches whether the site's CSS variables need the same change; reconcile the must-match set and the build goes green.
 
 ## Examples
 
@@ -83,6 +84,7 @@ Both are invisible to the build and only show up on the live site.
 
 ## Related
 
+- [`website-drift-lock-enforcement.md`](./website-drift-lock-enforcement.md) — the CI drift-locks that now enforce the design-system inheritance (closes the manual-sync gap noted above).
 - [hugo-subpath-hardcoded-paths](integration-issues/hugo-subpath-hardcoded-paths.md) — the concrete subpath incident that this architecture knowledge would have prevented.
 - `entrypoints/shared/tokens.css` — the design-system source the site inherits.
 - `.github/workflows/website-pages.yml` — the deployment mechanism.

@@ -1,6 +1,7 @@
 ---
 title: "Website hero carousel, screenshot framing, and page-scoped hero sizing"
 date: 2026-08-08
+last_updated: 2026-08-10
 category: design-patterns
 module: website
 problem_type: design_pattern
@@ -121,9 +122,9 @@ Screenshots are captured once and copied to two locations with different naming 
 |---|---|
 | `screenshot-<topic>.png` | `<area>-<topic>-clean.png` |
 
-The mapping is documented in `static/img/README.md` with MD5-verified pairs. When a screenshot needs updating, both locations must be updated — the README is the contract that prevents silent drift.
+The mapping is documented in `static/img/README.md`. When a screenshot needs updating, both locations must be updated — and a CI drift-lock (`scripts/check-website-assets.py`) now SHA256-verifies every pair against the README's mapping table, so a forgotten re-sync fails the build instead of drifting silently.
 
-A screenshot generation script was created, then removed: the script's parameter drift risk (capture coordinates, timing, viewport assumptions) exceeded the value of automation for a small, infrequently-updated set of screenshots. Manual capture + MD5 verification is the current workflow.
+A screenshot generation script was created, then removed: the script's parameter drift risk (capture coordinates, timing, viewport assumptions) exceeded the value of automation for a small, infrequently-updated set of screenshots. Manual capture + CI byte-equality drift-lock is the current workflow — the capture is manual, but the sync is enforced.
 
 ## Why This Matters
 
@@ -163,6 +164,7 @@ User has reduced-motion → start() returns early → no rotation ever
 
 ## Related
 
+- [`website-drift-lock-enforcement.md`](../architecture-patterns/website-drift-lock-enforcement.md) — the CI byte-equality drift-lock that now enforces the screenshot dual-location sync.
 - [`website-hugo-subpath-deployment.md`](../architecture-patterns/website-hugo-subpath-deployment.md) — site architecture, deployment, design-system inheritance
 - [`website-hugo-template-maintainability.md`](../architecture-patterns/website-hugo-template-maintainability.md) — partial extraction patterns (the carousel IIFE's `visibilitychange` hoist was part of this refactor)
 - [`bilingual-brand-naming-shuangmiansou-juso.md`](../best-practices/bilingual-brand-naming-shuangmiansou-juso.md) — brand naming conventions (the hero wordmark "双面搜 / Juso")
