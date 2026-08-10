@@ -130,6 +130,15 @@ A user-initiated JSON backup of provider keys and user preferences, including Ac
 
 Import uses a preview-confirm flow. Keys only fill empty slots, preference replacement is opt-in, and preferences absent from an older file do not overwrite values introduced by newer versions.
 
+### Agent Skill
+A standalone, distributable Python package (`SKILL.md` plus `scripts/`) that lets a general-purpose local Agent invoke selected extension-worker capabilities — primarily search and engine-search — through the Agent Bridge. It is published in two variants (prod and dev) generated from a single-source template, and is also bundled inside the extension as a downloadable zip. It is the Agent-facing counterpart to the Agent Bridge: the Skill is what the Agent runs, the Bridge is the MV3 channel those runs speak over.
+
+### Juso Bridge (`juso_bridge.py`)
+The single-source Python module shared by the Agent Skill's CLI and the MCP Server that implements the loopback HTTP client for the Agent Bridge protocol (claim/complete/abort, fragment parsing, process cleanup, reply-shape validation). It is vendored byte-identically into the prod and dev published Skill directories and the MCP package, with a drift test locking all copies equal — so the Skill CLI and the MCP Server can never silently disagree on the protocol. Distinct from "Agent Bridge," which is the extension-side channel; `juso_bridge.py` is the client that speaks it.
+
+### MCP Server
+An independently published pip package (`juso-search`) that exposes the same Agent Bridge actions as MCP tools over stdio, so MCP-native Agent clients can call them without the Skill CLI. It reuses `juso_bridge.py` as its transport (hence the byte-equality drift lock), maps each bridge action to one MCP tool, and shares the bridge's vocabulary through runtime discovery rather than a duplicated allowlist. It is the third Agent delivery surface alongside the bundled Skill zip and the published Skill directories.
+
 ## Behavioral Rules
 
 ### Active Provider

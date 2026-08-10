@@ -122,5 +122,5 @@ const scheduleClose = () => {
 - [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — 锚点文档：§4d-4f 记录了本次改动所扩展的同一浮层状态机（hover-intent 120ms、touch focus/click 竞态、shadow-safe 外部关闭、scroll-hide 关浮层）。其 §4d/§4e 的代码示例与表述已随本次改动同步刷新（统一为各模式 / overlayPosition）。
 - [source-group-layout-layer](../architecture-patterns/source-group-layout-layer.md) — Source Group Layout 布局层（pinned 平铺 vs grouped 折叠、projectLayout），pill 的交互描述（"hover flyout"）未包含点击固定语义。
 - [serp-switch-bar-and-unified-source-model](../architecture-patterns/serp-switch-bar-and-unified-source-model.md) — 两宿主（搜索页顶栏 vs shadow-DOM SERP 栏）结构与 projectLayout seam 的结构背景。
-- [serp-bottom-bar-body-mount](../ui-bugs/serp-bottom-bar-body-mount.md) — 底栏 flyout 的几何/层级背景（body mount、z-index max、group-flyout--fixed-up）。
+- [serp-bar-bottom-position-and-scroll-hide §4g](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — 底栏 flyout 的几何/层级背景（body mount、z-index max、group-flyout--fixed-up）；该症状优先的独立学习已合并入此 §4g。
 - 仓库架构说明：docs/plans/2026-07-01-001-juso-search-plan.md、CONCEPTS.md

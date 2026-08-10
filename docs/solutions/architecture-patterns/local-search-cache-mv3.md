@@ -90,7 +90,10 @@ Cache hit returns immediately without calling the provider. The `forceRefresh`
 flag lets the user explicitly request a fresh result:
 
 ```typescript
-// lib/gateway.ts — simplified
+// lib/gateway.ts — simplified pre-instance pseudocode; see "Cache key" section above for the
+// current `${instanceId ?? providerId}:${query}` keying (the real gateway threads a
+// `cacheKeyId` from `resolveSearchSource` into both `getCachedSearch(cacheKeyId, query)`
+// and `saveCachedSearch(response, cacheKeyId)`).
 export async function handleSearch(request: SearchRequest): Promise<SearchReply> {
   const providerId = await resolveSearchProvider(request.providerId);
 

@@ -69,7 +69,7 @@ Every data-driven partial repeated this 2-line pattern for each bilingual field:
 {{ $title := .title_zh }}{{ if eq $lang "en" }}{{ $title = .title_en }}{{ end }}
 ```
 
-12 occurrences across 6 partials. Extract into a value-returning partial:
+14 occurrences across 7 partials. Extract into a value-returning partial:
 
 **`layouts/partials/i18n-field.html`:**
 ```go
@@ -123,7 +123,7 @@ Inline `style=` attributes cannot be overridden by media queries, cannot be them
 
 Hardcoded bilingual strings (`{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}`) are invisible to translation audits and create ambiguity. The worst case: the same concept had two different English strings in two places ("Dual-face architecture" vs "Two-sided architecture").
 
-**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 79 keys each).
+**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 83 keys each).
 
 ```go
 {{/* Before — inconsistent, unsearchable */}}
@@ -191,7 +191,7 @@ New partials created:
 - `partials/section-head.html` — shared section heading block
 - `partials/i18n-field.html` — value-returning bilingual field resolver
 
-Result: `index.html` went from 211 lines to 128; `agents/single.html` from 111 to 75. The reduction is all duplicated skeleton, not content. In the symmetric-IA restructure the human-face body moved from `layouts/index.html` into `layouts/human/single.html` (a copy of the old body), and `layouts/index.html` became the neutral overview.
+Result: `index.html` went from 211 lines to 56; `agents/single.html` from 111 to 62. The reduction is all duplicated skeleton, not content. In the symmetric-IA restructure the human-face body moved from `layouts/index.html` into `layouts/human/single.html` (a copy of the old body), and `layouts/index.html` became the neutral overview.
 
 ## Related
 

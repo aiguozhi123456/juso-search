@@ -86,14 +86,14 @@ It is the BYOK boundary type. Every worker-side function that touches a key or a
 `SourceId` is the composition point where instance ids are welcome:
 
 ```ts
-// lib/sources.ts:18-19
-export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance';
-export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId;
+// lib/sources.ts:20-21
+export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance' | 'ai-engine';
+export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId;
 ```
 
 The rule, enforced by audit and by the `isProviderInstanceId` parallel guard, is: **instance ids flow freely through `SourceId`-typed holes (UI state, `sourceOrder`, `sourceHidden`, `groupConfig`, `activeSource`, agent `search-instance`), but the moment code needs a key or an adapter, it must pass through the gateway boundary that resolves `ProviderInstanceId → { providerId, options }`.** After that boundary, only `ProviderId` flows.
 
-This is the same discipline `separate-active-search-source-from-active-byok-provider` established for engine ids; instances add a second inhabited variant of `SourceId` that must obey the same rule.
+This is the same discipline `separate-active-search-source-from-active-byok-provider` established for engine ids; instances add one more inhabited non-provider variant of `SourceId` (alongside engines and, more recently, AI engines) that must obey the same rule.
 
 ### Resolve at the gateway boundary; thread a `cacheKeyId` through the resolution chain
 
@@ -221,7 +221,9 @@ reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.
       ? (await deps.handleSearchInstance?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
       : claim.value.request.action === 'list-instances'
         ? (await deps.listInstances?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-        : await deps.listProviders();
+        : claim.value.request.action === 'list-engines'
+          ? (await deps.listEngines?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+          : await deps.listProviders();
 ```
 
 The `handleSearchInstance?` / `listInstances?` optionals are defensive: if a future host forgets to wire them, the bridge returns a clean "service unavailable" rather than throwing.
@@ -542,6 +544,6 @@ buildRequest(query, opts, apiKey) {
 - **`docs/solutions/logic-errors/source-graph-new-type-threading-data-loss.md`** — the threading-data-loss bug class that the `storage.ts` instance-id stripping bug (cautionary lesson 2) is a direct instance of. The "enumerate every normalizer caller" prevention checklist applies to any new `SourceId` variant.
 - **Refresh candidates surfaced by this learning:**
   - `per-provider-config-worker-injection` should cross-reference the `cacheKeyId` threading as the general form of "the cache read and write must agree on the key" — the `maxResults` case was simple (key unchanged, clear on write); the instance case is the general form (key changes, no clear needed because the key itself disambiguates).
-  - `separate-active-search-source-from-active-byok-provider` should note that `SourceId` now has two inhabited non-provider variants (engines and instances), both of which require the parallel `is*Id` guard at every boundary.
+  - `separate-active-search-source-from-active-byok-provider` should note that `SourceId` now has multiple inhabited non-provider variants (engines, instances, and AI engines), all of which require the parallel `is*Id` guard at every boundary.
   - `local-search-cache-mv3` should note the `instanceId` dimension added by cache schema v2 — the key is now `${instanceId ?? providerId}:${query}`, not `${providerId}:${query}`.
   - `agent-skill-localhost-capability-bridge` should mention the v2 additive action surface (`search-instance`, `list-instances`) and confirm v1 callers remain unaffected.

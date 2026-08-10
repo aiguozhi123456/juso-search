@@ -99,12 +99,14 @@ export type ProtocolMap = {
 };
 ```
 
-Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has 7 fields (`siteEngines`, `providerMaxResults`, and `groupConfig` were added later); see `lib/messaging.ts`.
+Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has grown well beyond the five fields shown (later additions include `siteEngines`, `customEngines`, `providerMaxResults`, `groupConfig`, `providerInstances`, `aiAutoEnter`, and `flatLayoutFewSources`); see `lib/messaging.ts` for the current shape.
 
 Then implement the storage reads and writes only in the background gateway:
 
 ```ts
-// lib/gateway.ts
+// lib/gateway.ts — illustrative of the worker-injection pattern; the live handler now
+// reads all keys in one batch via `getProviderConfigSnapshot()` (lib/storage.ts) rather
+// than this five-field `Promise.all`, but the boundary discipline is unchanged.
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();
   const [configuredProviderIds, activeProviderId, activeSourceId, sourceOrder, sourceHidden] = await Promise.all([

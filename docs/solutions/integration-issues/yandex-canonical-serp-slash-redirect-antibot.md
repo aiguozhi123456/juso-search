@@ -86,6 +86,12 @@ The companion Python bridge skill's `ENGINES` tuple
 `("google", "bing", "baidu")`, which rejected `--engine yandex` client-side
 before the worker ever saw the request; it must mirror the worker allowlist.
 
+> **Update (2026-08-10):** the `ENGINES` tuple no longer exists — it was removed
+> entirely (see `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md`).
+> The skill now discovers engines via `list-engines` and `--engine` accepts any
+> string (validated at claim time), so the "mirror the worker allowlist" requirement
+> above is now obsolete; there is no client-side tuple to drift.
+
 ## Why This Works
 
 Yandex's canonical SERP route is `/search` (no trailing slash). A `/search/`
@@ -114,7 +120,10 @@ redirect-and-challenge behavior differed.
 - **Mirror the worker allowlist in the bridge client.** The worker's
   `parseSearchRequest` allowlist (`lib/agent-bridge.ts`) and the Python skill's
   `ENGINES` tuple must list the same engine ids, or the client rejects valid ids
-  before they reach the worker.
+  before they reach the worker. (Obsolete since 2026-08-10: the `ENGINES` tuple
+  was removed — the skill now discovers engines via `list-engines` and `--engine`
+  accepts any string, validated at claim time, so there is no client-side tuple
+  to keep in sync. The historical requirement is retained above as record.)
 - **Residual: Yandex antifraud is not fully solvable in code.** Even with the
   canonical URL, Yandex still challenges some automated/background navigations.
   This is a platform characteristic; the fix above removes the avoidable trigger

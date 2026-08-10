@@ -49,6 +49,7 @@ Do not mirror every `<section>` as a top-level nav item. Collapse into a small s
 | 搜索 | active engine, site engines, quickbar |
 | 密钥 | API keys |
 | 通用 | locale, agent bridge, config I/O |
+| 关于 | about-brand, about-links, about-tech, about-ack |
 
 Use local UI state (`activeGroup`) and **conditional render** of that group’s sections. Prefer paged groups over scroll-spy when section count is still small and each group is a coherent task. Scroll-spy is for long single-document forms; paged groups are for distinct settings jobs.
 
@@ -111,6 +112,7 @@ const navGroups = [
   { id: 'search', label: '搜索' },
   { id: 'keys', label: '密钥' },
   { id: 'general', label: '通用' },
+  { id: 'about', label: '关于' },
 ];
 
 // render only the active group's sections

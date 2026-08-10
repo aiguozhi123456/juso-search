@@ -82,7 +82,8 @@ Final verified overrides block in package.json:
   "adm-zip": "^0.6.0",
   "tmp": "^0.2.6",
   "uuid": "^11.1.1",
-  "esbuild": "^0.28.1"
+  "esbuild": "^0.28.1",
+  "undici": "^7.29.0"
 }
 ```
 
@@ -163,7 +164,8 @@ After:
     "adm-zip": "^0.6.0",
     "tmp": "^0.2.6",
     "uuid": "^11.1.1",
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "undici": "^7.29.0"
   }
 }
 ```
@@ -179,4 +181,4 @@ npx tsc --noEmit && npx eslint . && npx vitest run && npx wxt build
 gh api repos/<owner>/<repo>/dependabot/alerts --paginate | jq '.[].state'  # all "fixed"
 ```
 
-Resolved versions: shell-quote 1.10.0, adm-zip 0.6.0, tmp 0.2.7, uuid 11.1.1, esbuild 0.28.1, brace-expansion 1.1.16.
+Resolved versions: shell-quote 1.10.0, adm-zip 0.6.0, tmp 0.2.7, uuid 11.1.1, esbuild 0.28.1, undici 7.29.0, brace-expansion 1.1.16.

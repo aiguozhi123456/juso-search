@@ -1,7 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
-last_updated: 2026-08-01
+last_updated: 2026-08-10
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -13,7 +13,6 @@ symptoms:
   - Tavily and Exa support synthesized answers but Stepfun REST/MCP return results only
   - Stepfun MCP returns REST-shaped data as JSON string in result.content[0].text
   - Stepfun has two billing surfaces (pay-as-you-go REST vs Step Plan MCP subscription)
-resolution_type: standardized_interface
 related_components:
   - lib/providers/
   - lib/gateway.ts
@@ -77,7 +76,7 @@ Key decisions per provider:
 - **Stepfun REST**: No answer available; use `results[].snippet` + `results[].content`. Auth: `Authorization: Bearer <key>`.
 - **Stepfun MCP**: Uses a stateless streamableHttp transport — send an `initialize` handshake (no session persisted), then `tools/call` with `name: "web_search"` and `arguments.input`. The response nests the identical REST result shape as a JSON string inside `result.content[0].text`. Same adapter can serve both Stepfun surfaces with different backends.
 
-**Security**: Keys are BYOK, stored in `chrome.storage.local`, read only inside the background worker. The UI gets sanitized provider configuration status through worker messages (for example, configured provider IDs and active provider ID), and it sends newly typed keys to the worker for storage. It does not read the stored key map back from storage. Each adapter receives the key from the worker's secure context.
+**Security**: Keys are BYOK, stored in `chrome.storage.local` under a single keys map, read only inside the background worker. The UI gets sanitized provider configuration status through worker messages (for example, configured provider IDs and active provider ID), and it sends newly typed keys to the worker for storage. It does not read the stored key map back from storage. Each adapter receives the key from the worker's secure context.
 
 ## Why This Matters
 
@@ -160,10 +159,19 @@ function SearchResults({ response }: { response: NormalizedSearchResponse }) {
 **Worker-only key access**:
 
 ```ts
-// lib/storage.ts — never imported by UI entrypoints
-export async function getKey(provider: string): Promise<string | null> {
-  const data = await chrome.storage.local.get(providerKey(provider))
-  return data[providerKey(provider)] ?? ''
+// lib/storage.ts — never imported by UI entrypoints. Uses the WXT-typed
+// `browser` global (not `chrome`). All keys live under one KEYS_KEY map;
+// getKey reads the map then returns the entry for one provider, or null.
+const KEYS_KEY = 'providerKeys';
+
+async function readKeys(): Promise<Record<string, string>> {
+  const got = await browser.storage.local.get(KEYS_KEY);
+  return (got[KEYS_KEY] ?? {}) as Record<string, string>;
+}
+
+export async function getKey(id: ProviderId): Promise<string | null> {
+  const keys = await readKeys();
+  return keys[id] ?? null;
 }
 ```
 

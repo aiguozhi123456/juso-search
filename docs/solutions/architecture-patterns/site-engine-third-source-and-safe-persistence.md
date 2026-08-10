@@ -12,9 +12,7 @@ applies_when:
   - "Implementing normalize/read-write paths for chrome.storage-backed lists with size budgets"
   - "Wiring SERP or handoff navigation that depends on a source id written just before navigate"
   - "Importing settings schemas that must not wipe local-only collections (e.g. site engines on v3 import)"
-related_components:
-  - development_workflow
-  - testing_framework
+related_components: [lib/site-engines.ts, lib/sources.ts, lib/storage.ts, lib/schema.ts, lib/serp-handoff.ts, lib/config-io.ts, components/SiteEngineManager.tsx]
 tags:
   - site-engine
   - search-source

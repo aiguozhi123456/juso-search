@@ -40,10 +40,10 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 
 发布新版本时，按以下顺序执行：
 
-1. **版本号升级**：同步修改 `package.json` 中的 `version` 字段与 `wxt.config.ts` 中 `manifest.version`
+1. **版本号升级**：仅需修改 `package.json` 中的 `version` 字段。`wxt.config.ts` 已不再硬编码 `version`——WXT 自动从 `package.json` 读取（单一源，见 [single-source-product-versioning.md](../best-practices/single-source-product-versioning.md)）；不要在 `wxt.config.ts` 中再写 `manifest.version`。
 2. **提交**：将版本变更作为独立 commit 提交（如 `chore(release): bump version to 1.2.0`）
 3. **构建生产 ZIP**：`npm run zip` → 生成 `juso-search-{version}-chrome.zip`
-4. **构建开发 ZIP**：`npx wxt zip --mode development` → 重命名为 `juso-search-{version}-chrome-dev.zip`
+4. **构建开发 ZIP**：先 `npm run build:dev`（`wxt build --mode development`，输出到 `.output/chrome-mv3-dev/`，manifest 内含签名 key、扩展 ID 稳定），再从该输出目录打包成 `juso-search-{version}-chrome-dev.zip`。注意：`package.json` 里有 `"build:dev": "wxt build --mode development"`（构建，非 zip）和 `"zip": "wxt zip"`（不带 mode 标志），并没有 `zip:dev` 脚本；开发 ZIP 是先 `build:dev` 产出目录、再对目录压缩得到的。
 5. **打标签**：创建 annotated tag（`git tag -a v1.2.0 -m "release: v1.2.0 ..."`）
 6. **推送标签**：`git push origin v1.2.0`
 7. **GitHub Release**：创建 Release，**仅附加 dev ZIP**
@@ -123,17 +123,14 @@ README 中涉及版本号时需区分两个来源：
    // package.json
    { "version": "1.2.0" }
    ```
-   ```ts
-   // wxt.config.ts
-   manifest: {
-     version: '1.2.0',
-   }
-   ```
+
+   > 历史写法（v1.2.0 时还在 `wxt.config.ts` 里硬编码 `manifest.version: '1.2.0'`）已废弃——single-source 改造后 `wxt.config.ts` 不再设 `version`，WXT 自动从 `package.json` 读取，只需改 `package.json` 一处。
 
 2. **构建执行**：
    ```bash
-   npm run zip                       # → juso-search-1.2.0-chrome.zip
-   npx wxt zip --mode development    # → juso-search-1.2.0-chrome.zip（需重命名为 -dev.zip）
+   npm run zip                       # → juso-search-1.2.0-chrome.zip（生产，供 CWS）
+   npm run build:dev                 # → .output/chrome-mv3-dev/（含 key，ID 稳定）
+   # 再从 .output/chrome-mv3-dev/ 打包为 juso-search-1.2.0-chrome-dev.zip
    ```
 
 3. **manifest 条件 key**：

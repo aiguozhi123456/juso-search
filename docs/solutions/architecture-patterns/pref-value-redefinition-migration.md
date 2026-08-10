@@ -170,5 +170,4 @@ A v8 backup with `serpBarPosition: 'top'` means overlay and is left untouched (`
 ## Related
 
 - [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — the schema versioning architecture this migration runs under. §"CONFIG_KEYS without a schema bump" was updated to reflect that `serpBarPosition` later *did* require a v7→v8 value-rewrite bump.
-- [serp-bar-bottom-position-and-scroll-hide](./serp-bar-bottom-position-and-scroll-hide.md) — the bar positioning architecture. §5 documents the v7→v8 migration in the context of the three placement models (inline / top overlay / bottom overlay).
-- [serp-bottom-bar-body-mount](../ui-bugs/serp-bottom-bar-body-mount.md) — the body-mount strategy shared by both overlay variants; the `inline ↔ overlay` flip remount rule depends on the resolved-position distinction this migration preserves.
+- [serp-bar-bottom-position-and-scroll-hide](./serp-bar-bottom-position-and-scroll-hide.md) — the bar positioning architecture. §5 documents the v7→v8 migration in the context of the three placement models (inline / top overlay / bottom overlay); §4g documents the `document.body` body-mount strategy shared by both overlay variants, on which the `inline ↔ overlay` flip remount rule depends.

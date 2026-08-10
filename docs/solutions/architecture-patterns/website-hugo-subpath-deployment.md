@@ -45,7 +45,7 @@ When the extension's `tokens.css` changes, a CI drift-lock (`scripts/check-websi
 
 - **Target**: GitHub Pages **project** site (not user/org site), served under `/juso-search/`.
 - **Mechanism**: GitHub Actions (`.github/workflows/website-pages.yml`) — `peaceiris/actions-hugo` builds, `actions/deploy-pages` deploys. Triggered on pushes to `main` that touch `website/**` (plus `workflow_dispatch`).
-- **baseURL handling**: `hugo --baseURL https://<user>.github.io/juso-search/`. This only rewrites URLs generated through Hugo's URL functions — `relURL`, `absURL`, `relLangURL`, `.Permalink`, `.RelPermalink`. **Hardcoded strings in templates are NOT rewritten.** Use the functions exclusively:
+- **baseURL handling**: baseURL is set in `website/hugo.toml` (not a CI `--baseURL` flag). This only rewrites URLs generated through Hugo's URL functions — `relURL`, `absURL`, `relLangURL`, `.Permalink`, `.RelPermalink`. **Hardcoded strings in templates are NOT rewritten.** Use the functions exclusively:
   - Static resources (images, fonts, CSS, icons) → `relURL`
   - Open Graph / social images → `absURL` (OG requires absolute URLs)
   - Internal navigation → `relLangURL` (baseURL-aware and language-aware)

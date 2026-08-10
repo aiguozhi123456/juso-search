@@ -18,7 +18,7 @@ related_components:
   - lib/engines/extractors/douyin.ts
   - lib/engine-search.ts
   - entrypoints/engine-extractor.content.ts
-  - skills/juso-search/SKILL.md
+  - skills/juso-search/reference/engines.md
 ---
 
 # Douyin returns no-results/challenge in the automated engine-search flow despite a correct extractor
@@ -45,7 +45,7 @@ The user-visible impact: the agent receives no usable Douyin results, so `douyin
 
 ## Solution
 
-The extractor code is retained (it is correct and unit-tested), and the **headless limitation is documented** in both `skills/juso-search/SKILL.md` and `skills/juso-search-dev/SKILL.md` so callers treat `douyin` as best-effort:
+The extractor code is retained (it is correct and unit-tested), and the **headless limitation is documented** in both `skills/juso-search/reference/engines.md` and `skills/juso-search-dev/reference/engines.md` so callers treat `douyin` as best-effort:
 
 ```markdown
 > **`douyin` headless limitation (2026-07-31):** the extractor code is correct
@@ -82,4 +82,4 @@ Documenting the limitation is the correct resolution because the failure is the 
 
 - `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — the four-layer capability model; this learning is why `douyin` now ships a real extractor (Layer 2) while documenting a runtime caveat, rather than mapping to `UNSUPPORTED_EXTRACTOR`.
 - `lib/engines/extractors/douyin.ts` — the retained extractor (URL synthesis from `waterfall_item_{id}`, caption-text parsing).
-- `skills/juso-search/SKILL.md` / `skills/juso-search-dev/SKILL.md` — the `douyin` headless-limitation callout.
+- `skills/juso-search/reference/engines.md` / `skills/juso-search-dev/reference/engines.md` — the `douyin` headless-limitation callout.

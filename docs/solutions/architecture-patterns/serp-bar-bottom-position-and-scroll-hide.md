@@ -595,6 +595,8 @@ append: (anchor, root) => {
 
 The generalizable lesson: **a `position:fixed` overlay's containing block is determined by its *page* ancestor chain, not its CSS alone.** Mounting such an overlay inside a rich SPA subtree (transforms, will-change, contain) silently breaks its viewport anchoring and traps its z-index, and no amount of `:host` CSS can repair it — the fix is structural: mount the overlay at the page top level (`document.body`).
 
+**Known limitation (top overlay covers site fixed headers).** A `top:0` overlay at `z-index: 2147483647` covers site fixed headers (e.g. Douyin's 56px header, Google's header). `injectTopPadStyles` only pushes *flow* content down (`html{padding-top:40px}`); it cannot push fixed headers down, so the site header is inaccessible while the top overlay is visible. This is symmetric to the bottom overlay covering fixed bottom elements, is user-opted (explicit `'top'` pref), and is mitigated by scroll-hide (scroll down → overlay slides away). No code fix; recorded so future reviewers don't re-investigate.
+
 ### 5. `CONFIG_KEYS` — the getter-default shortcut, and the one bump serpBarPosition needed
 
 `serpBarPosition` is a persisted pref that must survive config export/import, so it has to be in the config-domain whitelist. Like `groupConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, and `providerMaxResults` before it, its default is supplied by a **getter** (`getBarPositionPref` normalizes any missing/unknown value to `'auto'`). A missing key is therefore safe without a migration: there is nothing to transform, just a default to fall back to.
@@ -607,8 +609,8 @@ export const CURRENT_SCHEMA_VERSION = 8;
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
-// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition'] as const;
+// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此后的 aiAutoEnter / flatLayoutFewSources 仍由 getter 兜底，加入白名单未 bump。此前的版本无需迁移。
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources'] as const;
 
 // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
 // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。

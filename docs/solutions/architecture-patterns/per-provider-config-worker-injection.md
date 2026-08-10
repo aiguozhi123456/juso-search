@@ -278,13 +278,14 @@ export async function handleSetProviderMaxResults(providerId: ProviderId, maxRes
 
 ### Example 3 — The mutation queue (storage)
 
-Three parallel queues, one per shared storage key, each serializing its own read-modify-writes. The pattern is identical across all three; copy it verbatim when adding a fourth:
+Five parallel queues, one per shared storage key, each serializing its own read-modify-writes. The pattern is identical across all five; copy it verbatim when adding a sixth:
 
 ```ts
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
 let sourceMutationQueue: Promise<unknown> = Promise.resolve();
 let providerMaxResultsMutationQueue: Promise<unknown> = Promise.resolve();
+let providerInstancesMutationQueue: Promise<unknown> = Promise.resolve();
 
 export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = providerKeysMutationQueue.then(mutation, mutation);
@@ -295,6 +296,12 @@ export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise
 export function withProviderMaxResultsMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = providerMaxResultsMutationQueue.then(mutation, mutation);
   providerMaxResultsMutationQueue = run.catch(() => undefined);
+  return run;
+}
+
+export function withProviderInstancesMutation<T>(mutation: () => Promise<T>): Promise<T> {
+  const run = providerInstancesMutationQueue.then(mutation, mutation);
+  providerInstancesMutationQueue = run.catch(() => undefined);
   return run;
 }
 ```

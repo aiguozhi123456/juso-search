@@ -76,12 +76,15 @@ tags:
    }
 
    // sourceHidden：稀疏——只过滤 + 去重，绝不补尾
-   export function normalizeSourceHidden(ids: unknown): SourceId[] {
+   export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteEngineDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = []): SourceId[] {
+     const siteIds = new Set(siteDefinitions.map((site) => site.id));
+     const customIds = new Set(customDefinitions.map((c) => c.id));
+     const instanceIds = new Set(providerInstances.map((instance) => instance.id));
      const list = Array.isArray(ids) ? ids : [];
      const seen = new Set<SourceId>();
      const normalized: SourceId[] = [];
      for (const id of list) {
-       if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id)) || seen.has(id as SourceId)) continue;
+       if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
        seen.add(id as SourceId);
        normalized.push(id as SourceId);
      }

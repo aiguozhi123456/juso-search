@@ -90,4 +90,5 @@ Hardcoded strings bypass all of this. Once every path goes through a URL functio
 
 ## Related Issues
 
+- [`website-hugo-subpath-deployment.md`](../architecture-patterns/website-hugo-subpath-deployment.md) — the deployment architecture that generalizes this incident.
 - The same class of bug affects any static-site generator with a base-path option (Jekyll `baseurl`, Vite `base`, Next `basePath`). The fix pattern is identical: use the framework's path helper, never hardcode.
