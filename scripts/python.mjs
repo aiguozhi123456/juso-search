@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global console, process */
+/* global console, process, setTimeout, clearTimeout */
 // Cross-platform Python 3 launcher for npm scripts.
 //
 // No single command name works on all 3 OSes: on Windows `python3` is the
@@ -23,8 +23,20 @@ const probe = (cmd) =>
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
-    child.on("error", () => resolve(false)); // ENOENT → next candidate
-    child.on("close", () => resolve(PY3.test(out)));
+    // A broken/hanging interpreter (e.g. the Microsoft Store stub waiting for
+    // input) must not stall the probe; kill it after 5s.
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve(false);
+    }, 5000);
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false); // ENOENT → next candidate
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      resolve(PY3.test(out));
+    });
   });
 
 let interpreter = null;

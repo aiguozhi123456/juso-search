@@ -405,6 +405,67 @@ class ReplyValidatorTests(unittest.TestCase):
             self.assertEqual(juso_bridge.find_chrome(None), str(Path(__file__)))
 
 
+class ChromeCandidatesTests(unittest.TestCase):
+    """chrome_candidates() sys.platform branches (parametrized via subTest).
+
+    Every existing test mocks chrome_candidates() away, so the real darwin/
+    linux path logic was never asserted. These tests patch sys.platform only
+    (and os.environ for win32) and verify the hardcoded candidate paths;
+    chrome_candidates() only reads paths, never launches anything.
+    """
+
+    def test_chrome_candidates_platform_branches(self):
+        cases = [
+            (
+                "darwin",
+                {},
+                [
+                    Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                    Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
+                ],
+            ),
+            (
+                "linux",
+                {},
+                [
+                    Path("/usr/bin/google-chrome"),
+                    Path("/usr/bin/google-chrome-stable"),
+                    Path("/usr/bin/chromium"),
+                    Path("/usr/bin/chromium-browser"),
+                ],
+            ),
+            (
+                "win32",
+                {
+                    "PROGRAMFILES": "C:\\Program Files",
+                    "PROGRAMFILES(X86)": "C:\\Program Files (x86)",
+                    "LOCALAPPDATA": "C:\\Users\\tester\\AppData\\Local",
+                },
+                [
+                    Path("C:\\Program Files") / "Google/Chrome/Application/chrome.exe",
+                    Path("C:\\Program Files (x86)") / "Google/Chrome/Application/chrome.exe",
+                    Path("C:\\Users\\tester\\AppData\\Local") / "Google/Chrome/Application/chrome.exe",
+                ],
+            ),
+        ]
+        for platform, env, expected in cases:
+            with self.subTest(platform=platform):
+                with (
+                    patch("sys.platform", platform),
+                    patch.dict(juso_bridge.os.environ, env, clear=False),
+                ):
+                    candidates = juso_bridge.chrome_candidates()
+                self.assertIsInstance(candidates, list)
+                for path in expected:
+                    self.assertIn(path, candidates)
+
+    def test_chrome_candidates_else_branch_used_for_unknown_platform(self):
+        """Any non-win32/non-darwin platform falls into the linux else branch."""
+        with patch("sys.platform", "freebsd"):
+            candidates = juso_bridge.chrome_candidates()
+        self.assertIn(Path("/usr/bin/google-chrome"), candidates)
+
+
 class ConstantsTests(unittest.TestCase):
     def test_constants_present(self):
         self.assertEqual(juso_bridge.PROTOCOL, 2)

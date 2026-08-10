@@ -53,3 +53,42 @@ jobs:
 
       - name: MCP server tests
         run: npm run test:mcp
+
+  # JS/extension surface on the same 3-OS matrix. Covers the extension build
+  # pipeline (wxt build) plus the per-platform native npm binary deps
+  # (esbuild/lightningcss/rolldown darwin/linux packages), which are never
+  # exercised otherwise.
+  js-matrix:
+    name: JS tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Extension build
+        run: npm run build
