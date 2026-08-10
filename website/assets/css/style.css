@@ -265,12 +265,11 @@ p { color: var(--fg); }
   .face-human .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
   .face-human .hero__visual { max-width: none; justify-self: stretch; }
 }
-/* —— 中性总览页（/ 根）：双面合成视觉同样成为页面主角 —— */
-.face-overview .hero__visual { padding: 12px; }
-@media (min-width: 940px) {
-  .face-overview .hero__inner { max-width: 1240px; grid-template-columns: 0.75fr 1fr; }
-  .face-overview .hero__visual { max-width: none; justify-self: stretch; }
-}
+/* —— 中性总览页（/ 根）：纯文案 hero —— 无视觉列，文案居中 + 下拉键 —— */
+.face-overview .hero__inner { grid-template-columns: 1fr; justify-items: center; }
+.face-overview .hero__copy { text-align: center; }
+.face-overview .hero__copy .eyebrow { justify-content: center; }
+.face-overview .hero__cta { justify-content: center; }
 .hero__copy { max-width: 760px; }
 .hero__eyebrow { margin-bottom: clamp(22px, 3vw, 32px); }
 .wordmark {
@@ -292,6 +291,23 @@ p { color: var(--fg); }
 .hero__tagline .en-sub { display: block; font-family: var(--font-sans); font-weight: 400; font-size: .62em; color: var(--muted); letter-spacing: .01em; margin-top: 8px; }
 .hero__positioning { margin-top: clamp(20px, 3vw, 28px); font-size: clamp(1rem, 1.5vw, 1.12rem); color: var(--muted); max-width: 60ch; line-height: 1.7; }
 .hero__cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: clamp(28px, 4vw, 38px); }
+
+/* 下拉键 —— 裸箭头滚动提示，锚点到双门卡片（中性页 hero 底部） */
+.hero__scroll { display: flex; justify-content: center; margin-top: clamp(32px, 4vw, 48px); }
+.hero__scroll-key {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 6px;
+  color: var(--faint);
+  transition: color var(--duration-normal) var(--ease-out);
+  animation: hero-bob 2.6s var(--ease-out) infinite;
+}
+.hero__scroll-key:hover { color: var(--muted); }
+.hero__scroll-key svg { width: 34px; height: 34px; }
+.hero__scroll-caption {
+  font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+  color: inherit; white-space: nowrap;
+}
+@keyframes hero-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 
 /* 编辑式裁切角标 —— 取自 promo */
 .crop-frame { position: relative; }
@@ -655,28 +671,6 @@ html.js .reveal.in { opacity: 1; transform: none; }
 .door:hover .door__link { gap: 12px; }
 .door:hover .door__arrow { transform: translateX(3px); }
 
-/* ---------- 双面合成 hero 视觉（中性根页） ----------
-   一张 .hero__card 内左右两栏：左人类面轮播、右智能体面 CLI。
-   桌面端并排（CLI 拉伸对齐轮播高度），移动端堆叠。复用 .windowbar / .carousel / .cli__block。 */
-.hero__card--dual { display: flex; flex-direction: column; }
-.dual { display: grid; grid-template-columns: 1fr; }
-.dual__pane { display: flex; flex-direction: column; }
-.dual__pane + .dual__pane { border-top: 1px solid var(--border-soft); }
-/* 双栏内的面标签（左栏在 .carousel__caption 内，右栏在 .caption 内）统一为 mono 品牌色 */
-.hero__card--dual .tag {
-  font-family: var(--font-mono); font-size: .72rem;
-  color: var(--brand); font-weight: 600; flex: 0 0 auto;
-}
-/* 右栏 CLI 块随栏高拉伸，.cli__pre 吃掉余高 —— 终端留白自然 */
-.dual__pane--agent > .cli__block { flex: 1 1 auto; display: flex; flex-direction: column; }
-.dual__pane--agent > .cli__block > .cli__pre { flex: 1 1 auto; }
-@media (min-width: 940px) {
-  .dual { grid-template-columns: 1fr 1fr; }
-  .dual__pane + .dual__pane { border-top: 0; border-left: 1px solid var(--border-soft); }
-  /* 桌面端：左栏轮播视口放弃固定纵横比、随右栏 CLI 拉伸，避免高度错位；
-     幻灯片为 absolute inset:0 + object-fit:cover，仍自然填满。 */
-  .hero__card--dual .carousel__viewport { aspect-ratio: auto; flex: 1 1 auto; }
-}
 @media (max-width: 900px) {
   .doors { grid-template-columns: 1fr; }
 }

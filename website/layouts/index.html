@@ -1,9 +1,9 @@
 {{/* 中性总览落地页 —— / 根页（双面论点，不偏向任一面） */}}
-{{ define "title" }}{{ i18n "hero_eyebrow" }} · {{ .Site.Title }}{{ end }}
+{{ define "title" }}{{ i18n "sec_faces" }} · {{ .Site.Title }}{{ end }}
 {{ define "description" }}{{ i18n "hero_positioning_overview" }}{{ end }}
 
 {{ define "main" }}
-{{/* Hero —— 双面合成视觉（轮播 + CLI 同框） */}}
+{{/* Hero —— 纯文案 + 下拉键指向双门 */}}
 {{ partial "hero.html" (dict
   "Page" .
   "tagline_zh" (i18n "tagline_zh")
@@ -13,11 +13,11 @@
   "cta_primary_href" .Site.Params.cwsURL
   "cta_ghost_key" "cta_release"
   "cta_ghost_href" .Site.Params.releaseURL
-  "visual" "hero-visual-overview"
+  "scroll_target" "#doors"
 ) }}
 
 {{/* 双门 —— 人类面 / 智能体面 */}}
-<section class="section section--sunk">
+<section class="section section--sunk" id="doors">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "hero_eyebrow") "title" (i18n "sec_faces") "sub" (i18n "sec_faces_sub")) }}
     <div class="doors reveal">

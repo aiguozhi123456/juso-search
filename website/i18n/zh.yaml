@@ -40,6 +40,12 @@ hero_positioning_agents:
 hero_positioning_overview:
   other: "双面搜 / Juso 是开源的双面搜索网关：同一台浏览器、同一套本地密钥，一面为人——把传统引擎、站外搜索与 AI 搜索统一到一个入口；一面为智能体——本地 AI 经 Agent Bridge 调用同一套搜索，密钥始终留在扩展内。"
 
+# 中性页 hero 下拉键（无障碍标注，跳转双门卡片）
+hero_scroll:
+  other: "滚动到两个入口"
+hero_scroll_caption:
+  other: "为自己，或为智能体"
+
 # Hero 截图轮播（无障碍标注）
 carousel_label:
   other: "首页截图轮播"

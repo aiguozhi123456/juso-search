@@ -14,9 +14,19 @@
         <a class="btn btn--ghost" href="{{ .cta_ghost_href }}" target="_blank" rel="noopener">{{ i18n .cta_ghost_key }}</a>
       </div>
     </div>
+    {{ if .visual }}
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
       {{ partial .visual . }}
     </div>
+    {{ end }}
+    {{ with .scroll_target }}
+    <div class="hero__scroll reveal-load d6">
+      <a class="hero__scroll-key" href="{{ . }}" aria-label="{{ i18n "hero_scroll" }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l8 6 8-6"/></svg>
+        <span class="hero__scroll-caption">{{ i18n "hero_scroll_caption" }}</span>
+      </a>
+    </div>
+    {{ end }}
   </div>
 </section>

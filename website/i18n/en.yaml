@@ -40,6 +40,12 @@ hero_positioning_agents:
 hero_positioning_overview:
   other: "Juso is an open-source, two-faced search gateway: one browser, one set of locally stored keys—a face for people, unifying conventional engines, site search, and AI search into one entry; and a face for agents, where local AI calls the same search through Agent Bridge, with keys never leaving the extension."
 
+# Neutral-page hero scroll key (a11y label; jumps to the two door cards)
+hero_scroll:
+  other: "Scroll to the two entrances"
+hero_scroll_caption:
+  other: "For yourself, or for your agents"
+
 # Hero 截图轮播（无障碍标注）
 carousel_label:
   other: "Homepage screenshot carousel"
