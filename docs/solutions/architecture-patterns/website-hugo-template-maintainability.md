@@ -123,7 +123,7 @@ Inline `style=` attributes cannot be overridden by media queries, cannot be them
 
 Hardcoded bilingual strings (`{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}`) are invisible to translation audits and create ambiguity. The worst case: the same concept had two different English strings in two places ("Dual-face architecture" vs "Two-sided architecture").
 
-**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 76 keys each).
+**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 79 keys each).
 
 ```go
 {{/* Before — inconsistent, unsearchable */}}
@@ -134,6 +134,13 @@ alt="{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}"
 alt="{{ i18n "cap_architecture" }}"
 <b>{{ i18n "cap_architecture" }}</b>
 ```
+
+#### Boundary rules — atomic strings vs. structured records vs. brand constants
+
+- **Atomic UI string** → i18n key, added to **both** `i18n/zh.yaml` and `i18n/en.yaml`; the two files must keep identical key sets (Hugo silently renders an empty string for a missing key).
+- **Structured record with fields** → data file with `*_zh` / `*_en` pairs, resolved via `partials/i18n-field.html`.
+- **Brand wordmark** (`双面搜`+`Juso` in `hero.html`) and **decorative glyphs** (`人`/`智` matrix numerals in `capability-matrix.html`; `juso-search`/`bash` terminal labels in `hero-visual-agent.html`) → accepted constants, documented here, **not** i18n keys.
+- **Note:** `data/sources.yaml` was normalized from `name`/`name_en` to `name_zh`/`name_en` to match the convention and route through `i18n-field.html`.
 
 ## Why This Matters
 

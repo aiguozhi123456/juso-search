@@ -5,11 +5,11 @@
       <span class="title">juso-search</span>
       <span class="lang">bash</span>
     </div>
-    <pre class="cli__pre"><span class="cmt" aria-hidden="true"># {{ i18n "cli_cmt_providers" }}</span>
-<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">list-providers</span>
+    {{/* CLI 演示前两条命令 —— data/cli.yaml（与 cli.html 同源，避免重复内容） */}}
+    <pre class="cli__pre">{{ range $i, $item := first 2 hugo.Data.cli.items }}{{ $title := partial "i18n-field.html" (dict "obj" $item "field" "title" "lang" $.Page.Site.Language.Lang) }}<span class="cmt" aria-hidden="true"># {{ $title }}</span>
+{{ replaceRE `<span class="(prompt|cmt)"` `<span class="$1" aria-hidden="true"` $item.html | safeHTML }}{{ if eq $i 0 }}
 
-<span class="cmt" aria-hidden="true"># {{ i18n "cli_cmt_search" }}</span>
-<span class="prompt" aria-hidden="true">$</span> <span class="cmd">python scripts/juso_search.py</span> <span class="arg">search</span> <span class="str">"latest AI research"</span> <span class="flag">--provider</span> <span class="arg">tavily</span></pre>
+{{ end }}{{ end }}</pre>
   </div>
   <div class="caption"><span class="tag">CLI</span>{{ i18n "sec_cli_agents" }}</div>
 </div>

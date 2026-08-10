@@ -1,33 +1,33 @@
 # 搜索来源图标墙 —— 取自 static/icons/*.svg
-# name 为中文显示名；name_en 为英文（仅 CJK 来源需要）。
+# name_zh 为中文显示名；name_en 为英文（所有来源均含两字段，经 i18n-field.html 按 lang 取）。
 # 分组数量由模板 len .items 计算，不再手写 count。
 groups:
   - key: engines
     items:
-      - { icon: google,       name: Google }
-      - { icon: bing,         name: Bing }
-      - { icon: baidu,        name: 百度,      name_en: Baidu }
-      - { icon: douyin,       name: 抖音,      name_en: Douyin }
-      - { icon: xiaohongshu,  name: 小红书,    name_en: Xiaohongshu }
-      - { icon: bilibili,     name: 哔哩哔哩,  name_en: Bilibili }
-      - { icon: yandex,       name: Yandex }
-      - { icon: duckduckgo,   name: DuckDuckGo }
+      - { icon: google,       name_zh: Google,    name_en: Google }
+      - { icon: bing,         name_zh: Bing,      name_en: Bing }
+      - { icon: baidu,        name_zh: 百度,      name_en: Baidu }
+      - { icon: douyin,       name_zh: 抖音,      name_en: Douyin }
+      - { icon: xiaohongshu,  name_zh: 小红书,    name_en: Xiaohongshu }
+      - { icon: bilibili,     name_zh: 哔哩哔哩,  name_en: Bilibili }
+      - { icon: yandex,       name_zh: Yandex,    name_en: Yandex }
+      - { icon: duckduckgo,   name_zh: DuckDuckGo, name_en: DuckDuckGo }
   - key: ai_search
     items:
-      - { icon: tavily,   name: Tavily }
-      - { icon: exa,      name: Exa }
-      - { icon: brave,    name: Brave }
-      - { icon: stepfun,  name: Stepfun }
-      - { icon: jina,     name: Jina }
-      - { icon: doubao,   name: 豆包,  name_en: Doubao }
+      - { icon: tavily,   name_zh: Tavily, name_en: Tavily }
+      - { icon: exa,      name_zh: Exa,    name_en: Exa }
+      - { icon: brave,    name_zh: Brave,  name_en: Brave }
+      - { icon: stepfun,  name_zh: Stepfun, name_en: Stepfun }
+      - { icon: jina,     name_zh: Jina,   name_en: Jina }
+      - { icon: doubao,   name_zh: 豆包,  name_en: Doubao }
   - key: ai_chat
     items:
-      - { icon: ai-grok,        name: Grok }
-      - { icon: ai-chatgpt,     name: ChatGPT }
-      - { icon: ai-deepseek,    name: DeepSeek }
-      - { icon: ai-doubao-chat, name: 豆包,   name_en: Doubao }
-      - { icon: ai-gemini,      name: Gemini }
+      - { icon: ai-grok,        name_zh: Grok,      name_en: Grok }
+      - { icon: ai-chatgpt,     name_zh: ChatGPT,   name_en: ChatGPT }
+      - { icon: ai-deepseek,    name_zh: DeepSeek,  name_en: DeepSeek }
+      - { icon: ai-doubao-chat, name_zh: 豆包,   name_en: Doubao }
+      - { icon: ai-gemini,      name_zh: Gemini,    name_en: Gemini }
   - key: custom
     items:
-      - { icon: site,          name: 站外搜索,    name_en: Site Engine }
-      - { icon: custom-engine, name: 自定义引擎,  name_en: Custom Engine }
+      - { icon: site,          name_zh: 站外搜索,    name_en: Site Engine }
+      - { icon: custom-engine, name_zh: 自定义引擎,  name_en: Custom Engine }

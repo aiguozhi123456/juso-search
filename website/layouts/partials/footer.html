@@ -6,7 +6,7 @@
       <div class="site-foot__brand">
         <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
           <span class="brandlock__cn">{{ i18n "brand_cn" }}</span>
-          {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">Juso</span>{{ end }}
+          {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">{{ i18n "brand_latin" }}</span>{{ end }}
         </a>
         <p>{{ i18n "footer_tagline" }}</p>
         <a class="foot-agent-link" href="{{ "agents/" | relLangURL }}">

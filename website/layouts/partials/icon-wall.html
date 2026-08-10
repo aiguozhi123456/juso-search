@@ -6,8 +6,7 @@
       <h3>{{ i18n (printf "group_%s" .key) }} <span class="count">{{ len .items }}</span></h3>
       <div class="iconwall__items">
         {{ range .items }}
-          {{ $name := .name }}
-          {{ if and (eq $lang "en") .name_en }}{{ $name = .name_en }}{{ end }}
+          {{ $name := partial "i18n-field.html" (dict "obj" . "field" "name" "lang" $lang) }}
           <div class="srcchip">
             <img src="{{ printf "icons/%s.svg" .icon | relURL }}" alt="{{ $name }}" loading="lazy" width="30" height="30">
             <span class="lbl">{{ $name }}</span>

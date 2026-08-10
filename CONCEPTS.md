@@ -179,6 +179,13 @@ Stepfun's token-based subscription plan. Searches via the MCP channel (`web_sear
 ### Dual-provider pattern
 Shipping one provider brand as two adapters that share a single icon, label family, and error mapping when the brand has two billing or API surfaces (pay-as-you-go REST vs. a subscription channel): Stepfun/Stepfun Plan and Doubao/Global are both built this way. The adapters stay separate providers so the user picks whichever matches their billing arrangement; the shared identity is presentation only.
 
+## Drift Prevention
+
+### Drift-lock
+A CI test that asserts two manually-maintained copies of the same source stay byte-identical (binary assets) or value-identical (text tokens), turning silent drift into a red build.
+
+The project's drift-lock family includes the `juso_bridge` byte-equality locks (generated copies), the website token value-equality lock, and the website asset byte-equality lock. A drift-lock splits its assertions into a must-match set (copies that should be identical) and an intentional-divergence set (copies that legitimately differ, like marketing-only fonts or shadows); a lock without this split either misses real drift or cries wolf. Drift-lock is the "lock the copy" strategy, distinct from "generate the copy" (single source + generator, where drift is impossible by construction) — lock when the copy is consumed at build time by a static pipeline, generate when it could be read at runtime.
+
 ## Flagged ambiguities
 
 - "pinned" 在快切栏领域有两个独立含义：Source Group Layout 的"置顶平铺"（layout pinned —— source 直接平铺顶行，与之相对的是折叠进分组）与 Group Flyout 的"点击固定展开"（flyout pinned —— 已展开浮层不随 hover 收起）。前者决定 source 是否进分组，后者决定浮层的关闭时机，互不干扰。

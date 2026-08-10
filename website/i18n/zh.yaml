@@ -3,10 +3,16 @@ brand_lockup:
   other: "双面搜 / Juso"
 brand_cn:
   other: "双面搜"
+brand_latin:
+  other: "Juso"
 face_switch_label:
   other: "双面切换"
 lang_label:
   other: "语言"
+lang_short_zh:
+  other: "中"
+lang_short_en:
+  other: "EN"
 nav_human:
   other: "人类"
 nav_agent:
@@ -175,8 +181,3 @@ not_found_text:
 not_found_home:
   other: "回到首页"
 
-# CLI 命令注释（智能体面终端演示）
-cli_cmt_providers:
-  other: "列出已配置的服务"
-cli_cmt_search:
-  other: "显式指定 provider 搜索"

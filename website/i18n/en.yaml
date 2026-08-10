@@ -3,10 +3,16 @@ brand_lockup:
   other: "双面搜 / Juso"
 brand_cn:
   other: "Juso"
+brand_latin:
+  other: "Juso"
 face_switch_label:
   other: "Face switch"
 lang_label:
   other: "Language"
+lang_short_zh:
+  other: "中"
+lang_short_en:
+  other: "EN"
 nav_human:
   other: "People"
 nav_agent:
@@ -175,8 +181,3 @@ not_found_text:
 not_found_home:
   other: "Back to home"
 
-# CLI command comments (agent-face terminal demo)
-cli_cmt_providers:
-  other: "List configured providers"
-cli_cmt_search:
-  other: "Search with an explicit provider"

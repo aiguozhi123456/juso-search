@@ -5,7 +5,7 @@
   <div class="wrap site-head__inner">
     <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
       <span class="brandlock__cn">{{ i18n "brand_cn" }}</span>
-      {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">Juso</span>{{ end }}
+      {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">{{ i18n "brand_latin" }}</span>{{ end }}
     </a>
 
     {{/* 双面切换器 —— 链接，呼应扩展快切栏 pill */}}
@@ -23,11 +23,11 @@
       <nav class="langswitch" aria-label="{{ i18n "lang_label" }}">
         {{ range .Translations }}
           {{ if eq $curLang "zh" }}
-            <span aria-current="page">中</span><span class="sep">/</span>
-            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">EN</a>
+            <span aria-current="page">{{ i18n "lang_short_zh" }}</span><span class="sep">/</span>
+            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">{{ i18n "lang_short_en" }}</a>
           {{ else }}
-            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">中</a><span class="sep">/</span>
-            <span aria-current="page">EN</span>
+            <a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}">{{ i18n "lang_short_zh" }}</a><span class="sep">/</span>
+            <span aria-current="page">{{ i18n "lang_short_en" }}</span>
           {{ end }}
         {{ end }}
       </nav>

@@ -8,6 +8,11 @@ on:
     branches: [main]
     paths:
       - 'website/**'
+      # 令牌源改动同样触发：网站 CSS 必须与 tokens.css 的 must-match 集保持一致
+      - 'entrypoints/shared/tokens.css'
+      # 资产源改动同样触发：网站静态资源必须与扩展 icons / 文档截图逐字节一致
+      - 'public/icons/**'
+      - 'docs/assets/screens/**'
       - '.github/workflows/website-pages.yml'
   workflow_dispatch:
 
@@ -30,6 +35,16 @@ jobs:
         with:
           hugo-version: '0.164.0'
           extended: true
+      # 令牌漂移锁：网站 CSS 必须与扩展 tokens.css 的 must-match 集一致
+      # （品牌色 / 中性色 / 动效时长）。有意分歧（字体、阴影、站点独有令牌）
+      # 已记录在 style.css :root 注释中，脚本允许其不同；runner 自带 Python 3。
+      - name: Design token drift-lock
+        run: python scripts/check-website-tokens.py
+      # 资产漂移锁：website/static/icons ↔ public/icons（1:1 按文件名，21 对）
+      # 与 website/static/img/screenshot-* ↔ docs/assets/screens（README.md
+      # 映射表，4 对）必须逐字节一致；runner 自带 Python 3。
+      - name: Asset drift-lock
+        run: python scripts/check-website-assets.py
       - name: Build
         run: hugo --source website --minify
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
