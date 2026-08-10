@@ -16,6 +16,11 @@ winget install Hugo.Hugo.Extended
 brew install hugo
 ```
 
+```bash
+# Linux（snap 自带 extended 版；或 sudo apt install hugo，注意包版本需为 extended）
+sudo snap install hugo
+```
+
 安装后确认 `hugo` 在 PATH：
 
 ```sh

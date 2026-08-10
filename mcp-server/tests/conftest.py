@@ -25,9 +25,10 @@ from juso_search.config import Config  # noqa: E402
 
 EXTENSION_ID = "a" * 32
 
-# A path that does not exist: forces run_bridge to fail fast with
-# chrome_not_found instead of launching a real browser in tests.
-NO_SUCH_CHROME = r"C:\juso-search-test-no-such-chrome.exe"
+# A path that does not exist (POSIX-safe, works on Windows/macOS/Linux):
+# forces run_bridge to fail fast with chrome_not_found instead of launching
+# a real browser in tests.
+NO_SUCH_CHROME = "/juso-search-test-no-such-chrome"
 
 
 @pytest.fixture

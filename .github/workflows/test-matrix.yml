@@ -1,0 +1,55 @@
+# Free 3-OS CI for the Python cross-platform surface (skill CLI + MCP server).
+# Public repos: standard GitHub-hosted runners (ubuntu/macos/windows-latest)
+# are free with unlimited minutes — no -large/-xlarge labels needed.
+# Accounts are capped at 20 concurrent jobs total / 5 macOS (queuing only).
+name: test-matrix
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-matrix:
+    name: Python tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: mcp-server/pyproject.toml
+
+      # Node is only needed to run `node scripts/python.mjs` (the cross-OS
+      # interpreter resolver); no npm install / JS checks in this matrix.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # `mcp-server[dev]` pulls the runtime deps (mcp, pydantic) declared in
+      # pyproject.toml plus pytest via the `dev` optional-dependencies extra.
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip && pip install -e "mcp-server[dev]"
+
+      # Proves the interpreter resolver picks a real Python 3 on this OS
+      # (filters the Windows Store stub that prints nothing).
+      - name: Smoke test interpreter resolution
+        run: node scripts/python.mjs --version
+
+      - name: Python skill tests
+        run: npm run test:python
+
+      - name: MCP server tests
+        run: npm run test:mcp

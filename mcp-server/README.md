@@ -61,6 +61,8 @@ Each client injects these variables differently. Pick your client:
 
 Claude Desktop does **not** expand `${VAR}`, so write literal values:
 
+> **`JUSO_CHROME_PATH` by OS** — Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe` · macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` · Linux: `/usr/bin/google-chrome` (or `/usr/bin/chromium`).
+
 ```json
 {
   "mcpServers": {
@@ -97,6 +99,8 @@ Claude Desktop does **not** expand `${VAR}`, so write literal values:
 ```
 
 ### Cline (`cline_mcp_settings.json`)
+
+> **`JUSO_CHROME_PATH` by OS** — macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` · Linux: `/usr/bin/google-chrome` (or `/usr/bin/chromium`). The example below uses the Windows path.
 
 ```json
 {
