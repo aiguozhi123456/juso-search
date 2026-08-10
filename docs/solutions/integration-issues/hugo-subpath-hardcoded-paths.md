@@ -70,7 +70,7 @@ Replace every hardcoded root-absolute path in the templates with the appropriate
 
 `relLangURL` is used (not plain `relURL`) for internal nav so that language-aware links resolve correctly under both the default language (root) and non-default languages (`/en/`).
 
-Files changed: `layouts/_default/baseof.html`, `layouts/index.html`, `layouts/agents/single.html`, `layouts/partials/header.html`, `layouts/partials/footer.html`, `layouts/partials/icon-wall.html`.
+Files changed: `layouts/_default/baseof.html`, `layouts/index.html`, `layouts/agents/single.html`, `layouts/human/single.html` (added in the symmetric-IA restructure), `layouts/partials/header.html`, `layouts/partials/footer.html`, `layouts/partials/icon-wall.html`, `layouts/partials/hero-visual-overview.html`.
 
 ## Why This Works
 

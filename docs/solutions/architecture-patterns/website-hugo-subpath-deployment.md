@@ -28,7 +28,7 @@ Juso needed a showcase website for the Chrome extension. The site is a Hugo stat
 - **Hugo v0.164 extended**, no theme — all layouts are custom under `layouts/`. The extended build is required for SCSS piping and image processing.
 - **Bilingual via Hugo i18n**: Chinese at the root (`defaultContentLanguage = "zh"`), English under `/en/`. Content files use the `_index.md` / `_index.en.md` / `index.md` / `index.en.md` suffix convention; UI strings live in `i18n/zh.yaml` and `i18n/en.yaml` (keep the two key sets identical).
 - **Data-driven content**: structured content (capability matrices, source icon grids, CLI examples, security fact lists) lives in `data/*.yaml` and is consumed by partials. This keeps prose in markdown and structured lists in data files.
-- **Partials for reuse**: `partials/header.html`, `partials/footer.html`, and section partials (`capability-matrix.html`, `cli.html`, `icon-wall.html`, etc.) are the reuse layer. Two pages share one skeleton via `layouts/_default/baseof.html` + `layouts/index.html` / `layouts/agents/single.html`.
+- **Partials for reuse**: `partials/header.html`, `partials/footer.html`, and section partials (`capability-matrix.html`, `cli.html`, `icon-wall.html`, etc.) are the reuse layer. Three surfaces share one skeleton via `layouts/_default/baseof.html` + `layouts/index.html` (neutral overview) / `layouts/human/single.html` (human face) / `layouts/agents/single.html` (agent face).
 
 ### Design-system inheritance
 
@@ -78,7 +78,7 @@ Both are invisible to the build and only show up on the live site.
 
 ## Examples
 
-- The site's two pages (`/` and `/agents/`) share one skeleton but swap content via `layouts/index.html` vs `layouts/agents/single.html`, both backed by `layouts/_default/baseof.html`.
+- The site's three surfaces (`/`, `/human/`, `/agents/`) share one skeleton but swap content via `layouts/index.html` (neutral overview) vs `layouts/human/single.html` (human face) vs `layouts/agents/single.html` (agent face), all backed by `layouts/_default/baseof.html`.
 - The source icon grid (`partials/icon-wall.html`) reads `data/sources.yaml` and computes counts via `len .items` rather than a hand-written `count` field — add an icon by adding a row to the yaml, no template change.
 - The subpath bug (images 404, nav jumping to the blog root) was fixed by replacing every hardcoded `/path` with the appropriate Hugo URL function — see [hugo-subpath-hardcoded-paths](integration-issues/hugo-subpath-hardcoded-paths.md).
 

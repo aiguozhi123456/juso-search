@@ -18,7 +18,7 @@ tags: [hugo, template, partials, i18n, maintainability, inline-styles, css-token
 
 ## Context
 
-The Juso marketing site has two "faces" — a human-face homepage (`layouts/index.html`) and an agent-face page (`layouts/agents/single.html`) — that share ~80% of their structure: identical hero skeletons, identical CTA bands, and a repeated ~5-line section-head block appearing ~10 times across both templates. A maintainability audit found that this duplication, plus scattered inline styles and hardcoded bilingual strings, made every template edit a "remember to change both files" exercise. The hero was the worst offender: ~45 lines of near-identical markup in each template, differing only in one visual region (a carousel vs. a CLI demo block).
+The Juso marketing site has three surfaces sharing one skeleton — a neutral overview (`layouts/index.html`), a human-face page (`layouts/human/single.html`), and an agent-face page (`layouts/agents/single.html`) — that share ~80% of their structure: identical hero skeletons, identical CTA bands, and a repeated ~5-line section-head block appearing across all three templates. A maintainability audit found that this duplication, plus scattered inline styles and hardcoded bilingual strings, made every template edit a "remember to change both files" exercise. The hero was the worst offender: ~45 lines of near-identical markup in each template, differing only in one visual region (a carousel vs. a CLI demo block).
 
 This document captures the five structural patterns applied in the refactor (commit `377fd27`) so the next maintainer evolves the templates safely instead of re-deriving the approach.
 
@@ -43,13 +43,13 @@ When two page variants share a layout skeleton but differ in one content region,
     </div>
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
-      {{ partial .visual . }}   {{/* ← sub-partial slot: "hero-visual-home" or "hero-visual-agent" */}}
+      {{ partial .visual . }}   {{/* ← sub-partial slot: "hero-visual-home" | "hero-visual-agent" | "hero-visual-overview" */}}
     </div>
   </div>
 </section>
 ```
 
-**Call site** (index.html):
+**Call site** (human/single.html — the human face; the neutral overview `index.html` is a third call site using `hero-visual-overview`):
 ```go
 {{ partial "hero.html" (dict "Page" . "tagline_zh" (i18n "tagline_zh") "tagline_en" (i18n "tagline_en")
   "positioning_key" "hero_positioning_human" "cta_primary_key" "cta_cws"
@@ -57,7 +57,7 @@ When two page variants share a layout skeleton but differ in one content region,
   "cta_ghost_href" .Site.Params.releaseURL "visual" "hero-visual-home") }}
 ```
 
-The variant content lives in `partials/hero-visual-home.html` (carousel) and `partials/hero-visual-agent.html` (CLI block). A future third face adds one visual partial and one call site — zero edits to the shared skeleton.
+The variant content lives in `partials/hero-visual-home.html` (carousel), `partials/hero-visual-agent.html` (CLI block), and `partials/hero-visual-overview.html` (dual-face carousel + CLI — added by the symmetric-IA restructure). The third-face promise is now realized: each new face adds one visual partial and one call site — zero edits to the shared skeleton.
 
 **Critical:** preserve every CSS class, every `reveal-load dN` delay number, every ARIA attribute when extracting. The partial must produce byte-identical output (modulo whitespace). Hugo's `--minify` collapses whitespace, so indentation differences are harmless; structural/class differences are not.
 
@@ -187,11 +187,12 @@ New partials created:
 - `partials/hero.html` — shared hero skeleton with visual sub-partial slot
 - `partials/hero-visual-home.html` — carousel visual variant
 - `partials/hero-visual-agent.html` — CLI demo visual variant
+- `partials/hero-visual-overview.html` — dual-face variant (carousel + CLI side by side; added by the symmetric-IA restructure for the neutral overview)
 - `partials/cta-band.html` — shared CTA band
 - `partials/section-head.html` — shared section heading block
 - `partials/i18n-field.html` — value-returning bilingual field resolver
 
-Result: `index.html` went from 211 lines to 128; `agents/single.html` from 111 to 75. The reduction is all duplicated skeleton, not content.
+Result: `index.html` went from 211 lines to 128; `agents/single.html` from 111 to 75. The reduction is all duplicated skeleton, not content. In the symmetric-IA restructure the human-face body moved from `layouts/index.html` into `layouts/human/single.html` (a copy of the old body), and `layouts/index.html` became the neutral overview.
 
 ## Related
 

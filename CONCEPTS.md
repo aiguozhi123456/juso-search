@@ -186,6 +186,11 @@ A CI test that asserts two manually-maintained copies of the same source stay by
 
 The project's drift-lock family includes the `juso_bridge` byte-equality locks (generated copies), the website token value-equality lock, and the website asset byte-equality lock. A drift-lock splits its assertions into a must-match set (copies that should be identical) and an intentional-divergence set (copies that legitimately differ, like marketing-only fonts or shadows); a lock without this split either misses real drift or cries wolf. Drift-lock is the "lock the copy" strategy, distinct from "generate the copy" (single source + generator, where drift is impossible by construction) — lock when the copy is consumed at build time by a static pipeline, generate when it could be read at runtime.
 
+## Website (marketing site)
+
+### Face
+The product's two-audience presentation model ("双面搜"): a human face for people searching directly, and an agent face for local AI agents searching through the same browser. The marketing site mirrors this structure — a neutral overview presents both faces as equal doorways, and each face owns its own section route on the site.
+
 ## Flagged ambiguities
 
 - "pinned" 在快切栏领域有两个独立含义：Source Group Layout 的"置顶平铺"（layout pinned —— source 直接平铺顶行，与之相对的是折叠进分组）与 Group Flyout 的"点击固定展开"（flyout pinned —— 已展开浮层不随 hover 收起）。前者决定 source 是否进分组，后者决定浮层的关闭时机，互不干扰。
