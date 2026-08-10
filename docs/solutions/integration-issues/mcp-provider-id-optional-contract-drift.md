@@ -1,6 +1,7 @@
 ---
 title: MCP server provider_id declared optional but worker bridge requires it
 date: 2026-08-09
+last_updated: 2026-08-10
 category: docs/solutions/integration-issues
 module: mcp-server
 problem_type: integration_issue
@@ -69,15 +70,19 @@ def search(
 ) -> CallToolResult:
 ```
 
+> **Note (2026-08-10):** The `ProviderId` Enum no longer exists in the MCP server — it was removed as part of the vocabulary decoupling (see `skill-mcp-vocabulary-decoupling.md`). The `search` tool's `provider` param is now a plain `str` (`provider: str`, renamed from `provider_id` per the parameter-naming alignment below), still **required**, with shape-only validation on the MCP side; the extension validates membership at runtime via `isProviderId()`. The "required" contract this doc fixes is unchanged — only the type annotation changed from `ProviderId` (Enum) to `str`.
+
 Test changes:
 - **Removed** `test_search_defaults` (it tested the invalid optional path).
-- **Added** `assert "provider_id" in schema["required"]` to `test_search_schema`
+- **Added** `assert "provider" in schema["required"]` to `test_search_schema`
   to lock the contract.
-- **Updated** `test_bridge_error_kinds_surface` to pass `provider_id: "tavily"`
+- **Updated** `test_bridge_error_kinds_surface` to pass `{"query": "q", "provider": "tavily"}`
   (it previously called `search` without it to trigger error paths).
 - **Updated** the schema assertion from `properties["provider_id"]["anyOf"][0]["$ref"]`
   (Optional → anyOf wrapper) to `properties["provider_id"]["$ref"]` (required →
-  direct ref).
+  direct ref). After the 2026-08-10 enum removal, `test_search_schema` instead
+  asserts `properties["provider"]["type"] == "string"` plus `"ProviderId" not in
+  schema.get("$defs", {})` — the param is a plain string, and the enum is gone.
 
 Also aligned MCP tool parameter **names** with CLI flags (drop the `_id`
 suffix): `provider_id` → `provider`, `engine_id` → `engine`, `instance_id` →
@@ -103,6 +108,12 @@ default was a lie — it could never produce a successful search without a real
 provider. Making it required moves the validation to the schema layer (the MCP
 client sees "required" and rejects the call before it reaches the bridge),
 producing a clearer error and an honest contract.
+
+The **required semantics still hold** after the 2026-08-10 vocabulary
+decoupling (`skill-mcp-vocabulary-decoupling.md`): the MCP `provider` param is
+still required, it is just annotated as plain `str` instead of the removed
+`ProviderId` Enum. The MCP side validates shape (required, non-empty) and the
+extension validates membership at runtime via `isProviderId()`.
 
 The root cause was **contract drift between two integration surfaces** (CLI
 skill vs MCP server) that share the same bridge. The CLI was implemented first
@@ -131,7 +142,8 @@ contract.
 ## Related
 
 - `lib/agent-bridge.ts:15` — `AgentSearchRequest` type (providerId required)
-- `lib/agent-bridge.ts:237-245` — bridge validator (rejects null providerId)
-- `mcp-server/juso_search/server.py` — MCP tool definitions
+- `lib/agent-bridge.ts:252` — bridge validator (rejects null/non-string providerId via `isProviderId()`)
+- `mcp-server/juso_search/server.py` — MCP tool definitions (provider/engine params are plain `str` since 2026-08-10)
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — the shared bridge architecture
+- `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md` — the structural fix that replaced the `ProviderId`/`EngineId` enums with plain strings and runtime discovery
 - Root `README.md` — product contract: "search 必须提供 --provider，不会悄悄跟随扩展当前服务"

@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -48,6 +48,7 @@ Agent
   -> worker POSTs /v1/claim to obtain the request
   -> worker executes the action
   -> worker POSTs /v1/complete with the validated reply
+  -> if the worker rejects the claim (invalid provider/engine id, bridge disabled, untrusted sender) it POSTs /v1/abort so the script fails fast instead of timing out
   -> after successful argument parsing, the script prints one JSON result and exits
 ```
 
@@ -59,10 +60,12 @@ Each invocation:
 
 - binds only `127.0.0.1`, never `0.0.0.0`, a LAN address, or hostname-based `localhost`;
 - uses an OS-assigned random port, a high-entropy token, and a separate request ID;
-- accepts only `POST /v1/claim` and `POST /v1/complete`;
+- accepts only `POST /v1/claim`, `POST /v1/complete`, and `POST /v1/abort`;
 - checks the exact `Host`, Bearer token, protocol version, request ID, action schema, and reply schema;
 - makes claim idempotent and complete single-use;
 - closes the server and destroys the capability after completion or timeout; daemonized request threads and per-connection timeouts prevent an incomplete local request from holding shutdown open.
+
+`/v1/abort` is the fast-failure back-channel: `entrypoints/bridge/main.ts` calls it on fragment parse failure (via `notifyAbort`) and on claim-side rejection (`!result.ok` — invalid provider/engine id, bridge disabled, untrusted sender), so the script fails in seconds with `bridge aborted: <reason>` instead of burning its full timeout. See `agent-bridge-skill-contract-drift.md` (Bug 3) and `skill-mcp-vocabulary-decoupling.md` (change F).
 
 The extension constructs `http://127.0.0.1:<validated-port>/v1/...` itself. It never accepts a callback URL, hostname, scheme, path, or redirect from the claim. The manifest therefore needs only `http://127.0.0.1/*`, not `<all_urls>`.
 
@@ -72,9 +75,9 @@ The token is passed in the extension-page fragment rather than the query string.
 
 `bridge.html` only parses bridge credentials and calls the typed `agentBridgeClaim` message. It does not read storage, execute searches, or post results.
 
-Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then checks a total capability switch (`agentBridgeEnabled`, default off) and returns `{ ok: false }` without proceeding if the user has not opted in. Only then does it inject the existing provider gateway, a declassified provider-list handler, and a wrapped engine-search executor into `lib/agent-bridge.ts` — the wrapper checks a second sub-switch (`engineSearchEnabled`, default off) so engine-search can be denied independently of provider search and list-providers. See `default-off-capability-gating-for-cws-compliance.md` for why both gates must ship off by default.
+Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then checks a total capability switch (`agentBridgeEnabled`, default off) and returns `{ ok: false }` without proceeding if the user has not opted in. Only then does it inject the existing provider gateway, declassified provider-list and engine-list handlers, and a wrapped engine-search executor into `lib/agent-bridge.ts` — the wrapper checks a second sub-switch (`engineSearchEnabled`, default off) so engine-search can be denied independently of provider search, list-providers, and list-engines. See `default-off-capability-gating-for-cws-compliance.md` for why both gates must ship off by default.
 
-`list-providers` returns only provider IDs, answer capability, and configured status. Provider search still flows through `lib/gateway.ts`, so key access, normalization, caching, and error mapping remain identical to extension UI searches.
+The bridge action surface is `search`, `list-providers`, `list-instances`, `search-instance`, `engine-search`, and `list-engines`. `list-providers` returns only provider IDs, answer capability, and configured status; `list-engines` returns only engine IDs. Both are the discovery surface for the bridge vocabulary — ids are never hardcoded in the Python skill or MCP server, they are fetched at runtime (see `skill-mcp-vocabulary-decoupling.md`). Provider search still flows through `lib/gateway.ts`, so key access, normalization, caching, and error mapping remain identical to extension UI searches.
 
 ### Define claim direction and deadlines precisely
 
@@ -167,6 +170,7 @@ When the bridge does expose a scraping-adjacent capability like engine-search, t
 
 ```bash
 python scripts/juso_search.py list-providers
+python scripts/juso_search.py list-engines
 python scripts/juso_search.py search "latest AI research" --provider tavily
 python scripts/juso_search.py engine-search "latest AI research" --engine google --max-results 10
 ```
@@ -187,6 +191,7 @@ The verified checks included the full Vitest suite, Python bridge tests, `npm ru
 - `docs/solutions/architecture-patterns/provider-api-integration-patterns.md`
 - `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`
 - `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — why only the extraction-capable engine subset is exposed to the Agent
+- `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md` — provider/engine vocabulary is discovered at runtime via `list-providers`/`list-engines`, not mirrored in the skill or MCP server; `/v1/abort` on claim-side rejection
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`
 - `docs/solutions/runtime-errors/serp-to-extension-page-blocked-by-client.md`
 - `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — orchestration vs page-state errors; Baidu local URL chain

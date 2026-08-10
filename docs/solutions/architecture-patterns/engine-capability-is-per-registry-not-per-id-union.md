@@ -1,7 +1,7 @@
 ---
 title: "Engine capability is layered per registry, but the shared EngineId union hides the layers"
 date: 2026-07-23
-last_updated: 2026-08-01
+last_updated: 2026-08-10
 category: architecture-patterns
 module: engines
 problem_type: architecture_pattern
@@ -38,7 +38,7 @@ During the v1.1.0 README update (commit `628242a`), Douyin and Xiaohongshu were 
 
 From these three signals the doc edit concluded: "all 5 engines support agent extraction" (later expanded to 6 with bilibili). The sentence "Juso 通过浏览器导航，供人直接使用，或为智能体提取普通搜索结果" (zh) / "Juso navigates a browser for people to use directly or for agents to extract ordinary search results" (en) was expanded to include Douyin and Xiaohongshu without qualification.
 
-The user caught the error: Douyin and Xiaohongshu are login-walled SPAs whose results render through async APIs, not server-rendered DOM. The extractor registry (`lib/engines/extractors/registry.ts`) explicitly maps them to `UNSUPPORTED_EXTRACTOR`, and the CLI skill whitelist (`juso_search.py` line 30) only exposes `("google", "bing", "baidu")`. The fix commit `8f54fbf` restructured the engine-definition sentence to separate navigation (all 5, later 6 with bilibili) from agent extraction (3), and reverted the agent paragraph to list only Google, Bing, Baidu.
+The user caught the error: Douyin and Xiaohongshu are login-walled SPAs whose results render through async APIs, not server-rendered DOM. The extractor registry (`lib/engines/extractors/registry.ts`) explicitly maps them to `UNSUPPORTED_EXTRACTOR`, and the CLI skill whitelist (`juso_search.py` line 30) only exposes `("google", "bing", "baidu")`. The fix commit `8f54fbf` restructured the engine-definition sentence to separate navigation (all 5, later 6 with bilibili) from agent extraction (3), and reverted the agent paragraph to list only Google, Bing, Baidu. (The CLI skill whitelist itself was later removed entirely — see the Layer 3 note; since 2026-08-10 the skill discovers engines at runtime via `list-engines`.)
 
 ## Guidance
 
@@ -102,15 +102,11 @@ This doc was written (2026-07-23) when douyin/xiaohongshu/bilibili mapped to `UN
 
 The four-layer rule below still holds — it is now satisfied (all layers list all engines) rather than violated.
 
-### Layer 3 — Skill CLI whitelist
+### Layer 3 — Agent-facing engine vocabulary (auto-discovered since 2026-08-10)
 
-Source of truth: `skills/juso-search/scripts/juso_search.py` line 30 + `SKILL.md` line 32.
+The skill no longer maintains an engine whitelist. The `ENGINES` tuple in `juso_search.py` and the hardcoded engine list in `SKILL.md` were **removed** (2026-08-10): the agent discovers the live engine set at runtime via the bridge's `list-engines` action (`python scripts/juso_search.py list-engines`; MCP `list-engines` tool), which returns `allEngines()` from the registry. `--engine` now accepts any string and the extension validates it at claim time. This removes Layer 3 as a separate registry — it can no longer drift — see `skill-mcp-vocabulary-decoupling.md`.
 
-```python
-ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")
-```
-
-As of 2026-07-31 the CLI whitelist covers all eight engines (mirroring the extractor registry). SKILL.md documents the full list plus per-engine notes on `snippet` content and URL handling.
+> Historical (pre-2026-08-10): the CLI whitelist was `ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")` in `juso_search.py` line 30, hand-synced with `SKILL.md` line 32. As of 2026-07-31 it covered all eight engines (mirroring the extractor registry). That manual mirror is what drifted and is now gone.
 
 ### Layer 4 — Default visibility in quick-switch bar
 
@@ -132,15 +128,15 @@ Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在
 When adding a new engine:
 - It enters Layer 1 automatically (register in `lib/engines/registry.ts`).
 - Layer 2 requires an explicit decision: write a real extractor or map to `UNSUPPORTED_EXTRACTOR`.
-- Layer 3 requires an explicit decision: add to `ENGINES` tuple in `juso_search.py` and update `SKILL.md`.
+- Layer 3 requires no decision for the engine set itself: since 2026-08-10 the engine is auto-discovered via `list-engines`. The only remaining task is keeping agent-facing docs (`SKILL.md`, `reference/engines.md`) pointed at discovery rather than enumerating ids.
 - Layer 4 requires an explicit decision: add to `DEFAULT_HIDDEN_ENGINE_IDS` or leave visible.
 - Document each layer's support list where users/agents see it (README agent paragraph, SKILL.md, engine-definition sentence).
 
 ## Why This Matters
 
 - A shared identifier union (`EngineId`) implies uniform capability to anyone reading the type. The asymmetry is intentional and code-commented but invisible at the type level—TypeScript cannot distinguish "registered for navigation" from "supports extraction."
-- Doc over-claims promise agents capabilities that return `unsupported-layout` errors at runtime. An agent following the README would call `engine-search --engine douyin`, get a parse error from the CLI whitelist, or (if the whitelist were bypassed) an `unsupported-layout` from the extractor stub.
-- The three registries (extractor registry, CLI whitelist, default-hidden list) can drift independently. Adding an engine to Layer 1 without updating Layers 2–4 creates silent mismatches. The v1.1.0 incident was exactly this drift surfacing in documentation.
+- Doc over-claims promise agents capabilities that return `unsupported-layout` errors at runtime. An agent following the README would call `engine-search --engine douyin` and get an `unsupported-layout` from the extractor stub. (The CLI whitelist parse-error path is historical: since 2026-08-10 `--engine` accepts any string and the extension rejects unknown ids at claim time via `/v1/abort` — see `skill-mcp-vocabulary-decoupling.md`.)
+- The remaining registries (extractor registry, default-hidden list) can drift independently. Adding an engine to Layer 1 without updating Layers 2 and 4 creates silent mismatches. Layer 3 can no longer drift — it is not a separate registry anymore (auto-discovered via `list-engines` since 2026-08-10). The v1.1.0 incident was exactly this drift surfacing in documentation.
 - The manifest injection surface (`ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` covering all eight engines' hosts, consumed by the auto-registered `entrypoints/engine-extractor.content.ts`) is a necessary condition for extraction but not a sufficient one—it exists so the content script can receive messages on challenge/consent redirect pages, not because extraction is implemented.
 
 ## When to Apply
@@ -187,7 +183,7 @@ When adding a new engine:
 |-------|----------------|------------------------------|---------------------|
 | 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 8 engines | — |
 | 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 8 engines (Chinese sites added 2026-07-31) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
-| 3 — Skill CLI whitelist | `juso_search.py` `ENGINES` + `SKILL.md` | all 8 engines | — |
+| 3 — Agent-facing engine vocabulary | `list-engines` bridge action → `allEngines()` | all 8 engines (auto-discovered since 2026-08-10) | no mirror to drift — vocabulary fetched at runtime via `list-engines` |
 | 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6) | google/bing/baidu are never default-hidden; AI engines have a parallel default-hidden layer at v6→v7 |
 
 ### Misleading signal that caused the incident
@@ -203,7 +199,8 @@ This injection surface exists so the extractor content script can receive messag
 
 ## Related
 
-- [Standardized provider/engine adapter layers](./standardized-provider-engine-adapter-layers.md) — adapter structure and "add an engine" checklist; does not yet cover the extraction-subset distinction or the skill whitelist steps
+- [Standardized provider/engine adapter layers](./standardized-provider-engine-adapter-layers.md) — adapter structure and "add an engine" checklist; does not yet cover the extraction-subset distinction (the skill vocabulary steps it references are now runtime-discovered)
+- [Skill/MCP vocabulary decoupling](./skill-mcp-vocabulary-decoupling.md) — the structural fix that removes Layer 3 as a registry: engine ids are discovered at runtime via `list-engines`, and the extension validates them at claim time
 - [Agent skill localhost capability bridge](./agent-skill-localhost-capability-bridge.md) — engine-search architecture; implicitly relies on the 3-engine extraction subset
 - [Engine-search orchestration errors and Baidu URL extraction](../logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md) — error taxonomy within the supported extraction boundary
 - [Google SERP extractor nested wrapper](../logic-errors/google-serp-extractor-nested-wrapper.md) — extraction fragility within a supported engine

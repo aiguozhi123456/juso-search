@@ -1,6 +1,7 @@
 ---
 title: "Agent Bridge skill contract drift (fragment version, provider whitelist, abort signaling, process cleanup, Windows encoding)"
 date: 2026-08-03
+last_updated: 2026-08-10
 category: integration-issues
 module: agent-bridge
 problem_type: integration_issue
@@ -78,6 +79,8 @@ PROVIDERS = ("tavily", "exa", "stepfun", "stepfun-plan", "jina", "doubao", "doub
 PROVIDERS = ("tavily", "exa", "brave", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global")
 ```
 
+> **Note (2026-08-10):** The `PROVIDERS` tuple no longer exists. This drift class is eliminated at the root by runtime discovery: `juso_bridge.py` no longer carries any vocabulary list, the reply validators check shape (non-empty string) instead of vocabulary membership, and `juso_search.py` dropped the `choices=PROVIDERS` argparse constraint. The before/after above is preserved as the historical record of the concrete `brave` incident. See `skill-mcp-vocabulary-decoupling.md` for the structural fix.
+
 ### Bug 3 — Version mismatch hangs instead of erroring
 
 When `parseBridgeFragment` failed, `entrypoints/bridge/main.ts` showed "Connection failed" and closed the tab — but never contacted the Python server. Python waited the full 40s with no signal.
@@ -142,6 +145,8 @@ if state.aborted:
     return 1, {"ok": False, "error": {"kind": kind, "message": f"bridge aborted: {state.abort_reason}; {RECOVERY_HINT}"}}
 ```
 
+> **Note (2026-08-10):** The `/v1/abort` back-channel is no longer reserved for fragment parse failures — `entrypoints/bridge/main.ts` now also calls it on **claim-side rejection**. When the worker returns `{ ok: false }` (invalid provider/engine id, bridge disabled, untrusted sender), the bridge calls `abortBridge(credentials, 'claim_rejected')`; on a thrown send error it calls `abortBridge(credentials, 'send_failed')`. An invalid id therefore fails in seconds with `bridge aborted: ...`, not a 40s timeout. See `skill-mcp-vocabulary-decoupling.md` change F.
+
 ### Bug 4 — No browser process cleanup on timeout
 
 `subprocess.Popen(command, ...)` return value was discarded; the `finally` block only shut down the HTTP server.
@@ -191,7 +196,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 **Bug 1 — independent version axes.** The fragment `v` versions the *credential format* (`v/p/t` structure). The JSON `protocol` versions the *claim/complete message schema*. They are independent: the fragment structure has not changed since v1, while the JSON schema gained `search-instance`/`list-instances` at protocol 2. Conflating them produced a fatal mismatch. Keeping `v=1` and `protocol=2` reflects reality: the credential envelope is stable, the message schema evolved.
 
-**Bug 2 — registry is the source of truth.** `ProviderId` in `lib/providers/types.ts` is the canonical provider set; `allProviders()` reads the registry. Any downstream whitelist (Python's `PROVIDERS`, the engine capability map) must mirror it exactly. The engine side was already aligned at 8=8; the provider side was a manual copy that drifted when `brave` was added. This is the same principle documented in `engine-capability-is-per-registry-not-per-id-union.md`: the registry is authoritative, mirrors must be tested for equality, not maintained by hand.
+**Bug 2 — registry is the source of truth.** `ProviderId` in `lib/providers/types.ts` is the canonical provider set; `allProviders()` reads the registry. Any downstream whitelist (Python's `PROVIDERS`, the engine capability map) must mirror it exactly. The engine side was already aligned at 8=8; the provider side was a manual copy that drifted when `brave` was added. This is the same principle documented in `engine-capability-is-per-registry-not-per-id-union.md`: the registry is authoritative, mirrors must be tested for equality, not maintained by hand. (Since 2026-08-10 this mirroring rule is superseded for the skill: runtime discovery removes the copy entirely — see `skill-mcp-vocabulary-decoupling.md`.)
 
 **Bug 3 — back-channel for unprocessable requests.** The bridge is the only party that knows "I cannot parse this fragment." Without a back-channel, that knowledge died with the tab close, and the skill burned its full timeout. The `/v1/abort` endpoint gives the bridge a way to say "I can't process this" the same way it already says "I'm done" (`/v1/complete`). `extractLooseBridgeCredentials` is intentionally lax — it ignores `v` because the whole point is "the version check failed but I still know where the server is." It returns null only when port/token are themselves missing, since in that case there is genuinely no way to reach the server and a timeout is unavoidable.
 
@@ -205,7 +210,7 @@ Five concrete guards, one per bug:
 
 1. **Cross-end fragment contract test.** A test (in either suite, but ideally the Python suite since it produces the fragment) that asserts the fragment emitted by `juso_search.py` carries the exact `v` value that `parseBridgeFragment` accepts. The cleanest form: a shared constant or a test that imports/reads both sides' accepted version and compares. This would have caught bug 1 immediately at commit `5d27315`.
 
-2. **Provider set equality test.** A test that asserts `set(PROVIDERS) == set(all_providers_ids)` — reading the TS registry's id set (either via a generated artifact, a shared JSON file, or by having the Python suite parse `lib/providers/types.ts` / the built extension). The existing `engine-capability-is-per-registry-not-per-id-union.md` learning already prescribes this for the engine side; extend it to the provider side. Bug 2 would have been caught the moment `brave` was added to the registry.
+2. **Provider set equality test — obsolete since 2026-08-10.** This item prescribed a test asserting `set(PROVIDERS) == set(all_providers_ids)`. The `PROVIDERS` tuple no longer exists, so there is nothing to test for equality: `skill-mcp-vocabulary-decoupling.md` removes the mirror entirely — the Python bridge discovers ids at runtime via `list-providers`/`list-engines`, and the validators check shape rather than membership. (Retained here as the historical prevention for the pre-decoupling design; it would have caught bug 2 the moment `brave` was added to the registry.)
 
 3. **Abort back-channel pattern.** The `/v1/abort` endpoint is a first-class part of the Agent Bridge protocol — not an error path but a normal signal for "I cannot process this request." Any future bridge entrypoint that can fail to parse its input must wire `notifyAbort`. Test it: simulate a bad fragment, assert the skill receives `extension_did_not_claim` with `bridge aborted: invalid_fragment` within seconds, not 40s.
 
@@ -217,8 +222,9 @@ All five prevention items share a theme: **cross-end contracts must be tested ac
 
 ## Related Issues
 
-- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — intended bridge architecture; documents the `#v=1` fragment format and claim/complete protocol. Now slightly stale: it lists only `/v1/claim` and `/v1/complete` endpoints; `/v1/abort` should be added.
-- `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — the registry-mirroring principle for the engine whitelist. Bug 2 extends the same principle to the provider whitelist.
+- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — intended bridge architecture; documents the `#v=1` fragment format, the claim/complete protocol, and the `/v1/abort` back-channel (now wired for both fragment parse failure and claim-side rejection).
+- `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — the registry-mirroring principle for the engine whitelist. Bug 2 extends the same principle to the provider whitelist. (Layer 3 is now auto-discovered via `list-engines`, so the mirroring rule no longer applies to the skill.)
+- `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md` — the structural fix that eliminates this drift class: the `PROVIDERS`/`ENGINES` tuples, `choices=` constraints, and MCP enums are removed; vocabulary is discovered at runtime via `list-providers`/`list-engines`, and `/v1/abort` now fires on claim-side rejection.
 - `docs/solutions/logic-errors/engine-search-orchestration-errors-and-baidu-url-extraction.md` — bridge tab focus hygiene and orchestration error classification; adjacent to bug 3's abort back-channel.
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — bridge.html fire-and-forget close behavior; adjacent to bug 3's notifyAbort-on-parse-failure path.
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — a prior bridge claim timeout root cause (fetch illegal invocation); different root cause, same symptom class.

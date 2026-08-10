@@ -1,7 +1,7 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-last_updated: 2026-08-01
+last_updated: 2026-08-10
 category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
@@ -514,8 +514,11 @@ engine also needs an explicit decision at each remaining layer:
   extractors that scrape the logged-in live DOM (douyin synthesizes URLs from
   card ids since it has no `<a>` links). The full `Record<EngineId, EngineExtractor>`
   mapping satisfies exhaustiveness; it does not declare capability.
-- Agent skill CLI: add the engine to the skill script's engine whitelist and its
-  SKILL.md documentation once extraction is supported.
+- Agent skill CLI: no whitelist edit needed — the skill discovers engines at
+  runtime via `list-engines` (since 2026-08-10; see
+  `skill-mcp-vocabulary-decoupling.md`). The only remaining task is keeping
+  `SKILL.md` / `reference/engines.md` pointed at discovery rather than
+  enumerating ids.
 - Default visibility: decide whether the engine ships default-hidden via
   `DEFAULT_HIDDEN_ENGINE_IDS` until the user shows it.
 
@@ -552,9 +555,14 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
   — explains why Baidu can persist as an active source without entering provider
   key storage or provider search execution.
 - `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md`
-  — engine capability is layered per registry (navigation vs extraction vs skill
-  CLI whitelist vs default visibility); the checklist above covers the navigation
-  layer, this learning covers the remaining layer decisions.
+  — engine capability is layered per registry (navigation vs extraction vs
+  agent-facing vocabulary, now runtime-discovered via `list-engines` vs default
+  visibility); the checklist above covers the navigation layer, this learning
+  covers the remaining layer decisions.
+- `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md`
+  — the skill/MCP vocabulary (previously a hardcoded engine whitelist) is
+  discovered at runtime via `list-providers`/`list-engines`; the extension
+  validates ids at claim time.
 
 **Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
 - `provider-api-integration-patterns.md` — example code shows the pre-refactor
