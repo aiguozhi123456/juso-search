@@ -76,4 +76,4 @@ def test_legacy_initialize_then_tools_list():
 
     tools = next(m for m in responses if m["id"] == 2)
     names = [tool["name"] for tool in tools["result"]["tools"]]
-    assert names == ["search", "engine-search", "search-instance", "list-providers", "list-instances"]
+    assert names == ["search", "engine-search", "search-instance", "list-providers", "list-instances", "list-engines"]

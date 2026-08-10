@@ -89,10 +89,12 @@ def test_search_instance_dispatch(server):
     [
         ("list-providers", {}, "list-providers"),
         ("list-instances", {}, "list-instances"),
+        ("list-engines", {}, "list-engines"),
     ],
 )
 def test_list_tools_dispatch(server, name, arguments, action):
-    reply = {"providers": []} if action == "list-providers" else {"instances": []}
+    replies = {"list-providers": {"providers": []}, "list-instances": {"instances": []}, "list-engines": {"engines": []}}
+    reply = replies[action]
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = reply
         result = _call(server, name, arguments)

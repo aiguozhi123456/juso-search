@@ -7,8 +7,7 @@ complete ``__all__``:
 2. every public reference in the repo (a ``juso_bridge.<attr>`` access or a
    ``from juso_bridge import ...``) resolves to a member of ``__all__``;
 3. the wrapper (``juso_search.py``) delivers the names it uses directly via
-   ``from juso_bridge import *`` (EXTENSION_ID_RE, PROVIDERS, ENGINES,
-   result_status, run_bridge).
+   ``from juso_bridge import *`` (EXTENSION_ID_RE, result_status, run_bridge).
 
 Stdlib modules that the bridge imports and that tests patch on the wrapper
 namespace (``juso_bridge.subprocess``, ``juso_bridge.shutil``, ...) are
@@ -36,7 +35,7 @@ STDLIB_INTERNALS = {
 }
 
 # Names the wrapper (juso_search.py) uses directly via `from juso_bridge import *`.
-WRAPPER_CONTRACT = {"EXTENSION_ID_RE", "PROVIDERS", "ENGINES", "result_status", "run_bridge"}
+WRAPPER_CONTRACT = {"EXTENSION_ID_RE", "result_status", "run_bridge"}
 
 SCAN_DIRS = (
     REPO_ROOT / "tests" / "scripts",

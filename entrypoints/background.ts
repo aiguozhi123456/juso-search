@@ -18,6 +18,7 @@ import {
   handleGetSearchCacheSummaries,
   handleImportConfig,
   handleListAgentInstances,
+  handleListAgentEngines,
   handleListAgentProviders,
   handlePackageAgentSkill,
   handlePreviewImport,
@@ -134,6 +135,7 @@ export default defineBackground(() => {
       listProviders: handleListAgentProviders,
       handleSearchInstance: handleSearchInstance,
       listInstances: handleListAgentInstances,
+      listEngines: handleListAgentEngines,
       handleEngineSearch: async (request, signal) => {
         if (!(await getEngineSearchEnabled())) {
           return { engine: request.engineId, query: request.query, error: 'extract-failed' };

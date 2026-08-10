@@ -45,8 +45,6 @@ __all__ = [
     "PROTOCOL",
     "MAX_BODY_BYTES",
     "SOCKET_TIMEOUT_SECONDS",
-    "PROVIDERS",
-    "ENGINES",
     "EXTENSION_ID_RE",
     "RECOVERY_HINT",
     "ERROR_INVALID_EXTENSION_ID",
@@ -65,6 +63,7 @@ __all__ = [
     "is_provider_list_reply",
     "is_instance_list_reply",
     "is_engine_search_reply",
+    "is_engine_list_reply",
     "is_valid_reply",
     "result_status",
     "wait_failure",
@@ -76,8 +75,6 @@ __all__ = [
 PROTOCOL = 2
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
-PROVIDERS = ("tavily", "exa", "brave", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global")
-ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")
 EXTENSION_ID_RE = re.compile(r"^[a-p]{32}$")
 
 # Stable failure classifiers raised by run_bridge() via BridgeError.
@@ -141,7 +138,8 @@ def is_search_reply(reply: Any) -> bool:
         return (
             isinstance(response, dict)
             and isinstance(response.get("query"), str)
-            and response.get("provider") in PROVIDERS
+            and isinstance(response.get("provider"), str)
+            and response.get("provider")
             and isinstance(response.get("results"), list)
             and isinstance(cache, dict)
             and isinstance(cache.get("hit"), bool)
@@ -167,7 +165,8 @@ def is_provider_list_reply(reply: Any) -> bool:
         isinstance(provider, dict)
         and set(provider) >= {"id", "supportsAnswer", "configured"}  # subset, not equality
         and set(provider) <= {"id", "supportsAnswer", "configured", "hasInstances"}  # no unknown fields
-        and provider["id"] in PROVIDERS
+        and isinstance(provider["id"], str)
+        and provider["id"]
         and isinstance(provider["supportsAnswer"], bool)
         and isinstance(provider["configured"], bool)
         and ("hasInstances" not in provider or isinstance(provider["hasInstances"], bool))
@@ -183,7 +182,8 @@ def is_instance_list_reply(reply: Any) -> bool:
         and set(instance) == {"id", "providerId", "label", "description", "configured"}
         and isinstance(instance["id"], str)
         and instance["id"].startswith("inst:")
-        and instance["providerId"] in PROVIDERS
+        and isinstance(instance["providerId"], str)
+        and instance["providerId"]
         and isinstance(instance["label"], str)
         and isinstance(instance["description"], str)
         and isinstance(instance["configured"], bool)
@@ -194,7 +194,8 @@ def is_instance_list_reply(reply: Any) -> bool:
 def is_engine_search_reply(reply: Any) -> bool:
     if not isinstance(reply, dict) or set(reply) not in ({"engine", "query", "results"}, {"engine", "query", "error"}):
         return False
-    if reply.get("engine") not in ENGINES or not isinstance(reply.get("query"), str):
+    engine = reply.get("engine")
+    if not isinstance(engine, str) or not engine or not isinstance(reply.get("query"), str):
         return False
     if "results" in reply:
         return isinstance(reply["results"], list) and all(
@@ -213,6 +214,18 @@ def is_engine_search_reply(reply: Any) -> bool:
     }
 
 
+def is_engine_list_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or set(reply) != {"engines"} or not isinstance(reply["engines"], list):
+        return False
+    return all(
+        isinstance(engine, dict)
+        and set(engine) == {"id"}
+        and isinstance(engine["id"], str)
+        and engine["id"]
+        for engine in reply["engines"]
+    )
+
+
 def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:
     request = claim.get("request") if isinstance(claim, dict) else None
     if not isinstance(request, dict):
@@ -223,6 +236,8 @@ def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:
         return is_provider_list_reply(reply)
     if request.get("action") == "list-instances":
         return is_instance_list_reply(reply)
+    if request.get("action") == "list-engines":
+        return is_engine_list_reply(reply)
     if request.get("action") == "search-instance":
         return is_search_reply(reply)  # same reply shape as search
     if request.get("action") == "engine-search":
@@ -456,7 +471,7 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
         request.update(query=query, instanceId=instance_id)
         if force_refresh:
             request["forceRefresh"] = True
-    # list-providers and list-instances have no extra fields
+    # list-providers, list-instances, and list-engines have no extra fields
     return {"protocol": PROTOCOL, "requestId": request_id, "request": request}
 
 
@@ -471,10 +486,10 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
 
     Args:
         action: one of "search", "engine-search", "search-instance",
-            "list-providers", "list-instances".
+            "list-providers", "list-instances", "list-engines".
         query: search query for search-like actions; None for list actions.
-        provider_id: provider for "search" (member of PROVIDERS).
-        engine_id: engine for "engine-search" (member of ENGINES).
+        provider_id: provider for "search" (any non-empty provider id string).
+        engine_id: engine for "engine-search" (any non-empty engine id string).
         instance_id: instance id for "search-instance".
         force_refresh: bypass cache for "search"/"search-instance".
         max_results: optional result cap for "engine-search".

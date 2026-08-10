@@ -162,6 +162,23 @@ describe('agent bridge gating: search / list-providers unaffected by engine sub-
     expect(listProviders).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: providersReply });
   });
+
+  it('list-engines still runs with engine sub-switch off', async () => {
+    await setAgentBridgeEnabled(true);
+    await setEngineSearchEnabled(false);
+    const enginesClaim = { protocol: 2, requestId: 'e', request: { action: 'list-engines' } };
+    const enginesReply = { engines: [{ id: 'google' }, { id: 'bing' }] };
+    const listEngines = vi.fn().mockResolvedValue(enginesReply);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(enginesClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge(
+      { port: 3210, token },
+      { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listEngines },
+    );
+    expect(listEngines).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: enginesReply });
+  });
 });
 
 describe('agent bridge gating: defaults are off (policy compliance)', () => {

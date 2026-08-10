@@ -1,5 +1,5 @@
 import type { SearchReply, SearchRequest } from './messaging';
-import { isProviderId } from './sources';
+import { isEngineId, isProviderId } from './sources';
 import { isProviderInstanceId } from './provider-instances';
 import type { ProviderInstanceId } from './provider-instances';
 import type { ProviderId } from './providers/types';
@@ -14,6 +14,7 @@ export const AGENT_BRIDGE_COMPLETE_DEADLINE_MS = 5_000;
 export type BridgeCredentials = { port: number; token: string };
 export type AgentSearchRequest = { action: 'search'; query: string; providerId: ProviderId; forceRefresh?: boolean };
 export type AgentListProvidersRequest = { action: 'list-providers' };
+export type AgentListEnginesRequest = { action: 'list-engines' };
 export type AgentEngineSearchRequest = { action: 'engine-search'; query: string; engineId: EngineId; maxResults?: number };
 export interface AgentSearchInstanceRequest {
   action: 'search-instance';
@@ -24,7 +25,7 @@ export interface AgentSearchInstanceRequest {
 export interface AgentListInstancesRequest {
   action: 'list-instances';
 }
-export type AgentV2Request = AgentSearchInstanceRequest | AgentListInstancesRequest;
+export type AgentV2Request = AgentSearchInstanceRequest | AgentListInstancesRequest | AgentListEnginesRequest;
 export type AgentRequest = AgentSearchRequest | AgentListProvidersRequest | AgentEngineSearchRequest | AgentV2Request;
 export type AgentProvider = { id: ProviderId; supportsAnswer: boolean; configured: boolean; hasInstances?: boolean };
 export interface AgentInstance {
@@ -34,10 +35,12 @@ export interface AgentInstance {
   description: string;
   configured: boolean;
 }
+export type AgentEngine = { id: EngineId };
 export type AgentListProvidersReply = { providers: AgentProvider[] };
 export type AgentListInstancesReply = { instances: AgentInstance[] };
+export type AgentListEnginesReply = { engines: AgentEngine[] };
 export type AgentClaim = { protocol: 1 | 2; requestId: string; request: AgentRequest };
-export type AgentComplete = { protocol: 1 | 2; requestId: string; reply: SearchReply | AgentListProvidersReply | AgentListInstancesReply | EngineExtractionResult };
+export type AgentComplete = { protocol: 1 | 2; requestId: string; reply: SearchReply | AgentListProvidersReply | AgentListInstancesReply | AgentListEnginesReply | EngineExtractionResult };
 export type AgentBridgeDeps = {
   fetch: typeof fetch;
   handleSearch: (request: SearchRequest, signal?: AbortSignal) => Promise<SearchReply>;
@@ -45,6 +48,7 @@ export type AgentBridgeDeps = {
   handleEngineSearch: (request: AgentEngineSearchRequest, signal?: AbortSignal) => Promise<EngineExtractionResult>;
   handleSearchInstance?: (request: AgentSearchInstanceRequest, signal?: AbortSignal) => Promise<SearchReply>;
   listInstances?: () => Promise<AgentListInstancesReply>;
+  listEngines?: () => Promise<AgentListEnginesReply>;
   deadlineMs?: number;
 };
 
@@ -139,7 +143,9 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
             ? (await deps.handleSearchInstance?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
             : claim.value.request.action === 'list-instances'
               ? (await deps.listInstances?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-              : await deps.listProviders();
+              : claim.value.request.action === 'list-engines'
+                ? (await deps.listEngines?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+                : await deps.listProviders();
     } catch (error) {
       reply = claim.value.request.action === 'engine-search'
         ? {
@@ -217,7 +223,7 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
       : { ok: false, error: 'invalid list providers request' };
   }
   if (value.action === 'engine-search') {
-    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults']) || typeof value.query !== 'string' || !['google', 'bing', 'baidu', 'yandex', 'duckduckgo', 'bilibili', 'xiaohongshu', 'douyin'].includes(value.engineId as string)) return { ok: false, error: 'invalid engine search request' };
+    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults']) || typeof value.query !== 'string' || typeof value.engineId !== 'string' || !isEngineId(value.engineId)) return { ok: false, error: 'invalid engine search request' };
     const query = value.query.trim();
     if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20))) return { ok: false, error: 'invalid engine search request' };
     return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }) } };
@@ -226,6 +232,11 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     return hasOnlyKeys(value, ['action'])
       ? { ok: true, value: { action: 'list-instances' } }
       : { ok: false, error: 'invalid list instances request' };
+  }
+  if (value.action === 'list-engines') {
+    return hasOnlyKeys(value, ['action'])
+      ? { ok: true, value: { action: 'list-engines' } }
+      : { ok: false, error: 'invalid list engines request' };
   }
   if (value.action === 'search-instance') {
     if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };

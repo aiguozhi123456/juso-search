@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import asyncio
 
-from juso_search import juso_bridge
-
 EXPECTED_NAMES = [
     "search",
     "engine-search",
     "search-instance",
     "list-providers",
     "list-instances",
+    "list-engines",
 ]
 
 
@@ -26,7 +25,7 @@ def _by_name(server, name):
 def test_tools_count_and_names(server):
     tools = _list_tools(server)
     assert [tool.name for tool in tools] == EXPECTED_NAMES
-    assert len(tools) == 5
+    assert len(tools) == 6
 
 
 def test_tools_annotations(server):
@@ -43,9 +42,9 @@ def test_search_schema(server):
     assert properties["query"]["type"] == "string"
     assert "query" in schema["required"]
     assert "provider" in schema["required"]
-    # provider enum derived from juso_bridge.PROVIDERS (never duplicated)
-    assert schema["$defs"]["ProviderId"]["enum"] == list(juso_bridge.PROVIDERS)
-    assert properties["provider"]["$ref"] == "#/$defs/ProviderId"
+    # provider is a plain string; the vocabulary is discovered at runtime
+    assert properties["provider"]["type"] == "string"
+    assert "$defs" not in schema or "ProviderId" not in schema.get("$defs", {})
     assert properties["force_refresh"]["type"] == "boolean"
 
 
@@ -53,7 +52,8 @@ def test_engine_search_schema(server):
     schema = _by_name(server, "engine-search").input_schema
     assert "query" in schema["required"]
     assert "engine" in schema["required"]
-    assert schema["$defs"]["EngineId"]["enum"] == list(juso_bridge.ENGINES)
+    assert schema["properties"]["engine"]["type"] == "string"
+    assert "$defs" not in schema or "EngineId" not in schema.get("$defs", {})
     max_results = schema["properties"]["max_results"]
     integer_branch = next(branch for branch in max_results["anyOf"] if branch.get("type") == "integer")
     assert integer_branch["minimum"] == 1
@@ -65,11 +65,10 @@ def test_search_instance_schema(server):
     assert "query" in schema["required"]
     assert "instance" in schema["required"]
     pattern = schema["properties"]["instance"]["pattern"]
-    # inst:<providerId>:<token> — provider part constrained to the bridge's vocabulary;
-    # token part mirrors the extension's INSTANCE_ID_TOKEN (see the shape test below).
-    assert pattern.startswith("^inst:(?:")
-    assert "tavily" in pattern
-    assert "stepfun\\-plan" in pattern or "stepfun-plan" in pattern
+    # inst:<providerId>:<token> — provider part is format-only (the extension
+    # validates the actual provider id at runtime); token part mirrors the
+    # extension's INSTANCE_ID_TOKEN (see the shape test below).
+    assert pattern.startswith("^inst:")
     assert "uuid" not in pattern  # token vocabulary is spelled out, no placeholder word
 
 
@@ -88,6 +87,7 @@ def test_search_instance_accepts_extension_token_shape(server):
         "inst:stepfun-plan:A_b-c",
         "inst:doubao-global:t0",        # minimal 2-char token
         "inst:jina:" + "a" * 128,       # max length: 1 lead + 127 more
+        "inst:unknownprovider:abc",     # provider not in vocabulary — format-only; extension validates
     ]
     for candidate in valid:
         assert regex.match(candidate), f"pattern should accept {candidate!r}"
@@ -98,7 +98,6 @@ def test_search_instance_accepts_extension_token_shape(server):
         "inst:tavily:-lead",            # must start alphanumeric
         "inst:tavily:" + "a" * 129,     # over max length
         "inst:tavily:bad char",         # illegal character (space)
-        "inst:unknownprovider:abc",     # provider not in vocabulary
         "custom:tavily:abc",            # wrong prefix
     ]
     for candidate in invalid:
@@ -106,7 +105,7 @@ def test_search_instance_accepts_extension_token_shape(server):
 
 
 def test_list_tools_have_no_params(server):
-    for name in ("list-providers", "list-instances"):
+    for name in ("list-providers", "list-instances", "list-engines"):
         assert _by_name(server, name).input_schema["properties"] == {}
 
 

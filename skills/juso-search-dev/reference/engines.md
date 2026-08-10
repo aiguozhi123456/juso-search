@@ -1,5 +1,7 @@
 # Engine result shapes
 
+> The set of available engines is dynamic and discovered at runtime. Call `list-engines` to get the current list of engine ids before calling `engine-search`. The caveats below apply to specific engines and may not cover all engines returned by `list-engines`.
+
 `engine-search` extracts ordinary result links only and does not promise AI summaries, knowledge panels, or other page content. Once an agent has a result URL, page retrieval belongs to its host's own capability, such as `web_fetch`.
 
 ## `bilibili`

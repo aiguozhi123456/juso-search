@@ -162,6 +162,18 @@ class RunBridgeTests(unittest.TestCase):
             )
         self.assertEqual(reply, INSTANCES_REPLY)
 
+    def test_run_bridge_list_engines(self):
+        engines_reply = {"engines": [{"id": "google"}, {"id": "bing"}]}
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(engines_reply)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "list-engines", None,
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, engines_reply)
+
     def test_run_bridge_search_instance(self):
         with (
             patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
@@ -334,10 +346,39 @@ class ReplyValidatorTests(unittest.TestCase):
 
     def test_search_success_reply_shapes(self):
         self.assertTrue(juso_bridge.is_search_reply(SEARCH_REPLY))
-        self.assertFalse(juso_bridge.is_search_reply({"ok": True, "response": {"query": "x", "provider": "nope", "results": []}, "cache": {"hit": False}}))
+        # provider ids are open-ended (discovered at runtime), so any non-empty
+        # string passes validation
+        self.assertTrue(juso_bridge.is_search_reply({"ok": True, "response": {"query": "x", "provider": "nope", "results": []}, "cache": {"hit": False}}))
+        self.assertFalse(juso_bridge.is_search_reply({"ok": True, "response": {"query": "x", "provider": "", "results": []}, "cache": {"hit": False}}))
         claim = juso_bridge.make_claim("search", "hello", "tavily", False, "request-1")
         self.assertTrue(juso_bridge.is_valid_reply(claim, SEARCH_REPLY))
         self.assertFalse(juso_bridge.is_valid_reply(claim, PROVIDERS_REPLY))
+
+    def test_is_engine_list_reply_accepts_valid_reply(self):
+        self.assertTrue(juso_bridge.is_engine_list_reply({"engines": [{"id": "google"}, {"id": "bing"}]}))
+        self.assertTrue(juso_bridge.is_engine_list_reply({"engines": []}))
+
+    def test_is_engine_list_reply_rejects_invalid_reply(self):
+        self.assertFalse(juso_bridge.is_engine_list_reply({}))  # missing engines key
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": None}))  # missing engines key
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": "google"}))  # non-list engines
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": {"id": "google"}}))  # non-list engines
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": [{"id": "google", "extra": True}]}))  # extra fields
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": [{"id": 42}]}))  # non-string id
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": [{"id": ""}]}))  # empty id
+        self.assertFalse(juso_bridge.is_engine_list_reply({"engines": [{"id": "google"}], "extra": True}))  # extra top-level field
+
+    def test_list_engines_valid_reply_dispatch(self):
+        claim = juso_bridge.make_claim("list-engines", None, None, False, "request-1")
+        self.assertTrue(juso_bridge.is_valid_reply(claim, {"engines": [{"id": "google"}, {"id": "bing"}]}))
+        self.assertFalse(juso_bridge.is_valid_reply(claim, {"engines": [{"id": ""}]}))
+
+    def test_make_claim_list_engines(self):
+        claim = juso_bridge.make_claim("list-engines", None, None, False, "request-1")
+        self.assertEqual(
+            claim,
+            {"protocol": juso_bridge.PROTOCOL, "requestId": "request-1", "request": {"action": "list-engines"}},
+        )
 
     def test_wait_failure_classifies_claim_observation(self):
         unclaimed = juso_bridge.BridgeState("token", "request-1")
@@ -367,14 +408,6 @@ class ReplyValidatorTests(unittest.TestCase):
 class ConstantsTests(unittest.TestCase):
     def test_constants_present(self):
         self.assertEqual(juso_bridge.PROTOCOL, 2)
-        self.assertEqual(
-            juso_bridge.PROVIDERS,
-            ("tavily", "exa", "brave", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global"),
-        )
-        self.assertEqual(
-            juso_bridge.ENGINES,
-            ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin"),
-        )
         self.assertTrue(juso_bridge.EXTENSION_ID_RE.fullmatch("a" * 32))
         self.assertFalse(juso_bridge.EXTENSION_ID_RE.fullmatch("a" * 31))
 

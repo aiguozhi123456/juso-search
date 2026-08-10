@@ -1,10 +1,10 @@
-"""Build the juso-search ``MCPServer`` with the five agent-bridge tools.
+"""Build the juso-search ``MCPServer`` with the six agent-bridge tools.
 
 The tool surface mirrors the extension's agent-bridge actions one-to-one
 (``search``, ``engine-search``, ``search-instance``, ``list-providers``,
-``list-instances``), matching the CLI skill's subcommands. Parameter enums are
-derived from ``juso_bridge.PROVIDERS`` / ``juso_bridge.ENGINES`` at import time
-so they can never drift from the bridge's vocabulary.
+``list-instances``, ``list-engines``), matching the CLI skill's subcommands.
+Provider/engine parameters are plain strings: the vocabulary is discovered at
+runtime via ``list-providers`` / ``list-engines`` rather than hardcoded here.
 
 Each ``tools/call`` runs one short-lived bridge cycle via
 ``juso_search.bridge_call.call_bridge`` (start Chromium → ``bridge.html`` →
@@ -15,9 +15,7 @@ claim/complete → validated reply). No long-lived service, no API-key handling.
 
 from __future__ import annotations
 
-import re
 import threading
-from enum import Enum
 from typing import Annotated
 
 from mcp.server import MCPServer
@@ -25,7 +23,7 @@ from mcp.server.mcpserver.context import Context
 from mcp_types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from . import __version__, juso_bridge
+from . import __version__
 from .bridge_call import call_bridge
 from .cancel_registry import CancelBridgeMiddleware, cancel_event_for
 from .config import Config
@@ -34,25 +32,14 @@ from .config import Config
 # changes nothing) that may interact with an open world of external entities.
 _TOOL_ANNOTATIONS = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
-# Dynamic enums built from the bridge's own vocabulary (single source of truth;
-# never duplicated here). Pydantic renders them as `enum` in the inputSchema.
-ProviderId = Enum("ProviderId", {provider: provider for provider in juso_bridge.PROVIDERS})
-EngineId = Enum("EngineId", {engine: engine for engine in juso_bridge.ENGINES})
-
-# `inst:<providerId>:<token>` — provider part constrained to the bridge's known
-# providers; token part mirrors the extension's INSTANCE_ID_TOKEN
-# (lib/provider-instances.ts): `[A-Za-z0-9][A-Za-z0-9_-]{0,127}`. Worker-generated
-# UUIDs satisfy this, but so do other stable storage-safe ids it may emit, so the
-# MCP server must not over-constrain to UUID shape (else it rejects ids the CLI accepts).
-_INSTANCE_ID_PATTERN = (
-    r"^inst:(?:" + "|".join(re.escape(provider) for provider in juso_bridge.PROVIDERS) + r"):"
-    r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
-)
-
-
-def _value(member: Enum | None) -> str | None:
-    """Convert a pydantic-validated enum member back to its plain string."""
-    return member.value if member is not None else None
+# `inst:<providerId>:<token>` — provider part is format-only (any non-empty
+# alphanumeric/hyphen/underscore token starting alphanumeric); the extension
+# validates the actual provider id at runtime. The token part mirrors the
+# extension's INSTANCE_ID_TOKEN (lib/provider-instances.ts):
+# `[A-Za-z0-9][A-Za-z0-9_-]{0,127}`. Worker-generated UUIDs satisfy this, but so
+# do other stable storage-safe ids it may emit, so the MCP server must not
+# over-constrain to UUID shape (else it rejects ids the CLI accepts).
+_INSTANCE_ID_PATTERN = r"^inst:[A-Za-z0-9][A-Za-z0-9_-]*:[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
 
 
 def _cancel_event(ctx: Context) -> threading.Event:
@@ -78,23 +65,23 @@ def build_server(config: Config) -> MCPServer:
     @server.tool(
         name="search",
         description=(
-            "Search one of Juso's AI search providers (tavily, exa, brave, stepfun, "
-            "stepfun-plan, jina, doubao, doubao-global). Returns normalized results "
-            "from the Juso extension, optionally bypassing its cache with force_refresh."
+            "Search one of Juso's AI search providers through the Juso extension. "
+            "Call list-providers first to discover available provider ids. "
+            "Returns normalized results, optionally bypassing the cache with force_refresh."
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
     def search(
         ctx: Context,
         query: str,
-        provider: ProviderId,
+        provider: str,
         force_refresh: bool = False,
     ) -> CallToolResult:
         return call_bridge(
             "search",
             config,
             query=query,
-            provider_id=_value(provider),
+            provider_id=provider,
             force_refresh=force_refresh,
             cancel_event=_cancel_event(ctx),
         )
@@ -102,25 +89,26 @@ def build_server(config: Config) -> MCPServer:
     @server.tool(
         name="engine-search",
         description=(
-            "Search a traditional web engine (google, bing, baidu, yandex, duckduckgo, "
-            "bilibili, xiaohongshu, douyin) through the Juso extension. Requires the "
-            "extension's engine-search sub-switch to be enabled. max_results caps the "
-            "returned results (1-20). Note: an engine error reply (challenge, consent, "
-            "timeout, extract-failed, ...) is a normal tool result, not an error."
+            "Search a traditional web engine through the Juso extension. "
+            "Call list-engines first to discover available engine ids. "
+            "Requires the extension's engine-search sub-switch to be enabled. "
+            "max_results caps the returned results (1-20). "
+            "Note: an engine error reply (challenge, consent, timeout, extract-failed, ...) "
+            "is a normal tool result, not an error."
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
     def engine_search(
         ctx: Context,
         query: str,
-        engine: EngineId,
+        engine: str,
         max_results: Annotated[int | None, Field(ge=1, le=20)] = None,
     ) -> CallToolResult:
         return call_bridge(
             "engine-search",
             config,
             query=query,
-            engine_id=_value(engine),
+            engine_id=engine,
             max_results=max_results,
             cancel_event=_cancel_event(ctx),
         )
@@ -171,5 +159,16 @@ def build_server(config: Config) -> MCPServer:
     )
     def list_instances(ctx: Context) -> CallToolResult:
         return call_bridge("list-instances", config, cancel_event=_cancel_event(ctx))
+
+    @server.tool(
+        name="list-engines",
+        description=(
+            "List the traditional web engines known to the Juso extension "
+            "(e.g. google, bing, baidu). Returns their ids for use with engine-search."
+        ),
+        annotations=_TOOL_ANNOTATIONS,
+    )
+    def list_engines(ctx: Context) -> CallToolResult:
+        return call_bridge("list-engines", config, cancel_event=_cancel_event(ctx))
 
     return server

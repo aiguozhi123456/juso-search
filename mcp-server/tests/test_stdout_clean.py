@@ -45,20 +45,19 @@ def test_stdout_only_jsonrpc():
     for message in responses:
         _assert_valid_response(message)
 
-    # --- tools/list: 5 tools + the 2026-07-28 wire fields -------------------
+    # --- tools/list: 6 tools + the 2026-07-28 wire fields -------------------
     list_message = next(m for m in responses if m["id"] == 1)
     list_result = list_message["result"]
     assert list_result["resultType"] == "complete"
     assert list_result["ttlMs"] == 0
     assert list_result["cacheScope"] == "private"
     tool_names = [tool["name"] for tool in list_result["tools"]]
-    assert tool_names == ["search", "engine-search", "search-instance", "list-providers", "list-instances"]
+    assert tool_names == ["search", "engine-search", "search-instance", "list-providers", "list-instances", "list-engines"]
     search_tool = next(t for t in list_result["tools"] if t["name"] == "search")
     assert search_tool["annotations"]["readOnlyHint"] is True
     assert search_tool["annotations"]["openWorldHint"] is True
-    assert search_tool["inputSchema"]["$defs"]["ProviderId"]["enum"] == [
-        "tavily", "exa", "brave", "stepfun", "stepfun-plan", "jina", "doubao", "doubao-global",
-    ]
+    # provider is a plain string now (vocabulary discovered at runtime via list-providers)
+    assert search_tool["inputSchema"]["properties"]["provider"]["type"] == "string"
 
     # --- tools/call: deterministic failure surfaced as a tool result ---------
     call_message = next(m for m in responses if m["id"] == 2)

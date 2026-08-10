@@ -141,10 +141,11 @@ fallback:
 
 | Tool            | Params                                                  | Notes |
 | --------------- | ------------------------------------------------------- | ----- |
-| `search`        | `query`, `provider`, `force_refresh?`                   | Providers: `tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`. |
-| `engine-search` | `query`, `engine`, `max_results?`                       | Engines: `google`, `bing`, `baidu`, `yandex`, `duckduckgo`, `bilibili`, `xiaohongshu`, `douyin`. |
+| `search`        | `query`, `provider`, `force_refresh?`                   | Available providers are discovered via the `list-providers` tool. |
+| `engine-search` | `query`, `engine`, `max_results?`                       | Available engines are discovered via the `list-engines` tool. |
 | `search-instance`| `query`, `instance`, `force_refresh?`                 | Searches a configured provider instance. |
 | `list-providers`| —                                                       | Providers and their config state. |
+| `list-engines`  | —                                                       | Available engine ids for `engine-search`. |
 | `list-instances`| —                                                       | Registered provider instances. |
 
 All tools are annotated `readOnlyHint` + `openWorldHint`. Tool results carry

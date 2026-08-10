@@ -8,8 +8,9 @@ import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } fr
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
+import { allEngines } from './engines/registry';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
-import type { AgentInstance, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
+import type { AgentInstance, AgentListEnginesReply, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
 import {
   clearKey,
   clearProviderMaxResults,
@@ -161,6 +162,12 @@ export async function handleListAgentProviders(): Promise<AgentListProvidersRepl
       ...(providersWithInstances.has(provider.id) ? { hasInstances: true } : {}),
     })),
   };
+}
+
+/** Agent bridge 的 engine 清单（脱敏）：只公开 id，供 agent 在调用 engine-search 前发现可用 engine。 */
+export async function handleListAgentEngines(): Promise<AgentListEnginesReply> {
+  await getSchemaReady();
+  return { engines: allEngines().map((engine) => ({ id: engine.id })) };
 }
 
 /** Agent bridge v2：实例清单（脱敏，绝不返回 key）。实例无描述字段，Phase 1 label = name、description = ''。 */

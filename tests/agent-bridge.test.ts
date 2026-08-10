@@ -75,6 +75,11 @@ describe('agent bridge v2 actions', () => {
     expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'list-instances', query: 'x' } })).toMatchObject({ ok: false });
   });
 
+  it('parses a v2 list-engines claim', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'list-engines' } })).toMatchObject({ ok: true, value: { request: { action: 'list-engines' } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'list-engines', query: 'x' } })).toMatchObject({ ok: false });
+  });
+
   it('rejects unknown actions', () => {
     expect(parseAgentClaim({ protocol: 2, requestId: 'v2', request: { action: 'teleport', query: 'x' } })).toMatchObject({ ok: false });
   });
@@ -182,5 +187,17 @@ describe('agent bridge v2 dispatch', () => {
     expect(listInstances).toHaveBeenCalledTimes(1);
     expect(handleSearchInstance).not.toHaveBeenCalled();
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: instancesReply });
+  });
+
+  it('dispatches a v2 list-engines claim to listEngines', async () => {
+    const v2Claim = { protocol: 2, requestId: 'v2-engines', request: { action: 'list-engines' } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(v2Claim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const enginesReply = { engines: [{ id: 'google' }, { id: 'bing' }] };
+    const listEngines = vi.fn().mockResolvedValue(enginesReply);
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listEngines })).resolves.toEqual({ ok: true });
+    expect(listEngines).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: enginesReply });
   });
 });
