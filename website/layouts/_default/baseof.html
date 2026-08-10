@@ -35,7 +35,10 @@
   {{ $css := resources.Get "css/style.css" | minify | fingerprint }}
   <link rel="stylesheet" href="{{ $css.RelPermalink }}">
 </head>
-<body{{ if .IsHome }} class="is-home"{{ end }}>
+{{ $face := "overview" }}
+{{ if strings.Contains .RelPermalink "/human" }}{{ $face = "human" }}{{ end }}
+{{ if strings.Contains .RelPermalink "/agents" }}{{ $face = "agents" }}{{ end }}
+<body class="face-{{ $face }}">
   <a href="#main" class="skip-link">{{ i18n "skip_to_content" }}</a>
   {{ partial "header.html" . }}
   <main id="main">

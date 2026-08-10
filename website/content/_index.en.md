@@ -1,4 +1,4 @@
 ---
 title: "双面搜 / Juso"
-description: "An open-source, two-sided search gateway with locally managed credentials—for humans and local AI agents."
+description: "Juso is an open-source, two-faced search gateway: one browser, one set of locally stored keys—a face for people, a face for agents."
 ---

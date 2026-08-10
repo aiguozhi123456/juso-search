@@ -36,6 +36,9 @@ tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
   other: "在装有双面搜的 Chromium 浏览器里，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
+# 中性总览面（/ 根页）—— 双面论点
+hero_positioning_overview:
+  other: "双面搜 / Juso 是开源的双面搜索网关：同一台浏览器、同一套本地密钥，一面为人——把传统引擎、站外搜索与 AI 搜索统一到一个入口；一面为智能体——本地 AI 经 Agent Bridge 调用同一套搜索，密钥始终留在扩展内。"
 
 # Hero 截图轮播（无障碍标注）
 carousel_label:
@@ -78,6 +81,12 @@ sec_setup_agents:
   other: "如何接入"
 sec_setup_agents_sub:
   other: "四步：安装扩展 → 开启 Agent Bridge → 下载配套技能 → 运行命令。"
+
+# 双面门扉区（中性根页）
+sec_faces:
+  other: "两个面，一个搜索网关"
+sec_faces_sub:
+  other: "为自己而用，或为智能体而用——同一套搜索能力，两种消费方式。"
 
 sec_bridge:
   other: "还有另一面：Agent Bridge"
@@ -156,6 +165,12 @@ cta_agents_h2:
   other: "让本地智能体开始搜索"
 cta_agents_p:
   other: "安装扩展，开启 Agent Bridge，下载配套技能——智能体即可调用已配置的 AI 搜索或检索传统引擎，密钥始终留在扩展内。"
+
+# 中性 CTA
+cta_overview_h2:
+  other: "一个入口，两种用法"
+cta_overview_p:
+  other: "安装双面搜，为自己搜索、切换与聚合；或开启 Agent Bridge，让本地智能体借同一台浏览器搜索。密钥始终留在扩展内。"
 
 # 页脚
 footer_tagline:

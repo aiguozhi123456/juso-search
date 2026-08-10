@@ -36,6 +36,9 @@ tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
   other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
+# Neutral overview face (root /) — dual-face thesis
+hero_positioning_overview:
+  other: "Juso is an open-source, two-faced search gateway: one browser, one set of locally stored keys—a face for people, unifying conventional engines, site search, and AI search into one entry; and a face for agents, where local AI calls the same search through Agent Bridge, with keys never leaving the extension."
 
 # Hero 截图轮播（无障碍标注）
 carousel_label:
@@ -78,6 +81,12 @@ sec_setup_agents:
   other: "How to connect"
 sec_setup_agents_sub:
   other: "Four steps: install → enable Agent Bridge → download the skill → run commands."
+
+# Two-doorways section (neutral root)
+sec_faces:
+  other: "Two faces, one search gateway"
+sec_faces_sub:
+  other: "For yourself, or for your agents—the same search capability, two ways to consume it."
 
 sec_bridge:
   other: "There's another face: Agent Bridge"
@@ -156,6 +165,12 @@ cta_agents_h2:
   other: "Let local agents start searching"
 cta_agents_p:
   other: "Install the extension, enable Agent Bridge, download the companion skill — agents can call configured AI search or search conventional engines, with credentials staying inside the extension."
+
+# Neutral CTA
+cta_overview_h2:
+  other: "One entry, two ways to use it"
+cta_overview_p:
+  other: "Install Juso to search, switch, and aggregate for yourself; or enable Agent Bridge so local agents search through the same browser. Keys stay inside the extension."
 
 # Footer
 footer_tagline:

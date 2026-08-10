@@ -1,5 +1,7 @@
 {{/* 页头：品牌锁具 + 双面切换器 + 语言切换 + 安装 */}}
-{{ $isAgents := strings.Contains .RelPermalink "/agents" }}
+{{ $face := "overview" }}
+{{ if strings.Contains .RelPermalink "/human" }}{{ $face = "human" }}{{ end }}
+{{ if strings.Contains .RelPermalink "/agents" }}{{ $face = "agents" }}{{ end }}
 {{ $curLang := .Site.Language.Lang }}
 <header class="site-head">
   <div class="wrap site-head__inner">
@@ -10,10 +12,10 @@
 
     {{/* 双面切换器 —— 链接，呼应扩展快切栏 pill */}}
     <nav class="faceswitch" aria-label="{{ i18n "face_switch_label" }}">
-      <a href="{{ "" | relLangURL }}" {{ if not $isAgents }}aria-current="page"{{ end }}>
+      <a href="{{ "human/" | relLangURL }}" {{ if eq $face "human" }}aria-current="page"{{ end }}>
         <span class="sw-dot"></span>{{ i18n "nav_human" }}
       </a>
-      <a href="{{ "agents/" | relLangURL }}" {{ if $isAgents }}aria-current="page"{{ end }}>
+      <a href="{{ "agents/" | relLangURL }}" {{ if eq $face "agents" }}aria-current="page"{{ end }}>
         <span class="sw-dot"></span>{{ i18n "nav_agent" }}
       </a>
     </nav>
