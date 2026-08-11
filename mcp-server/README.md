@@ -3,8 +3,8 @@
 An MCP server (stdio) that exposes the Juso search extension's agent-bridge
 search capabilities to MCP clients (Claude Desktop, Cursor, Cline, Claude
 Code, …). It mirrors the CLI agent-skill `juso_search` subcommands over MCP
-JSON-RPC 2.0, with a short-lived Chromium launch per call that the extension
-claims and completes through its Agent Bridge.
+JSON-RPC 2.0, with a short-lived browser launch per call (Chromium-family or
+Firefox) that the extension claims and completes through its Agent Bridge.
 
 - **Transport**: stdio. JSON-RPC flows over stdin/stdout; diagnostics go to
   stderr (stdout stays clean — only newline-delimited JSON-RPC).
@@ -42,16 +42,19 @@ mcp-server/.venv/Scripts/juso-search --help
 
 | Variable             | Required | Meaning                                                          |
 | -------------------- | -------- | ---------------------------------------------------------------- |
-| `JUSO_EXTENSION_ID`  | **yes**  | The extension's 32-char id (see `chrome://extensions`).          |
-| `JUSO_CHROME_PATH`   | **yes**  | Explicit Chromium-family executable (e.g. Chrome/Chromium/Edge). The server refuses to guess — set it explicitly. |
-| `JUSO_CHROME_PROFILE`| no       | Chromium profile directory (auto-selected if unset).             |
+| `JUSO_EXTENSION_ID`  | no*      | The extension id (Chrome `[a-p]{32}` or Firefox email-style/`{GUID}`) — see `chrome://extensions` / `about:addons`. |
+| `JUSO_BROWSER_PATH`  | **yes**  | Explicit browser executable (Chrome, Chromium, Edge, Firefox, …). The server refuses to guess — set it explicitly. (`JUSO_CHROME_PATH` is a legacy alias.) |
+| `JUSO_BRIDGE_URL`    | no*      | Full bridge URL base, e.g. `moz-extension://<uuid>/bridge.html` — **required for Firefox** (the `moz-extension://` host is a per-install random UUID, not derivable from the id). |
+| `JUSO_BROWSER_PROFILE`| no      | Browser profile (Chrome directory name / Firefox profile name; auto-selected if unset). (`JUSO_CHROME_PROFILE` is a legacy alias.) |
 | `JUSO_TIMEOUT`       | no       | Seconds to wait for the extension to claim a request (default 40). |
 
-`JUSO_EXTENSION_ID` and `JUSO_CHROME_PATH` are required — the server refuses
-to start without either (exit code 2 and a stderr message) rather than
-guessing. (Browser auto-discovery is a CLI-skill convenience only; the MCP
-server always needs an explicit executable because a wrong guess is a silent
-failure that is hard to diagnose over stdio.)
+\* Either `JUSO_EXTENSION_ID` **or** `JUSO_BRIDGE_URL` must be set. Chrome can
+derive the bridge URL from the id, so only the id is needed; Firefox needs the
+full bridge URL and the id is optional. `JUSO_BROWSER_PATH` is always required —
+the server refuses to start without it (exit code 2 and a stderr message)
+rather than guessing. (Browser auto-discovery is a CLI-skill convenience only;
+the MCP server always needs an explicit executable because a wrong guess is a
+silent failure that is hard to diagnose over stdio.)
 
 ## Client configuration
 
@@ -61,7 +64,7 @@ Each client injects these variables differently. Pick your client:
 
 Claude Desktop does **not** expand `${VAR}`, so write literal values:
 
-> **`JUSO_CHROME_PATH` by OS** — Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe` · macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` · Linux: `/usr/bin/google-chrome` (or `/usr/bin/chromium`).
+> **`JUSO_BROWSER_PATH` by OS** — Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe` (or `C:\Program Files\Mozilla Firefox\firefox.exe`) · macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` (or `/Applications/Firefox.app/Contents/MacOS/firefox`) · Linux: `/usr/bin/google-chrome` (or `/usr/bin/firefox`).
 
 ```json
 {
@@ -71,7 +74,7 @@ Claude Desktop does **not** expand `${VAR}`, so write literal values:
       "args": [],
       "env": {
         "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "JUSO_CHROME_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "JUSO_BROWSER_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
         "JUSO_TIMEOUT": "40"
       }
     }
@@ -89,8 +92,8 @@ Claude Desktop does **not** expand `${VAR}`, so write literal values:
       "args": [],
       "env": {
         "JUSO_EXTENSION_ID": "${env:JUSO_EXTENSION_ID}",
-        "JUSO_CHROME_PATH": "${env:JUSO_CHROME_PATH}",
-        "JUSO_CHROME_PROFILE": "${env:JUSO_CHROME_PROFILE}",
+        "JUSO_BROWSER_PATH": "${env:JUSO_BROWSER_PATH}",
+        "JUSO_BROWSER_PROFILE": "${env:JUSO_BROWSER_PROFILE}",
         "JUSO_TIMEOUT": "${env:JUSO_TIMEOUT}"
       }
     }
@@ -100,7 +103,7 @@ Claude Desktop does **not** expand `${VAR}`, so write literal values:
 
 ### Cline (`cline_mcp_settings.json`)
 
-> **`JUSO_CHROME_PATH` by OS** — macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` · Linux: `/usr/bin/google-chrome` (or `/usr/bin/chromium`). The example below uses the Windows path.
+> **`JUSO_BROWSER_PATH` by OS** — macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` (or `/Applications/Firefox.app/Contents/MacOS/firefox`) · Linux: `/usr/bin/google-chrome` (or `/usr/bin/firefox`). The example below uses the Windows path.
 
 ```json
 {
@@ -110,8 +113,8 @@ Claude Desktop does **not** expand `${VAR}`, so write literal values:
       "args": [],
       "env": {
         "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "JUSO_CHROME_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        "JUSO_CHROME_PROFILE": "",
+        "JUSO_BROWSER_PATH": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "JUSO_BROWSER_PROFILE": "",
         "JUSO_TIMEOUT": "40"
       }
     }
@@ -132,8 +135,8 @@ fallback:
       "args": [],
       "env": {
         "JUSO_EXTENSION_ID": "${JUSO_EXTENSION_ID}",
-        "JUSO_CHROME_PATH": "${JUSO_CHROME_PATH}",
-        "JUSO_CHROME_PROFILE": "${JUSO_CHROME_PROFILE:-}",
+        "JUSO_BROWSER_PATH": "${JUSO_BROWSER_PATH}",
+        "JUSO_BROWSER_PROFILE": "${JUSO_BROWSER_PROFILE:-}",
         "JUSO_TIMEOUT": "${JUSO_TIMEOUT:-40}"
       }
     }
@@ -161,7 +164,10 @@ bridge not enabled) come back as `isError`.
 ## Prerequisites (in the extension)
 
 1. Find your extension id: open `chrome://extensions` (enable *Developer
-   mode*), copy the 32-char id from the Juso card.
+   mode*), copy the 32-char id from the Juso card — or use `about:addons` on
+   Firefox for the email-style/`{GUID}` id, and export the skill from the
+   Options page to get the full `moz-extension://` bridge URL (set it as
+   `JUSO_BRIDGE_URL` instead of the id).
 2. Enable **Agent Bridge** in the extension's Options. Without it every call
    fails with `extension_did_not_claim`.
 3. To use `engine-search`, also enable its sub-switch in Options.

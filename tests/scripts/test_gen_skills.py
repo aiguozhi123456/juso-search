@@ -81,8 +81,8 @@ class GenSkillsTests(unittest.TestCase):
             self.assertIn(needle, dev["SKILL.md"], f"dev SKILL.md missing {needle!r}")
             self.assertNotIn(needle, prod["SKILL.md"], f"prod SKILL.md unexpectedly has {needle!r}")
         # auto-discovery line present in prod, removed in dev.
-        self.assertIn("Auto-discovery may only find", prod["SKILL.md"])
-        self.assertNotIn("Auto-discovery may only find", dev["SKILL.md"])
+        self.assertIn("Auto-discovery finds common Chrome/Chromium and Firefox installs", prod["SKILL.md"])
+        self.assertNotIn("Auto-discovery finds common Chrome/Chromium and Firefox installs", dev["SKILL.md"])
         # .py: dev docstring carries the (developer build) suffix; ids differ between variants.
         self.assertIn(
             '"""Local authenticated bridge to the Juso extension (developer build)."""',

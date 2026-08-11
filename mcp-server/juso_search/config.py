@@ -1,16 +1,18 @@
 """Environment configuration for juso-search.
 
 All configuration arrives through the MCP client's ``mcp.json`` ``env`` block:
-``JUSO_EXTENSION_ID`` and ``JUSO_CHROME_PATH`` (both required),
-``JUSO_CHROME_PROFILE`` and ``JUSO_TIMEOUT`` (optional). The MCP path
-intentionally has no CLI flags — config is env-only by design.
+``JUSO_BROWSER_PATH`` (required), ``JUSO_EXTENSION_ID`` or ``JUSO_BRIDGE_URL``
+(at least one; ``JUSO_BRIDGE_URL`` covers Firefox's per-install ``moz-extension://``
+UUID host), ``JUSO_BROWSER_PROFILE`` and ``JUSO_TIMEOUT`` (optional). The legacy
+aliases ``JUSO_CHROME_PATH`` / ``JUSO_CHROME_PROFILE`` are still accepted. The
+MCP path intentionally has no CLI flags — config is env-only by design.
 
-``JUSO_EXTENSION_ID`` and ``JUSO_CHROME_PATH`` are required at startup: a
-missing value for either fails fast with a message on **stderr** and a non-zero
-exit code. The server never guesses an extension id or a browser executable, so
-a wrong or unset value can never be silently used. (Browser auto-discovery lives
-in ``juso_bridge.find_chrome`` and is reserved for the CLI skill, where a human
-is in the loop to read the ``chrome_not_found`` error.)
+``JUSO_BROWSER_PATH`` is required at startup: a missing value fails fast with a
+message on **stderr** and a non-zero exit code. The server never guesses an
+extension id or a browser executable, so a wrong or unset value can never be
+silently used. (Browser auto-discovery lives in ``juso_bridge.find_chrome`` and
+is reserved for the CLI skill, where a human is in the loop to read the
+``chrome_not_found`` error.)
 
 Stdout discipline (2026-07-28 gotcha #1): the only diagnostics this module
 emits go to stderr. Nothing here ever writes to stdout.
@@ -50,9 +52,10 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
 
     Raises:
         SystemExit: with code :data:`EXIT_CONFIG_ERROR` (after writing an
-            explanatory message to stderr) when ``JUSO_EXTENSION_ID`` is
-            missing/empty or not a valid extension id, ``JUSO_CHROME_PATH`` is
-            missing/empty, or ``JUSO_TIMEOUT`` is not a positive finite number.
+            explanatory message to stderr) when ``JUSO_BROWSER_PATH`` is
+            missing/empty, when neither ``JUSO_EXTENSION_ID`` nor
+            ``JUSO_BRIDGE_URL`` is set (or the id is invalid), or when
+            ``JUSO_TIMEOUT`` is not a positive finite number.
     """
     env = os.environ if env is None else env
 

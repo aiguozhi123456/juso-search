@@ -1,9 +1,9 @@
 """Entry point for the juso-search console script and ``python -m juso_search``.
 
 Startup order: parse trivial CLI flags (``--version``) → load environment
-config (fails fast on stderr with a non-zero exit when ``JUSO_EXTENSION_ID`` or
-``JUSO_CHROME_PATH`` is missing) → build the server → ``MCPServer.run()``
-(defaults to stdio). Once the
+config (fails fast on stderr with a non-zero exit when ``JUSO_BROWSER_PATH`` is
+missing, or when neither ``JUSO_EXTENSION_ID`` nor ``JUSO_BRIDGE_URL`` is set)
+→ build the server → ``MCPServer.run()`` (defaults to stdio). Once the
 server is running, stdout carries only newline-delimited JSON-RPC — all
 diagnostics belong on stderr.
 """
@@ -25,7 +25,8 @@ def main(argv: list[str] | None = None) -> int:
         description=(
             "MCP server (stdio) exposing the Juso search extension's five "
             "agent-bridge tools. Configuration comes from environment variables "
-            "(JUSO_EXTENSION_ID, JUSO_CHROME_PATH, JUSO_CHROME_PROFILE, JUSO_TIMEOUT)."
+            "(JUSO_BROWSER_PATH, JUSO_EXTENSION_ID or JUSO_BRIDGE_URL, "
+            "JUSO_BROWSER_PROFILE, JUSO_TIMEOUT)."
         ),
     )
     parser.add_argument(

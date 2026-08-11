@@ -51,8 +51,8 @@ DEV_PATCH_SKILL_MD = [
         "description: Search through configured Juso providers or supported browser search engines, or inspect configured providers (developer build, uses dev extension ID).\n",
     ),
     (
-        "compatibility: Python 3.11+, Chromium-family browser with the Juso extension installed and enabled\n",
-        "compatibility: Python 3.11+, Chromium-family browser with the Juso developer extension installed and enabled\n",
+        "compatibility: Python 3.11+, a Chromium-family or Firefox browser with the Juso extension installed and enabled\n",
+        "compatibility: Python 3.11+, a Chromium-family or Firefox browser with the Juso developer extension installed and enabled\n",
     ),
     ("# Juso Search\n", "# Juso Search (Developer Build)\n"),
     (
@@ -60,11 +60,11 @@ DEV_PATCH_SKILL_MD = [
         "Use this skill when a task needs web search through the user's locally configured Juso **developer build** providers, or needs to discover which providers are configured. The extension keeps API keys inside its background worker; this skill never reads or prints them.\n\n> **注意：** 本技能仅适用于自行构建的 Juso 开发版（`npm run build:dev` 构建，扩展 ID `" + EXTENSION_ID_PLACEHOLDER + "`）。若你从 Chrome Web Store 安装 Juso，请改用 [juso-search](https://github.com/aiguozhi123456/juso-search/tree/main/skills/juso-search) 技能。\n",
     ),
     (
-        "- Install and enable the Juso extension in a Chromium-family browser (Chrome, Edge, Chromium, Brave, etc.).\n",
+        "- Install and enable the Juso extension in a Chromium-family browser (Chrome, Edge, Chromium, Brave, etc.) or Firefox.\n",
         "- Build and load the Juso developer extension (`npm run build:dev` → load `.output/chrome-mv3-dev/` in `chrome://extensions` with Developer mode).\n",
     ),
     (
-        "- Auto-discovery may only find common Chrome/Chromium installs. If the extension lives in Edge or another binary, set the browser path (see `reference/configuration.md`).\n",
+        "- Auto-discovery finds common Chrome/Chromium and Firefox installs. If the extension lives elsewhere (Edge, another binary, or a non-standard Firefox install), set the browser path (see `reference/configuration.md`).\n",
         "",
     ),
     (

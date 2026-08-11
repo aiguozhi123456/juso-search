@@ -7,8 +7,9 @@ Provider/engine parameters are plain strings: the vocabulary is discovered at
 runtime via ``list-providers`` / ``list-engines`` rather than hardcoded here.
 
 Each ``tools/call`` runs one short-lived bridge cycle via
-``juso_search.bridge_call.call_bridge`` (start Chromium → ``bridge.html`` →
-claim/complete → validated reply). No long-lived service, no API-key handling.
+``juso_search.bridge_call.call_bridge`` (start the configured browser —
+Chromium-family or Firefox — → ``bridge.html`` → claim/complete → validated
+reply). No long-lived service, no API-key handling.
 
 ``MCPServer.run()`` defaults to stdio; stdin EOF terminates the process.
 """
