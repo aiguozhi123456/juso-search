@@ -18,6 +18,14 @@ describe('agent bridge input validation', () => {
     expect(isTrustedBridgeSender({ id: 'other', url: 'chrome-extension://id/bridge.html' }, 'id')).toBe(false);
   });
 
+  it('accepts Firefox moz-extension: sender (hostname is per-install random UUID)', () => {
+    const ffId = 'juso-search@extension';
+    const ffUrl = 'moz-extension://a1b2c3d4-e5f6-7890-abcd-ef1234567890/bridge.html';
+    expect(isTrustedBridgeSender({ id: ffId, url: ffUrl }, ffId)).toBe(true);
+    expect(isTrustedBridgeSender({ id: ffId, url: 'moz-extension://a1b2c3d4/bridge.html/other' }, ffId)).toBe(false);
+    expect(isTrustedBridgeSender({ id: 'other@extension', url: ffUrl }, ffId)).toBe(false);
+  });
+
   it('extracts loose credentials for abort even when strict parsing rejects the version', () => {
     // Strict parsing rejects v=2, but loose extraction still recovers port+token
     // so the bridge can notify the skill via /v1/abort instead of hanging.

@@ -38,10 +38,11 @@ EXIT_CONFIG_ERROR = 2
 class Config:
     """Resolved server configuration."""
 
-    extension_id: str
+    extension_id: str | None
     chrome_path: str
     profile: str | None = None
     timeout: float = DEFAULT_TIMEOUT
+    bridge_url: str | None = None
 
 
 def load_config(env: Mapping[str, str] | None = None) -> Config:
@@ -55,30 +56,33 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
     """
     env = os.environ if env is None else env
 
+    bridge_url = (env.get("JUSO_BRIDGE_URL") or "").strip() or None
+
     extension_id = (env.get("JUSO_EXTENSION_ID") or "").strip()
-    if not extension_id:
+    if not extension_id and not bridge_url:
         _die(
             "JUSO_EXTENSION_ID is required but not set; add it to the client's "
-            "mcp.json env block (find the 32-char extension id at "
-            "chrome://extensions) — refusing to guess an extension id"
+            "mcp.json env block (find the extension id at chrome://extensions or "
+            "about:addons) — refusing to guess an extension id. "
+            "Alternatively, set JUSO_BRIDGE_URL for Firefox (the full bridge URL)."
         )
-    if not juso_bridge.EXTENSION_ID_RE.fullmatch(extension_id):
+    if extension_id and not juso_bridge.EXTENSION_ID_RE.fullmatch(extension_id):
         _die(
-            "JUSO_EXTENSION_ID must be 32 lowercase letters a-p (the Chrome "
-            "extension id found at chrome://extensions); "
+            "JUSO_EXTENSION_ID must be Chrome [a-p]{32}, Firefox email-style, or {GUID}; "
             f"got {extension_id!r}"
         )
 
-    chrome_path = (env.get("JUSO_CHROME_PATH") or "").strip()
+    chrome_path = (env.get("JUSO_BROWSER_PATH") or env.get("JUSO_CHROME_PATH") or "").strip()
     if not chrome_path:
         _die(
-            "JUSO_CHROME_PATH is required but not set; add it to the client's "
-            "mcp.json env block (the Chromium-family executable, e.g. "
+            "JUSO_BROWSER_PATH (or JUSO_CHROME_PATH) is required but not set; add it to the client's "
+            "mcp.json env block (the browser executable, e.g. "
             r"C:\Program Files\Google\Chrome\Application\chrome.exe on Windows "
-            "or /usr/bin/google-chrome on Linux) — refusing to guess a browser "
+            "or /usr/bin/google-chrome on Linux, or /usr/bin/firefox for Firefox) "
+            "— refusing to guess a browser "
             "(auto-discovery is a CLI-skill convenience, not an MCP one)"
         )
-    profile = (env.get("JUSO_CHROME_PROFILE") or "").strip() or None
+    profile = (env.get("JUSO_BROWSER_PROFILE") or env.get("JUSO_CHROME_PROFILE") or "").strip() or None
 
     timeout = DEFAULT_TIMEOUT
     raw_timeout = env.get("JUSO_TIMEOUT")
@@ -94,10 +98,11 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         timeout = parsed
 
     return Config(
-        extension_id=extension_id,
+        extension_id=extension_id or None,
         chrome_path=chrome_path,
         profile=profile,
         timeout=timeout,
+        bridge_url=bridge_url,
     )
 
 

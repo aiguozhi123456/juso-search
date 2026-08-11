@@ -6,14 +6,14 @@ export type EngineSearchRequest = { query: string; engineId: EngineId; maxResult
 export type EngineExtractionReply = EngineExtractionResult & { requestId: string };
 
 type TabsApi = {
-  create(createProperties: { url: string; active: boolean }): Promise<{ id?: number; status?: string }>;
-  get(tabId: number): Promise<{ id?: number; status?: string }>;
+  create(createProperties: { url: string; active: boolean }): Promise<{ id?: number; status?: string; url?: string }>;
+  get(tabId: number): Promise<{ id?: number; status?: string; url?: string }>;
   update?(tabId: number, updateProperties: { active?: boolean }): Promise<unknown>;
   remove(tabId: number): Promise<void>;
   sendMessage(tabId: number, message: object): Promise<unknown>;
   onUpdated: {
-    addListener(listener: (tabId: number, change: { status?: string }) => void): void;
-    removeListener(listener: (tabId: number, change: { status?: string }) => void): void;
+    addListener(listener: (tabId: number, change: { status?: string; url?: string }) => void): void;
+    removeListener(listener: (tabId: number, change: { status?: string; url?: string }) => void): void;
   };
   onRemoved?: {
     addListener(listener: (tabId: number) => void): void;
@@ -28,9 +28,9 @@ export type EngineSearchDeps = {
   completeTimeoutMs?: number;
 };
 
-const READY_RETRIES = 8;
-const RETRY_DELAY_MS = 100;
-const COMPLETE_TIMEOUT_MS = 10_000;
+const READY_RETRIES = 20;
+const RETRY_DELAY_MS = 150;
+const COMPLETE_TIMEOUT_MS = 15_000;
 
 const PAGE_STATE_ERRORS = new Set<string>(['challenge', 'consent', 'unsupported-layout', 'no-results']);
 const ORCHESTRATION_ERRORS = new Set<string>(['tab-closed', 'timeout', 'aborted', 'extract-failed']);
@@ -64,8 +64,10 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
   }
 }
 
-function waitForComplete(tab: { id?: number; status?: string }, tabs: TabsApi, signal?: AbortSignal, timeoutMs = COMPLETE_TIMEOUT_MS): Promise<void> {
-  if (tab.status === 'complete') return Promise.resolve();
+function waitForComplete(tab: { id?: number; status?: string; url?: string }, tabs: TabsApi, signal?: AbortSignal, timeoutMs = COMPLETE_TIMEOUT_MS): Promise<void> {
+  // Firefox: tabs.create() resolves before navigation commits — tab is still on about:blank.
+  // about:blank has status "complete", so we must check the URL to avoid resolving prematurely.
+  if (tab.status === 'complete' && tab.url && !tab.url.startsWith('about:')) return Promise.resolve();
   if (tab.id === undefined) return Promise.reject(new Error('tab id unavailable'));
   const tabId = tab.id;
   return new Promise((resolve, reject) => {
@@ -88,11 +90,15 @@ function waitForComplete(tab: { id?: number; status?: string }, tabs: TabsApi, s
       cleanup();
       reject(new Error('tab closed'));
     };
-    const onUpdated = (updatedTabId: number, change: { status?: string }) => {
-      if (updatedTabId === tabId && change.status === 'complete') {
-        cleanup();
-        resolve();
-      }
+    const onUpdated = (updatedTabId: number, change: { status?: string; url?: string }) => {
+      if (updatedTabId !== tabId || change.status !== 'complete') return;
+      // Verify the real page has loaded (not about:blank).
+      void tabs.get(tabId).then((currentTab) => {
+        if (currentTab.status === 'complete' && currentTab.url && !currentTab.url.startsWith('about:')) {
+          cleanup();
+          resolve();
+        }
+      }).catch(() => undefined);
     };
     tabs.onUpdated.addListener(onUpdated);
     tabs.onRemoved?.addListener(onTabRemoved);
@@ -100,7 +106,7 @@ function waitForComplete(tab: { id?: number; status?: string }, tabs: TabsApi, s
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) return onAbort();
     void tabs.get(tabId).then((currentTab) => {
-      if (currentTab.status === 'complete') {
+      if (currentTab.status === 'complete' && currentTab.url && !currentTab.url.startsWith('about:')) {
         cleanup();
         resolve();
       }

@@ -85,7 +85,7 @@ class GenSkillsTests(unittest.TestCase):
         self.assertNotIn("Auto-discovery may only find", dev["SKILL.md"])
         # .py: dev docstring carries the (developer build) suffix; ids differ between variants.
         self.assertIn(
-            '"""Local authenticated bridge to the Juso Chrome extension (developer build)."""',
+            '"""Local authenticated bridge to the Juso extension (developer build)."""',
             dev["scripts/juso_search.py"],
         )
         self.assertNotIn("(developer build)", prod["scripts/juso_search.py"])

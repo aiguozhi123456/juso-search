@@ -74,6 +74,7 @@ def call_bridge(
             profile=config.profile,
             timeout=config.timeout,
             cancel_event=cancel_event,
+            bridge_url=config.bridge_url,
         )
     except juso_bridge.BridgeError as error:
         return failure(error)

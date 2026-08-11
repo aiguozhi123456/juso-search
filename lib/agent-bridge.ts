@@ -94,7 +94,12 @@ export function isTrustedBridgeSender(sender: { id?: string; url?: string }, ext
   if (sender.id !== extensionId || !sender.url) return false;
   try {
     const url = new URL(sender.url);
-    return url.protocol === 'chrome-extension:' && url.hostname === extensionId && !url.username && !url.password && !url.port && url.pathname === '/bridge.html';
+    // Chrome: chrome-extension://{id}/bridge.html（hostname == extensionId）。
+    // Firefox: moz-extension://{per-install-uuid}/bridge.html（hostname 是随机 UUID，非 gecko ID；
+    //   sender.id 已确认身份，仅校验协议 + pathname）。
+    const protocolOk = url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:';
+    const hostnameOk = url.protocol === 'moz-extension:' || url.hostname === extensionId;
+    return protocolOk && hostnameOk && !url.username && !url.password && !url.port && url.pathname === '/bridge.html';
   } catch {
     return false;
   }

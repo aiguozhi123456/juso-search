@@ -472,8 +472,15 @@ export function installDownloadFilenameGuard(): void {
 }
 
 async function triggerDownload(url: string, filename: string): Promise<void> {
+  // Firefox 拒绝 data: URL 下载（bug 1318564，仍 open）；event page 有 URL.createObjectURL，
+  // 转 blob: URL 绕过。Chrome service worker 无 URL.createObjectURL，保留 data: URL + 下方守卫。
+  let downloadUrl = url;
+  if (url.startsWith('data:') && typeof URL.createObjectURL === 'function') {
+    const blob = await (await fetch(url)).blob();
+    downloadUrl = URL.createObjectURL(blob);
+  }
   pendingFilenames.push(filename);
-  await browser.downloads.download({ url, filename, saveAs: true });
+  await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
 }
 
 /** 执行一次已解析 provider 的搜索：缓存 → key → options（maxResults/providerSettings 均由

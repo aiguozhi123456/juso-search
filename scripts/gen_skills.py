@@ -24,6 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE_DIR = REPO_ROOT / "public" / "agent-skill"
 EXTENSION_ID_PLACEHOLDER = "__JUSO_EXTENSION_ID__"
+BRIDGE_URL_PLACEHOLDER = "__JUSO_BRIDGE_URL__"
 
 # MCP pip package vendor target (IU2). juso_bridge.py is shared/unpatched: no DEV_PATCH_*,
 # no extension-id placeholder, so its MCP copy is byte-identical to the template source.
@@ -74,8 +75,8 @@ DEV_PATCH_SKILL_MD = [
 
 DEV_PATCH_PY = [
     (
-        '"""Local authenticated bridge to the Juso Chrome extension."""',
-        '"""Local authenticated bridge to the Juso Chrome extension (developer build)."""',
+        '"""Local authenticated bridge to the Juso extension."""',
+        '"""Local authenticated bridge to the Juso extension (developer build)."""',
     ),
     (
         'argument_parser = argparse.ArgumentParser(description="Search through the local Juso extension")',
@@ -126,6 +127,7 @@ def _apply_patch(text: str, patch: list[tuple[str, str]], label: str, sep: str) 
 def render(variant_key: str) -> dict[str, str]:
     cfg = VARIANTS[variant_key]
     out: dict[str, str] = {}
+    bridge_url = f"chrome-extension://{cfg['extension_id']}/bridge.html"
     for rel in _template_files():
         text = _read_template(rel)
         sep = _line_sep(text)
@@ -133,10 +135,13 @@ def render(variant_key: str) -> dict[str, str]:
             patch = DEV_PATCHES.get(rel, [])
             if patch:
                 text = _apply_patch(text, patch, rel, sep)
-        # Final pass: stamp the extension id everywhere (including dev-patch-inserted content).
+        # Final pass: stamp the extension id and bridge URL everywhere (including dev-patch-inserted content).
         text = text.replace(EXTENSION_ID_PLACEHOLDER, cfg["extension_id"])
+        text = text.replace(BRIDGE_URL_PLACEHOLDER, bridge_url)
         if EXTENSION_ID_PLACEHOLDER in text:
             raise SystemExit(f"gen_skills: unresolved {EXTENSION_ID_PLACEHOLDER} in {variant_key}:{rel}")
+        if BRIDGE_URL_PLACEHOLDER in text:
+            raise SystemExit(f"gen_skills: unresolved {BRIDGE_URL_PLACEHOLDER} in {variant_key}:{rel}")
         out[rel] = text
     return out
 

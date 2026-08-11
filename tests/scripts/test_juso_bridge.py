@@ -198,7 +198,7 @@ class RunBridgeTests(unittest.TestCase):
                 juso_bridge.run_bridge("list-providers", None, extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME)
         self.assertEqual(ctx.exception.kind, "chrome_not_found")
         self.assertEqual(ctx.exception.exit_status, 2)
-        self.assertIn("JUSO_CHROME_PATH", ctx.exception.message)
+        self.assertIn("JUSO_BROWSER_PATH", ctx.exception.message)
 
     def test_claim_timeout_raises_did_not_claim(self):
         with (
@@ -384,8 +384,8 @@ class ReplyValidatorTests(unittest.TestCase):
         unclaimed = juso_bridge.BridgeState("token", "request-1")
         payload = juso_bridge.wait_failure(unclaimed)
         self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
-        self.assertIn("--chrome", payload["error"]["message"])
-        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+        self.assertIn("--browser", payload["error"]["message"])
+        self.assertIn("JUSO_BROWSER_PATH", payload["error"]["message"])
         self.assertIn("--profile", payload["error"]["message"])
         self.assertIn("--extension-id", payload["error"]["message"])
 
@@ -401,6 +401,7 @@ class ReplyValidatorTests(unittest.TestCase):
         with (
             patch.object(juso_bridge.shutil, "which", return_value=None),
             patch.object(juso_bridge, "chrome_candidates", return_value=[Path(__file__)]),
+            patch.object(juso_bridge, "firefox_candidates", return_value=[]),
         ):
             self.assertEqual(juso_bridge.find_chrome(None), str(Path(__file__)))
 
@@ -466,11 +467,37 @@ class ChromeCandidatesTests(unittest.TestCase):
         self.assertIn(Path("/usr/bin/google-chrome"), candidates)
 
 
+class FirefoxCandidatesTests(unittest.TestCase):
+    """firefox_candidates() sys.platform branches."""
+
+    def test_firefox_candidates_platform_branches(self):
+        cases = [
+            ("darwin", {}, [Path("/Applications/Firefox.app/Contents/MacOS/firefox")]),
+            ("linux", {}, [Path("/usr/bin/firefox"), Path("/usr/bin/firefox-esr"), Path("/snap/bin/firefox")]),
+        ]
+        for platform, env, expected in cases:
+            with self.subTest(platform=platform):
+                with (patch("sys.platform", platform), patch.dict(juso_bridge.os.environ, env, clear=False)):
+                    candidates = juso_bridge.firefox_candidates()
+                for path in expected:
+                    self.assertIn(path, candidates)
+
+    def test_detect_browser_type(self):
+        self.assertEqual(juso_bridge.detect_browser_type("/usr/bin/firefox"), "firefox")
+        self.assertEqual(juso_bridge.detect_browser_type("/usr/bin/google-chrome"), "chrome")
+        self.assertEqual(juso_bridge.detect_browser_type("C:\\Program Files\\Mozilla Firefox\\firefox.exe"), "firefox")
+        self.assertEqual(juso_bridge.detect_browser_type("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"), "chrome")
+
+
 class ConstantsTests(unittest.TestCase):
     def test_constants_present(self):
         self.assertEqual(juso_bridge.PROTOCOL, 2)
         self.assertTrue(juso_bridge.EXTENSION_ID_RE.fullmatch("a" * 32))
         self.assertFalse(juso_bridge.EXTENSION_ID_RE.fullmatch("a" * 31))
+        # Firefox email-style and {GUID} IDs also accepted
+        self.assertTrue(juso_bridge.EXTENSION_ID_RE.fullmatch("juso-search@extension"))
+        self.assertTrue(juso_bridge.EXTENSION_ID_RE.fullmatch("{daf44bf7-a45e-4450-979c-91cf07434c3d}"))
+        self.assertFalse(juso_bridge.EXTENSION_ID_RE.fullmatch("not-valid"))
 
     def test_error_classifiers_exposed(self):
         self.assertEqual(juso_bridge.ERROR_INVALID_EXTENSION_ID, "invalid_extension_id")

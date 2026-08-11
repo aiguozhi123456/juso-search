@@ -1,6 +1,7 @@
 ---
 title: Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
 date: 2026-07-23
+last_updated: 2026-08-11
 category: logic-errors
 module: engine-search
 problem_type: logic_error
@@ -102,7 +103,7 @@ Design constraint (explicit): local DOM only; no network follow-redirect. Order 
 - Immediate `tabs.update?.(tabId, { active: false })` (best-effort) because some builds still focus background creates.
 - `tabs.onRemoved` listener sets `closedByUser` when the SERP tab id is removed; finally removes listener and closes the tab only if not already user-closed.
 - `waitForComplete`:
-  - resolves on `status === 'complete'` (listener + `tabs.get` race)
+  - resolves on `status === 'complete'` **and** the tab URL is present and not `about:`-prefixed (listener + `tabs.get` race; the URL guard is mandatory for Firefox, where `tabs.create` resolves before navigation commits and the tab sits on `about:blank` — see Solution C)
   - rejects `AbortError` on signal abort
   - rejects `Error('tab did not finish loading')` on timer → classified as `timeout` via `isTimeoutError` (`/did not finish loading|timeout/i`)
   - rejects `Error('tab closed')` on `onRemoved` or failed `tabs.get` → outer path prefers `closedByUser` → `tab-closed`
@@ -128,11 +129,27 @@ Right after parse setup, `browser.tabs.getCurrent()` then `tabs.update(id, { act
 - `tests/agent-bridge.test.ts` — aborted engine search completes with `error: 'aborted'`.
 - `tests/scripts/test_juso_search.py` — validation accepts new kinds; status nonzero for e.g. `tab-closed`.
 
+### C. Firefox `about:blank` timing race (background-tab readiness)
+
+**Symptom:** `engine-search` returned `extract-failed` on Firefox for every engine (Bing, Baidu, …) while all other Agent Bridge actions worked. The identical action worked on Chromium (Vivaldi) using the dev build, so the flow itself was sound and the failure was Firefox-specific.
+
+**Root cause:** In Firefox MV3, `browser.tabs.create({ url, active: false })` resolves *before* the URL navigation commits — the tab briefly sits on `about:blank`, which reports `status: 'complete'`. `waitForComplete` therefore resolved immediately on the `about:blank` state; the subsequent `sendMessage` to the content script failed with "Could not establish connection. Receiving end does not exist." (no content script exists on `about:blank`), and the `finally` block closed the tab before the SERP page ever loaded.
+
+**Fix** (`lib/engine-search.ts`):
+
+- `waitForComplete` now re-reads tab state via `tabs.get(tabId)` and resolves only when `status === 'complete'` **and** the URL is present and not `about:`-prefixed. The guard applies both in the `onUpdated` handler and in the initial recheck.
+- Retry budget raised: `READY_RETRIES` 8→20, `RETRY_DELAY_MS` 100→150, `COMPLETE_TIMEOUT_MS` 10_000→15_000.
+- `TabsApi` type gained `url` on the create/get results and onUpdated change objects; `tests/engine-search.test.ts` mocks now carry a `url` and `emitUpdated` syncs the mocked `get` status so the guard is exercised.
+
+**Dead end encountered:** a `browser.scripting.executeScript` manual-injection fallback failed with "Missing host permission for the tab" even after adding Firefox-only SERP `host_permissions` and `granted_host_permissions: true`. That error was misleading — `about:blank` matches zero frames, so there was nothing to inject into regardless of permissions. The real fix was the readiness guard; all the injection scaffolding was removed after the timing fix landed.
+
 ## Why This Works
 
 Baidu embeds destination URLs in several DOM slots; an ordered local chain recovers real `http(s)` targets without following redirect shells. Shell and `nourl` filters prevent returning non-destinations that look like URLs. Keeping extraction network-free matches the content-script trust boundary and avoids GM-style remote resolve.
 
 Separating orchestration kinds from page-state kinds restores correct Agent branching: close the tab → do not rewrite extractors; timeout → retry or raise wait; abort → respect cancellation; extract-failed → infrastructure. `onRemoved` plus distinct reject messages in `waitForComplete` make those cases observable instead of a single catch-all string. Skill validation and SKILL.md keep the loopback contract aligned so classified replies are accepted and documented. Force-inactive create/update and immediate bridge deactivation reduce focus theft without changing the one-shot capability model.
+
+The Firefox fix works because it stops trusting `status: 'complete'` as evidence that navigation committed. In Firefox, `tabs.create({ active: false })` resolves before the URL navigation commits — the tab sits on `about:blank`, which reports `status: 'complete'`. Requiring a present, non-`about:` URL before resolving `waitForComplete` keeps the tab alive until the real SERP page loads, the content script is injected by normal manifest registration, and `sendWithRetry` finds a receiving end. The "Missing host permission" error from `executeScript` was a red herring: `about:blank` matches zero frames, so there was nothing to inject into regardless of permissions.
 
 ## Prevention
 
@@ -142,6 +159,11 @@ Separating orchestration kinds from page-state kinds restores correct Agent bran
 - For any tab opened for Agent work (`engine-search` SERP or `bridge.html`), create inactive and re-assert `active: false` if the host may still focus the tab.
 - Do not introduce network redirect resolution in extractors without an explicit design decision; local shortcuts first.
 - Keep SKILL.md orchestration vs page-state lists in sync with `types.ts` and `juso_search.py`.
+- Never treat `status: 'complete'` alone as evidence that navigation committed; guard readiness on the tab URL being present and non-`about:` for background-tab flows (protects Firefox/Safari, where `tabs.create` resolves while the tab is still on `about:blank`).
+- Test engine-search on Firefox as part of the bridge test matrix, not just Chromium — the identical code path passed on Vivaldi and failed on Firefox.
+- Be skeptical of permission errors during background-tab injection. "Missing host permission" from `executeScript` was misleading (zero matching frames on `about:blank`); verify what URL/frames the tab exposes at the failure moment before adding permissions.
+- Don't ship debugging scaffolding: remove temporary `console.log`s, injection fallbacks, and permissions added to chase a hypothesis once the real fix lands.
+- Keep placeholder detection robust to stamping: placeholders replaced by a packager can appear *inside* the code that checks for them — detect by scheme (`"://"`) rather than by the placeholder literal (see Related Issues).
 
 ## Related Issues
 
@@ -149,3 +171,4 @@ Separating orchestration kinds from page-state kinds restores correct Agent bran
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — parallel extractor DOM fragility on the same path
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — bridge.html fire-and-forget close (adjacent focus hygiene)
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — different timeout class (SW `fetch` this-binding), do not conflate with SERP `tab-closed` / load `timeout`
+- **Secondary bug (same Firefox session)** — `public/agent-skill/scripts/juso_search.py` `run()` bridge URL detection: `bridge_url = raw_bridge_url if raw_bridge_url and "__JUSO_BRIDGE_URL__" not in raw_bridge_url else None` — but `scripts/gen_skills.py` stamps `__JUSO_BRIDGE_URL__` everywhere, including inside this check, so after stamping the condition became `"actual-url" not in raw_bridge_url`, always False → `bridge_url=None` → `run_bridge()` fell back to a `chrome-extension://` URL that fails on Firefox's `moz-extension://`. Fixed with `bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None`. See also `docs/solutions/architecture-patterns/agent-skill-distribution-pipeline.md` (refresh candidate: its "exactly one placeholder" claim is now stale with the second `__JUSO_BRIDGE_URL__` placeholder).

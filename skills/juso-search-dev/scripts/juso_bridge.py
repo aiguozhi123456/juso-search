@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Single-source bridge-client core for the Juso Chrome extension.
+"""Single-source bridge-client core for the Juso extension (Chrome and Firefox).
 
 Shared by the CLI skill wrapper (``juso_search.py``) and, later, the MCP
 server (``juso-search``). This module owns the loopback bridge server,
-Chromium discovery and launch, the claim/complete/abort protocol, reply
-validation, and the programmatic orchestration entry point
-:func:`run_bridge`.
+browser discovery and launch (Chrome/Chromium and Firefox), the
+claim/complete/abort protocol, reply validation, and the programmatic
+orchestration entry point :func:`run_bridge`.
 
 Programmatic API
 ----------------
@@ -58,7 +58,9 @@ __all__ = [
     "BridgeState",
     "BridgeHTTPServer",
     "chrome_candidates",
+    "firefox_candidates",
     "find_chrome",
+    "detect_browser_type",
     "is_search_reply",
     "is_provider_list_reply",
     "is_instance_list_reply",
@@ -75,7 +77,7 @@ __all__ = [
 PROTOCOL = 2
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
-EXTENSION_ID_RE = re.compile(r"^[a-p]{32}$")
+EXTENSION_ID_RE = re.compile(r"^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})$")
 
 # Stable failure classifiers raised by run_bridge() via BridgeError.
 ERROR_INVALID_EXTENSION_ID = "invalid_extension_id"
@@ -118,14 +120,34 @@ def chrome_candidates() -> list[Path]:
     return candidates
 
 
+def firefox_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    if sys.platform == "win32":
+        for base in (os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)"), os.environ.get("LOCALAPPDATA")):
+            if base:
+                candidates.append(Path(base) / "Mozilla Firefox/firefox.exe")
+        candidates.append(Path.home() / "AppData/Local/Mozilla Firefox/firefox.exe")
+    elif sys.platform == "darwin":
+        candidates.append(Path("/Applications/Firefox.app/Contents/MacOS/firefox"))
+    else:
+        candidates.extend(Path(path) for path in ("/usr/bin/firefox", "/usr/bin/firefox-esr", "/snap/bin/firefox"))
+    return candidates
+
+
 def find_chrome(explicit_path: str | None) -> str | None:
     if explicit_path:
         path = Path(explicit_path).expanduser()
         return str(path) if path.is_file() else None
-    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome"):
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome", "firefox", "firefox-esr"):
         if found := shutil.which(name):
             return found
-    return next((str(path) for path in chrome_candidates() if path.is_file()), None)
+    return next((str(path) for path in (chrome_candidates() + firefox_candidates()) if path.is_file()), None)
+
+
+def detect_browser_type(browser_path: str) -> str:
+    """Return 'firefox' or 'chrome' based on the executable name."""
+    name = Path(browser_path).name.lower()
+    return "firefox" if "firefox" in name else "chrome"
 
 
 def is_search_reply(reply: Any) -> bool:
@@ -273,8 +295,8 @@ class BridgeState:
 
 RECOVERY_HINT = (
     "confirm Juso is installed and enabled in the opened browser profile; "
-    "override with --chrome or JUSO_CHROME_PATH, --profile or JUSO_CHROME_PROFILE, "
-    "and --extension-id or JUSO_EXTENSION_ID"
+    "override with --browser or JUSO_BROWSER_PATH, --profile or JUSO_BROWSER_PROFILE, "
+    "and --extension-id or JUSO_EXTENSION_ID (or --bridge-url for Firefox)"
 )
 
 
@@ -477,12 +499,13 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
 
 def run_bridge(action: str, query: str | None, *, provider_id: str | None = None, engine_id: str | None = None,
                instance_id: str | None = None, force_refresh: bool = False, max_results: int | None = None,
-               extension_id: str, chrome_path: str | None = None, profile: str | None = None,
-               timeout: float = 40.0, cancel_event: threading.Event | None = None) -> dict[str, Any]:
+               extension_id: str | None = None, chrome_path: str | None = None, profile: str | None = None,
+               timeout: float = 40.0, cancel_event: threading.Event | None = None,
+               bridge_url: str | None = None, browser_type: str | None = None) -> dict[str, Any]:
     """Run one full bridge cycle and return the extension's reply dict.
 
-    Orchestrates: validate extension id → find chrome → start loopback
-    server → build claim → launch Chromium → wait for complete → classify.
+    Orchestrates: validate extension id → find browser → start loopback
+    server → build claim → launch browser → wait for complete → classify.
 
     Args:
         action: one of "search", "engine-search", "search-instance",
@@ -493,14 +516,20 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         instance_id: instance id for "search-instance".
         force_refresh: bypass cache for "search"/"search-instance".
         max_results: optional result cap for "engine-search".
-        extension_id: Chrome extension id (32 lowercase letters a-p).
+        extension_id: extension id (Chrome [a-p]{32} or Firefox email-style/{GUID}).
+            Optional when bridge_url is set.
         chrome_path: explicit browser executable (auto-discovery otherwise).
-        profile: optional --profile-directory for the launched browser.
+        profile: optional profile name (--profile-directory for Chrome, -p for Firefox).
         timeout: seconds to wait for the extension to complete the request.
         cancel_event: optional threading.Event; when set before the
             extension completes, run_bridge stops waiting and raises
             BridgeError(kind=cancelled). Cleanup (loopback server shutdown,
-            Chromium teardown) still runs before the error propagates.
+            browser teardown) still runs before the error propagates.
+        bridge_url: full bridge URL base (e.g. chrome-extension://{id}/bridge.html
+            or moz-extension://{uuid}/bridge.html). When set, overrides URL
+            construction from extension_id (needed for Firefox where the host
+            is a per-install random UUID, not derivable from the gecko ID).
+        browser_type: 'firefox' or 'chrome'; auto-detected from chrome_path if None.
 
     Returns:
         The validated bridge reply dict.
@@ -510,10 +539,13 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
             the ERROR_* constants; ``error.message`` matches what the CLI
             prints; ``error.exit_status`` is the CLI exit code.
     """
-    if not extension_id or not EXTENSION_ID_RE.fullmatch(extension_id):
+    if bridge_url:
+        pass  # bridge_url is authoritative; skip extension_id validation (Firefox: host is per-install random UUID)
+    elif not extension_id or not EXTENSION_ID_RE.fullmatch(extension_id):
         raise BridgeError(
             ERROR_INVALID_EXTENSION_ID,
-            "extension ID must be 32 lowercase letters a-p; override with --extension-id or JUSO_EXTENSION_ID",
+            "extension ID must be Chrome [a-p]{32}, Firefox email-style, or {GUID}; "
+            "override with --extension-id or JUSO_EXTENSION_ID, or use --bridge-url",
             exit_status=2,
         )
     chrome = find_chrome(chrome_path)
@@ -521,9 +553,9 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         raise BridgeError(
             ERROR_CHROME_NOT_FOUND,
             (
-                "no Chromium-family browser found; set --chrome or JUSO_CHROME_PATH "
+                "no browser found; set --browser or JUSO_BROWSER_PATH "
                 "to the executable that has Juso installed "
-                f"(also check --profile or JUSO_CHROME_PROFILE and --extension-id or JUSO_EXTENSION_ID)"
+                f"(also check --profile or JUSO_BROWSER_PROFILE and --extension-id or JUSO_EXTENSION_ID)"
             ),
             exit_status=2,
         )
@@ -545,10 +577,16 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
-        url = f"chrome-extension://{extension_id}/bridge.html#v=1&p={server.server_port}&t={token}"
+        base_url = bridge_url or f"chrome-extension://{extension_id}/bridge.html"
+        url = f"{base_url}#v=1&p={server.server_port}&t={token}"
+        bt = browser_type or detect_browser_type(chrome)
         command = [chrome, url]
         if profile:
-            command.insert(1, f"--profile-directory={profile}")
+            if bt == "firefox":
+                command.insert(1, "-p")
+                command.insert(2, profile)
+            else:
+                command.insert(1, f"--profile-directory={profile}")
         process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             completed = _wait_for_completion(state, timeout, cancel_event)

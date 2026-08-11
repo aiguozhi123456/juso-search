@@ -17,24 +17,25 @@ vi.mock('@/lib/zip', async (importOriginal) => {
 });
 
 const FAKE_ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'; // 31 个 a + b = 32，合法 [a-p]{32}
+const FIREFOX_ID = 'juso-search@extension'; // Firefox gecko ID email-style
 const VERSION = '1.3.0';
 
 const SKILL_MD_FIXTURE =
-  '---\nname: juso-search\n---\n\n# Juso Search\n\nextension: __JUSO_EXTENSION_ID__\n';
-const PY_FIXTURE = 'DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"\n';
+  '---\nname: juso-search\n---\n\n# Juso Search\n\nextension: __JUSO_EXTENSION_ID__\nbridge: __JUSO_BRIDGE_URL__\n';
+const PY_FIXTURE = 'DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"\nDEFAULT_BRIDGE_URL = "__JUSO_BRIDGE_URL__"\n';
 // 真实 juso_bridge.py 无占位符（drift 锁在 test_gen_skills.py 断言四处字节相等）；fixture
 // 故意带一个占位符，保住"每个 zip 内文件都被盖章 + 零占位符残留"这条既有不变量的覆盖。
-const BRIDGE_PY_FIXTURE = 'PROTOCOL = 2\n# stamped marker: __JUSO_EXTENSION_ID__\n';
-const REFERENCE_FIXTURE = '# Reference\n\nstamped id: __JUSO_EXTENSION_ID__\n';
+const BRIDGE_PY_FIXTURE = 'PROTOCOL = 2\n# stamped marker: __JUSO_EXTENSION_ID__\n# bridge: __JUSO_BRIDGE_URL__\n';
+const REFERENCE_FIXTURE = '# Reference\n\nstamped id: __JUSO_EXTENSION_ID__\nbridge: __JUSO_BRIDGE_URL__\n';
 
 const decode = (entry: ZipEntry): string => new TextDecoder().decode(entry.data);
 
 /** 安装带指定 runtime id 的 browser 全局（镜像 background-handlers.test.ts 的 getURL 形态）。 */
-function stubBrowser(id: string): void {
+function stubBrowser(id: string, scheme = 'chrome-extension', host?: string): void {
   vi.stubGlobal('browser', {
     runtime: {
       id,
-      getURL: (p: string) => `chrome-extension://${id}/${p.replace(/^\//, '')}`,
+      getURL: (p: string) => `${scheme}://${host ?? id}/${p.replace(/^\//, '')}`,
       getManifest: () => ({ version: VERSION }),
     },
   });
@@ -84,6 +85,7 @@ describe('packageAgentSkill', () => {
     for (const entry of entries) {
       expect(decode(entry)).toContain(FAKE_ID);
       expect(decode(entry)).not.toContain('__JUSO_EXTENSION_ID__');
+      expect(decode(entry)).not.toContain('__JUSO_BRIDGE_URL__');
     }
   });
 
@@ -101,6 +103,7 @@ describe('packageAgentSkill', () => {
     expect(bridge).toBeDefined();
     expect(decode(bridge!)).toContain(FAKE_ID);
     expect(decode(bridge!)).not.toContain('__JUSO_EXTENSION_ID__');
+    expect(decode(bridge!)).not.toContain('__JUSO_BRIDGE_URL__');
   });
 
   it('dev: filename carries the dev token but the zip folder stays juso-search', async () => {
@@ -124,6 +127,7 @@ describe('packageAgentSkill', () => {
     for (const entry of entries) {
       expect(decode(entry)).toContain(FAKE_ID);
       expect(decode(entry)).not.toContain('__JUSO_EXTENSION_ID__');
+      expect(decode(entry)).not.toContain('__JUSO_BRIDGE_URL__');
     }
   });
 
@@ -147,7 +151,21 @@ describe('packageAgentSkill', () => {
     for (const entry of entries) {
       expect(decode(entry)).toContain(custom);
       expect(decode(entry)).not.toContain('__JUSO_EXTENSION_ID__');
+      expect(decode(entry)).not.toContain('__JUSO_BRIDGE_URL__');
     }
+  });
+
+  it('accepts a Firefox email-style extension id and stamps bridge URL', async () => {
+    stubBrowser(FIREFOX_ID, 'moz-extension', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+    await packageAgentSkill('prod');
+    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    for (const entry of entries) {
+      expect(decode(entry)).toContain(FIREFOX_ID);
+      expect(decode(entry)).not.toContain('__JUSO_EXTENSION_ID__');
+      expect(decode(entry)).not.toContain('__JUSO_BRIDGE_URL__');
+    }
+    const py = decode(entries.find((e) => e.path.endsWith('juso_search.py'))!);
+    expect(py).toContain('moz-extension://a1b2c3d4-e5f6-7890-abcd-ef1234567890/bridge.html');
   });
 
   it('throws on an invalid extension id and does not fetch or zip', async () => {

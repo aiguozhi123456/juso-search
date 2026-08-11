@@ -9,6 +9,7 @@
     "dev": "wxt",
     "build": "wxt build",
     "build:dev": "wxt build --mode development",
+    "build:firefox": "wxt build -b firefox --mv3",
     "zip": "wxt zip",
     "prepare": "wxt prepare",
     "typecheck": "tsc --noEmit",

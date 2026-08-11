@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local authenticated bridge to the Juso Chrome extension."""
+"""Local authenticated bridge to the Juso extension."""
 
 from __future__ import annotations
 
@@ -25,11 +25,12 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding='utf-8')
 
 DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"
+DEFAULT_BRIDGE_URL = "__JUSO_BRIDGE_URL__"
 
 
 def extension_id(value: str) -> str:
     if not EXTENSION_ID_RE.fullmatch(value):
-        raise argparse.ArgumentTypeError("extension ID must be 32 lowercase letters a-p")
+        raise argparse.ArgumentTypeError("extension ID must be Chrome [a-p]{32}, Firefox email-style, or {GUID}")
     return value
 
 
@@ -53,8 +54,9 @@ def search_query(value: str) -> str:
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser(description="Search through the local Juso extension")
     argument_parser.add_argument("--extension-id", type=extension_id, default=os.environ.get("JUSO_EXTENSION_ID") or DEFAULT_EXTENSION_ID)
-    argument_parser.add_argument("--chrome", default=os.environ.get("JUSO_CHROME_PATH"))
-    argument_parser.add_argument("--profile", default=os.environ.get("JUSO_CHROME_PROFILE"))
+    argument_parser.add_argument("--browser", default=os.environ.get("JUSO_BROWSER_PATH") or os.environ.get("JUSO_CHROME_PATH"))
+    argument_parser.add_argument("--profile", default=os.environ.get("JUSO_BROWSER_PROFILE") or os.environ.get("JUSO_CHROME_PROFILE"))
+    argument_parser.add_argument("--bridge-url", default=os.environ.get("JUSO_BRIDGE_URL") or DEFAULT_BRIDGE_URL)
     argument_parser.add_argument("--timeout", type=positive_timeout, default=os.environ.get("JUSO_TIMEOUT") or "40.0")
     commands = argument_parser.add_subparsers(dest="command", required=True)
     search = commands.add_parser("search")
@@ -77,6 +79,11 @@ def parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace) -> tuple[int, Any]:
+    raw_bridge_url = args.bridge_url
+    # Pass bridge_url only if it's a real URL (not the unstamped "__JUSO_BRIDGE_URL__" placeholder).
+    # Using "://" check instead of placeholder string because gen_skills.py stamps the placeholder
+    # everywhere — including this check — which would make it always False after stamping.
+    bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None
     try:
         reply = juso_bridge.run_bridge(
             args.command,
@@ -87,9 +94,10 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
             force_refresh=getattr(args, "force_refresh", False),
             max_results=getattr(args, "max_results", None),
             extension_id=args.extension_id,
-            chrome_path=args.chrome,
+            chrome_path=args.browser,
             profile=args.profile,
             timeout=args.timeout,
+            bridge_url=bridge_url,
         )
     except juso_bridge.BridgeError as error:
         return error.exit_status, {"ok": False, "error": {"kind": error.kind, "message": error.message}}

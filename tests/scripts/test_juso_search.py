@@ -214,9 +214,10 @@ class PureFunctionTests(unittest.TestCase):
         bad = argparse.Namespace(
             extension_id="not-a-valid-id",
             command="list-providers",
-            chrome=None,
+            browser=None,
             profile=None,
             timeout=1.0,
+            bridge_url=None,
         )
         status, payload = juso_search.run(bad)
         self.assertEqual(status, 2)
@@ -277,8 +278,8 @@ class PureFunctionTests(unittest.TestCase):
         unclaimed = juso_search.BridgeState("token", "request-1")
         payload = juso_search.wait_failure(unclaimed)
         self.assertEqual(payload["error"]["kind"], "extension_did_not_claim")
-        self.assertIn("--chrome", payload["error"]["message"])
-        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+        self.assertIn("--browser", payload["error"]["message"])
+        self.assertIn("JUSO_BROWSER_PATH", payload["error"]["message"])
         self.assertIn("--profile", payload["error"]["message"])
         self.assertIn("--extension-id", payload["error"]["message"])
 
@@ -294,9 +295,10 @@ class RunLifecycleTests(unittest.TestCase):
         args = argparse.Namespace(
             extension_id="a" * 32,
             command="list-providers",
-            chrome="/fake/chrome",
+            browser="/fake/chrome",
             profile=None,
             timeout=0.3,
+            bridge_url=None,
             query=None,
             provider=None,
             force_refresh=False,
@@ -309,11 +311,11 @@ class RunLifecycleTests(unittest.TestCase):
 
     def test_chrome_not_found_names_custom_path(self):
         with patch.object(juso_search.juso_bridge, "find_chrome", return_value=None):
-            status, payload = juso_search.run(self._namespace(chrome=None))
+            status, payload = juso_search.run(self._namespace(browser=None))
         self.assertEqual(status, 2)
         self.assertEqual(payload["error"]["kind"], "chrome_not_found")
-        self.assertIn("--chrome", payload["error"]["message"])
-        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+        self.assertIn("--browser", payload["error"]["message"])
+        self.assertIn("JUSO_BROWSER_PATH", payload["error"]["message"])
 
     def test_chrome_launch_failed_includes_os_reason(self):
         with (
@@ -324,7 +326,7 @@ class RunLifecycleTests(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertEqual(payload["error"]["kind"], "chrome_launch_failed")
         self.assertIn("permission denied", payload["error"]["message"])
-        self.assertIn("JUSO_CHROME_PATH", payload["error"]["message"])
+        self.assertIn("JUSO_BROWSER_PATH", payload["error"]["message"])
 
     def test_run_timeout_without_claim(self):
         with (

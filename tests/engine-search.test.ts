@@ -1,24 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runEngineSearch } from '@/lib/engine-search';
 
-function tabs(status: 'loading' | 'complete' = 'complete') {
-  const updated = new Set<(tabId: number, change: { status?: string }) => void>();
+function tabs(status: 'loading' | 'complete' = 'complete', url = 'https://www.google.com/search?q=hello') {
+  const updated = new Set<(tabId: number, change: { status?: string; url?: string }) => void>();
   const removed = new Set<(tabId: number) => void>();
+  const getMock = vi.fn().mockResolvedValue({ id: 7, status, url });
   return {
-    create: vi.fn().mockResolvedValue({ id: 7, status }),
-    get: vi.fn().mockResolvedValue({ id: 7, status }),
+    create: vi.fn().mockResolvedValue({ id: 7, status, url }),
+    get: getMock,
     update: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
     sendMessage: vi.fn(),
     onUpdated: {
-      addListener: vi.fn((listener: (tabId: number, change: { status?: string }) => void) => updated.add(listener)),
-      removeListener: vi.fn((listener: (tabId: number, change: { status?: string }) => void) => updated.delete(listener)),
+      addListener: vi.fn((listener: (tabId: number, change: { status?: string; url?: string }) => void) => updated.add(listener)),
+      removeListener: vi.fn((listener: (tabId: number, change: { status?: string; url?: string }) => void) => updated.delete(listener)),
     },
     onRemoved: {
       addListener: vi.fn((listener: (tabId: number) => void) => removed.add(listener)),
       removeListener: vi.fn((listener: (tabId: number) => void) => removed.delete(listener)),
     },
-    emitUpdated(tabId: number, change: { status?: string }) {
+    emitUpdated(tabId: number, change: { status?: string; url?: string }) {
+      if (tabId === 7 && change.status) getMock.mockResolvedValue({ id: 7, status: change.status, url });
       updated.forEach((listener) => listener(tabId, change));
     },
     emitRemoved(tabId: number) {
@@ -38,7 +40,7 @@ describe('runEngineSearch', () => {
   });
 
   it('ignores other tab updates, retries unavailable receivers, and removes only its tab', async () => {
-    const api = tabs('loading');
+    const api = tabs('loading', 'https://www.bing.com/search?q=hello');
     api.sendMessage.mockRejectedValueOnce(new Error('receiving end does not exist')).mockResolvedValue({ requestId: 'id', engine: 'bing', query: 'hello', error: 'no-results' });
     const promise = runEngineSearch({ engineId: 'bing', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', retryDelayMs: 0 });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -52,11 +54,11 @@ describe('runEngineSearch', () => {
 
   it('reports aborted and malformed replies distinctly from page-layout errors', async () => {
     const controller = new AbortController();
-    const api = tabs('loading');
+    const api = tabs('loading', 'https://www.baidu.com/s?wd=hello');
     const pending = runEngineSearch({ engineId: 'baidu', query: 'hello' }, controller.signal, { tabs: api, requestId: () => 'id' });
     controller.abort();
     await expect(pending).resolves.toEqual({ engine: 'baidu', query: 'hello', error: 'aborted' });
-    const invalidApi = tabs();
+    const invalidApi = tabs('complete', 'https://www.baidu.com/s?wd=hello');
     invalidApi.sendMessage.mockResolvedValue({ requestId: 'wrong', engine: 'baidu', query: 'hello', error: 'no-results' });
     await expect(runEngineSearch({ engineId: 'baidu', query: 'hello' }, undefined, { tabs: invalidApi, requestId: () => 'id' })).resolves.toEqual({ engine: 'baidu', query: 'hello', error: 'extract-failed' });
   });
@@ -72,7 +74,7 @@ describe('runEngineSearch', () => {
 
   it('rechecks tab status after registering the completion listener', async () => {
     const api = tabs('loading');
-    api.get.mockResolvedValue({ id: 7, status: 'complete' });
+    api.get.mockResolvedValue({ id: 7, status: 'complete', url: 'https://www.google.com/search?q=hello' });
     api.sendMessage.mockResolvedValue({ requestId: 'id', engine: 'google', query: 'hello', results: [] });
     await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' })).resolves.toEqual({ engine: 'google', query: 'hello', results: [] });
     expect(api.remove).toHaveBeenCalledWith(7);

@@ -16,8 +16,21 @@ export default defineConfig({
       __SKILL_VARIANT__: JSON.stringify(env.mode === 'development' ? 'dev' : 'prod'),
     },
   }),
-  manifest: ({ mode }) => ({
-    ...(mode === 'development' ? { key: DEV_EXTENSION_KEY } : {}),
+  manifest: ({ browser, mode }) => ({
+    // Chrome dev 构建注入 key 以稳定扩展 ID；Firefox 忽略 key 且 web-ext lint 标记未知字段。
+    ...(mode === 'development' && browser === 'chrome' ? { key: DEV_EXTENSION_KEY } : {}),
+    // Firefox MV3 必填：稳定 gecko ID（AMO 标识，永不可变）+ data_collection_permissions（2025-11-03 起新提交强制）。
+    ...(browser === 'firefox'
+      ? {
+          browser_specific_settings: {
+            gecko: {
+              id: 'juso-search@extension',
+              strict_min_version: '127.0',
+              data_collection_permissions: { required: ['none'] },
+            },
+          },
+        }
+      : {}),
     default_locale: 'zh_CN',
     name: '__MSG_ext_name__',
     description: '__MSG_ext_description__',
