@@ -22,6 +22,7 @@
   "state_empty": { "message": "Enter a query to start searching." },
   "open_settings_cta": { "message": "Open settings to configure an API key" },
   "search_failed_retry": { "message": "Search failed, please try again later" },
+  "context_menu_root": { "message": "Search with juso" },
   "tooltip_supports_answer": { "message": "Supports AI-synthesized answers" },
   "tooltip_no_answer": { "message": "Results only (no AI-synthesized answer)" },
   "tooltip_ai_engine": { "message": "AI Chat (opens in a new page)" },

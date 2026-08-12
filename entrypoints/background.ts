@@ -45,6 +45,7 @@ import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
 import { runEngineSearch } from '@/lib/engine-search';
 import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
 import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
+import { contextMenuNeedsRebuild, handleContextMenuClick, setupContextMenu } from '@/lib/context-menu';
 
 export default defineBackground(() => {
   // data: URL 下载的 filename 修正守卫：注册 onDeterminingFilename 监听器，强制本扩展
@@ -57,6 +58,11 @@ export default defineBackground(() => {
   browser.action.onClicked.addListener(() => {
     browser.tabs.create({ url: browser.runtime.getURL('/search.html') });
   });
+
+  // 右键菜单搜索：worker 启动即构建；安装/更新时重建；storage 配置键变化时重建。
+  void setupContextMenu();
+  browser.runtime.onInstalled.addListener(() => void setupContextMenu());
+  browser.contextMenus.onClicked.addListener((info) => void handleContextMenuClick(info));
 
   // API 网关：key 仅在此 worker 内读取并发往 provider（R7）
   onMessage('search', ({ data }) => handleSearch(data));
@@ -163,6 +169,12 @@ export default defineBackground(() => {
     if (isBarPositionPref(barPosition)) {
       void broadcastUiPref({ type: 'uiPrefChanged', key: 'serpBarPosition', value: barPosition });
     }
+  });
+
+  // 右键菜单重建：来源配置（顺序/显隐/动态引擎/分组/provider keys）变化时同步菜单。
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
+    if (contextMenuNeedsRebuild(changes)) void setupContextMenu();
   });
 });
 

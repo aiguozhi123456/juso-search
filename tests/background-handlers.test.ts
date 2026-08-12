@@ -147,11 +147,20 @@ describe('background handler registration — setAiAutoEnter', () => {
         id: 'fake-id',
         getURL: (p: string) => `${EXT_ORIGIN}/${p.replace(/^\//, '')}`,
         sendMessage: vi.fn().mockResolvedValue(undefined),
+        onInstalled: { addListener: vi.fn() },
       },
       action: { onClicked: { addListener: vi.fn() } },
-      storage: { onChanged: { addListener: vi.fn() } },
+      storage: {
+        local: { get: vi.fn().mockResolvedValue({}) },
+        onChanged: { addListener: vi.fn() },
+      },
       tabs: { create: vi.fn(), update: vi.fn() },
       downloads: { onDeterminingFilename: { addListener: vi.fn() } },
+      contextMenus: {
+        onClicked: { addListener: vi.fn() },
+        create: vi.fn(),
+        removeAll: vi.fn().mockResolvedValue(undefined),
+      },
     });
 
     await import('@/entrypoints/background');
@@ -179,11 +188,20 @@ describe('background handler registration — setFlatLayoutFewSources', () => {
         id: 'fake-id',
         getURL: (p: string) => `${EXT_ORIGIN}/${p.replace(/^\//, '')}`,
         sendMessage: vi.fn().mockResolvedValue(undefined),
+        onInstalled: { addListener: vi.fn() },
       },
       action: { onClicked: { addListener: vi.fn() } },
-      storage: { onChanged: { addListener: vi.fn() } },
+      storage: {
+        local: { get: vi.fn().mockResolvedValue({}) },
+        onChanged: { addListener: vi.fn() },
+      },
       tabs: { create: vi.fn(), update: vi.fn() },
       downloads: { onDeterminingFilename: { addListener: vi.fn() } },
+      contextMenus: {
+        onClicked: { addListener: vi.fn() },
+        create: vi.fn(),
+        removeAll: vi.fn().mockResolvedValue(undefined),
+      },
     });
 
     // 上一个用例已加载过 background 模块（vitest 缓存），必须重置模块再注册。

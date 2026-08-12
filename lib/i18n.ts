@@ -155,6 +155,8 @@ export const MSG = {
   state_empty: 'state_empty',
   open_settings_cta: 'open_settings_cta',
   search_failed_retry: 'search_failed_retry',
+  // 右键菜单搜索
+  context_menu_root: 'context_menu_root',
   // provider 切换器
   tooltip_supports_answer: 'tooltip_supports_answer',
   tooltip_no_answer: 'tooltip_no_answer',

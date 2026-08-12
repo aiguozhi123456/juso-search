@@ -22,6 +22,7 @@
   "state_empty": { "message": "输入查询以开始搜索。" },
   "open_settings_cta": { "message": "打开设置配置 API key" },
   "search_failed_retry": { "message": "搜索失败，请稍后重试" },
+  "context_menu_root": { "message": "用 juso 搜索" },
   "tooltip_supports_answer": { "message": "支持 AI 综合答案" },
   "tooltip_no_answer": { "message": "仅结果（无 AI 综合答案）" },
   "tooltip_ai_engine": { "message": "AI 对话（在新页面打开）" },

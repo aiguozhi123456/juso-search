@@ -52,7 +52,7 @@ export default defineConfig({
       96: 'icon/96.png',
       128: 'icon/128.png',
     },
-    permissions: ['storage', 'downloads'],
+    permissions: ['storage', 'downloads', 'contextMenus'],
     host_permissions: [
       'http://127.0.0.1/*',
       'https://api.tavily.com/*',
