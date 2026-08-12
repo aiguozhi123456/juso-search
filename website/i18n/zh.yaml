@@ -331,7 +331,7 @@ docs_hub_human_tag:
 docs_hub_human_title:
   other: "配置、搜索与切换"
 docs_hub_human_body:
-  other: "从开箱即用的传统引擎，到 AI 搜索服务、实例、站外搜索、自定义引擎、缓存与配置管理。"
+  other: "从开箱即用的传统引擎，到 AI 搜索服务、AI Engine、实例、站外搜索、自定义引擎、缓存与配置管理。"
 docs_hub_human_link:
   other: "进入人类使用文档"
 docs_hub_agents_tag:
@@ -359,7 +359,7 @@ human_doc_eyebrow:
 human_doc_title:
   other: "把搜索来源组织成你的工作台"
 human_doc_sub:
-  other: "这份手册覆盖个人用户从第一次搜索到高级来源管理的完整路径。先从无需密钥的传统引擎开始，再按需要配置 AI 搜索服务。"
+  other: "这份手册覆盖个人用户从第一次搜索到高级来源管理的完整路径。先从无需密钥的传统引擎开始，再按需要配置 AI 搜索服务或启用 AI Engine。"
 human_doc_nav_start:
   other: "开始使用"
 human_doc_nav_sources:
@@ -367,7 +367,7 @@ human_doc_nav_sources:
 human_doc_nav_services:
   other: "AI 服务与实例"
 human_doc_nav_customize:
-  other: "站外、自定义与 AI 对话"
+  other: "站外、自定义与 AI Engine"
 human_doc_nav_local:
   other: "缓存、历史与导出"
 human_doc_start_title:
@@ -387,9 +387,15 @@ human_doc_instances_title:
 human_doc_instances_body:
   other: "支持实例的服务可按不同参数或使用场景创建多套实例；实例共享服务密钥，并会作为快切栏的一等来源出现。"
 human_doc_customize_title:
-  other: "扩展你的来源，而不是复制搜索框"
+  other: "把站点、工具与 AI Engine 都变成来源"
 human_doc_customize_body:
-  other: "Site Engine 使用 Google、Bing 或百度的 site: 限定规范化的公开 HTTP(S) 站点；Custom Engine 使用恰好一个小写 %s 占位符的 HTTP(S) URL 模板；AI 对话引擎会预填当前查询，并均可自动提交。"
+  other: "Site Engine 用 site: 限定公开站点；Custom Engine 使用带一个 %s 占位符的 URL 模板；AI Engine 则把你已登录的 AI 对话网站直接加入来源列表。"
+human_doc_ai_engine_title:
+  other: "AI Engine · 无需 API Key"
+human_doc_ai_engine_card:
+  other: "ChatGPT、DeepSeek、Gemini、Grok、豆包等已登录网站"
+human_doc_ai_engine_body:
+  other: "在设置 → 来源中启用需要的 AI Engine。它们会预填当前查询并自动提交，直接复用浏览器已有登录态；与 AI 搜索服务不同，不需要配置 API Key。"
 human_doc_local_title:
   other: "让本地数据保持可控"
 human_doc_local_body:

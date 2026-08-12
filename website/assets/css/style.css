@@ -824,3 +824,33 @@ html.js .reveal.in { opacity: 1; transform: none; }
   .guide-callout { grid-template-columns: 1fr; gap: 9px; padding: 18px; }
   .docs-hub-card { padding: 28px; }
 }
+
+/* ---------- 智能体页：窄屏 Hero 防溢出 ----------
+   默认的隐式 grid track 会被 CLI 的不换行命令撑开；显式 minmax(0, 1fr)
+   让代码在自身 pre 内横向滚动，而不是让整页、CTA 与正文一起越出视口。 */
+@media (max-width: 900px) {
+  .hero__inner { grid-template-columns: minmax(0, 1fr); }
+  .hero__copy, .hero__visual { min-width: 0; }
+  .hero__card { width: 100%; max-width: 100%; }
+}
+@media (max-width: 560px) {
+  .site-head__inner { min-height: 58px; gap: 8px 10px; padding-block: 8px; }
+  .brandlock { gap: 6px; }
+  .brandlock__sep, .brandlock__en { display: none; }
+  .faceswitch a { padding: 6px 9px; }
+  .head-docs, .langswitch a { padding-inline: 5px; }
+  .hero { padding-block: 44px 52px; }
+  .hero__visual { padding: 4px 0 0; }
+  .hero__positioning { line-height: 1.65; }
+  .hero__cta { gap: 10px; }
+  .hero__cta .btn { width: 100%; min-width: 0; padding-inline: 16px; }
+  .cli__bar { padding: 10px 12px; }
+  .cli__pre { padding: 14px; font-size: .72rem; line-height: 1.65; }
+}
+
+/* 人类手册中将 AI Engine 作为与 Site/Custom 并列的来源类型突出展示。 */
+.guide-mini-grid__ai {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--border)) !important;
+  background: linear-gradient(135deg, var(--brand-soft), var(--bg)) !important;
+}
+.guide-mini-grid__ai b { color: var(--brand-ink); }

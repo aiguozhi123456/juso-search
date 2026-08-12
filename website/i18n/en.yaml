@@ -331,7 +331,7 @@ docs_hub_human_tag:
 docs_hub_human_title:
   other: "Configure, search & switch"
 docs_hub_human_body:
-  other: "From ready-to-use conventional engines to AI search services, instances, site search, custom engines, cache, and configuration management."
+  other: "From ready-to-use conventional engines to AI search services, AI Engines, instances, site search, custom engines, cache, and configuration management."
 docs_hub_human_link:
   other: "Open people documentation"
 docs_hub_agents_tag:
@@ -359,7 +359,7 @@ human_doc_eyebrow:
 human_doc_title:
   other: "Organise search sources into your own workspace"
 human_doc_sub:
-  other: "This guide covers the complete people workflow, from the first search to advanced source management. Start with conventional engines that need no key, then configure AI search services only when useful."
+  other: "This guide covers the complete people workflow, from the first search to advanced source management. Start with conventional engines that need no key, then configure AI search services or enable AI Engines when useful."
 human_doc_nav_start:
   other: "Get started"
 human_doc_nav_sources:
@@ -367,7 +367,7 @@ human_doc_nav_sources:
 human_doc_nav_services:
   other: "AI services & instances"
 human_doc_nav_customize:
-  other: "Site, custom & AI chat"
+  other: "Site, custom & AI Engines"
 human_doc_nav_local:
   other: "Cache, history & export"
 human_doc_start_title:
@@ -387,9 +387,15 @@ human_doc_instances_title:
 human_doc_instances_body:
   other: "For instance-supporting services, save several parameter sets or use cases. Instances share a service key and appear as first-class sources in the quick-switch bar."
 human_doc_customize_title:
-  other: "Extend your sources instead of copying another search box"
+  other: "Turn sites, tools, and AI Engines into sources"
 human_doc_customize_body:
-  other: "A Site Engine scopes a normalised public HTTP(S) site through Google, Bing, or Baidu with site:. A Custom Engine uses an HTTP(S) URL template with exactly one lowercase %s placeholder. AI chat engines prefill the current query and can all submit it automatically."
+  other: "Site Engines scope a public site with site: queries; Custom Engines use a URL template with one %s placeholder; AI Engines add the AI chat websites you are already signed into as sources."
+human_doc_ai_engine_title:
+  other: "AI Engine · no API key"
+human_doc_ai_engine_card:
+  other: "Signed-in ChatGPT, DeepSeek, Gemini, Grok, Doubao, and more"
+human_doc_ai_engine_body:
+  other: "Enable the AI Engines you need in Settings → Sources. They prefill and automatically submit the current query using your existing browser sign-in; unlike AI search services, they do not need an API key."
 human_doc_local_title:
   other: "Keep local data under your control"
 human_doc_local_body:
