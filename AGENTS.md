@@ -32,7 +32,7 @@ WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`b
 - `lib/storage.ts`、`lib/config-io.ts`、`lib/schema.ts` — `chrome.storage.local` BYOK（key 读函数按约定仅 worker 调用）、配置导入导出、schema 迁移
 - `entrypoints/search` + `entrypoints/options` — 两个 UI；`components/` 复用组件
 - `public/agent-skill/` — Agent Skill 模板源（`SKILL.md` + `scripts/juso_search.py` + `scripts/juso_bridge.py`）；`scripts/gen_skills.py` 渲染 prod/dev 发布目录 + MCP vendor 副本，drift 测试锁四处 `juso_bridge.py` 字节相等
-- `mcp-server/` — 独立 pip 包 `juso-search`（[PyPI](https://pypi.org/project/juso-search/)），把 Agent Bridge 的 5 个 action 暴露为 MCP 工具（stdio），供 MCP 原生客户端调用；与 CLI skill 共享 `juso_bridge` 单源模块
+- `mcp-server/` — 独立 pip 包 `juso-search`（[PyPI](https://pypi.org/project/juso-search/)），把 Agent Bridge 的 6 个 action 暴露为 MCP 工具（stdio），供 MCP 原生客户端调用；与 CLI skill 共享 `juso_bridge` 单源模块
 - `lib/agent-skill-packager.ts` — worker 端 skill zip 打包（多文件：`SKILL.md` + `scripts/` + `reference/`）
 
 ## 安全

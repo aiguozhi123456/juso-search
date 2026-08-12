@@ -47,7 +47,7 @@ The development build (`build:dev`) uses a built-in public key to keep the exten
 - `lib/engines/`, `lib/ai-engines/`, `lib/site-engines.ts`, `lib/custom-engines.ts`: conventional search engines, AI chat engines (Grok/ChatGPT/DeepSeek/Doubao/Gemini, via injection or URL prefill), Site Engines (`site:`), and Custom Engines (`%s` URL templates).
 - SERP Switch Bar and `lib/engine-search.ts`: result-page switch-bar injection and ordinary-result extraction, on an execution path distinct from API services.
 - `lib/storage.ts`, `lib/config-io.ts`, `lib/schema.ts`: local configuration, source preferences, cache, config import/export, and schema migrations.
-- `mcp-server/`: standalone pip package `juso-search` that exposes the Agent Bridge's 5 actions as MCP tools (stdio) for MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code); shares the `juso_bridge` single-source module with the CLI skill (drift-locked).
+- `mcp-server/`: standalone pip package `juso-search` that exposes the Agent Bridge's 6 actions as MCP tools (stdio) for MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code); shares the `juso_bridge` single-source module with the CLI skill (drift-locked).
 
 ## Tech Stack
 

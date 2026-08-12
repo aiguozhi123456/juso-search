@@ -202,3 +202,241 @@ not_found_text:
 not_found_home:
   other: "Back to home"
 
+
+# Documentation hub (/docs/)
+nav_docs:
+  other: "Docs"
+docs_eyebrow:
+  other: "PRODUCT DOCUMENTATION"
+docs_title:
+  other: "From installation to the first successful search"
+docs_description:
+  other: "Juso documentation: configure sources and switch search for yourself, or let local agents search through Agent Bridge, the Agent Skill, and the MCP Server."
+docs_jump_label:
+  other: "Documentation navigation"
+docs_jump_install:
+  other: "Install the extension"
+docs_jump_human:
+  other: "Search for yourself"
+docs_jump_agents:
+  other: "Connect local agents"
+docs_jump_security:
+  other: "Security & boundaries"
+docs_install_eyebrow:
+  other: "SHARED PREREQUISITE"
+docs_install_title:
+  other: "Start by installing the extension"
+docs_install_sub:
+  other: "Whether you search yourself or let a local agent search, begin with Juso in a Chromium-family browser."
+docs_install_store_title:
+  other: "Recommended: Chrome Web Store"
+docs_install_store_body:
+  other: "For most users: no developer-mode warning and automatic updates."
+docs_install_release_title:
+  other: "Manual: GitHub Release"
+docs_install_release_body:
+  other: "Download a release bundle and load its unpacked directory from the extension manager; suited to manual installation."
+docs_install_check_title:
+  other: "After installation"
+docs_install_check_body:
+  other: "Open the Juso search page. Conventional engines work directly; configure an API key only when you need an AI search service."
+docs_link_store:
+  other: "Open Chrome Web Store"
+docs_link_release:
+  other: "View GitHub Release"
+docs_human_eyebrow:
+  other: "PEOPLE FACE"
+docs_human_title:
+  other: "Configure one search entry for yourself"
+docs_human_sub:
+  other: "The people face is more than a search box: sources, configuration, and local history are all managed in the extension. Start with keyless conventional engines, then add AI search services when you need them."
+docs_human_sources_title:
+  other: "Sources & switching"
+docs_human_sources_body:
+  other: "Conventional engines, site search, custom engines, and AI chat engines can all become unified sources that switch from the search page and supported result pages."
+docs_human_keys_title:
+  other: "Services & keys"
+docs_human_keys_body:
+  other: "Only AI search services need their respective key. Keys remain local and are read by the background worker."
+docs_human_instances_title:
+  other: "Instances & groups"
+docs_human_instances_body:
+  other: "Save several tuned instances for one service, then organise the quick-switch bar by order, visibility, and groups."
+docs_human_history_title:
+  other: "Cache, history & configuration"
+docs_human_history_body:
+  other: "Successful AI searches can be replayed locally. Configuration export is user-initiated and sensitive; keep the exported file safe."
+docs_human_open:
+  other: "See the people-face overview"
+docs_agents_eyebrow:
+  other: "AGENTS FACE"
+docs_agents_title:
+  other: "Let local agents search through your browser"
+docs_agents_sub:
+  other: "Agent Bridge is a default-off, short-lived, loopback-only capability channel. Agents invoke bounded search actions without receiving keys stored by the extension."
+docs_agents_step_bridge_title:
+  other: "1. Enable Agent Bridge"
+docs_agents_step_bridge_body:
+  other: "In the extension, open Options → General and enable the master switch. Enable the separate engine-search switch as well if agents should search conventional engines."
+docs_agents_step_skill_title:
+  other: "2A. Use the companion Agent Skill"
+docs_agents_step_skill_body:
+  other: "Download the skill from the same settings area. The extension stamps it with the current runtime extension ID; unpack it and place the entire folder in your skills directory."
+docs_agents_step_mcp_title:
+  other: "2B. Or use the MCP Server"
+docs_agents_step_mcp_body:
+  other: "For MCP-native clients. Install juso-search from PyPI and configure the extension ID, Chromium executable, and optional profile and timeout in the client."
+docs_agents_step_commands_title:
+  other: "3. Discover capabilities, then search"
+docs_agents_step_commands_body:
+  other: "List configured providers and supported engines first. API search requires an explicit provider; instance search starts by obtaining an instance id."
+docs_agents_open:
+  other: "See the agents-face overview"
+docs_agents_docs:
+  other: "Read MCP installation"
+docs_command_label:
+  other: "Example commands"
+docs_security_eyebrow:
+  other: "SECURITY & BOUNDARIES"
+docs_security_title:
+  other: "Search capability without exporting your keys"
+docs_security_sub:
+  other: "Juso operates no request relay. Queries go directly to your selected search service or conventional engine; understand these boundaries before you begin."
+docs_security_keys_title:
+  other: "Keys stay locally managed"
+docs_security_keys_body:
+  other: "Stored keys are read only by the extension background service worker; page UI and local agents do not read their values."
+docs_security_bridge_title:
+  other: "Bridge is default-off and per-call"
+docs_security_bridge_body:
+  other: "Every Agent call uses a fresh loopback port, token, and request identity, then expires on completion, failure, or timeout."
+docs_security_export_title:
+  other: "You retain exported configuration"
+docs_security_export_body:
+  other: "Configuration export includes unencrypted keys and preferences. It is created only when you request it and should be stored as carefully as a password."
+docs_security_open:
+  other: "See the privacy model"
+docs_cta_h2:
+  other: "Ready to start from one search entry?"
+docs_cta_p:
+  other: "After installing the extension, begin with conventional engines, then add AI search and local-agent access when you are ready."
+
+# Documentation tree (/docs/, /human/docs/, /agents/docs/)
+docs_hub_title:
+  other: "Choose your documentation path"
+docs_hub_sub:
+  other: "Juso is one browser extension, but searching for yourself and connecting local agents are different workflows. Install the extension first, then enter the complete guide that fits your use."
+docs_hub_human_tag:
+  other: "PEOPLE USE"
+docs_hub_human_title:
+  other: "Configure, search & switch"
+docs_hub_human_body:
+  other: "From ready-to-use conventional engines to AI search services, instances, site search, custom engines, cache, and configuration management."
+docs_hub_human_link:
+  other: "Open people documentation"
+docs_hub_agents_tag:
+  other: "AGENT ACCESS"
+docs_hub_agents_title:
+  other: "Bridge, Skill & MCP"
+docs_hub_agents_body:
+  other: "Understand the default-off Agent Bridge, then choose the extension-delivered Agent Skill or the MCP Server for native clients."
+docs_hub_agents_link:
+  other: "Open agents documentation"
+docs_hub_security_tag:
+  other: "SHARED BOUNDARIES"
+docs_hub_security_title:
+  other: "Keys, data & locality"
+docs_hub_security_body:
+  other: "Whichever face you use, understand key storage, request destinations, Bridge lifetime, and configuration export boundaries first."
+docs_hub_security_link:
+  other: "Read security & privacy"
+guide_back:
+  other: "All documentation"
+guide_on_page:
+  other: "On this page"
+human_doc_eyebrow:
+  other: "PEOPLE DOCUMENTATION"
+human_doc_title:
+  other: "Organise search sources into your own workspace"
+human_doc_sub:
+  other: "This guide covers the complete people workflow, from the first search to advanced source management. Start with conventional engines that need no key, then configure AI search services only when useful."
+human_doc_nav_start:
+  other: "Get started"
+human_doc_nav_sources:
+  other: "Sources & switching"
+human_doc_nav_services:
+  other: "AI services & instances"
+human_doc_nav_customize:
+  other: "Site, custom & AI chat"
+human_doc_nav_local:
+  other: "Cache, history & export"
+human_doc_start_title:
+  other: "Begin with a usable search"
+human_doc_start_body:
+  other: "After installing, open the Juso search page. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no API key; enable hidden sources from Settings when needed."
+human_doc_sources_title:
+  other: "Switch from the search page or result page"
+human_doc_sources_body:
+  other: "The search page selects sources. On supported conventional result pages, the SERP Switch Bar carries the current query to another engine or hands off to Juso's AI search page."
+human_doc_services_title:
+  other: "Configure AI search services only when needed"
+human_doc_services_body:
+  other: "Only AI search services require their respective key. The interface receives configuration status, but never reads stored keys back into the page."
+human_doc_instances_title:
+  other: "Keep several instances of one service"
+human_doc_instances_body:
+  other: "For instance-supporting services, save several parameter sets or use cases. Instances share a service key and appear as first-class sources in the quick-switch bar."
+human_doc_customize_title:
+  other: "Extend your sources instead of copying another search box"
+human_doc_customize_body:
+  other: "A Site Engine scopes a normalised public HTTP(S) site through Google, Bing, or Baidu with site:. A Custom Engine uses an HTTP(S) URL template with exactly one lowercase %s placeholder. AI chat engines prefill the current query and can all submit it automatically."
+human_doc_local_title:
+  other: "Keep local data under your control"
+human_doc_local_body:
+  other: "Successful AI searches are cached per service and normalised query on the current device, and history can be replayed. Refresh for fresh results. Configuration export includes unencrypted keys and preferences, so create it only for a deliberate backup and store it safely."
+human_doc_open_app:
+  other: "Open people-face overview"
+agents_doc_eyebrow:
+  other: "AGENTS DOCUMENTATION"
+agents_doc_title:
+  other: "Let local agents use search within clear boundaries"
+agents_doc_sub:
+  other: "This guide covers Agent Bridge prerequisites, two integration paths, callable actions, and recovery. Agents receive bounded capabilities and structured results—not keys stored by the extension."
+agents_doc_nav_requirements:
+  other: "Prerequisites"
+agents_doc_nav_bridge:
+  other: "Enable Bridge"
+agents_doc_nav_skill:
+  other: "Agent Skill"
+agents_doc_nav_mcp:
+  other: "MCP Server"
+agents_doc_nav_actions:
+  other: "Actions & recovery"
+agents_doc_requirements_title:
+  other: "Confirm the runtime environment"
+agents_doc_requirements_body:
+  other: "Install and enable Juso in the Chromium-family browser that will run calls: Chrome, Edge, Chromium, or similar. The Agent Skill requires Python 3.11+. engine-search needs no AI service key; search needs the target provider configured first."
+agents_doc_bridge_title:
+  other: "Enable two layers of consent"
+agents_doc_bridge_body:
+  other: "Open extension Options → General → Agent Bridge and enable the master switch. Enable the separate engine-search sub-switch as well when agents should search conventional engines through a real browser. Both are off by default."
+agents_doc_skill_title:
+  other: "Path A: the extension-delivered Agent Skill"
+agents_doc_skill_body:
+  other: "In the same settings area, click “Download companion Agent Skill.” The extension stamps the current runtime extension ID into the package; after unzipping, keep scripts and reference intact and place the entire directory in your Agent skills folder."
+agents_doc_mcp_title:
+  other: "Path B: Server for MCP-native clients"
+agents_doc_mcp_body:
+  other: "Install the MCP Server with pip install juso-search (Python 3.10+). It uses stdio; set JUSO_EXTENSION_ID and JUSO_CHROME_PATH explicitly in the client's MCP configuration, then add profile and timeout only if needed."
+agents_doc_actions_title:
+  other: "Discover first, then call explicitly"
+agents_doc_actions_body:
+  other: "Use list-providers and list-engines to discover the live capabilities first. search requires an explicit provider. For instances, call list-instances and then target an instance with search-instance. engine-search returns ordinary result metadata only, not AI summaries or knowledge panels."
+agents_doc_recovery_title:
+  other: "Check boundaries before trying to bypass them"
+agents_doc_recovery_body:
+  other: "For extension_did_not_claim, confirm that Juso is installed and enabled, the Agent Bridge master switch is on, and the launched browser uses the intended profile. If engine-search returns extract-failed, check its separate sub-switch first; consent pages, challenge pages, and unsupported result layouts also return structured failures rather than empty success."
+agents_doc_mcp_link:
+  other: "Read MCP Server configuration"
+agents_doc_open_app:
+  other: "Open agents-face overview"

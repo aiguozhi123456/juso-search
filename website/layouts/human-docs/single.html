@@ -1,0 +1,66 @@
+{{ define "title" }}{{ i18n "human_doc_eyebrow" }} · {{ .Site.Title }}{{ end }}
+{{ define "description" }}{{ i18n "human_doc_sub" }}{{ end }}
+
+{{ define "main" }}
+<section class="guide-hero">
+  <div class="wrap guide-hero__inner">
+    <a class="guide-back" href="{{ "docs/" | relLangURL }}">← {{ i18n "guide_back" }}</a>
+    <p class="eyebrow"><span></span>{{ i18n "human_doc_eyebrow" }}</p>
+    <h1>{{ i18n "human_doc_title" }}</h1>
+    <p>{{ i18n "human_doc_sub" }}</p>
+    <a class="btn btn--primary" href="{{ "human/" | relLangURL }}">{{ i18n "human_doc_open_app" }}</a>
+  </div>
+</section>
+
+<section class="section guide-section-wrap">
+  <div class="wrap guide-shell">
+    <aside class="guide-toc" aria-label="{{ i18n "guide_on_page" }}">
+      <p>{{ i18n "guide_on_page" }}</p>
+      <a href="#start">01 {{ i18n "human_doc_nav_start" }}</a>
+      <a href="#sources">02 {{ i18n "human_doc_nav_sources" }}</a>
+      <a href="#services">03 {{ i18n "human_doc_nav_services" }}</a>
+      <a href="#customize">04 {{ i18n "human_doc_nav_customize" }}</a>
+      <a href="#local-data">05 {{ i18n "human_doc_nav_local" }}</a>
+    </aside>
+    <div class="guide-content">
+      <section class="guide-section" id="start">
+        <span class="guide-number">01</span>
+        <h2>{{ i18n "human_doc_start_title" }}</h2>
+        <p>{{ i18n "human_doc_start_body" }}</p>
+        <div class="guide-mini-grid">
+          <article><b>Google / Bing / Baidu</b><span>{{ i18n "human_doc_nav_start" }}</span></article>
+          <article><b>Douyin / Xiaohongshu / Bilibili</b><span>{{ i18n "human_doc_nav_sources" }}</span></article>
+          <article><b>Yandex / DuckDuckGo</b><span>{{ i18n "human_doc_nav_sources" }}</span></article>
+        </div>
+      </section>
+      <section class="guide-section" id="sources">
+        <span class="guide-number">02</span>
+        <h2>{{ i18n "human_doc_sources_title" }}</h2>
+        <p>{{ i18n "human_doc_sources_body" }}</p>
+        <div class="guide-callout"><b>{{ i18n "docs_human_sources_title" }}</b><span>{{ i18n "docs_human_sources_body" }}</span></div>
+      </section>
+      <section class="guide-section" id="services">
+        <span class="guide-number">03</span>
+        <h2>{{ i18n "human_doc_services_title" }}</h2>
+        <p>{{ i18n "human_doc_services_body" }}</p>
+        <div class="guide-callout"><b>{{ i18n "human_doc_instances_title" }}</b><span>{{ i18n "human_doc_instances_body" }}</span></div>
+      </section>
+      <section class="guide-section" id="customize">
+        <span class="guide-number">04</span>
+        <h2>{{ i18n "human_doc_customize_title" }}</h2>
+        <p>{{ i18n "human_doc_customize_body" }}</p>
+        <div class="guide-mini-grid guide-mini-grid--two">
+          <article><b>Site Engine</b><span><code>site:</code> + Google / Bing / Baidu</span></article>
+          <article><b>Custom Engine</b><span><code>%s</code> URL template</span></article>
+        </div>
+      </section>
+      <section class="guide-section" id="local-data">
+        <span class="guide-number">05</span>
+        <h2>{{ i18n "human_doc_local_title" }}</h2>
+        <p>{{ i18n "human_doc_local_body" }}</p>
+        <div class="guide-callout guide-callout--brand"><b>{{ i18n "docs_security_export_title" }}</b><span>{{ i18n "docs_security_export_body" }}</span></div>
+      </section>
+    </div>
+  </div>
+</section>
+{{ end }}

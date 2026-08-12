@@ -12,9 +12,9 @@ diff (filename + which side differs) if any pair has drifted.
 
   · Screenshots —— website/static/img/screenshot-*.png  ↔  docs/assets/screens/*.png
     The website build needs its own copies of the marketing screenshots, so
-    they are duplicated from the docs directory. The mapping table lives in
+    they are duplicated from the internal docs directory. The mapping table lives in
     website/static/img/README.md and is authoritative; the pairs below are
-    the four rows with a docs counterpart (screenshot-search.png and
+    the four rows with an internal-docs counterpart (screenshot-search.png and
     screenshot-serp.png are website-only and intentionally excluded).
 
 Usage:
@@ -33,8 +33,8 @@ EXT_ICONS = REPO_ROOT / "public" / "icons"
 WEBSITE_IMG = REPO_ROOT / "website" / "static" / "img"
 DOCS_SCREENS = REPO_ROOT / "docs" / "assets" / "screens"
 
-# Mapping table from website/static/img/README.md (website name → docs name).
-# Rows without a docs counterpart (screenshot-search/screenshot-serp) are
+# Mapping table from website/static/img/README.md (website name → internal-docs name).
+# Rows without an internal-docs counterpart (screenshot-search/screenshot-serp) are
 # website-only and not part of the lock.
 SCREENSHOT_PAIRS = [
     ("screenshot-instances.png", "settings-instances-clean.png"),
