@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-08-06
+last_updated: 2026-08-12
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -80,7 +80,7 @@ export function resolveGroupId(
 }
 ```
 
-where `defaultGroupForSourceId` maps providers → `ai-search`, engines → `engines`, `site:*` → `sites`. This means the out-of-box experience needs **zero** persisted assignments: every source falls through to its type group, and `assignments` only records deviations the user made. `SourceGroupEditor` flips between the two states with two operations: `pinSource` (append a `{kind:'source'}` entry, drop its assignment) and `foldIntoGroup` (remove its layout entry, write its assignment).
+where `defaultGroupForSourceId` maps providers and provider instances → `ai-search`, ai-engines → `ai-engines`, engines → `engines`, custom engines → `custom`, and `site:*` → `sites` (five branches — the same dispatch the context-menu mirror relies on). This means the out-of-box experience needs **zero** persisted assignments: every source falls through to its type group, and `assignments` only records deviations the user made. `SourceGroupEditor` flips between the two states with two operations: `pinSource` (append a `{kind:'source'}` entry, drop its assignment) and `foldIntoGroup` (remove its layout entry, write its assignment).
 
 ### 3. `normalizeGroupConfig` — the self-healing boundary
 
@@ -99,7 +99,7 @@ for (const [sid, gid] of Object.entries(rawAssignments)) {
 }
 ```
 
-Because the reader (`getGroupConfig`) normalizes in memory only and never writes back to storage (storage.ts:372-379), every consumer sees a consistent config even when the persisted form is stale. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
+Because the reader (`getGroupConfig`) normalizes in memory only and never writes back to storage (storage.ts:439-448), every consumer sees a consistent config even when the persisted form is stale. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
 
 ### 4. `projectLayout` — defensive projection to renderable items
 
@@ -138,7 +138,7 @@ Adding a persisted config key normally means writing a migration. Here it did no
 { version: 4, migrate: (config) => config },
 ```
 
-The getter-defaulted keys — `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, and `groupConfig` — all joined `CONFIG_KEYS` without a migration: their defaults are supplied by normalizing getters, so a missing key needs no transformation, just a default to fall back to (`serpBarPosition` is the exception — it later *did* bump to v8 when the `'top'` value's semantics were redefined; see `lib/schema.ts`). The version bump here is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
+The getter-defaulted keys — `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, and later `customEngines` / `providerInstances` / `aiAutoEnter` / `flatLayoutFewSources` — all joined `CONFIG_KEYS` without a migration: their defaults are supplied by normalizing getters, so a missing key needs no transformation, just a default to fall back to (`serpBarPosition` is the exception — it later *did* bump to v8 when the `'top'` value's semantics were redefined; see `lib/schema.ts`). The version bump here is purely so `ensureSchema` includes `groupConfig` in its whitelist read (and for cache invalidation), not to transform stored data. Every reader falls back to `defaultGroupConfig(...)` when the key is absent or invalid, so existing installs get the grouped out-of-box experience without any data being written for them.
 
 ### 6. `groupConfig` folded into the existing provider-config snapshot and worker message
 
@@ -146,11 +146,13 @@ There is one privileged read path for UI config: `getProviderConfigSnapshot`. `g
 
 ```ts
 const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY,
-  SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY,
+  PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY,
+  FLAT_LAYOUT_FEW_SOURCES_KEY]);
 ...
 const groupConfig = got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
-  ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds(siteEngines))
-  : defaultGroupConfig(allKnownSourceIds(siteEngines));
+  ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds(siteEngines, customEngines, providerInstances))
+  : defaultGroupConfig(allKnownSourceIds(siteEngines, customEngines, providerInstances));
 ```
 
 It is also a field on `ProviderConfigReply` in `lib/messaging.ts` (`/** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */ groupConfig: GroupConfig;`), and the worker exposes a `setGroupConfig(config)` handler. So grouping rides the same plumbing the projection layer already used: one snapshot, one message pair, one known source-id set (`allKnownSourceIds`) shared across both layers so they cannot drift on what counts as a source. Import/export (`lib/config-io.ts`) carries `groupConfig` as an optional field with a preview diff and re-normalizes it against the imported Site Engines view, and v4 imports are accepted as structurally-v5-without-`groupConfig`.
@@ -280,6 +282,8 @@ When flattened, every item is a `PinnedItem`, so the sliding-indicator rule (see
 
 **Layering keeps three axes composable.** Source visibility, source order, and top-row layout are orthogonal. A user hiding a provider, reordering engines, and pinning a Site Engine to the top row are doing three independent things, and the design lets each happen without touching the others. `lib/sources.ts` keeps owning the projection (what exists, what is visible, the canonical order); `lib/source-groups.ts` only layers "which visible sources are pinned flat vs. collapsed into a group" on top. `projectLayout` consumes the already-projected source list — it never re-hides, never re-orders the underlying list; group-internal order is either explicit (`groupOrders`) or the projection order filtered. Had grouping been folded into projection, every existing code path (the SERP inject bar, import merge, active-source resolution, the mutation queues) would have had to learn about groups, and the diff surface for a layout feature would have ballooned into the visibility model.
 
+**The layout projection is shared, not bar-owned.** The same `projectLayout` / `resolveEffectiveLayout` output that drives the quick-switch bar also drives the right-click context-menu search tree (see [context-menu-mv3-worker-lifecycle](../logic-errors/context-menu-mv3-worker-lifecycle.md)): the menu mirrors the identical pinned/grouped layout, gated by the same `flatLayoutFewSources` preference, so the two surfaces cannot disagree on where a source lives. The layout layer therefore has two consumer surfaces — the switcher component and the context-menu mirror — and any third surface that mirrors the source switcher should read this layout, not bake in a per-surface copy.
+
 **Self-healing normalization plus lazy schema defaults match a BYOK reality.** Configured sources appear and disappear at runtime — a user adds a Site Engine, deletes a provider key, imports a backup. A persisted layout that points at a now-deleted source must not crash the render or strand the config. `normalizeGroupConfig` is the boundary that absorbs this churn: every read re-validates against the live source set and rewrites a clean config. Paired with the no-migration lazy-default getter pattern, new installs and old installs alike get a coherent default with zero migration code, and stale references heal themselves on the next read instead of accumulating. For an MV3 service worker that is frequently torn down and rebuilt, a read path that is also a repair path is what keeps the persisted state trustworthy.
 
 **Pinning the indicator to only the pinned source keeps the segmented-control model coherent.** The switcher uses a sliding indicator — a single absolutely-positioned block that carries the brand color and slides between pills (segmented-control style). The indicator is anchored **only** to the active pinned source, never projected into a group:
@@ -389,5 +393,6 @@ Dragstart on a member's pin button must not produce any reorder; the quick-bar m
 - [config-preference-pipeline.md](./config-preference-pipeline.md) — the end-to-end source-bar preference pipeline; `groupConfig` is the third pref carried through it (worker message, export/import round-trip, normalization, i18n parity, multi-host consumption).
 - [dual-domain-storage-schema-versioning.md](./dual-domain-storage-schema-versioning.md) — the config-domain schema; the v4→v5 no-op migration here is a concrete application of its "getter-fallback keys don't need a migration" rule.
 - [serp-switch-bar-and-unified-source-model.md](./serp-switch-bar-and-unified-source-model.md) — the unified switcher contract; `projectLayout`'s `PinnedItem | GroupItem` is the new seam the switcher consumes instead of a flat `SearchSource[]`.
-- [separate-active-search-source-from-active-byok-provider.md](./separate-active-search-source-from-active-byok-provider.md) — the `SourceId = ProviderId | EngineId | SiteEngineId` union that `defaultGroupForSourceId` dispatches over.
+- [separate-active-search-source-from-active-byok-provider.md](./separate-active-search-source-from-active-byok-provider.md) — the `SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId` union that `defaultGroupForSourceId` dispatches over.
+- [context-menu-mv3-worker-lifecycle.md](../logic-errors/context-menu-mv3-worker-lifecycle.md) — the right-click context-menu search tree mirrors this same layout projection (`projectLayout` / `resolveEffectiveLayout`, gated by the same `flatLayoutFewSources` preference) as a third consumer surface, so pinned/grouped choices stay consistent between the quick-switch bar and the menu.
 - [hidden-source-still-active-across-hosts.md](../ui-bugs/hidden-source-still-active-across-hosts.md) — the editor's in-group view keeps hidden sources (`groupOrderOf` retains them; `projectLayout` skips them), the layout-layer extension of cross-host hidden-source projection consistency.

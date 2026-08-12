@@ -1,7 +1,7 @@
 ---
 title: "Adding a persisted config preference: the end-to-end pipeline"
 date: 2026-07-17
-last_updated: 2026-07-30
+last_updated: 2026-08-12
 category: architecture-patterns
 module: config-preferences
 problem_type: architecture_pattern
@@ -38,7 +38,7 @@ tags:
 
 ## Context
 
-本扩展的用户偏好散落在一条分层管线上：投影层、存储层、schema 域、worker 消息契约、gateway handler、background 路由、配置导入导出、i18n，再由两个 UI 宿主（Juso 搜索页、SERP 注入栏）和设置页共同消费。`sourceOrder` 是第一个 `SourceId[]` 型快切栏偏好，并确立了先例（见 *persistent-source-order-and-visible-projection*）。
+本扩展的用户偏好散落在一条分层管线上：投影层、存储层、schema 域、worker 消息契约、gateway handler、background 路由、配置导入导出、i18n，再由三个 UI 消费方（Juso 搜索页、SERP 注入栏、右键菜单搜索树）和设置页共同消费。`sourceOrder` 是第一个 `SourceId[]` 型快切栏偏好，并确立了先例（见 *persistent-source-order-and-visible-projection*）。
 
 `sourceHidden`（把个别 engine/provider 从快切栏隐藏）是第二个走同一管线的 `SourceId[]` 偏好。重走这条管线后得到两样可复用的东西：(1) 一份「加一个偏好要碰哪几层」的清单；(2) 第二个快切栏偏好必须在何处**刻意偏离** `sourceOrder`。把它们记下来，第三个偏好应是分钟级而非重新推导。
 
@@ -57,7 +57,7 @@ tags:
 7. **配置导入/导出**（`lib/config-io.ts`）：`ConfigExport` 字段、`buildExportPayload` 读取、`parseImportPayload` 校验（区分**字段缺失**与**字段存在**）、`previewImport` diff、`mergeImport` 覆盖（由 `applyPrefs` 把关）+ 新 `ImportReport` 字段、`PrefDiff` key 联合类型；把新键加进每一处 `get([...])`，并把写串行队列嵌进 `mergeImport`。
 8. **i18n**（`lib/i18n.ts` 的 `MSG` + `_locales/{zh_CN,en}/messages.json`）：三方一致性测试（`tests/i18n-parity.test.ts`）强制 `MSG` ⊆ 两个 locale 且两侧键集相同。
 
-加上消费端：搜索页与 SERP content script 把新参数透传给 `allSources`；设置页加一个乐观更新 + 失败回滚的开关（沿用 `moveSource` 的 revision/epoch 防陈旧模式，详见 sourceOrder 文档，此处不重复）。
+加上消费端：搜索页与 SERP content script 把新参数透传给 `allSources`；右键菜单（`lib/context-menu.ts`）同样以同参透传 `allSources` 镜像布局——**影响菜单结构或可用源的偏好必须同步加入 `REBUILD_KEYS`，否则菜单不会随偏好重建**（`localePref`、`flatLayoutFewSources` 曾漏掉，导致菜单语言/布局与快切栏不一致，见 *context-menu-mv3-worker-lifecycle* 的 M1/M2 教训）；设置页加一个乐观更新 + 失败回滚的开关（沿用 `moveSource` 的 revision/epoch 防陈旧模式，详见 sourceOrder 文档，此处不重复）。
 
 ### sourceHidden 刻意偏离 sourceOrder 之处
 
@@ -128,5 +128,6 @@ tags:
 - [source-group-layout-layer](./source-group-layout-layer.md) — 第三个走本管线的偏好 `groupConfig`（嵌套对象：groups + layout + assignments），含结构化容错规范化与 v4→v5 无数据迁移的 schema bump。
 - [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — `CONFIG_KEYS` 白名单、默认安全则不 bump 版本、mutation queue 嵌套模式。
 - [serp-switch-bar-and-unified-source-model](./serp-switch-bar-and-unified-source-model.md) — `allSources` 投影与两个快切栏宿主的基础设计。
+- [context-menu-mv3-worker-lifecycle](../logic-errors/context-menu-mv3-worker-lifecycle.md) — 右键菜单作为本管线的第三个消费方；影响菜单的偏好须进 `REBUILD_KEYS`（M1/M2 教训）。
 - [theme-persistence-i18n-key-hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) — worker 脱敏配置与 i18n 三方一致性守卫。
 - [hidden-source-still-active-across-hosts](../ui-bugs/hidden-source-still-active-across-hosts.md) — 当本文「存储正交、显示重选」nuance 被遗漏时复现的三个 bug 与修复；上文规则 2、3 的澄清即源于此。
