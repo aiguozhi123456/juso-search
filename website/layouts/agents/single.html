@@ -12,6 +12,8 @@
   "cta_primary_href" .Site.Params.cwsURL
   "cta_ghost_key" "cta_github"
   "cta_ghost_href" .Site.Params.githubURL
+  "doc_href" ("agents/docs/" | relLangURL)
+  "doc_key" "docs_hub_agents_link"
   "visual" "hero-visual-agent"
 ) }}
 
@@ -32,7 +34,7 @@
 </section>
 
 {{/* 安全模型 */}}
-<section class="section section--sunk">
+<section class="section section--sunk" id="security">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_trust_agents") "title" (i18n "sec_trust_agents") "sub" (i18n "sec_trust_agents_sub")) }}
     <div class="trust trust--single">

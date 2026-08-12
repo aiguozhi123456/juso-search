@@ -200,3 +200,247 @@ not_found_text:
 not_found_home:
   other: "回到首页"
 
+
+# 文档入口（/docs/）
+nav_docs:
+  other: "文档"
+docs_eyebrow:
+  other: "PRODUCT DOCUMENTATION"
+docs_title:
+  other: "从安装，到第一次成功搜索"
+docs_description:
+  other: "双面搜的使用文档：为自己配置来源、切换搜索；或通过 Agent Bridge、Agent Skill 与 MCP Server 让本地智能体搜索。"
+docs_jump_label:
+  other: "文档导航"
+docs_jump_install:
+  other: "安装扩展"
+docs_jump_human:
+  other: "为自己搜索"
+docs_jump_agents:
+  other: "为智能体接入"
+docs_jump_security:
+  other: "安全与边界"
+docs_install_eyebrow:
+  other: "共同前置"
+docs_install_title:
+  other: "先把扩展装进浏览器"
+docs_install_sub:
+  other: "无论你要自己搜索还是让本地智能体搜索，都从 Chromium 系浏览器中的双面搜扩展开始。"
+docs_install_store_title:
+  other: "推荐：Chrome Web Store"
+docs_install_store_body:
+  other: "适合大多数用户；没有开发者模式警告，并可自动更新。"
+docs_install_release_title:
+  other: "手动：GitHub Release"
+docs_install_release_body:
+  other: "下载发布包并在扩展管理页加载已解压目录；适合需要手动安装的场景。"
+docs_install_check_title:
+  other: "安装后确认"
+docs_install_check_body:
+  other: "打开双面搜搜索页；传统搜索引擎可直接使用，AI 搜索服务则按需配置密钥。"
+docs_link_store:
+  other: "打开 Chrome Web Store"
+docs_link_release:
+  other: "查看 GitHub Release"
+docs_human_eyebrow:
+  other: "人类面"
+docs_human_title:
+  other: "为自己配置一个搜索入口"
+docs_human_sub:
+  other: "人类侧不只是搜索框：来源、配置与本地历史都在扩展内管理。先从无需密钥的传统引擎开始，再按需要加入 AI 搜索服务。"
+docs_human_sources_title:
+  other: "来源与切换"
+docs_human_sources_body:
+  other: "传统引擎、站外搜索、自定义引擎和 AI 对话引擎都可作为统一搜索来源，在搜索页和支持的结果页之间切换。"
+docs_human_keys_title:
+  other: "服务与密钥"
+docs_human_keys_body:
+  other: "只有 AI 搜索服务需要配置对应密钥。密钥保存在本地，并由后台 worker 读取。"
+docs_human_instances_title:
+  other: "实例与分组"
+docs_human_instances_body:
+  other: "为同一服务保存多套调好参数的实例，按你的顺序、可见性与分组组织快切栏。"
+docs_human_history_title:
+  other: "缓存、历史与配置"
+docs_human_history_body:
+  other: "成功的 AI 搜索可在本机重放；配置导出由你主动触发，导出文件包含敏感信息，应自行保管。"
+docs_human_open:
+  other: "查看人类面概览"
+docs_agents_eyebrow:
+  other: "智能体面"
+docs_agents_title:
+  other: "让本地智能体借浏览器搜索"
+docs_agents_sub:
+  other: "Agent Bridge 是默认关闭、短生命周期、仅回环地址的能力通道。智能体调用有限的搜索动作，但不会取得扩展内存储的密钥。"
+docs_agents_step_bridge_title:
+  other: "1. 开启 Agent Bridge"
+docs_agents_step_bridge_body:
+  other: "在扩展 Options → 通用中开启总开关；如需让智能体检索传统搜索引擎，再单独开启 engine-search 子开关。"
+docs_agents_step_skill_title:
+  other: "2A. 使用配套 Agent Skill"
+docs_agents_step_skill_body:
+  other: "在同一设置区域下载技能包。扩展会为当前运行时扩展 ID 自动盖章；解压后将整个目录放入你的技能目录。"
+docs_agents_step_mcp_title:
+  other: "2B. 或使用 MCP Server"
+docs_agents_step_mcp_body:
+  other: "面向 MCP 原生客户端。通过 PyPI 安装 juso-search，并在客户端配置扩展 ID、Chromium 可执行路径以及可选的 profile 与超时。"
+docs_agents_step_commands_title:
+  other: "3. 发现能力，再执行搜索"
+docs_agents_step_commands_body:
+  other: "先列出已配置的服务与支持的引擎；API 搜索必须显式指定 provider，实例搜索先取得 instance id。"
+docs_agents_open:
+  other: "查看智能体面概览"
+docs_agents_docs:
+  other: "查看 MCP 安装说明"
+docs_command_label:
+  other: "示例命令"
+docs_security_eyebrow:
+  other: "安全与边界"
+docs_security_title:
+  other: "能力可用，密钥不外流"
+docs_security_sub:
+  other: "双面搜不运营请求中转；查询直达你选择的搜索服务或传统搜索引擎。请在开始前理解下列边界。"
+docs_security_keys_title:
+  other: "密钥仅本地管理"
+docs_security_keys_body:
+  other: "已存储密钥仅由扩展后台 service worker 读取；页面 UI 与本地智能体不会读取这些值。"
+docs_security_bridge_title:
+  other: "Bridge 默认关闭、按次失效"
+docs_security_bridge_body:
+  other: "每次 Agent 调用使用新的回环端口、令牌与请求标识，完成、失败或超时后即失效。"
+docs_security_export_title:
+  other: "导出文件由你保管"
+docs_security_export_body:
+  other: "配置导出包含未加密的密钥与偏好；仅在你主动触发时创建，应像密码一样妥善保存。"
+docs_security_open:
+  other: "查看隐私模型"
+docs_cta_h2:
+  other: "准备好从一个入口开始搜索了吗？"
+docs_cta_p:
+  other: "安装扩展后，你可以先从传统搜索引擎开始，再逐步配置 AI 搜索和本地智能体接入。"
+
+# 文档树（/docs/、/human/docs/、/agents/docs/）
+docs_hub_title:
+  other: "选择你的文档路径"
+docs_hub_sub:
+  other: "双面搜由同一个浏览器扩展承载，但人类使用与本地智能体接入是两条不同的工作流。先安装扩展，再进入适合你的完整指南。"
+docs_hub_human_tag:
+  other: "人类使用"
+docs_hub_human_title:
+  other: "配置、搜索与切换"
+docs_hub_human_body:
+  other: "从开箱即用的传统引擎，到 AI 搜索服务、AI Engine、实例、站外搜索、自定义引擎、缓存与配置管理。"
+docs_hub_human_link:
+  other: "进入人类使用文档"
+docs_hub_agents_tag:
+  other: "智能体接入"
+docs_hub_agents_title:
+  other: "Bridge、Skill 与 MCP"
+docs_hub_agents_body:
+  other: "理解默认关闭的 Agent Bridge，并选择由扩展下载的 Agent Skill 或面向客户端的 MCP Server。"
+docs_hub_agents_link:
+  other: "进入智能体接入文档"
+docs_hub_security_tag:
+  other: "共享边界"
+docs_hub_security_title:
+  other: "密钥、数据与本地性"
+docs_hub_security_body:
+  other: "无论你选择哪一面，都应先理解密钥存储、请求去向、Bridge 生命周期和配置导出的边界。"
+docs_hub_security_link:
+  other: "查看安全与隐私说明"
+guide_back:
+  other: "全部文档"
+guide_on_page:
+  other: "本页内容"
+human_doc_eyebrow:
+  other: "PEOPLE DOCUMENTATION"
+human_doc_title:
+  other: "把搜索来源组织成你的工作台"
+human_doc_sub:
+  other: "这份手册覆盖个人用户从第一次搜索到高级来源管理的完整路径。先从无需密钥的传统引擎开始，再按需要配置 AI 搜索服务或启用 AI Engine。"
+human_doc_nav_start:
+  other: "开始使用"
+human_doc_nav_sources:
+  other: "来源与切换"
+human_doc_nav_services:
+  other: "AI 服务与实例"
+human_doc_nav_customize:
+  other: "站外、自定义与 AI Engine"
+human_doc_nav_local:
+  other: "缓存、历史与导出"
+human_doc_start_title:
+  other: "从一个可用的搜索开始"
+human_doc_start_body:
+  other: "安装后打开双面搜搜索页。Google、Bing、百度、抖音、小红书、哔哩哔哩、Yandex 与 DuckDuckGo 不需要 API 密钥；未显示的来源可在设置页启用。"
+human_doc_sources_title:
+  other: "在搜索页与结果页之间切换"
+human_doc_sources_body:
+  other: "搜索页负责选择来源；在受支持的传统搜索结果页，SERP 切换栏可沿用当前查询切换到其他引擎，或跳转到双面搜的 AI 搜索页。"
+human_doc_services_title:
+  other: "按需配置 AI 搜索服务"
+human_doc_services_body:
+  other: "只有调用 AI 搜索服务时才需要配置对应密钥。服务配置状态会回传给界面，已存储的密钥不会被页面重新读取。"
+human_doc_instances_title:
+  other: "为同一服务保存多套实例"
+human_doc_instances_body:
+  other: "支持实例的服务可按不同参数或使用场景创建多套实例；实例共享服务密钥，并会作为快切栏的一等来源出现。"
+human_doc_customize_title:
+  other: "把站点、工具与 AI Engine 都变成来源"
+human_doc_customize_body:
+  other: "Site Engine 用 site: 限定公开站点；Custom Engine 使用带一个 %s 占位符的 URL 模板；AI Engine 则把你已登录的 AI 对话网站直接加入来源列表。"
+human_doc_ai_engine_title:
+  other: "AI Engine · 无需 API Key"
+human_doc_ai_engine_card:
+  other: "ChatGPT、DeepSeek、Gemini、Grok、豆包等已登录网站"
+human_doc_ai_engine_body:
+  other: "在设置 → 来源中启用需要的 AI Engine。它们会预填当前查询并自动提交，直接复用浏览器已有登录态；与 AI 搜索服务不同，不需要配置 API Key。"
+human_doc_local_title:
+  other: "让本地数据保持可控"
+human_doc_local_body:
+  other: "成功的 AI 搜索会按服务与规范化查询缓存在当前设备，历史可重放。需要最新结果时使用刷新；配置导出包含未加密的密钥与偏好，应仅在你主动需要备份时创建并安全保管。"
+human_doc_open_app:
+  other: "打开人类面概览"
+agents_doc_eyebrow:
+  other: "AGENTS DOCUMENTATION"
+agents_doc_title:
+  other: "让本地智能体按边界使用搜索"
+agents_doc_sub:
+  other: "这份手册说明 Agent Bridge 的前置条件、两种接入方式、可调用动作与常见恢复路径。智能体获得的是受限能力和结构化结果，不是扩展内存储的密钥。"
+agents_doc_nav_requirements:
+  other: "前置条件"
+agents_doc_nav_bridge:
+  other: "开启 Bridge"
+agents_doc_nav_skill:
+  other: "Agent Skill"
+agents_doc_nav_mcp:
+  other: "MCP Server"
+agents_doc_nav_actions:
+  other: "动作与恢复"
+agents_doc_requirements_title:
+  other: "确认运行环境"
+agents_doc_requirements_body:
+  other: "在将运行调用的 Chrome、Edge、Chromium 或其他 Chromium 系浏览器中安装并启用双面搜。Agent Skill 需要 Python 3.11+；使用 engine-search 不需要 AI 服务密钥，调用 search 时才需要先配置目标 provider。"
+agents_doc_bridge_title:
+  other: "开启两层门控"
+agents_doc_bridge_body:
+  other: "打开扩展 Options → 通用 → Agent Bridge，先开启总开关。若需要通过真实浏览器检索传统搜索引擎，再单独开启 engine-search 子开关。两项能力默认关闭。"
+agents_doc_skill_title:
+  other: "路径 A：由扩展交付的 Agent Skill"
+agents_doc_skill_body:
+  other: "在同一设置区域点击“下载配套 Agent Skill”。扩展会把当前 runtime extension ID 写入技能包；解压后保持 scripts 与 reference 目录完整，并放入你的 Agent 技能目录。"
+agents_doc_mcp_title:
+  other: "路径 B：面向 MCP 原生客户端的 Server"
+agents_doc_mcp_body:
+  other: "通过 pip install juso-search 安装 MCP Server（需要 Python 3.10+）。它使用 stdio，并在客户端的 MCP 配置中显式设置 JUSO_EXTENSION_ID 与 JUSO_CHROME_PATH；profile 与 timeout 可按需配置。"
+agents_doc_actions_title:
+  other: "先发现，再明确调用"
+agents_doc_actions_body:
+  other: "先用 list-providers 与 list-engines 发现当前可用能力；search 必须显式指定 provider；实例搜索先调用 list-instances，再用 search-instance 指定 instance id。engine-search 只返回普通结果元数据，不承诺 AI 摘要或知识面板。"
+agents_doc_recovery_title:
+  other: "失败时先检查边界，而不是绕过它"
+agents_doc_recovery_body:
+  other: "若出现 extension_did_not_claim，请检查扩展是否安装并启用、Agent Bridge 总开关是否开启，以及启动的浏览器是否使用了正确 profile。若 engine-search 返回 extract-failed，先检查其独立子开关；验证页、同意页、挑战页与不支持的结果布局也会返回结构化失败，而不是空成功。"
+agents_doc_mcp_link:
+  other: "阅读 MCP Server 配置"
+agents_doc_open_app:
+  other: "打开智能体面概览"

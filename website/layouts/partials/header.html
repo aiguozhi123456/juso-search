@@ -3,6 +3,7 @@
 {{ if strings.Contains .RelPermalink "/human" }}{{ $face = "human" }}{{ end }}
 {{ if strings.Contains .RelPermalink "/agents" }}{{ $face = "agents" }}{{ end }}
 {{ $curLang := .Site.Language.Lang }}
+{{ $isDocs := strings.Contains .RelPermalink "/docs" }}
 <header class="site-head">
   <div class="wrap site-head__inner">
     <a class="brandlock" href="{{ "" | relLangURL }}" aria-label="{{ i18n "brand_lockup" }}">
@@ -21,6 +22,7 @@
     </nav>
 
     <div class="head-right">
+      <a class="head-docs" href="{{ "docs/" | relLangURL }}" {{ if $isDocs }}aria-current="page"{{ end }}>{{ i18n "nav_docs" }}</a>
       {{/* 语言切换：保持当前面，跨语言跳转用该页 .Translations */}}
       <nav class="langswitch" aria-label="{{ i18n "lang_label" }}">
         {{ range .Translations }}

@@ -1,0 +1,62 @@
+{{ define "title" }}{{ i18n "nav_docs" }} · {{ .Site.Title }}{{ end }}
+{{ define "description" }}{{ i18n "docs_hub_sub" }}{{ end }}
+
+{{ define "main" }}
+<section class="docs-hero docs-hero--hub">
+  <div class="wrap docs-hero__inner">
+    <div class="docs-hero__copy">
+      <p class="eyebrow"><span></span>{{ i18n "docs_eyebrow" }}</p>
+      <h1>{{ i18n "docs_hub_title" }}</h1>
+      <p>{{ i18n "docs_hub_sub" }}</p>
+      <div class="hero__cta">
+        <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" . }}{{ i18n "docs_jump_install" }}</a>
+        <a class="btn btn--ghost" href="{{ "human/docs/" | relLangURL }}">{{ i18n "docs_hub_human_link" }}</a>
+      </div>
+    </div>
+    <div class="docs-hub__prereq">
+      <span class="docs-card__index">01</span>
+      <h2>{{ i18n "docs_install_title" }}</h2>
+      <p>{{ i18n "docs_install_sub" }}</p>
+      <div class="docs-hub__links">
+        <a href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ i18n "docs_link_store" }} <span aria-hidden="true">↗</span></a>
+        <a href="{{ .Site.Params.releaseURL }}" target="_blank" rel="noopener">{{ i18n "docs_link_release" }} <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section docs-hub-section">
+  <div class="wrap">
+    <div class="docs-hub-grid reveal">
+      <article class="docs-hub-card docs-hub-card--human">
+        <p class="eyebrow"><span></span>{{ i18n "docs_hub_human_tag" }}</p>
+        <h2>{{ i18n "docs_hub_human_title" }}</h2>
+        <p>{{ i18n "docs_hub_human_body" }}</p>
+        <a class="btn btn--ghost" href="{{ "human/docs/" | relLangURL }}">{{ i18n "docs_hub_human_link" }} <span aria-hidden="true">→</span></a>
+      </article>
+      <article class="docs-hub-card docs-hub-card--agents">
+        <p class="eyebrow"><span></span>{{ i18n "docs_hub_agents_tag" }}</p>
+        <h2>{{ i18n "docs_hub_agents_title" }}</h2>
+        <p>{{ i18n "docs_hub_agents_body" }}</p>
+        <a class="btn btn--ghost" href="{{ "agents/docs/" | relLangURL }}">{{ i18n "docs_hub_agents_link" }} <span aria-hidden="true">→</span></a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section section--sunk docs-hub-boundary">
+  <div class="wrap">
+    <div class="docs-track-head">
+      <div>
+        <p class="eyebrow"><span></span>{{ i18n "docs_hub_security_tag" }}</p>
+        <h2>{{ i18n "docs_hub_security_title" }}</h2>
+      </div>
+      <p>{{ i18n "docs_hub_security_body" }}</p>
+    </div>
+    <div class="docs-security-links">
+      <a class="btn btn--ghost" href="{{ "human/docs/" | relLangURL }}#local-data">{{ i18n "human_doc_nav_local" }}</a>
+      <a class="btn btn--ghost" href="{{ "agents/docs/" | relLangURL }}#bridge">{{ i18n "agents_doc_nav_bridge" }}</a>
+    </div>
+  </div>
+</section>
+{{ end }}

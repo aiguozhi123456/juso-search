@@ -1,0 +1,77 @@
+{{ define "title" }}{{ i18n "agents_doc_eyebrow" }} · {{ .Site.Title }}{{ end }}
+{{ define "description" }}{{ i18n "agents_doc_sub" }}{{ end }}
+
+{{ define "main" }}
+<section class="guide-hero guide-hero--agents">
+  <div class="wrap guide-hero__inner">
+    <a class="guide-back" href="{{ "docs/" | relLangURL }}">← {{ i18n "guide_back" }}</a>
+    <p class="eyebrow"><span></span>{{ i18n "agents_doc_eyebrow" }}</p>
+    <h1>{{ i18n "agents_doc_title" }}</h1>
+    <p>{{ i18n "agents_doc_sub" }}</p>
+    <a class="btn btn--primary" href="{{ "agents/" | relLangURL }}">{{ i18n "agents_doc_open_app" }}</a>
+  </div>
+</section>
+
+<section class="section guide-section-wrap">
+  <div class="wrap guide-shell">
+    <aside class="guide-toc" aria-label="{{ i18n "guide_on_page" }}">
+      <p>{{ i18n "guide_on_page" }}</p>
+      <a href="#requirements">01 {{ i18n "agents_doc_nav_requirements" }}</a>
+      <a href="#bridge">02 {{ i18n "agents_doc_nav_bridge" }}</a>
+      <a href="#skill">03 {{ i18n "agents_doc_nav_skill" }}</a>
+      <a href="#mcp">04 {{ i18n "agents_doc_nav_mcp" }}</a>
+      <a href="#actions">05 {{ i18n "agents_doc_nav_actions" }}</a>
+    </aside>
+    <div class="guide-content">
+      <section class="guide-section" id="requirements">
+        <span class="guide-number">01</span>
+        <h2>{{ i18n "agents_doc_requirements_title" }}</h2>
+        <p>{{ i18n "agents_doc_requirements_body" }}</p>
+      </section>
+      <section class="guide-section" id="bridge">
+        <span class="guide-number">02</span>
+        <h2>{{ i18n "agents_doc_bridge_title" }}</h2>
+        <p>{{ i18n "agents_doc_bridge_body" }}</p>
+        <div class="guide-callout guide-callout--brand"><b>Agent Bridge</b><span>{{ i18n "docs_security_bridge_body" }}</span></div>
+      </section>
+      <section class="guide-section" id="skill">
+        <span class="guide-number">03</span>
+        <h2>{{ i18n "agents_doc_skill_title" }}</h2>
+        <p>{{ i18n "agents_doc_skill_body" }}</p>
+        <div class="guide-command">
+          <div><span></span><span></span><span></span><b>Agent Skill</b></div>
+          <pre><code>python scripts/juso_search.py list-providers
+python scripts/juso_search.py list-engines
+python scripts/juso_search.py search "latest AI research" --provider tavily</code></pre>
+        </div>
+      </section>
+      <section class="guide-section" id="mcp">
+        <span class="guide-number">04</span>
+        <h2>{{ i18n "agents_doc_mcp_title" }}</h2>
+        <p>{{ i18n "agents_doc_mcp_body" }}</p>
+        <div class="guide-command">
+          <div><span></span><span></span><span></span><b>MCP configuration</b></div>
+          <pre><code>{
+  "mcpServers": {
+    "juso": {
+      "command": "juso-search",
+      "env": {
+        "JUSO_EXTENSION_ID": "…",
+        "JUSO_CHROME_PATH": "…"
+      }
+    }
+  }
+}</code></pre>
+        </div>
+        <a class="docs-text-link" href="{{ .Site.Params.githubURL }}/tree/main/mcp-server" target="_blank" rel="noopener">{{ i18n "agents_doc_mcp_link" }} <span aria-hidden="true">↗</span></a>
+      </section>
+      <section class="guide-section" id="actions">
+        <span class="guide-number">05</span>
+        <h2>{{ i18n "agents_doc_actions_title" }}</h2>
+        <p>{{ i18n "agents_doc_actions_body" }}</p>
+        <div class="guide-callout"><b>{{ i18n "agents_doc_recovery_title" }}</b><span>{{ i18n "agents_doc_recovery_body" }}</span></div>
+      </section>
+    </div>
+  </div>
+</section>
+{{ end }}

@@ -14,6 +14,8 @@
   "cta_primary_href" .Site.Params.cwsURL
   "cta_ghost_key" "cta_release"
   "cta_ghost_href" .Site.Params.releaseURL
+  "doc_href" ("human/docs/" | relLangURL)
+  "doc_key" "docs_hub_human_link"
   "visual" "hero-visual-home"
 ) }}
 
@@ -86,7 +88,7 @@
 </section>
 
 {{/* 隐私模型 + 开源 */}}
-<section class="section">
+<section class="section" id="privacy">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_trust_human") "title" (i18n "sec_trust_human") "sub" (i18n "sec_trust_human_sub")) }}
     <div class="trust">
