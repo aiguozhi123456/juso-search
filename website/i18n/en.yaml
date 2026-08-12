@@ -35,7 +35,7 @@ tagline_agents_zh:
 tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
-  other: "In a Chromium browser with Juso installed, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
+  other: "With Juso installed in a Chrome-family browser or Firefox, local AI agents can call your configured AI search APIs or search conventional engines through a real browser — credentials stay inside the extension, and agents never receive them."
 # Neutral overview face (root /) — dual-face thesis
 hero_positioning_overview:
   other: "Juso is an open-source, two-faced search gateway: one browser, one set of locally stored keys—a face for people, unifying conventional engines, site search, and AI search into one entry; and a face for agents, where local AI calls the same search through Agent Bridge, with keys never leaving the extension."
@@ -225,7 +225,7 @@ docs_install_eyebrow:
 docs_install_title:
   other: "Start by installing the extension"
 docs_install_sub:
-  other: "Whether you search yourself or let a local agent search, begin with Juso in a Chromium-family browser."
+  other: "Whether you search yourself or let a local agent search, begin with Juso in a Chrome-family browser or Firefox."
 docs_install_store_title:
   other: "Recommended: Chrome Web Store"
 docs_install_store_body:
@@ -279,11 +279,11 @@ docs_agents_step_bridge_body:
 docs_agents_step_skill_title:
   other: "2A. Use the companion Agent Skill"
 docs_agents_step_skill_body:
-  other: "Download the skill from the same settings area. The extension stamps it with the current runtime extension ID; unpack it and place the entire folder in your skills directory."
+  other: "Download the skill from the same settings area. The extension stamps the Bridge address for the current browser into it; unpack it and place the entire folder in your skills directory."
 docs_agents_step_mcp_title:
   other: "2B. Or use the MCP Server"
 docs_agents_step_mcp_body:
-  other: "For MCP-native clients. Install juso-search from PyPI and configure the extension ID, Chromium executable, and optional profile and timeout in the client."
+  other: "For MCP-native clients. Install juso-search from PyPI and configure JUSO_BROWSER_PATH in the client; Chrome uses an extension ID, while Firefox uses the full JUSO_BRIDGE_URL. Add profile and timeout only when needed."
 docs_agents_step_commands_title:
   other: "3. Discover capabilities, then search"
 docs_agents_step_commands_body:
@@ -419,7 +419,7 @@ agents_doc_nav_actions:
 agents_doc_requirements_title:
   other: "Confirm the runtime environment"
 agents_doc_requirements_body:
-  other: "Install and enable Juso in the Chromium-family browser that will run calls: Chrome, Edge, Chromium, or similar. The Agent Skill requires Python 3.11+. engine-search needs no AI service key; search needs the target provider configured first."
+  other: "Install and enable Juso in the browser that will run calls: Chrome, Edge, Chromium, Firefox, or another supported browser. The Agent Skill requires Python 3.11+. engine-search needs no AI service key; search needs the target provider configured first."
 agents_doc_bridge_title:
   other: "Enable two layers of consent"
 agents_doc_bridge_body:
@@ -427,11 +427,13 @@ agents_doc_bridge_body:
 agents_doc_skill_title:
   other: "Path A: the extension-delivered Agent Skill"
 agents_doc_skill_body:
-  other: "In the same settings area, click “Download companion Agent Skill.” The extension stamps the current runtime extension ID into the package; after unzipping, keep scripts and reference intact and place the entire directory in your Agent skills folder."
+  other: "In the same settings area, click “Download companion Agent Skill.” The extension stamps the Bridge address for the current browser into the package; after unzipping, keep scripts and reference intact and place the entire directory in your Agent skills folder."
 agents_doc_mcp_title:
   other: "Path B: Server for MCP-native clients"
 agents_doc_mcp_body:
-  other: "Install the MCP Server with pip install juso-search (Python 3.10+). It uses stdio; set JUSO_EXTENSION_ID and JUSO_CHROME_PATH explicitly in the client's MCP configuration, then add profile and timeout only if needed."
+  other: "Install the MCP Server with pip install juso-search (Python 3.10+). It uses stdio; set JUSO_BROWSER_PATH and, for Chrome, JUSO_EXTENSION_ID explicitly in the client's MCP configuration, then add profile and timeout only if needed."
+agents_doc_mcp_firefox:
+  other: "For Firefox, set JUSO_BRIDGE_URL instead—the full moz-extension://…/bridge.html address. Firefox generates this Bridge address per installation; downloading the companion Agent Skill stamps the correct value automatically."
 agents_doc_actions_title:
   other: "Discover first, then call explicitly"
 agents_doc_actions_body:

@@ -35,7 +35,7 @@ tagline_agents_zh:
 tagline_agents_en:
   other: "Let local agents search through the same browser."
 hero_positioning_agents:
-  other: "在装有双面搜的 Chromium 浏览器里，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
+  other: "在装有双面搜的 Chrome 系浏览器或 Firefox 中，本地 AI 智能体可调用你已配置的 AI 搜索 API，或借真实浏览器检索传统搜索引擎——密钥始终留在扩展内，智能体不会取得它们。"
 # 中性总览面（/ 根页）—— 双面论点
 hero_positioning_overview:
   other: "双面搜 / Juso 是开源的双面搜索网关：同一台浏览器、同一套本地密钥，一面为人——把传统引擎、站外搜索与 AI 搜索统一到一个入口；一面为智能体——本地 AI 经 Agent Bridge 调用同一套搜索，密钥始终留在扩展内。"
@@ -225,7 +225,7 @@ docs_install_eyebrow:
 docs_install_title:
   other: "先把扩展装进浏览器"
 docs_install_sub:
-  other: "无论你要自己搜索还是让本地智能体搜索，都从 Chromium 系浏览器中的双面搜扩展开始。"
+  other: "无论你要自己搜索还是让本地智能体搜索，都从 Chrome 系浏览器或 Firefox 中的双面搜扩展开始。"
 docs_install_store_title:
   other: "推荐：Chrome Web Store"
 docs_install_store_body:
@@ -279,11 +279,11 @@ docs_agents_step_bridge_body:
 docs_agents_step_skill_title:
   other: "2A. 使用配套 Agent Skill"
 docs_agents_step_skill_body:
-  other: "在同一设置区域下载技能包。扩展会为当前运行时扩展 ID 自动盖章；解压后将整个目录放入你的技能目录。"
+  other: "在同一设置区域下载技能包。扩展会自动写入当前浏览器对应的 Bridge 地址；解压后将整个目录放入你的技能目录。"
 docs_agents_step_mcp_title:
   other: "2B. 或使用 MCP Server"
 docs_agents_step_mcp_body:
-  other: "面向 MCP 原生客户端。通过 PyPI 安装 juso-search，并在客户端配置扩展 ID、Chromium 可执行路径以及可选的 profile 与超时。"
+  other: "面向 MCP 原生客户端。通过 PyPI 安装 juso-search，并在客户端配置 JUSO_BROWSER_PATH；Chrome 使用扩展 ID，Firefox 使用完整的 JUSO_BRIDGE_URL，profile 与超时可按需设置。"
 docs_agents_step_commands_title:
   other: "3. 发现能力，再执行搜索"
 docs_agents_step_commands_body:
@@ -419,7 +419,7 @@ agents_doc_nav_actions:
 agents_doc_requirements_title:
   other: "确认运行环境"
 agents_doc_requirements_body:
-  other: "在将运行调用的 Chrome、Edge、Chromium 或其他 Chromium 系浏览器中安装并启用双面搜。Agent Skill 需要 Python 3.11+；使用 engine-search 不需要 AI 服务密钥，调用 search 时才需要先配置目标 provider。"
+  other: "在将运行调用的 Chrome、Edge、Chromium、Firefox 或其他受支持浏览器中安装并启用双面搜。Agent Skill 需要 Python 3.11+；使用 engine-search 不需要 AI 服务密钥，调用 search 时才需要先配置目标 provider。"
 agents_doc_bridge_title:
   other: "开启两层门控"
 agents_doc_bridge_body:
@@ -427,11 +427,13 @@ agents_doc_bridge_body:
 agents_doc_skill_title:
   other: "路径 A：由扩展交付的 Agent Skill"
 agents_doc_skill_body:
-  other: "在同一设置区域点击“下载配套 Agent Skill”。扩展会把当前 runtime extension ID 写入技能包；解压后保持 scripts 与 reference 目录完整，并放入你的 Agent 技能目录。"
+  other: "在同一设置区域点击“下载配套 Agent Skill”。扩展会写入当前浏览器对应的 Bridge 地址；解压后保持 scripts 与 reference 目录完整，并放入你的 Agent 技能目录。"
 agents_doc_mcp_title:
   other: "路径 B：面向 MCP 原生客户端的 Server"
 agents_doc_mcp_body:
-  other: "通过 pip install juso-search 安装 MCP Server（需要 Python 3.10+）。它使用 stdio，并在客户端的 MCP 配置中显式设置 JUSO_EXTENSION_ID 与 JUSO_CHROME_PATH；profile 与 timeout 可按需配置。"
+  other: "通过 pip install juso-search 安装 MCP Server（需要 Python 3.10+）。它使用 stdio；在客户端的 MCP 配置中显式设置 JUSO_BROWSER_PATH 与 Chrome 的 JUSO_EXTENSION_ID，profile 与 timeout 可按需配置。"
+agents_doc_mcp_firefox:
+  other: "若使用 Firefox，改为设置 JUSO_BRIDGE_URL（完整 moz-extension://…/bridge.html 地址）；Firefox 的 Bridge 地址按安装实例生成，下载配套 Agent Skill 可自动写入正确值。"
 agents_doc_actions_title:
   other: "先发现，再明确调用"
 agents_doc_actions_body:
