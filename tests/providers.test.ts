@@ -5,7 +5,7 @@ import type { ProviderId } from '@/lib/providers/types';
 describe('provider registry', () => {
   it('contains the eight providers', () => {
     const ids = allProviders().map((p) => p.id).sort();
-    expect(ids).toEqual(['brave', 'doubao', 'doubao-global', 'exa', 'jina', 'stepfun', 'stepfun-plan', 'tavily']);
+    expect(ids).toEqual(['brave', 'doubao', 'doubao-global', 'exa', 'jina', 'parallel', 'stepfun', 'stepfun-plan', 'tavily']);
   });
 
   it.each([
@@ -17,6 +17,7 @@ describe('provider registry', () => {
     ['jina', false],
     ['doubao', false],
     ['doubao-global', false],
+    ['parallel', false],
   ] as Array<[ProviderId, boolean]>)('declares supportsAnswer=%s for %s', (id, expected) => {
     expect(getAdapter(id).supportsAnswer).toBe(expected);
   });
@@ -32,6 +33,7 @@ describe('provider registry', () => {
     ['doubao', '/icons/doubao.svg'],
     // doubao-global 与 doubao 同公司，共享同一品牌图标。
     ['doubao-global', '/icons/doubao.svg'],
+    ['parallel', '/icons/parallel.svg'],
   ] as Array<[ProviderId, string]>)('declares favicon=%s for %s', (id, expected) => {
     expect(getAdapter(id).favicon).toBe(expected);
   });

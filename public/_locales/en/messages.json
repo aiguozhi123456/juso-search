@@ -197,6 +197,7 @@
   "provider_tavily": { "message": "Tavily" },
   "provider_exa": { "message": "Exa" },
   "provider_brave": { "message": "Brave Search" },
+  "provider_parallel": { "message": "Parallel" },
   "provider_stepfun": { "message": "Stepfun pay-as-you-go" },
   "provider_stepfun_plan": { "message": "Stepfun Step Plan" },
   "provider_jina": { "message": "Jina" },

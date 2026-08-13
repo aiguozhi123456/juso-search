@@ -7,6 +7,7 @@ import { stepfunPlanAdapter } from './stepfun-plan';
 import { jinaAdapter } from './jina';
 import { doubaoAdapter } from './doubao';
 import { doubaoGlobalAdapter } from './doubao-global';
+import { parallelAdapter } from './parallel';
 
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
@@ -17,6 +18,7 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   jina: jinaAdapter,
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
+  parallel: parallelAdapter,
 };
 
 export function getAdapter(id: ProviderId): ProviderAdapter {
@@ -35,5 +37,6 @@ export function allProviders(): ProviderAdapter[] {
     adapters.jina,
     adapters.doubao,
     adapters['doubao-global'],
+    adapters.parallel,
   ];
 }

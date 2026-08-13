@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-08-06
+last_updated: 2026-08-13
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -78,7 +78,7 @@ The normalizer goes further and rejects records where the embedded base provider
 
 ```ts
 // lib/providers/types.ts:4
-export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global';
+export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global' | 'parallel';
 ```
 
 It is the BYOK boundary type. Every worker-side function that touches a key or an adapter — `getAdapter`, `getKey`, `resolveSearchProvider`, `getProviderMaxResults` — accepts `ProviderId` and only `ProviderId`. If an instance id ever reached one of these, `getAdapter` would throw (unknown id) and `getKey` would return null (no key under an `inst:…` slot), producing a confusing "key missing" error for a provider the user has configured.
@@ -333,6 +333,15 @@ export const PROVIDERS_WITH_INSTANCE_OPTIONS: ReadonlySet<ProviderId> = new Set<
 
 Creating an instance of a provider with no options would be meaningless — it would behave identically to the bare provider pill. The set prevents that. The set is intentionally hand-maintained (each addition must also ship an adapter schema + UI form); a future phase could derive it from adapter-declared schema descriptors, but the three-step extension contract (adapter schema + UI form + set entry) is documented inline at `:22-31`.
 
+**Do not confuse `PROVIDERS_WITH_INSTANCE_OPTIONS` with `PROVIDER_IDS`.** The latter (`lib/provider-instances.ts:18-19`) is the set of *all* known provider ids — it must equal the `ProviderId` union and is therefore **derived** from `allProviders()`, not hand-maintained:
+
+```ts
+// lib/provider-instances.ts:18-19
+const PROVIDER_IDS: ReadonlySet<ProviderId> = new Set(allProviders().map((p) => p.id));
+```
+
+`PROVIDER_IDS` backs the local `isProviderId` guard, which in turn backs `isProviderInstanceId`. If it drifts (missing a newly-added provider), `isProviderInstanceId('inst:<newprovider>:<uuid>')` returns `false` and `normalizeProviderInstance` silently drops the instance record — corrupting storage normalization across `sourceOrder`, `sourceHidden`, `groupConfig`, config import, and agent-bridge request handling. Deriving it from the registry eliminates the copy that can drift; see `derive-provider-id-set-from-registry.md` for the full pattern. The distinction: `PROVIDER_IDS` must *equal* the union (derive); `PROVIDERS_WITH_INSTANCE_OPTIONS` *selects from* the union (hand-maintain with a documented contract).
+
 ### Mirror site-engine / custom-engine patterns for storage, projection, and config IO
 
 The instance feature is the fourth instance of a recurring pattern in this codebase (after providers, site-engines, custom-engines). Every layer that already handled site-engines was extended with a parallel instance branch:
@@ -349,7 +358,7 @@ The lesson here is meta: when a codebase has a recurring entity pattern, the fas
 
 ### The boundary discipline is what makes BYOK safe under multi-instance
 
-`ProviderId` is closed for a reason. Every `getAdapter(providerId)` call is a trust assertion: "this id is one of the eight providers I have an adapter for, and I will hand it an API key." If instance ids leaked into that call, the adapter registry would throw, and the user — who has a configured provider — would see a "key missing" error that is actually a "you sent the wrong kind of id" error. The error message would be wrong, the diagnosis would be hard, and the fix would be brittle.
+`ProviderId` is closed for a reason. Every `getAdapter(providerId)` call is a trust assertion: "this id is one of the nine providers I have an adapter for, and I will hand it an API key." If instance ids leaked into that call, the adapter registry would throw, and the user — who has a configured provider — would see a "key missing" error that is actually a "you sent the wrong kind of id" error. The error message would be wrong, the diagnosis would be hard, and the fix would be brittle.
 
 The `isProviderInstanceId` parallel guard is the enforcement mechanism. It is used at every `SourceId`-typed boundary that must branch: `resolveInstance`, `resolveSearchSource`, `selectActiveSourceId`, `effectiveActiveSource`, `visibleUsableSource`, `normalizeSourceOrder`, `normalizeSourceHidden`, `allKnownSourceIds`, `allSources`, `parseSearchRequest` (agent v2), `isKnownSource` (config IO). The audit point recorded in the plan ("`isKnownProvider` all call sites confirm no instance id is passed in; `getAdapter` call sites confirm only `ProviderId`") is the regression check that keeps the boundary intact as the code evolves.
 
@@ -538,6 +547,7 @@ buildRequest(query, opts, apiKey) {
 ## Related
 
 - **`docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`** — the `SourceId` vs `ProviderId` boundary this feature extends. Instances add a second inhabited `SourceId` variant (after engines) that must obey the same "never enter `ProviderId`" rule.
+- **`docs/solutions/architecture-patterns/derive-provider-id-set-from-registry.md`** — the `PROVIDER_IDS` derivation pattern. `provider-instances.ts` derives its `PROVIDER_IDS` set from `allProviders()` rather than hand-maintaining a copy of the `ProviderId` union; this doc records why and distinguishes it from `PROVIDERS_WITH_INSTANCE_OPTIONS` (which is deliberately hand-maintained).
 - **`docs/solutions/architecture-patterns/per-provider-config-worker-injection.md`** — the worker-injection pattern (`maxResults` precedent) that `providerSettings` follows. The cache-invalidation pitfall recorded there is the direct ancestor of the cache-key seam bug recorded here; the `clearSearchCache()` on `handleUpdateProviderInstance` / `handleDeleteProviderInstance` (`lib/gateway.ts:245`, `:255`) follows the same "clear on write when the key doesn't include the setting" rule.
 - **`lib/site-engines.ts` / `lib/custom-engines.ts`** — the entity pattern that `provider-instances.ts` mirrors (type + id guard + normalizer + byte-budget + bounded-collection guard). The storage CRUD and config-IO branches are the fourth copy of this pattern.
 - **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — the cache-domain schema migration chain that the v1→v2 migration exercises for the first time. The `recoverCacheSchemaByClear` fallback is what makes "drop all entries" a safe migration.

@@ -414,12 +414,12 @@ describe('storage: engineSearchEnabled', () => {
 describe('storage: source order', () => {
   it('round-trips a normalized complete order', async () => {
     await setSourceOrder(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan']);
-    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'brave', 'jina', 'doubao', 'doubao-global', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'brave', 'jina', 'doubao', 'doubao-global', 'parallel', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
   });
 
   it('normalizes invalid stored values', async () => {
     await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
-    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
   });
 });
 
@@ -612,7 +612,7 @@ describe('storage: Site Engines', () => {
     await expect(getProviderConfigSnapshot()).resolves.toMatchObject({
       activeSourceId: site.id,
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS],
       sourceHidden: [site.id],
     });
   });

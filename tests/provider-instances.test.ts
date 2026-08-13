@@ -26,6 +26,7 @@ describe('isProviderInstanceId', () => {
     expect(isProviderInstanceId('inst:tavily:abc123')).toBe(true);
     expect(isProviderInstanceId('inst:stepfun-plan:abc123')).toBe(true);
     expect(isProviderInstanceId('inst:doubao-global:abc123')).toBe(true);
+    expect(isProviderInstanceId('inst:parallel:abc123')).toBe(true);
   });
 
   it('rejects wrong prefixes', () => {

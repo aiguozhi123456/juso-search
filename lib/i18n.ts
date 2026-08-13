@@ -347,6 +347,7 @@ export const MSG = {
   provider_jina: 'provider_jina',
   provider_doubao: 'provider_doubao',
   provider_doubao_global: 'provider_doubao_global',
+  provider_parallel: 'provider_parallel',
   // 常规搜索引擎标签（v2 快切）
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',

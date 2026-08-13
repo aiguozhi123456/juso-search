@@ -50,11 +50,13 @@ vi.mock('@/lib/providers/registry', () => ({
   allProviders: vi.fn(() => [
     { id: 'tavily', label: 'provider_tavily', supportsAnswer: true },
     { id: 'exa', label: 'provider_exa', supportsAnswer: true },
+    { id: 'brave', label: 'provider_brave', supportsAnswer: false },
     { id: 'stepfun', label: 'provider_stepfun', supportsAnswer: false },
     { id: 'stepfun-plan', label: 'provider_stepfun_plan', supportsAnswer: true },
     { id: 'jina', label: 'provider_jina', supportsAnswer: false },
     { id: 'doubao', label: 'provider_doubao', supportsAnswer: false, favicon: '/icons/doubao.svg' },
     { id: 'doubao-global', label: 'provider_doubao_global', supportsAnswer: false, favicon: '/icons/doubao.svg' },
+    { id: 'parallel', label: 'provider_parallel', supportsAnswer: false, favicon: '/icons/parallel.svg' },
   ]),
   getAdapter: vi.fn(),
 }));
