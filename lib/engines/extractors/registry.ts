@@ -6,6 +6,7 @@ import { douyinExtractor } from './douyin';
 import { duckduckgoExtractor } from './duckduckgo';
 import { googleExtractor } from './google';
 import type { EngineExtractor } from './types';
+import { weixinExtractor } from './weixin';
 import { xiaohongshuExtractor } from './xiaohongshu';
 import { yandexExtractor } from './yandex';
 
@@ -18,6 +19,7 @@ const extractors: Record<EngineId, EngineExtractor> = {
   bilibili: bilibiliExtractor,
   yandex: yandexExtractor,
   duckduckgo: duckduckgoExtractor,
+  weixin: weixinExtractor,
 };
 
 export function getEngineExtractor(engine: EngineId): EngineExtractor {

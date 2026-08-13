@@ -357,6 +357,7 @@ export const MSG = {
   engine_bilibili: 'engine_bilibili',
   engine_yandex: 'engine_yandex',
   engine_duckduckgo: 'engine_duckduckgo',
+  engine_weixin: 'engine_weixin',
   // 统一快切栏
   source_switcher_aria: 'source_switcher_aria',
   source_switcher_group_aria: 'source_switcher_group_aria',

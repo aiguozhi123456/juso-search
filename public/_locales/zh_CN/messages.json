@@ -211,6 +211,7 @@
   "engine_bilibili": { "message": "哔哩哔哩" },
   "engine_yandex": { "message": "Yandex" },
   "engine_duckduckgo": { "message": "DuckDuckGo" },
+  "engine_weixin": { "message": "搜狗公众号" },
   "ai_engine_deepseek": { "message": "DeepSeek" },
   "ai_engine_chatgpt": { "message": "ChatGPT" },
   "ai_engine_gemini": { "message": "Gemini" },

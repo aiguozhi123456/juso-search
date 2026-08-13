@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { allEngines, getEngine, matchEngineByUrl, extractQuery, anchorsFor } from '@/lib/engines/registry';
 import { DEFAULT_ANCHORS } from '@/lib/engines/types';
-import { BAIDU_SERP_HOSTS, BILIBILI_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, DUCKDUCKGO_SERP_HOSTS, GOOGLE_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS, YANDEX_SERP_HOSTS } from '@/lib/engines/scopes';
+import { BAIDU_SERP_HOSTS, BILIBILI_SERP_HOSTS, BING_SERP_HOSTS, DOUYIN_SERP_HOSTS, DUCKDUCKGO_SERP_HOSTS, GOOGLE_SERP_HOSTS, WEIXIN_SERP_HOSTS, XIAOHONGSHU_SERP_HOSTS, YANDEX_SERP_HOSTS } from '@/lib/engines/scopes';
 
 describe('engine registry', () => {
-  it('registers google + bing + baidu + douyin + xiaohongshu + bilibili + yandex + duckduckgo', () => {
-    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+  it('registers google + bing + baidu + douyin + xiaohongshu + bilibili + yandex + duckduckgo + weixin', () => {
+    expect(allEngines().map((e) => e.id)).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin']);
   });
 
   it('getEngine throws on unknown id', () => {
@@ -51,6 +51,11 @@ describe('buildSerpUrl', () => {
   it('duckduckgo encodes the query into the q param on root path', () => {
     expect(getEngine('duckduckgo').buildSerpUrl('hello 世界')).toBe(
       'https://duckduckgo.com/?q=hello%20%E4%B8%96%E7%95%8C',
+    );
+  });
+  it('weixin encodes the query into the query param with type=2 and ie=utf8', () => {
+    expect(getEngine('weixin').buildSerpUrl('hello 世界')).toBe(
+      'https://weixin.sogou.com/weixin?type=2&query=hello%20%E4%B8%96%E7%95%8C&ie=utf8',
     );
   });
 });
@@ -103,6 +108,10 @@ describe('matchEngineByUrl', () => {
     expect(matchEngineByUrl('https://duckduckgo.com/?q=hello')?.id).toBe('duckduckgo');
     expect(matchEngineByUrl('https://duckduckgo.com/?q=hello&ia=web')?.id).toBe('duckduckgo');
   });
+  it('matches Weixin SERP host (query param on /weixin)', () => {
+    expect(matchEngineByUrl('https://weixin.sogou.com/weixin?type=2&query=hello')?.id).toBe('weixin');
+    expect(matchEngineByUrl('https://weixin.sogou.com/weixin?type=2&query=hello&ie=utf8')?.id).toBe('weixin');
+  });
   it('rejects forged and unsupported hosts', () => {
     expect(matchEngineByUrl('https://www.google.co.jp.example.com/search?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.google.fr/search?q=x')).toBeNull();
@@ -113,6 +122,8 @@ describe('matchEngineByUrl', () => {
     expect(matchEngineByUrl('https://yandex.com.example.com/search/?text=x')).toBeNull();
     expect(matchEngineByUrl('https://duckduckgo.com.example.com/?q=x')).toBeNull();
     expect(matchEngineByUrl('https://www.yandex.com/search/?text=x')).toBeNull();
+    expect(matchEngineByUrl('https://weixin.sogou.com.example.com/weixin?type=2&query=x')).toBeNull();
+    expect(matchEngineByUrl('https://www.weixin.sogou.com/weixin?type=2&query=x')).toBeNull();
   });
   it.each([
     'http://www.google.com/search?q=x',
@@ -148,6 +159,11 @@ describe('matchEngineByUrl', () => {
     'https://duckduckgo.com:8443/?q=x',
     'https://duckduckgo.com/search?q=x',
     'https://duckduckgo.com/results?q=x',
+    // Weixin query 在 query 参数、canonical 路径 /weixin：非 canonical 路径应被拒
+    'http://weixin.sogou.com/weixin?type=2&query=x',
+    'https://weixin.sogou.com:8443/weixin?type=2&query=x',
+    'https://weixin.sogou.com/search?type=2&query=x',
+    'https://weixin.sogou.com/weixins?type=2&query=x',
   ])('rejects non-canonical SERP URL %s', (url) => {
     expect(matchEngineByUrl(url)).toBeNull();
   });
@@ -194,6 +210,10 @@ describe('extractQuery', () => {
     expect(extractQuery('https://duckduckgo.com/?q=react+hooks')).toBe('react hooks');
     expect(extractQuery('https://duckduckgo.com/?q=react%20hooks&ia=web')).toBe('react hooks');
   });
+  it('decodes Weixin query from the query param', () => {
+    expect(extractQuery('https://weixin.sogou.com/weixin?type=2&query=react+hooks')).toBe('react hooks');
+    expect(extractQuery('https://weixin.sogou.com/weixin?type=2&query=react%20hooks&ie=utf8')).toBe('react hooks');
+  });
   it('returns null when no query param', () => {
     expect(extractQuery('https://www.google.com/search')).toBeNull();
   });
@@ -227,6 +247,9 @@ describe('engine scopes', () => {
     }
     for (const host of DUCKDUCKGO_SERP_HOSTS) {
       expect(matchEngineByUrl(`https://${host}/?q=x`)?.id).toBe('duckduckgo');
+    }
+    for (const host of WEIXIN_SERP_HOSTS) {
+      expect(matchEngineByUrl(`https://${host}/weixin?type=2&query=x`)?.id).toBe('weixin');
     }
   });
 });
@@ -281,6 +304,13 @@ describe('anchor strategy', () => {
     expect(ddg.anchors).toHaveLength(2);
     expect(ddg.anchors[0]).toEqual({ selector: 'nav', append: 'after', alignTo: 'nav' });
     expect(ddg.anchors[1]).toEqual({ selector: '#header_wrapper', append: 'after', alignTo: '#header_wrapper' });
+  });
+  it('weixin cascade: primary #main + first, fallback .results + before, last ul.news-list + before', () => {
+    const weixin = getEngine('weixin');
+    expect(weixin.anchors).toHaveLength(3);
+    expect(weixin.anchors[0]).toEqual({ selector: '#main', append: 'first' });
+    expect(weixin.anchors[1]).toEqual({ selector: '.results', append: 'before' });
+    expect(weixin.anchors[2]).toEqual({ selector: 'ul.news-list', append: 'before' });
   });
   it('null engine falls back to DEFAULT_ANCHORS', () => {
     expect(anchorsFor(null)).toEqual(DEFAULT_ANCHORS);

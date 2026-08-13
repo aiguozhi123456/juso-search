@@ -78,6 +78,22 @@ describe('engine natural-result extractors', () => {
     });
   });
 
+  it('extracts Weixin article results with redirect-wrapper URLs and rich snippet fallback', () => {
+    const document = new DOMParser().parseFromString(fixture('weixin-basic.html'), 'text/html');
+    const result = extractEngineSearch({ document, engine: 'weixin', query: 'test query', pageUrl: 'https://weixin.sogou.com/weixin?type=2&query=test&ie=utf8' });
+    expect(result).toEqual({
+      engine: 'weixin',
+      query: 'test query',
+      results: [
+        {
+          title: 'DeepSeek 技术深度解析',
+          url: 'https://weixin.sogou.com/link?url=dn9a_-gY295K0Rci&type=2&query=deepseek&token=abc&k=4&h=k',
+          snippet: '本文深入分析 DeepSeek 的架构设计与训练策略。',
+        },
+      ],
+    });
+  });
+
   it('extracts Bilibili cards with rich snippet metadata and resolves protocol-relative URLs', () => {
     const document = new DOMParser().parseFromString(fixture('bilibili-basic.html'), 'text/html');
     const result = extractEngineSearch({ document, engine: 'bilibili', query: 'test query', pageUrl: 'https://search.bilibili.com/all?keyword=test' });

@@ -15,7 +15,7 @@
 import { DEFAULT_HIDDEN_AI_ENGINE_IDS } from './ai-engines/registry';
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
@@ -50,6 +50,8 @@ const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'
 const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 // v5→v6：Yandex / DuckDuckGo 引擎加入快切栏——默认隐藏（国际二线引擎，开箱不膨胀快切栏）。
 const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo'];
+// v8→v9：搜狗微信公众号引擎加入快切栏——默认隐藏（中文二线引擎，开箱不膨胀快切栏）。
+const DEFAULT_HIDDEN_ENGINE_IDS_V5: readonly string[] = ['weixin'];
 
 // 迁移注册表：按 version 升序。未来加版本两步：(1) 向此数组 append 一条 Migration；(2) bump CURRENT_SCHEMA_VERSION。
 export const migrations: Migration[] = [
@@ -67,6 +69,8 @@ export const migrations: Migration[] = [
   // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
   // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
   { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
+  // v8→v9: 搜狗微信公众号引擎加入——默认隐藏（出现在管理 UI 但不进快切栏，用户手动显示）。
+  { version: 8, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V5) },
 ];
 
 /**

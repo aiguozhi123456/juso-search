@@ -8,6 +8,7 @@ import {
   DUCKDUCKGO_SERP_HOSTS,
   ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
   GOOGLE_SERP_HOSTS,
+  WEIXIN_SERP_HOSTS,
   XIAOHONGSHU_SERP_HOSTS,
   YANDEX_SERP_HOSTS,
   isEngineChallengeOrConsentUrlForHost,
@@ -43,6 +44,7 @@ function hostsForEngine(engineId: EngineId): readonly string[] {
     case 'bilibili': return BILIBILI_SERP_HOSTS;
     case 'yandex': return YANDEX_SERP_HOSTS;
     case 'duckduckgo': return DUCKDUCKGO_SERP_HOSTS;
+    case 'weixin': return WEIXIN_SERP_HOSTS;
   }
 }
 
@@ -58,5 +60,5 @@ async function waitAndExtract(request: Request) {
 function isRequest(value: unknown): value is Request {
   return typeof value === 'object' && value !== null && (value as Request).type === 'juso:extract-engine-results'
     && typeof (value as Request).requestId === 'string' && typeof (value as Request).query === 'string'
-    && ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'].includes((value as Request).engineId) && ((value as Request).maxResults === undefined || (Number.isInteger((value as Request).maxResults) && (value as Request).maxResults! >= 1 && (value as Request).maxResults! <= 20));
+    && ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin'].includes((value as Request).engineId) && ((value as Request).maxResults === undefined || (Number.isInteger((value as Request).maxResults) && (value as Request).maxResults! >= 1 && (value as Request).maxResults! <= 20));
 }

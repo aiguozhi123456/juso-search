@@ -5,11 +5,11 @@ import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
 
 // sourceOrder 默认补尾顺序：provider(registry) → engine(registry) → ai-engine(registry)。
-// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo；
-// AI engine 顺序为 ai:grok → ai:chatgpt → ai:deepseek → ai:doubao → ai:gemini（全部位于 duckduckgo 之后）。
-// 注：默认隐藏（douyin / xiaohongshu / bilibili / yandex / duckduckgo / 5 个 AI engine）是 schema 迁移写入 sourceHidden 的结果，
+// registry 里 engine 顺序为 google → bing → baidu → douyin → xiaohongshu → bilibili → yandex → duckduckgo → weixin；
+// AI engine 顺序为 ai:grok → ai:chatgpt → ai:deepseek → ai:doubao → ai:gemini（全部位于 weixin 之后）。
+// 注：默认隐藏（douyin / xiaohongshu / bilibili / yandex / duckduckgo / weixin / 5 个 AI engine）是 schema 迁移写入 sourceHidden 的结果，
 //     不由 allSources 投影层决定——本文件测的是投影函数本身。
-const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] as const;
+const DEFAULT_ENGINE_ORDER = ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin'] as const;
 const AI_ENGINE_ORDER = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] as const;
 
 describe('allSources', () => {
@@ -76,18 +76,18 @@ describe('allSources', () => {
 
   it('projects configured providers and engines in a custom mixed order', () => {
     expect(allSources(['tavily', 'exa'], ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'])
-      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER]);
+      .map((source) => source.id)).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_ORDER]);
   });
 
   it('normalizes unknown, duplicate, and omitted source ids', () => {
     expect(normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing'])).toEqual([
-      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER,
+      'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_ORDER,
     ]);
   });
 
   it('filters out hidden providers and engines', () => {
     const sources = allSources(['tavily', 'exa'], undefined, ['tavily', 'baidu']);
-    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_ORDER]);
+    expect(sources.map((s) => s.id)).toEqual(['exa', 'google', 'bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_ORDER]);
   });
 
   it('ignores an empty hidden list', () => {

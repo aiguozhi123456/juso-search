@@ -111,7 +111,7 @@ describe('ensureSchema: downgrade tolerance', () => {
 describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(7);
+      expect(mod.migrations).toHaveLength(8);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
       expect(mod.migrations[2].version).toBe(3);
@@ -119,25 +119,26 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
       expect(mod.migrations[4].version).toBe(5);
       expect(mod.migrations[5].version).toBe(6);
       expect(mod.migrations[6].version).toBe(7);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(8);
+      expect(mod.migrations[7].version).toBe(8);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(9);
     });
   });
 
-  it('full chain v1->current merges douyin/xiaohongshu (v2), bilibili (v3), yandex/duckduckgo (v6) and AI engines (v7) into sourceHidden (idempotent)', () => {
+  it('full chain v1->current merges douyin/xiaohongshu (v2), bilibili (v3), yandex/duckduckgo (v6), AI engines (v7) and weixin (v9) into sourceHidden (idempotent)', () => {
     const once = migrateConfig({ sourceHidden: ['bing'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
     const twice = migrateConfig(once, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(once.sourceHidden).toEqual(['bing', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS, 'weixin']);
     expect(twice).toEqual(once);
   });
 
   it('full chain v1->current initializes sourceHidden when absent', () => {
     const out = migrateConfig({ providerKeys: {} }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(out.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS, 'weixin']);
   });
 
   it('full chain v1->current does not duplicate ids already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['douyin', 'baidu'] }, 1, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(out.sourceHidden).toEqual(['douyin', 'baidu', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS, 'weixin']);
   });
 
   it('v1->v2 alone (target v2) adds douyin/xiaohongshu but NOT bilibili', () => {
@@ -146,16 +147,16 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     expect(out.sourceHidden).not.toContain('bilibili');
   });
 
-  it('v2->current chain merges bilibili (v3), yandex/duckduckgo (v6) and AI engines (v7) into sourceHidden (idempotent)', () => {
+  it('v2->current chain merges bilibili (v3), yandex/duckduckgo (v6), AI engines (v7) and weixin (v9) into sourceHidden (idempotent)', () => {
     const once = migrateConfig({ sourceHidden: ['douyin', 'xiaohongshu'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
     const twice = migrateConfig(once, 2, CURRENT_SCHEMA_VERSION, migrations);
-    expect(once.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(once.sourceHidden).toEqual(['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS, 'weixin']);
     expect(twice).toEqual(once);
   });
 
   it('v2->current chain does not duplicate bilibili if already hidden', () => {
     const out = migrateConfig({ sourceHidden: ['bilibili', 'douyin'] }, 2, CURRENT_SCHEMA_VERSION, migrations);
-    expect(out.sourceHidden).toEqual(['bilibili', 'douyin', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(out.sourceHidden).toEqual(['bilibili', 'douyin', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS, 'weixin']);
   });
 
   it('v5->v6 migration merges yandex/duckduckgo into sourceHidden (idempotent)', () => {
@@ -200,6 +201,18 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     const twice = migrateConfig(once, 7, 8, migrations);
     expect(once.serpBarPosition).toBe('inline');
     expect(twice).toEqual(once);
+  });
+
+  it('v8->v9 migration merges weixin into sourceHidden (idempotent)', () => {
+    const once = migrateConfig({ sourceHidden: ['baidu'] }, 8, 9, migrations);
+    const twice = migrateConfig(once, 8, 9, migrations);
+    expect(once.sourceHidden).toEqual(['baidu', 'weixin']);
+    expect(twice).toEqual(once);
+  });
+
+  it('v8->v9 migration does not duplicate weixin if already hidden', () => {
+    const out = migrateConfig({ sourceHidden: ['weixin', 'yandex'] }, 8, 9, migrations);
+    expect(out.sourceHidden).toEqual(['weixin', 'yandex']);
   });
 
   it('v3->v4 adds explicit empty Site Engine definitions', () => {

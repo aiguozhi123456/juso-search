@@ -75,6 +75,7 @@ export default defineConfig({
           'icons/bilibili.svg',
           'icons/yandex.svg',
           'icons/duckduckgo.svg',
+          'icons/weixin.svg',
           'icons/tavily.svg',
           'icons/exa.svg',
           'icons/brave.svg',

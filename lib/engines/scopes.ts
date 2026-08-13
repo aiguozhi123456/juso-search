@@ -16,6 +16,7 @@ export const XIAOHONGSHU_SERP_HOSTS = ['www.xiaohongshu.com'] as const;
 export const BILIBILI_SERP_HOSTS = ['search.bilibili.com'] as const;
 export const YANDEX_SERP_HOSTS = ['yandex.com', 'yandex.ru'] as const;
 export const DUCKDUCKGO_SERP_HOSTS = ['duckduckgo.com'] as const;
+export const WEIXIN_SERP_HOSTS = ['weixin.sogou.com'] as const;
 export const SERP_HOSTS = [
   ...GOOGLE_SERP_HOSTS,
   ...BING_SERP_HOSTS,
@@ -25,6 +26,7 @@ export const SERP_HOSTS = [
   ...BILIBILI_SERP_HOSTS,
   ...YANDEX_SERP_HOSTS,
   ...DUCKDUCKGO_SERP_HOSTS,
+  ...WEIXIN_SERP_HOSTS,
 ];
 
 export const SERP_HOST_MATCH_PATTERNS = SERP_HOSTS.map(hostMatchPattern);
@@ -37,6 +39,7 @@ export const SERP_CONTENT_MATCH_PATTERNS = [
   ...BILIBILI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/all')),
   ...YANDEX_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...DUCKDUCKGO_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/')),
+  ...WEIXIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/weixin')),
 ];
 // 结果抽取需要在引擎站内的 challenge / consent 重定向页接收消息；注入搜索栏仍只匹配
 // canonical SERP 路径，避免在这些页面渲染 UI。
@@ -50,6 +53,7 @@ const xiaohongshuSerpHosts = new Set<string>(XIAOHONGSHU_SERP_HOSTS);
 const bilibiliSerpHosts = new Set<string>(BILIBILI_SERP_HOSTS);
 const yandexSerpHosts = new Set<string>(YANDEX_SERP_HOSTS);
 const duckduckgoSerpHosts = new Set<string>(DUCKDUCKGO_SERP_HOSTS);
+const weixinSerpHosts = new Set<string>(WEIXIN_SERP_HOSTS);
 
 export function isGoogleSerpHostname(hostname: string): boolean {
   return googleSerpHosts.has(hostname);
@@ -83,9 +87,13 @@ export function isDuckDuckGoSerpHostname(hostname: string): boolean {
   return duckduckgoSerpHosts.has(hostname);
 }
 
+export function isWeixinSerpHostname(hostname: string): boolean {
+  return weixinSerpHosts.has(hostname);
+}
+
 export function isEngineChallengeOrConsentUrl(url: URL): boolean {
   if (url.protocol !== 'https:' || url.port !== '' || !SERP_HOSTS.some((host) => host === url.hostname)) return false;
-  return /\/(?:sorry|captcha|challenge|consent)(?:\/|$)/i.test(url.pathname);
+  return /\/(?:sorry|captcha|challenge|consent|antispider)(?:\/|$)/i.test(url.pathname);
 }
 
 export function isEngineChallengeOrConsentUrlForHost(url: URL, hostnames: readonly string[]): boolean {

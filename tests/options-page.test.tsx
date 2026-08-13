@@ -103,7 +103,7 @@ describe('options page', () => {
     render(<App />);
     const select = await screen.findByRole('combobox') as HTMLSelectElement;
     // 激活态下拉框仍按 sourceOrder（visibleSources 未排序）。
-    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
+    expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
     // 快切栏管理列表按拼音排序展示（中文与拉丁文按拼写交错，不随 sourceOrder）。
     expect(screen.getByRole('heading', { name: '快切栏' }).parentElement).toHaveTextContent(/Baidu[\s\S]*哔哩哔哩[\s\S]*Bing[\s\S]*ChatGPT[\s\S]*DeepSeek[\s\S]*豆包[\s\S]*抖音[\s\S]*DuckDuckGo[\s\S]*Exa[\s\S]*Gemini[\s\S]*Google[\s\S]*Grok[\s\S]*小红书[\s\S]*Yandex/);
   });
@@ -430,7 +430,7 @@ describe('options page', () => {
           activeSourceId: 'google',
           // Hide all engines except google → only one visible source remains.
           // AI engines default hidden (schema v6→v7)，测试未跑迁移，需显式加入 sourceHidden。
-          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
+          sourceHidden: ['bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
         });
       }
       return Promise.resolve(undefined);

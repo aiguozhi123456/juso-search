@@ -159,6 +159,7 @@ describe('setupContextMenu — 菜单树构建', () => {
       'juso-src:bilibili',
       'juso-src:yandex',
       'juso-src:duckduckgo',
+      'juso-src:weixin',
       'juso-group:ai-search',
       'juso-src:tavily',
       'juso-group:ai-engines',

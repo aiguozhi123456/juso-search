@@ -414,12 +414,12 @@ describe('storage: engineSearchEnabled', () => {
 describe('storage: source order', () => {
   it('round-trips a normalized complete order', async () => {
     await setSourceOrder(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan']);
-    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'brave', 'jina', 'doubao', 'doubao-global', 'parallel', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(await getSourceOrder()).toEqual(['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan', 'brave', 'jina', 'doubao', 'doubao-global', 'parallel', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_IDS]);
   });
 
   it('normalizes invalid stored values', async () => {
     await browser.storage.local.set({ sourceOrder: ['bing', 'ghost', 'bing'] });
-    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS]);
+    expect(await getSourceOrder()).toEqual(['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_IDS]);
   });
 });
 
@@ -499,16 +499,16 @@ describe('sourceHidden', () => {
     expect(await getSourceHidden()).toEqual(['baidu', 'tavily']);
   });
   it('keeps at least one usable source visible', async () => {
-    await setSourceHidden(['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
+    await setSourceHidden(['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
     expect(await getSourceHidden()).not.toContain('google');
   });
   it('normalizes a legacy all-hidden snapshot to retain a visible source', async () => {
-    await browser.storage.local.set({ sourceHidden: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
+    await browser.storage.local.set({ sourceHidden: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
     const snapshot = await getProviderConfigSnapshot();
     expect(snapshot.sourceHidden).not.toContain('google');
   });
   it('reveals a fallback atomically when clearing the last visible provider key', async () => {
-    await browser.storage.local.set({ providerKeys: { tavily: 'key' }, sourceHidden: ['exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
+    await browser.storage.local.set({ providerKeys: { tavily: 'key' }, sourceHidden: ['exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
     await clearKey('tavily');
     const got = await browser.storage.local.get(['providerKeys', 'sourceHidden']);
     expect(got.providerKeys).toEqual({});
@@ -612,7 +612,7 @@ describe('storage: Site Engines', () => {
     await expect(getProviderConfigSnapshot()).resolves.toMatchObject({
       activeSourceId: site.id,
       siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
-      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', ...AI_ENGINE_IDS],
+      sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_IDS],
       sourceHidden: [site.id],
     });
   });
@@ -787,9 +787,9 @@ describe('storage: Provider Instances', () => {
     // No provider keys; AI engines are visible (not in sourceHidden).
     // visibleUsableSource must find an AI engine as usable, so hiding all
     // regular engines should be accepted without un-hiding one.
-    await browser.storage.local.set({ sourceHidden: ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo'] });
+    await browser.storage.local.set({ sourceHidden: ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin'] });
     const snapshot = await getProviderConfigSnapshot();
-    expect(snapshot.sourceHidden).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']);
+    expect(snapshot.sourceHidden).toEqual(['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin']);
   });
 
   it('clearing the base provider key makes the instance unusable but keeps its definition', async () => {

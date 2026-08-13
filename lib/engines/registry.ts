@@ -8,8 +8,9 @@ import { xiaohongshuEngine } from './xiaohongshu';
 import { bilibiliEngine } from './bilibili';
 import { yandexEngine } from './yandex';
 import { duckduckgoEngine } from './duckduckgo';
+import { weixinEngine } from './weixin';
 
-// 注册 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo；各自支持的 SERP 主机由 scopes.ts 集中定义。
+// 注册 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo、搜狗微信公众号；各自支持的 SERP 主机由 scopes.ts 集中定义。
 const engines: Record<EngineId, SearchEngine> = {
   google: googleEngine,
   bing: bingEngine,
@@ -19,6 +20,7 @@ const engines: Record<EngineId, SearchEngine> = {
   bilibili: bilibiliEngine,
   yandex: yandexEngine,
   duckduckgo: duckduckgoEngine,
+  weixin: weixinEngine,
 };
 
 export function getEngine(id: EngineId): SearchEngine {

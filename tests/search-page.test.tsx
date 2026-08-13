@@ -12,7 +12,7 @@ function configReply(partial: Record<string, unknown>): Record<string, unknown> 
   // 可见 source = 已配置 provider + 全部 engine（engine 恒显示）；site-engine 由 siteEngines 决定。
   const allSourceIds = [
     ...configuredProviderIds,
-    'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo',
+    'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin',
     ...((partial.siteEngines as { id: string }[] | undefined) ?? []).map((s) => s.id),
   ];
   const groupConfig = partial.groupConfig ?? pinnedGroupConfig(allSourceIds);
@@ -544,7 +544,7 @@ describe('search page', () => {
           configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
           sourceOrder: ['bing', 'exa', 'google', 'tavily', 'baidu', 'stepfun', 'stepfun-plan'],
           // AI engines default hidden（schema v6→v7）；测试未跑迁移，显式隐藏以免多出「AI 搜索」分组。
-          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
+          sourceHidden: ['douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'],
           groupConfig: pinnedGroupConfig(['bing', 'exa', 'google', 'tavily', 'baidu']),
         }));
       }
