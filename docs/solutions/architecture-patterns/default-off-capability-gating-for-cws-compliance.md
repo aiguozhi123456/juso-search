@@ -1,7 +1,7 @@
 ---
 title: Default-off capability gating for Agent Bridge and engine-search (CWS compliance)
 date: 2026-07-25
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: docs/solutions/architecture-patterns
 module: Agent Bridge / background worker
 problem_type: architecture_pattern
@@ -59,7 +59,7 @@ onMessage('agentBridgeClaim', async ({ data, sender }) => {
 });
 ```
 
-The preferences follow the project's standard config-preference pipeline (`storage.ts` getter/setter with `=== true` strict-boolean default `false`, `schema.ts` `CONFIG_KEYS` whitelist entry, no schema-version bump because the default is safe and the getter falls back). The options UI (`AgentBridgeSettings.tsx`) renders two checkboxes and loads the persisted state once on mount.
+The preferences follow the project's standard config-preference pipeline (`lib/storage/` getter/setter with `=== true` strict-boolean default `false`, `schema.ts` `CONFIG_KEYS` whitelist entry, no schema-version bump because the default is safe and the getter falls back). The options UI (`AgentBridgeSettings.tsx`) renders two checkboxes and loads the persisted state once on mount.
 
 ### Do not bump the schema version for a new default-`false` key
 

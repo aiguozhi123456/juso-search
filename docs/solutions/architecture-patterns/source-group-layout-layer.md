@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-08-12
+last_updated: 2026-08-14
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -99,7 +99,7 @@ for (const [sid, gid] of Object.entries(rawAssignments)) {
 }
 ```
 
-Because the reader (`getGroupConfig`) normalizes in memory only and never writes back to storage (storage.ts:439-448), every consumer sees a consistent config even when the persisted form is stale. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
+Because the reader (`getGroupConfig`) normalizes in memory only and never writes back to storage (`lib/storage/source-graph-store.ts`), every consumer sees a consistent config even when the persisted form is stale. The writer (`setGroupConfig`) also normalizes before storing, so neither path can land a malformed config.
 
 ### 4. `projectLayout` — defensive projection to renderable items
 

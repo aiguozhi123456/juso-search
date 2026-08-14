@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -198,7 +198,7 @@ Merge semantics are deliberately conservative on both axes:
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
 - **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`, `sourceOrder`). Older export files without `sourceOrder` preserve the current quick-switch order.
 
-For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, activeSource), so an older import cannot overwrite a later quick-switch move.
+For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, activeSource), so an older import cannot overwrite a later quick-switch move.
 
 ### Never use `get(null)` when you know the keys you need
 
@@ -261,7 +261,7 @@ The lazy-memoized `getSchemaReady()` gate is worth adopting *whenever* you have 
 ### Before: un-versioned, `get(null)`-based storage
 
 ```ts
-// lib/storage.ts — no version stamp anywhere
+// lib/storage/provider-keys-store.ts — no version stamp anywhere
 export async function readKeys() {
   const all = await browser.storage.local.get(null); // reads ~1MB incl. cache
   return all.providerKeys ?? {};
@@ -348,7 +348,8 @@ async function handleExportConfig() {
 - `lib/search-cache.ts` — cache-domain versioning: `CURRENT_CACHE_SCHEMA_VERSION`, `cacheMigrations`, `migrateCachePool`, `ensureCacheSchema`, `runCacheMigration`, `recoverCacheSchemaByClear`
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`
 - `lib/gateway.ts` — worker handlers and the readiness gate: `getSchemaReady`, `handleExportConfig`, `handlePreviewImport`, `handleImportConfig`
-- `lib/storage.ts` — `withProviderKeysMutation` and `withSourceMutation` (serialization queues for atomic config mutations)
+- `lib/storage/provider-keys-store.ts` — `withProviderKeysMutation` (serialization queue for atomic providerKeys mutations)
+- `lib/storage/source-graph-store.ts` — `withSourceMutation` (serialization queue for atomic source-graph mutations)
 - [separate-active-search-source-from-active-byok-provider](./separate-active-search-source-from-active-byok-provider.md) — documents why `activeSource` belongs in the config domain while `activeProvider` remains provider-only
 - [source-group-layout-layer](./source-group-layout-layer.md) — the v4→v5 no-op migration above is the one that introduced `groupConfig`
 - `CONCEPTS.md` — project vocabulary for the BYOK trust boundary (R7)

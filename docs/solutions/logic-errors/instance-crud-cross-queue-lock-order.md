@@ -39,7 +39,7 @@ The default-instance backfill added in the same feature (`handleGetProviderConfi
 Every instance CRUD that reads or rewrites the instance collection acquires the **source queue first, then the instance queue** — the same nesting order `deleteProviderInstance` and `clearKey` already established. This serializes instance writes against `mergeImport` (which holds the source queue), because both now contend on the source queue before either touches the instance array.
 
 ```ts
-// lib/storage.ts — createProviderInstance / ensureDefaultInstance / updateProviderInstance
+// lib/storage/provider-instance-store.ts — createProviderInstance / ensureDefaultInstance / updateProviderInstance
 // BEFORE (lost-update window vs mergeImport):
 export async function createProviderInstance(...): Promise<ProviderInstance> {
   return withProviderInstancesMutation(async () => {

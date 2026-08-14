@@ -14,7 +14,7 @@ symptoms:
   - "Inject-type AI engines (ChatGPT/DeepSeek/Doubao/Gemini) auto-submit from the menu even when aiAutoEnter is off"
 root_cause: async_timing
 resolution_type: code_fix
-related_components: [lib/sources.ts, lib/source-groups.ts, lib/serp-handoff.ts, lib/storage.ts, lib/i18n.ts, entrypoints/background.ts, wxt.config.ts]
+related_components: [lib/sources.ts, lib/source-groups.ts, lib/serp-handoff.ts, lib/storage/, lib/i18n.ts, entrypoints/background.ts, wxt.config.ts]
 tags: [context-menu, chrome-mv3, service-worker, worker-lifecycle, contextmenus, source-groups, storage-watch, preference-sync]
 ---
 

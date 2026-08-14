@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-08-13
+last_updated: 2026-08-14
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -15,7 +15,7 @@ applies_when:
 related_components:
   - lib/provider-instances.ts
   - lib/gateway.ts
-  - lib/storage.ts
+  - lib/storage/
   - lib/search-cache.ts
   - lib/sources.ts
   - lib/agent-bridge.ts
@@ -175,7 +175,7 @@ When a bare provider id is searched (agent v1, or a UI that hasn't migrated to i
 2. The user changes the default by reordering `sourceOrder` (an existing axis), not by editing a separate "default" field.
 3. The sole instance for a provider cannot be deleted (protects the default), but can be hidden. This ensures a provider with a configured key always has a default instance for v1 agent fallback.
 
-**Auto-create on key config.** When a provider key is saved (`handleSaveProviderKey`) and the provider is in `PROVIDERS_WITH_INSTANCE_OPTIONS` and has no existing instances, a default instance is auto-created with empty options (`{}` — the adapter's normalizer fills defaults) and the provider's display label as its name. This is done atomically via `ensureDefaultInstance` (in `lib/storage.ts`, inside `withSourceMutation(() => withProviderInstancesMutation(...))` — source queue first, then instance queue, matching `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`), which checks for existing instances before creating — so re-adding a deleted key does not create a duplicate. This ensures every instance-supporting provider always has ≥1 instance, making the model uniform (no bare pill ever appears for instance-supporting providers).
+**Auto-create on key config.** When a provider key is saved (`handleSaveProviderKey`) and the provider is in `PROVIDERS_WITH_INSTANCE_OPTIONS` and has no existing instances, a default instance is auto-created with empty options (`{}` — the adapter's normalizer fills defaults) and the provider's display label as its name. This is done atomically via `ensureDefaultInstance` (in `lib/storage/provider-instance-store.ts`, inside `withSourceMutation(() => withProviderInstancesMutation(...))` — source queue first, then instance queue, matching `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`), which checks for existing instances before creating — so re-adding a deleted key does not create a duplicate. This ensures every instance-supporting provider always has ≥1 instance, making the model uniform (no bare pill ever appears for instance-supporting providers).
 
 **Backfill on config read.** Key-save auto-create only covers users who save a key *after* the instance feature shipped. Older users who configured exa/doubao keys before instances existed would otherwise keep a bare provider pill forever. `handleGetProviderConfig` (`lib/gateway.ts`) therefore lazily backfills: it reads the config snapshot, and for any provider in `PROVIDERS_WITH_INSTANCE_OPTIONS` that is configured (key exists — only read in the worker context, BYOK-safe) yet has zero instances, it calls the same `ensureDefaultInstance`. The snapshot returned to the UI is re-read after backfill so the new instance is projected immediately. The backfill is idempotent (missing set is empty once done — `ensureDefaultInstance` is itself a no-op when an instance exists), costs zero extra storage reads in steady state, and is best-effort: a failed backfill never blocks the config reply. Chosen trigger point: every UI surface (search page / options / SERP bar) pulls config through this one worker message, so a single lazy backfill here self-heals all of them. A read-path backfill is preferred over a schema migration for three reasons: (1) it also covers keys filled by config import (`mergeImport` only fills empty slots and never re-triggers key-save auto-create); (2) it keeps the migration chain (`ensureSchema`, worker-only at `lib/gateway.ts:67-74`, pre-warmed at `entrypoints/background.ts:50`) a pure key-stamping function — a migration would have to read key existence inside schema code, leaking the BYOK check out of the read path it belongs to; (3) it self-heals storage that was manually edited back to zero instances.
 
@@ -183,7 +183,7 @@ The cost of implicit-first is that "first in storage order" is an implicit contr
 
 ### `effectiveActiveSource` must map bare provider ids to instance ids
 
-When a provider has instances, `allSources` projects instance pills only — the bare provider pill is suppressed. But the stored active source may still be a bare provider id (e.g., from before instances were created, or from the auto-create path). `resolveEffectiveActiveSource` (a shared pure function in `lib/sources.ts`) maps a bare provider id to the first instance id when instances exist, so the active-source resolution stays consistent with the projection. This function is used by both `lib/storage.ts` and `lib/config-io.ts` (deduplicated from two copies that would have drifted). Without this mapping, the search page's `visibleActive` would fall back to `sources[0]` — potentially a completely different provider — causing wrong highlighting and searching the wrong provider.
+When a provider has instances, `allSources` projects instance pills only — the bare provider pill is suppressed. But the stored active source may still be a bare provider id (e.g., from before instances were created, or from the auto-create path). `resolveEffectiveActiveSource` (a shared pure function in `lib/sources.ts`) maps a bare provider id to the first instance id when instances exist, so the active-source resolution stays consistent with the projection. This function is used by both `lib/storage/` and `lib/config-io.ts` (deduplicated from two copies that would have drifted). Without this mapping, the search page's `visibleActive` would fall back to `sources[0]` — potentially a completely different provider — causing wrong highlighting and searching the wrong provider.
 
 ### Extend the agent wire protocol additively, never by widening
 
@@ -346,8 +346,8 @@ const PROVIDER_IDS: ReadonlySet<ProviderId> = new Set(allProviders().map((p) => 
 
 The instance feature is the fourth instance of a recurring pattern in this codebase (after providers, site-engines, custom-engines). Every layer that already handled site-engines was extended with a parallel instance branch:
 
-- **Storage CRUD** (`lib/storage.ts`): `getProviderInstances` / `setProviderInstances` / `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`, plus a fourth serialization queue `withProviderInstancesMutation`. Every instance CRUD that reads or rewrites the instance collection (`createProviderInstance` / `updateProviderInstance` / `ensureDefaultInstance` / `deleteProviderInstance`) acquires the source queue before the instance queue (the same order `clearKey` uses) so it serializes against `mergeImport`, which holds the source queue while whole-array-overwriting the instance collection — the instance queue alone would still permit a lost-update against that whole-array write.
-- **`selectActiveSourceId` dual-write** (`lib/storage.ts:290-313`): selecting an instance id writes both `activeSource = instanceId` and `activeProvider = instance.baseProviderId`, so provider-only fallback paths (`getActiveProviderId`) still resolve. This mirrors the existing `isKnownProvider` branch.
+- **Storage CRUD** (`lib/storage/provider-instance-store.ts`): `getProviderInstances` / `setProviderInstances` / `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`, plus a fourth serialization queue `withProviderInstancesMutation`. Every instance CRUD that reads or rewrites the instance collection (`createProviderInstance` / `updateProviderInstance` / `ensureDefaultInstance` / `deleteProviderInstance`) acquires the source queue before the instance queue (the same order `clearKey` uses) so it serializes against `mergeImport`, which holds the source queue while whole-array-overwriting the instance collection — the instance queue alone would still permit a lost-update against that whole-array write.
+- **`selectActiveSourceId` dual-write** (`lib/storage/source-graph-store.ts`): selecting an instance id writes both `activeSource = instanceId` and `activeProvider = instance.baseProviderId`, so provider-only fallback paths (`getActiveProviderId`) still resolve. This mirrors the existing `isKnownProvider` branch.
 - **`allSources` projection** (`lib/sources.ts:157-256`): a provider with instances projects one pill per instance (sharing the base adapter's `favicon` / `supportsAnswer`, using the instance name as a literal label) and **does not** project a bare provider pill. A provider with zero instances projects the bare pill as before. Same-provider instances are kept adjacent in the flyout by a sort heuristic over `sourceOrder`.
 - **`normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds`** (`lib/sources.ts:56-135`): each gained a `providerInstances` parameter. Instance ids are kept iff they appear in the provided definitions; unknown ids are stripped.
 - **Config IO** (`lib/config-io.ts`): `ConfigExport.providerInstances?` is a pref with whole-array overwrite semantics, identical to `siteEngines` and `customEngines`. Import validation rejects bad ids, unknown base providers, non-plain-object options, and oversized collections.
@@ -396,7 +396,7 @@ This bug was found in a fresh review after the cache-key bug was fixed. `normali
 
 The fix was to mirror `config-io.ts`'s pattern in `storage.ts`: every call site that already read `PROVIDER_INSTANCES_KEY` into `instances` must pass `instances` as the fourth argument. This is visible throughout `lib/storage.ts` — e.g. `:157-158` in `clearKey`, `:388` in `getSourceOrder`, `:410` in `setSourceHidden`, `:425-429` in `getGroupConfig`, `:629-631` in `deleteProviderInstance`. The `getProviderConfigSnapshot` function (`:660-677`) reads all keys in one batch and threads `providerInstances` into every normalizer that needs it.
 
-**The general lesson:** when a function gains a parameter that defaults to "empty," every existing call site is a latent bug. The default makes the code compile and the existing tests pass, but it silently changes behavior for any caller whose data is non-empty. The migration strategy for such a parameter is **not** "add it with a default and hope callers update" — it is "add it, then grep every call site and update it explicitly, then add a lint rule or a non-defaulting overload to prevent regression." The codebase's `normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds` now all require the argument at every call site in `storage.ts` and `config-io.ts`; the default remains only for call sites in `sources.ts` itself and in tests that genuinely want an empty set.
+**The general lesson:** when a function gains a parameter that defaults to "empty," every existing call site is a latent bug. The default makes the code compile and the existing tests pass, but it silently changes behavior for any caller whose data is non-empty. The migration strategy for such a parameter is **not** "add it with a default and hope callers update" — it is "add it, then grep every call site and update it explicitly, then add a lint rule or a non-defaulting overload to prevent regression." The codebase's `normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds` now all require the argument at every call site in `lib/storage/` and `config-io.ts`; the default remains only for call sites in `sources.ts` itself and in tests that genuinely want an empty set.
 
 ## When to Apply
 
@@ -456,7 +456,7 @@ const cached = await saveCachedSearch(response, cacheKeyId).catch(() => null);  
 And the storage layer extracts the instance id from the same `cacheKeyId` when building the entry:
 
 ```ts
-// lib/storage.ts:731-736
+// lib/storage/search-cache-store.ts
 async function saveCachedSearchUnlocked(response: NormalizedSearchResponse, id?: string): Promise<SearchCacheEntry> {
   const index = await readSearchCacheIndex();
   const instanceId = id && isProviderInstanceId(id) ? id : undefined;

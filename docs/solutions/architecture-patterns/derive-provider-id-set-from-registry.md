@@ -83,7 +83,7 @@ export function isProviderId(id: string): id is ProviderId {
   return allProviders().some((p) => p.id === id);
 }
 
-// lib/storage.ts:125-127
+// lib/storage/shared.ts
 function isKnownProvider(id: unknown): id is ProviderId {
   return typeof id === 'string' && allProviders().some((p) => p.id === id);
 }
@@ -156,7 +156,7 @@ obligation the code cannot verify. The new comment names the mechanism —
 "derived from the registry so it can never drift" — and the code makes the
 mechanism true. A reviewer reading the line can see, without leaving the file,
 *why* the set is correct and *why* it will stay correct. This is the same
-comment discipline `sources.ts` and `storage.ts` already follow implicitly: they
+comment discipline `sources.ts` and `lib/storage/` already follow implicitly: they
 derive without a sync obligation because there is nothing to sync.
 
 ### Confirm there is no circular dependency before deriving
@@ -335,7 +335,7 @@ export function isProviderId(id: string): id is ProviderId {
 }
 ```
 
-`lib/storage.ts:125-127` does the same for its trusted-storage guard:
+`lib/storage/shared.ts` does the same for its trusted-storage guard:
 
 ```ts
 function isKnownProvider(id: unknown): id is ProviderId {
@@ -387,7 +387,7 @@ checklist promises:
    `adapters: Record<ProviderId, ProviderAdapter>` map and the `allProviders()`
    return array).
 
-No third step in `provider-instances.ts`, `sources.ts`, `storage.ts`, or
+No third step in `provider-instances.ts`, `sources.ts`, `lib/storage/`, or
 `config-io.ts`. The derived sets in all four modules pick up the new id
 automatically, `isProviderId` / `isKnownProvider` / `isProviderInstanceId`
 accept `inst:parallel:<uuid>` immediately, and the entire source-graph

@@ -10,7 +10,7 @@ applies_when:
   - "Adding a new user-defined Search Source kind that navigates an arbitrary URL rather than wrapping a fixed engine"
   - "Supporting browser-style custom search engines defined by a URL template with a query placeholder"
   - "A source that must open in a new tab from the SERP bar but same-tab from the search page"
-related_components: [lib/custom-engines.ts, lib/sources.ts, lib/storage.ts, lib/serp-handoff.ts, entrypoints/background.ts, entrypoints/serp-bar.content.ts, components/CustomEngineManager.tsx, wxt.config.ts]
+related_components: [lib/custom-engines.ts, lib/sources.ts, lib/storage/, lib/serp-handoff.ts, entrypoints/background.ts, entrypoints/serp-bar.content.ts, components/CustomEngineManager.tsx, wxt.config.ts]
 tags: [custom-engine, search-source, url-template, percent-s-placeholder, chrome-storage, serp, new-tab, source-group]
 ---
 
@@ -26,7 +26,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有三类 Search Source�
 
 逐个适配每个搜索引擎既不现实，也有一些目标（ChatGPT、GitHub、StackOverflow……）根本不符合「engine registry + SERP 抽取」模型——它们没有可匹配/可抽取的标准 SERP URL。Custom Engine 因此引入**第四类** Source：用户定义的「名称 + URL 模板」，模板用 `%s` 作为查询占位符——与浏览器内置的「管理搜索引擎」完全同构。
 
-关键模块：`lib/custom-engines.ts`、`lib/sources.ts`、`lib/storage.ts`、`lib/serp-handoff.ts`、`lib/source-groups.ts`、`lib/config-io.ts`、`entrypoints/background.ts`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`、`components/CustomEngineManager.tsx`、`wxt.config.ts`。
+关键模块：`lib/custom-engines.ts`、`lib/sources.ts`、`lib/storage/`、`lib/serp-handoff.ts`、`lib/source-groups.ts`、`lib/config-io.ts`、`entrypoints/background.ts`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`、`components/CustomEngineManager.tsx`、`wxt.config.ts`。
 
 ## Guidance
 
@@ -88,7 +88,7 @@ worker 侧 `openNewTab` 用 `sanitizeOpenNewTabUrl` 净化：仅 http/https、�
 
 ### 5. 存储与分组
 
-- 存储键 `customEngines`（`lib/storage.ts:56`）；CRUD 一律走 `withSourceMutation`；写入前 `customEnginesSerializedBytes(next) > MAX_CUSTOM_ENGINES_SERIALIZED_BYTES` 即抛 `invalid_custom_engine`。
+- 存储键 `customEngines` 键常量（`lib/storage/keys.ts`），CRUD 在 `lib/storage/custom-engine-store.ts`，一律走 `withSourceMutation`；写入前 `customEnginesSerializedBytes(next) > MAX_CUSTOM_ENGINES_SERIALIZED_BYTES` 即抛 `invalid_custom_engine`。
 - `getProviderConfigSnapshot()` 返回值含 `customEngines`；各 normalizer 均穿透 `customDefinitions`。
 - 新增**第四个内置分组** `custom`（`lib/source-groups.ts`：`CUSTOM_GROUP = 'custom'`，标签 i18n `group_custom` = "自定义"/"Custom"），与 ai-search / engines / sites 并列。`defaultGroupForSourceId` 将 `custom:*` 映射到 `custom`；`normalizeGroupConfig` 会把缺失的内置分组追加到非空 layout 末尾，保证升级用户持久获得该分组。
 

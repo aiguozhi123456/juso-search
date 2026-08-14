@@ -1,7 +1,7 @@
 ---
 title: "Separate active search source from active BYOK provider"
 date: 2026-07-09
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: architecture-patterns
 module: search-source-configuration
 problem_type: architecture_pattern
@@ -12,7 +12,7 @@ applies_when:
   - "A settings UI must select a default search target without implying API-key availability"
   - "A worker-owned provider path must remain isolated from view-layer source choices"
 related_components:
-  - lib/storage.ts
+  - lib/storage/
   - lib/messaging.ts
   - lib/gateway.ts
   - entrypoints/options/App.tsx

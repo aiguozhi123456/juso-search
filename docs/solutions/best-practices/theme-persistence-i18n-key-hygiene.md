@@ -1,7 +1,7 @@
 ---
 title: "Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension"
 date: 2026-07-04
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: best-practices
 module: "theme / i18n / storage layer / provider config messaging"
 problem_type: best_practice
@@ -105,7 +105,7 @@ Then implement the storage reads and writes only in the background gateway:
 
 ```ts
 // lib/gateway.ts — illustrative of the worker-injection pattern; the live handler now
-// reads all keys in one batch via `getProviderConfigSnapshot()` (lib/storage.ts) rather
+// reads all keys in one batch via `getProviderConfigSnapshot()` (lib/storage/snapshot.ts) rather
 // than this five-field `Promise.all`, but the boundary discipline is unchanged.
 export async function handleGetProviderConfig(): Promise<ProviderConfigReply> {
   await getSchemaReady();

@@ -1,7 +1,7 @@
 ---
 title: "AI Engine Auto-Submit Consent via enter=1 URL Contract (Decoupled from Native Prefill)"
 date: 2026-08-05
-last_updated: 2026-08-07
+last_updated: 2026-08-14
 category: architecture-patterns
 module: "ai-engines / storage / serp-handoff / content-script / config-io / options-ui"
 problem_type: architecture_pattern
@@ -17,7 +17,7 @@ related_components:
   - "lib/ai-engines/types.ts"
   - "lib/ai-engines/injectors"
   - "lib/serp-handoff.ts"
-  - "lib/storage.ts"
+  - "lib/storage/"
   - "lib/config-io.ts"
   - "entrypoints/ai-engine-inject.content.ts"
   - "entrypoints/search/App.tsx"
@@ -40,7 +40,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）的 AI Engine 功能（见姊妹�
 - 新增 `aiAutoEnter` 开关（默认 ON）控制注入型 AI engine 的 URL 是否追加 `enter=1`；
 - 覆盖注入型 4 站（ChatGPT / DeepSeek / 豆包 / Gemini）；Grok 是 url-only（原生自动提交，永不追加 `enter=1`，不受开关影响）。
 
-关键模块：`lib/serp-handoff.ts`、`lib/ai-engines/injectors/`（`generic-enter.ts` / `deepseek.ts` / `doubao.ts` / `gemini.ts` / `shared.ts`）、`entrypoints/ai-engine-inject.content.ts`、`lib/storage.ts`、`lib/config-io.ts`、`lib/messaging.ts`、`lib/gateway.ts`、`lib/schema.ts`（`CONFIG_KEYS`）、`components/AiAutoEnterToggle.tsx`、`entrypoints/options/App.tsx`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`。
+关键模块：`lib/serp-handoff.ts`、`lib/ai-engines/injectors/`（`generic-enter.ts` / `deepseek.ts` / `doubao.ts` / `gemini.ts` / `shared.ts`）、`entrypoints/ai-engine-inject.content.ts`、`lib/storage/`、`lib/config-io.ts`、`lib/messaging.ts`、`lib/gateway.ts`、`lib/schema.ts`（`CONFIG_KEYS`）、`components/AiAutoEnterToggle.tsx`、`entrypoints/options/App.tsx`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`。
 
 ## Guidance
 
@@ -161,13 +161,13 @@ export function clearUrlQuery(): void {
 
 ### 3. `aiAutoEnter` 开关存储与协议
 
-- 存储键 `AI_AUTO_ENTER_KEY = 'aiAutoEnter'`（`lib/storage.ts`），`getAiAutoEnter()` 用 `stored !== false` 判真（**默认 true**）。
+- 存储键 `AI_AUTO_ENTER_KEY = 'aiAutoEnter'`（`lib/storage/keys.ts`），`getAiAutoEnter()` 用 `stored !== false` 判真（**默认 true**）。
 - 加入 `CONFIG_KEYS` 白名单（`lib/schema.ts`）——getter 自带默认，**无需 schema 迁移**。
 - `ProviderConfigReply.aiAutoEnter?: boolean`（可选，调用方用 `?? true`）。
 - 消息协议 `setAiAutoEnter(value: boolean)`（`lib/messaging.ts`）+ gateway handler `handleSetAiAutoEnter`（`lib/gateway.ts`）委托 `setAiAutoEnter`。
 
 ```ts
-// lib/storage.ts
+// lib/storage/prefs-store.ts
 export async function getAiAutoEnter(): Promise<boolean> {
   const got = await browser.storage.local.get(AI_AUTO_ENTER_KEY);
   return got[AI_AUTO_ENTER_KEY] !== false;

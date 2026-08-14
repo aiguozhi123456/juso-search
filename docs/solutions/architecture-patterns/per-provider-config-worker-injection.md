@@ -1,7 +1,7 @@
 ---
 title: "Per-provider config via worker injection (BYOK pattern extended to non-secret prefs)"
 date: 2026-07-27
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: architecture-patterns
 module: lib/gateway
 problem_type: architecture_pattern
@@ -33,7 +33,7 @@ tags:
 
 This repository is a WXT + React + TypeScript Chrome MV3 search extension with a strict BYOK (bring-your-own-API-key) trust boundary:
 
-- API keys live only in `chrome.storage.local` under the `providerKeys` key (`lib/storage.ts`).
+- API keys live only in `chrome.storage.local` under the `providerKeys` key (`lib/storage/provider-keys-store.ts`).
 - Keys are read **only** by the background service worker (`lib/gateway.ts` → `handleSearch`); page code (search UI, options page) never reads stored keys.
 - Page code talks to the worker via `@webext-core/messaging` (`lib/messaging.ts`); the worker returns desensitized status (e.g. a list of configured provider ids) — never raw keys.
 
@@ -48,7 +48,7 @@ The interesting part is **not** the feature itself — `SearchOptions.maxResults
 The simplest mental model for "where does a new per-provider setting live in a BYOK MV3 extension" is: **everything the worker needs to call a provider belongs to the worker, not to the page.** API keys are the obvious case; `maxResults` is the non-obvious case because it is *not* sensitive — there is no trust boundary reason to hide it. But the *single-config-entry-point* reason still applies:
 
 - The search UI message (`SearchRequest` in `lib/messaging.ts`) carries only `query`, `providerId`, `forceRefresh`. It deliberately does **not** carry `maxResults`. The worker reads maxResults from storage itself and injects it. This mirrors how the worker reads the API key from storage and injects it.
-- The page learns about maxResults only through the desensitized config snapshot (`getProviderConfigSnapshot()` in `lib/storage.ts`, returned via `handleGetProviderConfig`). The page can write it only through a dedicated `setProviderMaxResults` message handled in `lib/gateway.ts`.
+- The page learns about maxResults only through the desensitized config snapshot (`getProviderConfigSnapshot()` in `lib/storage/snapshot.ts`, returned via `handleGetProviderConfig`). The page can write it only through a dedicated `setProviderMaxResults` message handled in `lib/gateway.ts`.
 - The worker is the single place that combines `providerId + key + maxResults` into the adapter call.
 
 Concretely, in `lib/gateway.ts`:
@@ -115,7 +115,7 @@ The `=== undefined` distinction in parsing matters here: an export that omits th
 
 ### Cascade-delete per-provider config when the provider's key is deleted
 
-`clearKey` (`lib/storage.ts`) is a read-modify-write that already touches `KEYS_KEY`, `SOURCE_ORDER_KEY`, `SOURCE_HIDDEN_KEY`, and `SITE_ENGINES_KEY` (because removing a provider can change which sources are usable). The fix added `MAX_RESULTS_KEY` to that same single read:
+`clearKey` (`lib/storage/provider-keys-store.ts`) is a read-modify-write that already touches `KEYS_KEY`, `SOURCE_ORDER_KEY`, `SOURCE_HIDDEN_KEY`, and `SITE_ENGINES_KEY` (because removing a provider can change which sources are usable). The fix added `MAX_RESULTS_KEY` to that same single read:
 
 ```ts
 const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, MAX_RESULTS_KEY]);

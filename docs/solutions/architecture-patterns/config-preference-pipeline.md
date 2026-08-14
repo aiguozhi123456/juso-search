@@ -1,7 +1,7 @@
 ---
 title: "Adding a persisted config preference: the end-to-end pipeline"
 date: 2026-07-17
-last_updated: 2026-08-12
+last_updated: 2026-08-14
 category: architecture-patterns
 module: config-preferences
 problem_type: architecture_pattern
@@ -14,7 +14,7 @@ applies_when:
   - "A preference must round-trip through worker messaging, config export/import, and multiple UI hosts"
 related_components:
   - lib/sources.ts
-  - lib/storage.ts
+  - lib/storage/
   - lib/schema.ts
   - lib/messaging.ts
   - lib/gateway.ts
@@ -49,7 +49,7 @@ tags:
 新增一个持久化偏好时，按顺序碰这些层；漏掉任何一层都会在奇怪的地方（i18n parity 测试、导入报告类型错误、配置无法导出/导入）失败：
 
 1. **模型 + 规范化**（`lib/sources.ts`）：加 `normalizeX`，并在 `allSources` 投影里消费新参数。
-2. **存储**（`lib/storage.ts`）：键常量、写串行队列（`withXMutation`）、getter/setter；getter 精确读自身键，绝不 `get(null)`。
+2. **存储**（`lib/storage/`，键常量在 keys.ts、pref getter/setter 在 prefs-store.ts）：键常量、写串行队列（`withXMutation`）、getter/setter；getter 精确读自身键，绝不 `get(null)`。
 3. **schema 白名单**（`lib/schema.ts`）：把新键加进 `CONFIG_KEYS`，否则 `ensureSchema` 不会读/写它。默认值安全（如空数组）时**无需 bump 版本**——getter 会把缺失规范化为默认。
 4. **消息契约**（`lib/messaging.ts`）：把字段加进 `ProviderConfigReply`，并在 `ProtocolMap` 加一个 setter 消息。
 5. **gateway**（`lib/gateway.ts`）：在 `handleGetProviderConfig` 读取并在返回值带上；新增 `handleSetX`。
@@ -119,7 +119,7 @@ tags:
 ## Examples
 
 - **稀疏 vs 完整：** 见上文两个规范化函数的对照——这是本学习唯一需要记进代码的分歧。
-- **第二个偏好的完整触点：** `sourceHidden` 按 §八层清单依次落地于 `lib/sources.ts`、`lib/storage.ts`、`lib/schema.ts`、`lib/messaging.ts`、`lib/gateway.ts`、`entrypoints/background.ts`、`lib/config-io.ts`、`lib/i18n.ts` + 两份 locale，外加三个 entrypoints 消费端与设置页开关。
+- **第二个偏好的完整触点：** `sourceHidden` 按 §八层清单依次落地于 `lib/sources.ts`、`lib/storage/`、`lib/schema.ts`、`lib/messaging.ts`、`lib/gateway.ts`、`entrypoints/background.ts`、`lib/config-io.ts`、`lib/i18n.ts` + 两份 locale，外加三个 entrypoints 消费端与设置页开关。
 - **设置页防陈旧：** 开关沿用 sourceOrder 的 revision 守卫——请求发出后只要本地隐藏态经历乐观切换，陈旧配置响应就不能再写回隐藏状态（实现细节见 *persistent-source-order-and-visible-projection*）。
 
 ## Related

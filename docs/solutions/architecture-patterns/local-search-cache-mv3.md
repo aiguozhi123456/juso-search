@@ -1,7 +1,7 @@
 ---
 title: "Local Search Cache for Repeat-Billing Avoidance in an MV3 Extension"
 date: 2026-07-07
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: architecture-patterns
 module: "storage / gateway / messaging"
 problem_type: architecture_pattern
@@ -14,7 +14,7 @@ applies_when:
   - "Synchronizing UI preferences across extension tabs without exposing stored API keys to page memory"
 related_components:
   - lib/search-cache.ts
-  - lib/storage.ts
+  - lib/storage/
   - lib/gateway.ts
   - lib/messaging.ts
   - lib/useSearchCache.ts
@@ -131,9 +131,8 @@ If the requested provider is no longer configured, the worker returns
 
 Cache mutations are serialized through a module-level promise queue to prevent
 read-modify-write races on the shared index. The queue
-(`withSearchCacheMutation`) lives in `lib/storage.ts` alongside the other
-storage mutation queues (`withProviderKeysMutation`, `withSourceMutation`,
-etc.) — not in `lib/search-cache.ts`, which owns the pure cache read/write
+(`withSearchCacheMutation`) lives in `lib/storage/search-cache-store.ts` alongside the other
+storage mutation queues (now in their own domain modules under `lib/storage/`) — not in `lib/search-cache.ts`, which owns the pure cache read/write
 helpers:
 
 ```typescript

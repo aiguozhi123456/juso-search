@@ -11,7 +11,7 @@ applies_when:
   - Designing a colorful operational UI where color should communicate stable source and action identity
   - Applying one persisted UI preference across extension pages, tabs, and a shadow-DOM content script
   - Rendering viewport atmosphere from inside a width-constrained application root
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 related_components:
   - entrypoints/shared/tokens.css
   - entrypoints/shared/page-bg.css
@@ -19,7 +19,7 @@ related_components:
   - entrypoints/options/styles.css
   - components/SourceSwitcher.tsx
   - lib/useStyle.ts
-  - lib/storage.ts
+  - lib/storage/
   - entrypoints/serp-bar.content.ts
 tags:
   - style-system

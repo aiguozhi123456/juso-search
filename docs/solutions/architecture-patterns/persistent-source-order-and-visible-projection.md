@@ -1,7 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
-last_updated: 2026-08-01
+last_updated: 2026-08-14
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -14,7 +14,7 @@ applies_when:
   - "Optimistic UI updates can race with background refresh responses"
 related_components:
   - lib/sources.ts
-  - lib/storage.ts
+  - lib/storage/
   - lib/messaging.ts
   - lib/gateway.ts
   - lib/config-io.ts

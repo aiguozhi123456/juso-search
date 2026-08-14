@@ -1,7 +1,7 @@
 ---
 title: "AI Engine as Fifth Search Source: Conversation-Navigation Target with Layered URL/Content-Script Injection"
 date: 2026-08-03
-last_updated: 2026-08-07
+last_updated: 2026-08-14
 category: architecture-patterns
 module: "ai-engines / sources / storage / serp / content-script"
 problem_type: architecture_pattern
@@ -11,7 +11,7 @@ applies_when:
   - "Adding a preset Search Source that hands the current query off to an AI chat site"
   - "A target that has no SERP URL / extractor contract and cannot join the engine registry"
   - "Some targets need a content script to fill and submit the query because they do not natively honor a URL query param"
-related_components: [lib/ai-engines/types.ts, lib/ai-engines/registry.ts, lib/ai-engines/injectors, lib/sources.ts, lib/storage.ts, lib/serp-handoff.ts, lib/source-groups.ts, lib/config-io.ts, entrypoints/ai-engine-inject.content.ts, entrypoints/search/App.tsx, entrypoints/serp-bar.content.ts, wxt.config.ts]
+related_components: [lib/ai-engines/types.ts, lib/ai-engines/registry.ts, lib/ai-engines/injectors, lib/sources.ts, lib/storage/, lib/serp-handoff.ts, lib/source-groups.ts, lib/config-io.ts, entrypoints/ai-engine-inject.content.ts, entrypoints/search/App.tsx, entrypoints/serp-bar.content.ts, wxt.config.ts]
 tags: [ai-engine, search-source, content-script, injector, url-prefill, chat-handoff, source-group, default-hidden]
 ---
 
@@ -25,7 +25,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有四类 Search Source�
 
 与 Custom Engine 的关键区别：AI Engine 是**预置硬编码**（代码即定义，不进 storage），且部分站需要 **content script 注入**填充+提交——Custom Engine 只做纯 URL 导航。
 
-关键模块：`lib/ai-engines/types.ts`、`lib/ai-engines/registry.ts`、`lib/ai-engines/injectors/`、`lib/sources.ts`、`lib/storage.ts`、`lib/serp-handoff.ts`、`lib/source-groups.ts`、`lib/config-io.ts`、`entrypoints/ai-engine-inject.content.ts`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`、`wxt.config.ts`。
+关键模块：`lib/ai-engines/types.ts`、`lib/ai-engines/registry.ts`、`lib/ai-engines/injectors/`、`lib/sources.ts`、`lib/storage/`、`lib/serp-handoff.ts`、`lib/source-groups.ts`、`lib/config-io.ts`、`entrypoints/ai-engine-inject.content.ts`、`entrypoints/search/App.tsx`、`entrypoints/serp-bar.content.ts`、`wxt.config.ts`。
 
 ## Guidance
 

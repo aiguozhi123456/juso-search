@@ -1,7 +1,7 @@
 ---
 title: Heterogeneous AI Search Provider API Integration
 date: 2026-07-01
-last_updated: 2026-08-10
+last_updated: 2026-08-14
 category: architecture-patterns
 module: provider-adapter
 problem_type: architecture_pattern
@@ -159,7 +159,7 @@ function SearchResults({ response }: { response: NormalizedSearchResponse }) {
 **Worker-only key access**:
 
 ```ts
-// lib/storage.ts — never imported by UI entrypoints. Uses the WXT-typed
+// lib/storage/ barrel — never imported by UI entrypoints. Uses the WXT-typed
 // `browser` global (not `chrome`). All keys live under one KEYS_KEY map;
 // getKey reads the map then returns the entry for one provider, or null.
 const KEYS_KEY = 'providerKeys';

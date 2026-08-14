@@ -1,7 +1,7 @@
 ---
 title: "Site Engine as third Search Source with safe persistence invariants"
 date: 2026-07-26
-last_updated: 2026-08-02
+last_updated: 2026-08-14
 category: architecture-patterns
 module: "site-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -12,7 +12,7 @@ applies_when:
   - "Implementing normalize/read-write paths for chrome.storage-backed lists with size budgets"
   - "Wiring SERP or handoff navigation that depends on a source id written just before navigate"
   - "Importing settings schemas that must not wipe local-only collections (e.g. site engines on v3 import)"
-related_components: [lib/site-engines.ts, lib/sources.ts, lib/storage.ts, lib/schema.ts, lib/serp-handoff.ts, lib/config-io.ts, components/SiteEngineManager.tsx]
+related_components: [lib/site-engines.ts, lib/sources.ts, lib/storage/, lib/schema.ts, lib/serp-handoff.ts, lib/config-io.ts, components/SiteEngineManager.tsx]
 tags:
   - site-engine
   - search-source
@@ -44,7 +44,7 @@ Product constraints that shaped the architecture:
 
 Two post-implementation defects (P0 collection wipe, P1 SERP stale navigate) are part of the durable pattern: trusted local storage normalization must never empty-on-oversize, and post-write source switches must re-resolve after write—never navigate with a pre-write URL.
 
-Key modules: `lib/site-engines.ts`, `lib/sources.ts`, `lib/storage.ts`, `lib/schema.ts`, `lib/config-io.ts`, `lib/serp-handoff.ts`, `entrypoints/search/App.tsx`, `entrypoints/serp-bar.content.ts`, `components/SiteEngineManager.tsx`.
+Key modules: `lib/site-engines.ts`, `lib/sources.ts`, `lib/storage/`, `lib/schema.ts`, `lib/config-io.ts`, `lib/serp-handoff.ts`, `entrypoints/search/App.tsx`, `entrypoints/serp-bar.content.ts`, `components/SiteEngineManager.tsx`.
 
 Verification after fixes: typecheck, lint, full test suite, and build passed; residual review: no actionable findings.
 

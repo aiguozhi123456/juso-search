@@ -12,7 +12,7 @@ symptoms:
   - "No error is thrown; the loss is written to chrome.storage.local immediately and persists"
 root_cause: logic_error
 resolution_type: code_fix
-related_components: [lib/storage.ts, lib/sources.ts, lib/source-groups.ts, lib/schema.ts]
+related_components: [lib/storage/, lib/sources.ts, lib/source-groups.ts, lib/schema.ts]
 tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-engine, site-engine, config-keys]
 ---
 
@@ -20,9 +20,9 @@ tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-e
 
 ## Problem
 
-引入 Custom Engine 这一新来源类型时，`customDefinitions` 被正确地穿过了**新增的** custom-engine CRUD（`createCustomEngineDefinition` / `updateCustomEngineDefinition` / `deleteCustomEngineDefinition`）以及大多数 source-graph 函数，却漏掉了**早已存在**的 site-engine CRUD 三件套：`createSiteEngineDefinition` / `updateSiteEngineDefinition` / `deleteSiteEngineDefinition`（`lib/storage.ts`）。
+引入 Custom Engine 这一新来源类型时，`customDefinitions` 被正确地穿过了**新增的** custom-engine CRUD（`createCustomEngineDefinition` / `updateCustomEngineDefinition` / `deleteCustomEngineDefinition`）以及大多数 source-graph 函数，却漏掉了**早已存在**的 site-engine CRUD 三件套：`createSiteEngineDefinition` / `updateSiteEngineDefinition` / `deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）。
 
-这三个函数在写入时会调用 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`（`lib/sources.ts` 与 `lib/storage.ts`），但当时只传入了 site 定义，`customDefinitions` 走了默认值 `[]`。而这些 normalizer 的契约是「丢弃任何它不认识的 id」——于是每一次 site-engine 变更都会把所有 `custom:*` id 从持久化的 `sourceOrder` 中剥掉（顺序丢失 → 下次读取时被 `normalizeSourceOrder` 的补尾逻辑追加到末尾），并从 `sourceHidden` 中剥掉（被隐藏的 custom engine 重新可见）。
+这三个函数在写入时会调用 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`（`lib/sources.ts` 与 `lib/storage/` 各 store 模块），但当时只传入了 site 定义，`customDefinitions` 走了默认值 `[]`。而这些 normalizer 的契约是「丢弃任何它不认识的 id」——于是每一次 site-engine 变更都会把所有 `custom:*` id 从持久化的 `sourceOrder` 中剥掉（顺序丢失 → 下次读取时被 `normalizeSourceOrder` 的补尾逻辑追加到末尾），并从 `sourceHidden` 中剥掉（被隐藏的 custom engine 重新可见）。
 
 触发条件：只要存在 ≥1 个 custom engine，**任意一次** site-engine 增删改都会触发。整个过程不抛异常、立即写入 `chrome.storage.local` 并持久化——是一次静默的数据丢失。
 
@@ -46,7 +46,7 @@ tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-e
 2. 用 `normalizeCustomEngineDefinitions` 规范化得到 `customDefinitions`；
 3. 把它作为第三个实参传给 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`。
 
-修复后 `createSiteEngineDefinition`（`lib/storage.ts:411`）的读取与写入：
+修复后 `createSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）的读取与写入：
 
 ```ts
 const got = await browser.storage.local.get([SITE_ENGINES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, CUSTOM_ENGINES_KEY]);
@@ -60,7 +60,7 @@ await browser.storage.local.set({
 });
 ```
 
-`updateSiteEngineDefinition`（`lib/storage.ts:427`）同理；`deleteSiteEngineDefinition`（`lib/storage.ts:442`） additionally 把 `customDefinitions` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site engine 后挑选 fallback 激活源时也不会误判 custom engine 的可用性。
+`updateSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）同理；`deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`） additionally 把 `customDefinitions` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site engine 后挑选 fallback 激活源时也不会误判 custom engine 的可用性。
 
 ### 同类实例 L4：`normalizeGroupConfig` 漏补新内置组到非空 layout
 

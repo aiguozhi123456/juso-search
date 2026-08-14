@@ -82,7 +82,7 @@ A new pref value must be accepted by every layer that validates the preference, 
 
 | Layer | What to update |
 |---|---|
-| `lib/storage.ts` | `BarPositionPref` type union; getter's value acceptance (`stored === 'inline'`) |
+| `lib/storage/` | `BarPositionPref` type union (`keys.ts`); getter's value acceptance (`prefs-store.ts`, `stored === 'inline'`) |
 | `lib/ui-pref-sync.ts` | `isBarPositionPref` + the `uiPrefChanged` message variant validator |
 | `lib/config-io.ts` | `BAR_POSITION_VALUES` set; legacy remap (above) |
 | `lib/schema.ts` | `CONFIG_KEYS` whitelist (if the key isn't already in it); the migration entry |
