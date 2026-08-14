@@ -142,6 +142,10 @@ Static host longhands are restored by later shadow-tree important declarations. 
 :host([data-engine="bing"]) {
   z-index: 1 !important;
 }
+
+:host([data-engine="weixin"]) {
+  z-index: 1 !important;
+}
 ```
 
 CSS `all` does not reset custom properties, so the outer host can safely provide dynamic values consumed by the later inner rule.
@@ -149,6 +153,8 @@ CSS `all` does not reset custom properties, so the outer host can safely provide
 `onMount` marks the host with `data-engine`. In a shadow stylesheet, `:host([data-engine="bing"])` matches the custom element that owns the shadow root when that outer host carries the attribute; it does not search for a descendant inside the shadow tree. This mount-to-CSS bridge lets one shared stylesheet express engine-specific host behavior without leaking selectors into Bing's document.
 
 Bing keeps the shared relative positioning and pointer events, but its native `#sw_as` autosuggest layer is around `z-index: 6`. The Bing-only override uses `1`, with the intended ordering of ordinary result content, then the switch bar, then native suggestions. Other engines do not match the override and retain the shared `20` layer. Both declarations remain important so they continue to beat WXT's earlier important host reset; the more specific Bing selector is also declared after the shared rule. The actual ancestor stacking contexts and hit testing still require real-browser confirmation.
+
+**Sogou WeChat (`weixin`) is the same bug class with a different mechanism.** The native suggestion dropdown (`.suggestion`, `z-index: 2`) lives inside `.header-box` (`position: relative; z-index: 12`), so its effective stacking level is capped at `12` by its ancestor context — raising the dropdown's own z-index can never beat the shared host layer `20`. The fix is therefore the mirror image of Bing's: tag the host `data-engine="weixin"` and lower it to `1` (below `12`), so the whole header context (including the suggestion dropdown) paints above the bar. The page-bottom `bottom-form` suggestion box sits in the root context at `z-index: 2`, which also stays above `1`. Verified against the live SERP DOM + both stylesheets (2026-08-14); real-browser paint-order confirmation still recommended.
 
 ### Choose an outer boundary per engine
 

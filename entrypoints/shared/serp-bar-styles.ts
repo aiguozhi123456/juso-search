@@ -69,6 +69,14 @@ export const serpBarStyles = `
   z-index: 1 !important;
 }
 
+/* 搜狗微信：原生搜索建议（.suggestion）挂在 .header-box（position:relative; z-index:12）的
+ * 层叠上下文内，z-index:2 在其内封顶 12——任何抬高下拉的尝试都无法超过共享层 20。
+ * 与 Bing 同款解法：仅压低本引擎 host 到 1（12 > 1），让 header 及其建议下拉盖过栏；
+ * 页面底部 bottom-form 的建议框在根上下文 z-index:2，同样高于 1。 */
+:host([data-engine="weixin"]) {
+  z-index: 1 !important;
+}
+
 /* 抖音：fixed 贴在搜索框(#douyin-header, h=56)正下方；筛选区(综合/视频/用户…)
  * 在 #search-toolbar-container 内，由 pageStyles 把该工具栏整体下移腾出栏位。
  * left/width 用视口绝对坐标（--juso-serp-left），对齐搜索内容列（#search-content-area），

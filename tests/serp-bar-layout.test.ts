@@ -45,15 +45,20 @@ describe('SERP bar shadow-host layout', () => {
     expect(serpBarStyles).not.toMatch(/--juso-serp-(?:offset-left|width)\s*:/);
   });
 
-  it('keeps Bing below native suggestions without lowering other engines', () => {
+  it('keeps Bing and Sogou WeChat below native suggestions without lowering other engines', () => {
     const sharedHostRule = serpBarStyles.match(/:host \{[^}]*z-index:\s*20\s*!important[^}]*\}/);
     const bingHostRule = serpBarStyles.match(
       /:host\(\[data-engine="bing"\]\)\s*\{[^}]*z-index:\s*1\s*!important[^}]*\}/,
     );
+    const weixinHostRule = serpBarStyles.match(
+      /:host\(\[data-engine="weixin"\]\)\s*\{[^}]*z-index:\s*1\s*!important[^}]*\}/,
+    );
 
     expect(sharedHostRule).not.toBeNull();
     expect(bingHostRule).not.toBeNull();
+    expect(weixinHostRule).not.toBeNull();
     expect(serpBarStyles.indexOf(bingHostRule![0])).toBeGreaterThan(serpBarStyles.indexOf(sharedHostRule![0]));
+    expect(serpBarStyles.indexOf(weixinHostRule![0])).toBeGreaterThan(serpBarStyles.indexOf(sharedHostRule![0]));
   });
 
   it('raises the bottom bar host to int32-max z-index so it sits above site popups once body-mounted', () => {
