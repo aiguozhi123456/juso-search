@@ -144,7 +144,7 @@ export const selectionSearchStyles = `
   gap: 8px !important;
   padding: 6px 8px !important;
   border-radius: var(--radius-sm) !important;
-  cursor: default !important;
+  cursor: pointer !important;
   font-size: 13px !important;
   white-space: nowrap !important;
   color: var(--fg) !important;
@@ -161,6 +161,12 @@ export const selectionSearchStyles = `
   background: var(--bg-soft) !important;
 }
 .juso-sel-group:hover > .juso-sel-group-row svg {
+  color: var(--fg) !important;
+}
+.juso-sel-group.open > .juso-sel-group-row {
+  background: var(--bg-soft) !important;
+}
+.juso-sel-group.open > .juso-sel-group-row svg {
   color: var(--fg) !important;
 }
 
@@ -181,8 +187,7 @@ export const selectionSearchStyles = `
   padding-left: 6px !important;
   z-index: 2 !important;
 }
-.juso-sel-group:hover > .juso-sel-group-sources,
-.juso-sel-group:focus-within > .juso-sel-group-sources {
+.juso-sel-group.open > .juso-sel-group-sources {
   display: block !important;
 }
 
@@ -192,6 +197,14 @@ export const selectionSearchStyles = `
   right: 100% !important;
   padding-left: 4px !important;
   padding-right: 6px !important;
+}
+
+/* 弹窗向上翻转（flyoutUp）时，子浮层向上展开，避免溢出视口底部。 */
+:host([data-sub-flyout-up="true"]) .juso-sel-group-sources {
+  top: auto !important;
+  bottom: 100% !important;
+  padding-top: 4px !important;
+  padding-bottom: 6px !important;
 }
 
 .juso-sel-source-item {

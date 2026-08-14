@@ -31,6 +31,7 @@ import { isUiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { SERP_CONTENT_MATCH_PATTERNS } from '@/lib/engines/scopes';
 import type { GroupConfig } from '@/lib/source-groups';
 import { computePosition } from '@/lib/selection-search-position';
+import { createInsidePointerGuard } from '@/lib/selection-search-dismiss';
 import { SelectionSearchPopup } from '@/components/SelectionSearchPopup';
 import { selectionSearchStyles } from '@/entrypoints/shared/selection-search-styles';
 
@@ -46,6 +47,7 @@ interface PopupState {
   y: number;
   flyoutUp: boolean;
   subFlyoutLeft: boolean;
+  subFlyoutUp: boolean;
 }
 
 export default defineContentScript({
@@ -58,6 +60,8 @@ export default defineContentScript({
     let mountedHost: HTMLElement | null = null;
     let popupState: PopupState | null = null;
     let showEpoch = 0;
+    // 弹窗内指针按下守卫：压制「弹窗内 mousedown 折叠选区 → selectionchange 误关弹窗」。
+    const guard = createInsidePointerGuard();
 
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
       name: 'juso-selection-search',
@@ -76,6 +80,7 @@ export default defineContentScript({
         shadowHost.dataset.style = state.stylePref;
         shadowHost.dataset.flyoutUp = state.flyoutUp ? 'true' : 'false';
         shadowHost.dataset.subFlyoutLeft = state.subFlyoutLeft ? 'true' : 'false';
+        shadowHost.dataset.subFlyoutUp = state.subFlyoutUp ? 'true' : 'false';
         mountedHost = shadowHost;
         const wrapper = document.createElement('div');
         wrapper.style.position = 'absolute';
@@ -104,6 +109,10 @@ export default defineContentScript({
         try { ui.remove(); } catch { /* WXT remove 失败时仍清本地句柄 */ }
       }
       mountedHost = null;
+      // 防跨弹窗重建泄漏：弹窗内 mousedown 置位的压制标志必须随 dismiss 清除，
+      // 否则重建后的弹窗会误压制本应发生的 selectionchange 关闭（弹窗内按下拖出弹窗松开、
+      // 触屏 pointercancel、中途禁用开关等场景）。
+      guard.clear();
     }
 
     function handleSearch(source: SearchSource) {
@@ -154,6 +163,7 @@ export default defineContentScript({
         // 转为页面坐标：position:absolute 随页面滚动，不随视口固定。
         // 子浮层边缘翻转：弹窗靠近视口右侧时子浮层向左展开。
         const subFlyoutLeft = pos.x + 520 > window.innerWidth;
+        const subFlyoutUp = pos.flyoutUp;
         popupState = {
           sources,
           groupConfig: config.groupConfig,
@@ -166,6 +176,7 @@ export default defineContentScript({
           y: pos.y + window.scrollY,
           flyoutUp: pos.flyoutUp,
           subFlyoutLeft,
+          subFlyoutUp,
         };
         ui.mount();
       } catch {
@@ -178,7 +189,11 @@ export default defineContentScript({
     function handleMouseUp(event: MouseEvent) {
       if (!enabled) return;
       // 点击在弹窗内部时不触发新弹窗（让弹窗自己的 onClick 处理）。
-      if (mountedHost && event.composedPath().includes(mountedHost)) return;
+      if (mountedHost && event.composedPath().includes(mountedHost)) {
+        // mousedown 默认动作已过、selectionchange 塌陷已派发（若被折叠），清除压制标志防陈旧。
+        guard.clear();
+        return;
+      }
       // 捕获鼠标坐标（event 在 rAF 后可能被回收）。
       const mx = event.clientX;
       const my = event.clientY;
@@ -206,7 +221,9 @@ export default defineContentScript({
     }
 
     function handleMouseDown(event: MouseEvent) {
-      if (mountedHost && event.composedPath().includes(mountedHost)) return;
+      // 记录本次 mousedown 是否在弹窗内：内部 → 记录 true 并放行（click 由弹窗处理）；
+      // 外部 → 记录 false 并关闭。
+      if (guard.noteMouseDown(event.composedPath(), mountedHost)) return;
       dismissPopup();
     }
 
@@ -216,6 +233,9 @@ export default defineContentScript({
 
     function handleSelectionChange() {
       if (!mountedHost) return;
+      // 弹窗内指针按下引起的选区塌陷不应关闭弹窗（如点击分组容器等普通 div：
+      // mousedown 默认动作折叠划词选区 → selectionchange，click 尚未到达）。
+      if (guard.shouldSuppressSelectionDismiss()) return;
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed) dismissPopup();
     }
