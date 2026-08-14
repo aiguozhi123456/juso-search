@@ -187,6 +187,13 @@ The lightweight index entry shown in the history panel. It contains query, provi
 ### Storage Schema Domain
 A logical partition of `chrome.storage.local` that has its own schema version stamp and migration registry, evolving independently of other domains. The project uses two: a small config domain (user keys and preferences) and a larger cache pool domain (the search result cache). When adding a new persistent storage key, it belongs to exactly one domain, and future shape changes to that key flow through that domain's migration chain — not a global migration. Worker startup checks each domain's version stamp (a single-key read) and runs pending migrations before any gateway handler touches storage; steady-state checks cost near zero because they short-circuit on the stamp alone.
 
+## Storage Concurrency
+
+### Storage Mutation Queue
+A module-level promise chain that serializes read-modify-write cycles against the extension's local storage, one queue per mutable storage collection, so concurrent operations cannot interleave their read and write phases (lost updates). Write functions that join a queue are the only sanctioned way to mutate that collection; cross-module writers (such as config import) call the same exported queue helpers rather than writing directly.
+
+Its protection comes entirely from every writer closing over the same single queue instance — a second copy of the queue (a forked module graph or duplicated queue code) silently reintroduces races with no error. Lock order: an operation that touches both the source graph and provider keys or provider instances must acquire the source-graph queue first, then the inner queue. Consumers reach queue-guarded functions through the storage barrel only; deep imports into its domain modules are lint-banned because they can duplicate the module graph and fork the queues.
+
 ## Billing
 
 ### Step Plan
