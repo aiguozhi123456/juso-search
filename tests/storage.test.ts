@@ -58,7 +58,7 @@ import type { NormalizedSearchResponse } from '@/lib/providers/types';
 // 5 个预置 AI engine（registry 顺序固定），sourceOrder 归一化补尾追加在 duckduckgo 之后。
 const AI_ENGINE_IDS = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'];
 
-// 内存版 chrome.storage.local，实现 storage.ts 用到的 get(null)/get(string)/get(string[])/set/remove。
+// 内存版 chrome.storage.local，实现 storage barrel 用到的 get(null)/get(string)/get(string[])/set/remove。
 function installStorage(): void {
   const store = new Map<string, unknown>();
   vi.stubGlobal('browser', {

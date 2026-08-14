@@ -533,7 +533,7 @@ export function ProviderInstanceManager() {
               id="provider-instance-base"
               value={editor.baseProviderId}
               onChange={(e) => patchEditor({ baseProviderId: e.target.value as ProviderId })}
-              // base provider 由实例 id 编码、存储层不可变更（storage.ts updateProviderInstance）；
+              // base provider 由实例 id 编码、存储层不可变更（lib/storage updateProviderInstance）；
               // 编辑模式禁用下拉，防止切 base 后 submit 按新 base 组装 options，静默清空原设置。
               disabled={editor.mode === 'edit'}
             >

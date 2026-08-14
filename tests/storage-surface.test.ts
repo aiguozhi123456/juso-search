@@ -1,0 +1,108 @@
+import { describe, expect, it } from 'vitest';
+import * as storage from '@/lib/storage';
+
+/**
+ * lib/storage barrel 公共导出面快照。
+ *
+ * 拆分前单文件 lib/storage.ts 的导出面共 92 项：88 个运行时值 + 4 个纯类型
+ * （ThemePref / LocalePref / StylePref / BarPositionPref）。类型不出现在运行时命名空间，
+ * 由 typecheck 覆盖；本快照锁定 88 个运行时导出，防止未来模块用 `export *` 静默泄漏
+ * 内部实现（max-results-store 的 readMaxResultsMapFrom 即靠精确命名列表排除）。
+ */
+describe('storage barrel export surface', () => {
+  it('exposes exactly the 88 runtime exports (alphabetical snapshot)', () => {
+    expect(Object.keys(storage).sort()).toEqual([
+      // keys（20 常量）+ max-results 常量（2）
+      'ACTIVE_KEY',
+      'ACTIVE_SOURCE_KEY',
+      'AGENT_BRIDGE_ENABLED_KEY',
+      'AI_AUTO_ENTER_KEY',
+      'BAR_POSITION_KEY',
+      'CUSTOM_ENGINES_KEY',
+      'ENGINE_SEARCH_ENABLED_KEY',
+      'FLAT_LAYOUT_FEW_SOURCES_KEY',
+      'GROUP_CONFIG_KEY',
+      'KEYS_KEY',
+      'LOCALE_KEY',
+      'MAX_RESULTS_KEY',
+      'MAX_RESULTS_MAX',
+      'MAX_RESULTS_MIN',
+      'PROVIDER_INSTANCES_KEY',
+      'SELECTION_SEARCH_ENABLED_KEY',
+      'SELECTION_SEARCH_SOURCE_KEY',
+      'SITE_ENGINES_KEY',
+      'SOURCE_HIDDEN_KEY',
+      'SOURCE_ORDER_KEY',
+      'STYLE_KEY',
+      'THEME_KEY',
+      // 函数（66）
+      'clampMaxResults',
+      'clearKey',
+      'clearProviderMaxResults',
+      'clearSearchCache',
+      'createCustomEngineDefinition',
+      'createProviderInstance',
+      'createSiteEngineDefinition',
+      'deleteCachedSearch',
+      'deleteCustomEngineDefinition',
+      'deleteProviderInstance',
+      'deleteSiteEngineDefinition',
+      'ensureDefaultInstance',
+      'getActiveProviderId',
+      'getActiveSourceId',
+      'getAgentBridgeEnabled',
+      'getAiAutoEnter',
+      'getAllProviderMaxResults',
+      'getBarPositionPref',
+      'getCachedSearch',
+      'getCachedSearchEntry',
+      'getConfiguredProviderIds',
+      'getCustomEngineDefinitions',
+      'getEngineSearchEnabled',
+      'getFlatLayoutFewSources',
+      'getGroupConfig',
+      'getKey',
+      'getLocalePref',
+      'getProviderConfigSnapshot',
+      'getProviderInstances',
+      'getProviderMaxResults',
+      'getSearchCacheSummaries',
+      'getSelectionSearchEnabled',
+      'getSelectionSearchSource',
+      'getSiteEngineDefinitions',
+      'getSourceHidden',
+      'getSourceOrder',
+      'getStylePref',
+      'getThemePref',
+      'saveCachedSearch',
+      'selectActiveSourceId',
+      'setActiveProviderAndSourceId',
+      'setActiveProviderId',
+      'setActiveSourceId',
+      'setAgentBridgeEnabled',
+      'setAiAutoEnter',
+      'setBarPositionPref',
+      'setEngineSearchEnabled',
+      'setFlatLayoutFewSources',
+      'setGroupConfig',
+      'setKey',
+      'setLocalePref',
+      'setProviderInstances',
+      'setProviderMaxResults',
+      'setSelectionSearchEnabled',
+      'setSelectionSearchSource',
+      'setSourceHidden',
+      'setSourceOrder',
+      'setStylePref',
+      'setThemePref',
+      'updateCustomEngineDefinition',
+      'updateProviderInstance',
+      'updateSiteEngineDefinition',
+      'withProviderInstancesMutation',
+      'withProviderKeysMutation',
+      'withProviderMaxResultsMutation',
+      'withSourceMutation',
+    ]);
+    expect(Object.keys(storage)).toHaveLength(88);
+  });
+});

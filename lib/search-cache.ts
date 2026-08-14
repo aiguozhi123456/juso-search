@@ -202,7 +202,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 // 失败兜底：迁移抛异常 → catch → 丢弃整个缓存池（clearSearchCache 语义）+ 盖章当前版本，
 //   缓存可重生，不因一次失败永久卡住。此兜底在 ensureCacheSchemaFailedRecovery 中实现。
 //
-// 注意：本文件不直接 import clearSearchCache（storage.ts），避免循环依赖。
+// 注意：本文件不直接 import clearSearchCache（lib/storage barrel），避免循环依赖。
 // ensureCacheSchema 内部直接操作 storage key（用 SEARCH_CACHE_INDEX_KEY / 前缀 / 版本戳）。
 
 /** 读 cacheSchemaVersion 单键；缺则 0（首装）。 */

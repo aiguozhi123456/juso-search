@@ -20,4 +20,17 @@ export default tseslint.config(
       sourceType: 'module',
     },
   },
+  {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: ['@/lib/storage/*', '../storage/*', './storage/*'],
+            message: '深层导入 lib/storage/ 子模块被禁止：所有消费者必须经 @/lib/storage barrel 导入，保证 mutation 队列单一实例与稳定公共 API 面。',
+          },
+        ],
+      }],
+    },
+  },
 );
