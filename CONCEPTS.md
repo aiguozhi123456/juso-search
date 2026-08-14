@@ -89,6 +89,11 @@ On slow SPA SERPs, the bar re-resolves ordered placement anchors on each mount, 
 
 The bar has **three placement models**, selected by a user preference (`auto` / `top` / `inline` / `bottom`). The **inline** model is per-engine anchor insertion: the shadow host is a sibling of a persistent results container, horizontally aligned to the engine's main content column. The **top** and **bottom** models are universal fixed viewport overlays (`position: fixed; top: 0` / `bottom: 0`) with page-padding shims so the fixed bar does not cover content; they ignore per-engine anchors entirely and mount the shadow host to `document.body` to escape site stacking and containing-block contexts. In `auto` mode the bar resolves to **inline** on desktop viewports and **bottom** on narrow viewports (≤480px). The overlay variants support scroll-to-hide (the bar slides out on downward scroll and returns on upward scroll or near page top) and mobile polish (safe-area insets, horizontal chip scroll, active-chip centering).
 
+### Selection Search
+A cursor-anchored floating popup shown after selecting text on any webpage, letting the user hand the selected text to the active or a chosen Search Source without leaving the page. Distinct from the SERP Switch Bar (which operates on Search Engine result pages) and from the right-click context menu: the popup appears at the pointer and its flyout pick is one-shot — choosing a source from the flyout searches once and closes without changing the user's default source.
+
+The popup's primary action uses the fixed-source preference when one is set, otherwise falls back to the Active Source, then the first visible source; the fixed-source preference is a UI-layer setting that never alters the persisted Active Source.
+
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
 

@@ -92,6 +92,10 @@ export type ProtocolMap = {
   setAiAutoEnter(value: boolean): Promise<void>;
   /** 设置少量来源自动平铺开关（默认 true）。 */
   setFlatLayoutFewSources(value: boolean): Promise<void>;
+  /** 设置划词搜索开关（默认 true）。 */
+  setSelectionSearchEnabled(value: boolean): Promise<void>;
+  /** 设置划词搜索固定源（null = 跟随激活源）。 */
+  setSelectionSearchSource(sourceId: string | null): Promise<void>;
   createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
   deleteSiteEngine(siteId: SiteEngineId): Promise<void>;
@@ -110,6 +114,8 @@ export type ProtocolMap = {
   // 由 background 在特权上下文用 tabs.update 把当前 tab 导航到扩展页深链。
   // SERP 注入栏不能自己 location.assign 到 chrome-extension://（被客户端拦截）。
   openSearchPage(deepLink: string): Promise<void>;
+  // 划词搜索：在新标签页打开扩展搜索页深链（与 openSearchPage 的 tabs.update 区分）。
+  openSearchPageNewTab(deepLink: string): Promise<void>;
   getSearchCacheSummaries(): Promise<SearchCacheSummary[]>;
   getCachedSearchEntry(id: string): Promise<SearchCacheEntry | null>;
   deleteCachedSearch(id: string): Promise<void>;

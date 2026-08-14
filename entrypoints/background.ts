@@ -46,6 +46,10 @@ import { runEngineSearch } from '@/lib/engine-search';
 import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
 import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
 import { contextMenuNeedsRebuild, handleContextMenuClick, setupContextMenu } from '@/lib/context-menu';
+import {
+  handleSetSelectionSearchEnabled,
+  handleSetSelectionSearchSource,
+} from '@/lib/gateway';
 
 export default defineBackground(() => {
   // data: URL 下载的 filename 修正守卫：注册 onDeterminingFilename 监听器，强制本扩展
@@ -75,6 +79,8 @@ export default defineBackground(() => {
   onMessage('aiInjectAllowed', ({ data }) => handleAiInjectAllowed(data));
   onMessage('setAiAutoEnter', ({ data }) => handleSetAiAutoEnter(data));
   onMessage('setFlatLayoutFewSources', ({ data }) => handleSetFlatLayoutFewSources(data));
+  onMessage('setSelectionSearchEnabled', ({ data }) => handleSetSelectionSearchEnabled(data));
+  onMessage('setSelectionSearchSource', ({ data }) => handleSetSelectionSearchSource(data));
   onMessage('setGroupConfig', ({ data }) => handleSetGroupConfig(data));
   onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
   onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));
@@ -120,6 +126,17 @@ export default defineBackground(() => {
     void browser.tabs
       .update(tabId, { url: target })
       .catch((e) => console.warn('[openSearchPage] tabs.update failed', tabId, e));
+  });
+  // 划词搜索：在新标签页打开扩展搜索页深链（与 openSearchPage 的 tabs.update 当前 tab 区分）。
+  // content script 不能 location.assign 到 chrome-extension://（ERR_BLOCKED_BY_CLIENT），
+  // 也不能复用 openNewTab（sanitizeOpenNewTabUrl 拒绝非 http(s) URL），故走此专用 handler。
+  onMessage('openSearchPageNewTab', ({ data }) => {
+    const target = buildSafeSearchUrl(data);
+    if (!target) {
+      console.warn('[openSearchPageNewTab] rejected deep link', data);
+      return;
+    }
+    void browser.tabs.create({ url: target }).catch((e) => console.warn('[openSearchPageNewTab] tabs.create failed', e));
   });
   onMessage('getSearchCacheSummaries', () => handleGetSearchCacheSummaries());
   onMessage('getCachedSearchEntry', ({ data }) => handleGetCachedSearchEntry(data));
@@ -168,6 +185,10 @@ export default defineBackground(() => {
     const barPosition = changes.serpBarPosition?.newValue;
     if (isBarPositionPref(barPosition)) {
       void broadcastUiPref({ type: 'uiPrefChanged', key: 'serpBarPosition', value: barPosition });
+    }
+    const selectionSearchEnabled = changes.selectionSearchEnabled?.newValue;
+    if (typeof selectionSearchEnabled === 'boolean') {
+      void broadcastUiPref({ type: 'uiPrefChanged', key: 'selectionSearchEnabled', value: selectionSearchEnabled });
     }
   });
 

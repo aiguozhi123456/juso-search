@@ -26,6 +26,8 @@ vi.mock('@/lib/storage', () => ({
   setAgentBridgeEnabled: vi.fn().mockResolvedValue(undefined),
   getEngineSearchEnabled: vi.fn().mockResolvedValue(false),
   setEngineSearchEnabled: vi.fn().mockResolvedValue(undefined),
+  getSelectionSearchEnabled: vi.fn().mockResolvedValue(false),
+  getSelectionSearchSource: vi.fn().mockResolvedValue(null),
 }));
 
 const mockedSend = vi.mocked(sendMessage);

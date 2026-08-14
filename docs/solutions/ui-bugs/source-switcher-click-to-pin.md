@@ -119,6 +119,7 @@ const scheduleClose = () => {
 
 ## Related Issues
 
+- [wxt-shadow-root-inline-style-clobber](../ui-bugs/wxt-shadow-root-inline-style-clobber.md) — 划词搜索弹窗把同一 hover-intent 两段式模式复用到第二个组件（SelectionSearchPopup，150ms、纯 hover），与本文档的 120ms click-to-pin 变体共享 scheduleClose/cancelClose + 卸载清理结构；共享浮层状态机锚点在 [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) §4d-4e。
 - [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — 锚点文档：§4d-4f 记录了本次改动所扩展的同一浮层状态机（hover-intent 120ms、touch focus/click 竞态、shadow-safe 外部关闭、scroll-hide 关浮层）。其 §4d/§4e 的代码示例与表述已随本次改动同步刷新（统一为各模式 / overlayPosition）。
 - [source-group-layout-layer](../architecture-patterns/source-group-layout-layer.md) — Source Group Layout 布局层（pinned 平铺 vs grouped 折叠、projectLayout），pill 的交互描述（"hover flyout"）未包含点击固定语义。
 - [serp-switch-bar-and-unified-source-model](../architecture-patterns/serp-switch-bar-and-unified-source-model.md) — 两宿主（搜索页顶栏 vs shadow-DOM SERP 栏）结构与 projectLayout seam 的结构背景。

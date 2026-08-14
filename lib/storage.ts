@@ -74,6 +74,8 @@ export const ENGINE_SEARCH_ENABLED_KEY = 'engineSearchEnabled'; // boolean
 export const BAR_POSITION_KEY = 'serpBarPosition'; // BarPositionPref (快切栏栏位：auto / top / inline / bottom)
 export const AI_AUTO_ENTER_KEY = 'aiAutoEnter'; // AI engine 自动回车开关（默认 true，stored !== false 才 true）
 export const FLAT_LAYOUT_FEW_SOURCES_KEY = 'flatLayoutFewSources'; // 少量来源自动平铺开关（默认 true，stored !== false 才 true）
+export const SELECTION_SEARCH_ENABLED_KEY = 'selectionSearchEnabled'; // 划词搜索开关（默认 true，stored !== false 才 true）
+export const SELECTION_SEARCH_SOURCE_KEY = 'selectionSearchSource'; // 划词搜索固定源（SourceId | null，null = 跟随激活源）
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';
@@ -376,6 +378,29 @@ export async function getFlatLayoutFewSources(): Promise<boolean> {
 
 export async function setFlatLayoutFewSources(v: boolean): Promise<void> {
   await browser.storage.local.set({ [FLAT_LAYOUT_FEW_SOURCES_KEY]: v });
+}
+
+/** 划词搜索开关：默认 true（stored !== false 才 true）。
+ *  控制选中文本后是否显示搜索弹窗。 */
+export async function getSelectionSearchEnabled(): Promise<boolean> {
+  const got = await browser.storage.local.get(SELECTION_SEARCH_ENABLED_KEY);
+  return got[SELECTION_SEARCH_ENABLED_KEY] !== false;
+}
+
+export async function setSelectionSearchEnabled(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [SELECTION_SEARCH_ENABLED_KEY]: v });
+}
+
+/** 划词搜索固定源：null = 跟随全局激活源；指定 SourceId 则弹窗主 chip 固定为该源。
+ *  非法值（未知 id）回退 null。 */
+export async function getSelectionSearchSource(): Promise<string | null> {
+  const got = await browser.storage.local.get(SELECTION_SEARCH_SOURCE_KEY);
+  const stored = got[SELECTION_SEARCH_SOURCE_KEY];
+  return typeof stored === 'string' ? stored : null;
+}
+
+export async function setSelectionSearchSource(id: string | null): Promise<void> {
+  await browser.storage.local.set({ [SELECTION_SEARCH_SOURCE_KEY]: id });
 }
 
 /** Agent Bridge 总开关：默认 false，stored === true 才 true。

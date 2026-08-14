@@ -64,6 +64,8 @@ export default defineConfig({
       'https://api.parallel.ai/*',
     ],
     // 静态 content script 不需要额外 host permission；engine 与 provider 的 favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
+    // 划词搜索弹窗在任意网页注入，favicon 需在所有页面可加载，故新增 <all_urls> 条目。
+    // WAR 是资源暴露声明，不是权限——不触发额外权限提示。
     web_accessible_resources: [
       {
         resources: [
@@ -92,6 +94,34 @@ export default defineConfig({
           'icons/ai-gemini.svg',
         ],
         matches: SERP_HOST_MATCH_PATTERNS,
+      },
+      {
+        resources: [
+          'icons/google.svg',
+          'icons/bing.svg',
+          'icons/baidu.svg',
+          'icons/douyin.svg',
+          'icons/xiaohongshu.svg',
+          'icons/bilibili.svg',
+          'icons/yandex.svg',
+          'icons/duckduckgo.svg',
+          'icons/weixin.svg',
+          'icons/tavily.svg',
+          'icons/exa.svg',
+          'icons/brave.svg',
+          'icons/stepfun.svg',
+          'icons/doubao.svg',
+          'icons/jina.svg',
+          'icons/parallel.svg',
+          'icons/site.svg',
+          'icons/custom-engine.svg',
+          'icons/ai-grok.svg',
+          'icons/ai-chatgpt.svg',
+          'icons/ai-deepseek.svg',
+          'icons/ai-doubao-chat.svg',
+          'icons/ai-gemini.svg',
+        ],
+        matches: ['<all_urls>'],
       },
     ],
   }),

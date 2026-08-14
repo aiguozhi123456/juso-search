@@ -63,6 +63,14 @@ describe('CONFIG_KEYS whitelist', () => {
   it('includes flatLayoutFewSources in the config whitelist', () => {
     expect(CONFIG_KEYS).toContain('flatLayoutFewSources');
   });
+
+  it('includes selectionSearchEnabled in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('selectionSearchEnabled');
+  });
+
+  it('includes selectionSearchSource in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('selectionSearchSource');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

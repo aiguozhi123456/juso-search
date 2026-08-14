@@ -481,6 +481,13 @@ export const MSG = {
   error_mcp_upstream: 'error_mcp_upstream',
   error_mcp_no_result: 'error_mcp_no_result',
   error_mcp_no_text: 'error_mcp_no_text',
+  // 划词搜索
+  selection_search_group: 'selection_search_group',
+  selection_search_on: 'selection_search_on',
+  selection_search_off: 'selection_search_off',
+  selection_search_hint: 'selection_search_hint',
+  selection_search_source: 'selection_search_source',
+  selection_search_source_default: 'selection_search_source_default',
 } as const;
 
 export type MessageName = (typeof MSG)[keyof typeof MSG];

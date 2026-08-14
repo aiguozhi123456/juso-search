@@ -35,6 +35,8 @@ import {
   setGroupConfig,
   setAiAutoEnter,
   setFlatLayoutFewSources,
+  setSelectionSearchEnabled,
+  setSelectionSearchSource,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
   deleteSiteEngineDefinition,
@@ -338,6 +340,18 @@ export async function handleSetAiAutoEnter(value: boolean): Promise<void> {
 export async function handleSetFlatLayoutFewSources(value: boolean): Promise<void> {
   await getSchemaReady();
   await setFlatLayoutFewSources(value);
+}
+
+/** 设置划词搜索开关（默认 true）。 */
+export async function handleSetSelectionSearchEnabled(value: boolean): Promise<void> {
+  await getSchemaReady();
+  await setSelectionSearchEnabled(value);
+}
+
+/** 设置划词搜索固定源（null = 跟随激活源）。 */
+export async function handleSetSelectionSearchSource(sourceId: string | null): Promise<void> {
+  await getSchemaReady();
+  await setSelectionSearchSource(sourceId);
 }
 
 export async function handleGetSearchCacheSummaries(): Promise<SearchCacheSummary[]> {

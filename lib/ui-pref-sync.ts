@@ -4,7 +4,8 @@ export type UiPrefChangedMessage =
   | { type: 'uiPrefChanged'; key: 'themePref'; value: ThemePref }
   | { type: 'uiPrefChanged'; key: 'localePref'; value: LocalePref }
   | { type: 'uiPrefChanged'; key: 'stylePref'; value: StylePref }
-  | { type: 'uiPrefChanged'; key: 'serpBarPosition'; value: BarPositionPref };
+  | { type: 'uiPrefChanged'; key: 'serpBarPosition'; value: BarPositionPref }
+  | { type: 'uiPrefChanged'; key: 'selectionSearchEnabled'; value: boolean };
 
 export function isUiPrefChangedMessage(message: unknown): message is UiPrefChangedMessage {
   if (!message || typeof message !== 'object') return false;
@@ -14,6 +15,7 @@ export function isUiPrefChangedMessage(message: unknown): message is UiPrefChang
   if (candidate.key === 'localePref') return candidate.value === 'auto' || candidate.value === 'zh_CN' || candidate.value === 'en';
   if (candidate.key === 'stylePref') return candidate.value === 'classic' || candidate.value === 'colorful';
   if (candidate.key === 'serpBarPosition') return candidate.value === 'auto' || candidate.value === 'top' || candidate.value === 'inline' || candidate.value === 'bottom';
+  if (candidate.key === 'selectionSearchEnabled') return typeof candidate.value === 'boolean';
   return false;
 }
 

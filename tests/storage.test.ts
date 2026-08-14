@@ -21,6 +21,10 @@ import {
   setAiAutoEnter,
   getFlatLayoutFewSources,
   setFlatLayoutFewSources,
+  getSelectionSearchEnabled,
+  setSelectionSearchEnabled,
+  getSelectionSearchSource,
+  setSelectionSearchSource,
   getSourceOrder,
   setSourceOrder,
   getSourceHidden,
@@ -370,6 +374,48 @@ describe('storage: flatLayoutFewSources', () => {
     expect(snap.flatLayoutFewSources).toBe(true);
     await setFlatLayoutFewSources(false);
     expect((await getProviderConfigSnapshot()).flatLayoutFewSources).toBe(false);
+  });
+});
+
+describe('storage: selectionSearchEnabled', () => {
+  it('defaults to true when unset', async () => {
+    expect(await getSelectionSearchEnabled()).toBe(true);
+  });
+
+  it('round-trips explicit values', async () => {
+    await setSelectionSearchEnabled(false);
+    expect(await getSelectionSearchEnabled()).toBe(false);
+    await setSelectionSearchEnabled(true);
+    expect(await getSelectionSearchEnabled()).toBe(true);
+  });
+
+  it('treats stored false as off and any other value as on', async () => {
+    await browser.storage.local.set({ selectionSearchEnabled: false });
+    expect(await getSelectionSearchEnabled()).toBe(false);
+    await browser.storage.local.set({ selectionSearchEnabled: true });
+    expect(await getSelectionSearchEnabled()).toBe(true);
+  });
+});
+
+describe('storage: selectionSearchSource', () => {
+  it('defaults to null when unset', async () => {
+    expect(await getSelectionSearchSource()).toBeNull();
+  });
+
+  it('round-trips a source id', async () => {
+    await setSelectionSearchSource('google');
+    expect(await getSelectionSearchSource()).toBe('google');
+  });
+
+  it('round-trips null (follow default)', async () => {
+    await setSelectionSearchSource('bing');
+    await setSelectionSearchSource(null);
+    expect(await getSelectionSearchSource()).toBeNull();
+  });
+
+  it('returns null for non-string stored values', async () => {
+    await browser.storage.local.set({ selectionSearchSource: 42 });
+    expect(await getSelectionSearchSource()).toBeNull();
   });
 });
 

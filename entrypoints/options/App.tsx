@@ -11,12 +11,14 @@ import type { GroupConfig } from '@/lib/source-groups';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import { SourceGroupEditor } from '@/components/SourceGroupEditor';
 import { sendMessage } from '@/lib/messaging';
+import { getSelectionSearchEnabled, getSelectionSearchSource } from '@/lib/storage';
 import { KeyInput } from '@/components/KeyInput';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { StyleToggle } from '@/components/StyleToggle';
 import { BarPositionToggle } from '@/components/BarPositionToggle';
 import { AiAutoEnterToggle } from '@/components/AiAutoEnterToggle';
 import { FlatLayoutToggle } from '@/components/FlatLayoutToggle';
+import { SelectionSearchToggle } from '@/components/SelectionSearchToggle';
 import { LocaleToggle } from '@/components/LocaleToggle';
 import { ConfigExportImport } from '@/components/ConfigExportImport';
 import { AgentBridgeSettings } from '@/components/AgentBridgeSettings';
@@ -113,6 +115,8 @@ export default function App() {
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
   const [aiAutoEnter, setAiAutoEnterState] = useState(true);
   const [flatLayoutFewSources, setFlatLayoutFewSourcesState] = useState(true);
+  const [selectionSearchEnabled, setSelectionSearchEnabledState] = useState(true);
+  const [selectionSearchSource, setSelectionSearchSourceState] = useState<string | null>(null);
   const [active, setActive] = useState<SourceId | null>(null);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>(() => normalizeSourceOrder(undefined));
   const [sourceHidden, setSourceHiddenState] = useState<SourceId[]>([]);
@@ -193,6 +197,14 @@ export default function App() {
       if (hiddenRevisionAtRequest === sourceHiddenRevision.current) {
         setSourceHiddenState(config.sourceHidden ?? []);
       }
+      // 划词搜索开关与固定源不在 ProviderConfigReply 中，直接从 storage 读取。
+      const [enabled, source] = await Promise.all([
+        getSelectionSearchEnabled(),
+        getSelectionSearchSource(),
+      ]);
+      if (requestEpoch !== configRequestEpoch.current) return;
+      setSelectionSearchEnabledState(enabled);
+      setSelectionSearchSourceState(source);
     })();
   }
 
@@ -236,6 +248,24 @@ export default function App() {
     setFlatLayoutFewSourcesState(value);
     try {
       await sendMessage('setFlatLayoutFewSources', value);
+    } catch {
+      syncConfig();
+    }
+  }
+
+  async function handleSelectionSearchEnabledChange(value: boolean) {
+    setSelectionSearchEnabledState(value);
+    try {
+      await sendMessage('setSelectionSearchEnabled', value);
+    } catch {
+      syncConfig();
+    }
+  }
+
+  async function handleSelectionSearchSourceChange(sourceId: string | null) {
+    setSelectionSearchSourceState(sourceId);
+    try {
+      await sendMessage('setSelectionSearchSource', sourceId);
     } catch {
       syncConfig();
     }
@@ -328,6 +358,28 @@ export default function App() {
                 </option>
               ))}
             </select>
+          </section>
+
+          <section data-section="selection-search">
+            <h2>{t(MSG.selection_search_group)}</h2>
+            <div className="bar-position-row">
+              <SelectionSearchToggle enabled={selectionSearchEnabled} onChange={handleSelectionSearchEnabledChange} />
+            </div>
+            {selectionSearchEnabled && (
+              <div className="bar-position-row">
+                <span className="bar-position-label">{t(MSG.selection_search_source)}</span>
+                <select
+                  value={selectionSearchSource ?? ''}
+                  onChange={(e) => handleSelectionSearchSourceChange(e.target.value || null)}
+                >
+                  <option value="">{t(MSG.selection_search_source_default)}</option>
+                  {configuredSources.map((s) => (
+                    <option key={s.id} value={s.id}>{sourceLabel(s, t)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <p className="hint">{t(MSG.selection_search_hint)}</p>
           </section>
 
           <section data-section="site-engines">
