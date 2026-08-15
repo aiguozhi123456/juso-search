@@ -12,6 +12,7 @@ groups:
       - { icon: bilibili,     name_zh: 哔哩哔哩,  name_en: Bilibili }
       - { icon: yandex,       name_zh: Yandex,    name_en: Yandex }
       - { icon: duckduckgo,   name_zh: DuckDuckGo, name_en: DuckDuckGo }
+      - { icon: weixin,       name_zh: 搜狗微信,      name_en: Sogou WeChat }
   - key: ai_search
     items:
       - { icon: tavily,   name_zh: Tavily, name_en: Tavily }
@@ -20,6 +21,7 @@ groups:
       - { icon: stepfun,  name_zh: Stepfun, name_en: Stepfun }
       - { icon: jina,     name_zh: Jina,   name_en: Jina }
       - { icon: doubao,   name_zh: 豆包,  name_en: Doubao }
+      - { icon: parallel, name_zh: Parallel, name_en: Parallel }
   - key: ai_chat
     items:
       - { icon: ai-grok,        name_zh: Grok,      name_en: Grok }

@@ -251,7 +251,7 @@ docs_human_sub:
 docs_human_sources_title:
   other: "来源与切换"
 docs_human_sources_body:
-  other: "传统引擎、站外搜索、自定义引擎和 AI 对话引擎都可作为统一搜索来源，在搜索页和支持的结果页之间切换。"
+  other: "传统引擎、站外搜索、自定义引擎和 AI 对话引擎都可作为统一搜索来源，在搜索页、划词弹窗和支持的结果页之间切换。"
 docs_human_keys_title:
   other: "服务与密钥"
 docs_human_keys_body:
@@ -329,7 +329,7 @@ docs_hub_human_tag:
 docs_hub_human_title:
   other: "配置、搜索与切换"
 docs_hub_human_body:
-  other: "从开箱即用的传统引擎，到 AI 搜索服务、AI Engine、实例、站外搜索、自定义引擎、缓存与配置管理。"
+  other: "从开箱即用的传统引擎与划词搜索，到 AI 搜索服务、AI Engine、实例、站外搜索、自定义引擎、缓存与配置管理。"
 docs_hub_human_link:
   other: "进入人类使用文档"
 docs_hub_agents_tag:
@@ -371,15 +371,15 @@ human_doc_nav_local:
 human_doc_start_title:
   other: "从一个可用的搜索开始"
 human_doc_start_body:
-  other: "安装后打开双面搜搜索页。Google、Bing、百度、抖音、小红书、哔哩哔哩、Yandex 与 DuckDuckGo 不需要 API 密钥；未显示的来源可在设置页启用。"
+  other: "安装后打开双面搜搜索页。Google、Bing、百度、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 与搜狗微信文章搜索不需要 API 密钥；未显示的来源可在设置页启用。"
 human_doc_sources_title:
   other: "在搜索页与结果页之间切换"
 human_doc_sources_body:
-  other: "搜索页负责选择来源；在受支持的传统搜索结果页，SERP 切换栏可沿用当前查询切换到其他引擎，或跳转到双面搜的 AI 搜索页。"
+  other: "搜索页负责选择来源；选中网页文字时，划词搜索弹窗会以已设定来源直接发起搜索，也可展开选择其他已启用来源；在受支持的传统搜索结果页，SERP 切换栏可沿用当前查询切换到其他引擎，或跳转到双面搜的 AI 搜索页。"
 human_doc_services_title:
   other: "按需配置 AI 搜索服务"
 human_doc_services_body:
-  other: "只有调用 AI 搜索服务时才需要配置对应密钥。服务配置状态会回传给界面，已存储的密钥不会被页面重新读取。"
+  other: "只有调用 AI 搜索服务（包括 Parallel）时才需要配置对应密钥。服务配置状态会回传给界面，已存储的密钥不会被页面重新读取。"
 human_doc_instances_title:
   other: "为同一服务保存多套实例"
 human_doc_instances_body:

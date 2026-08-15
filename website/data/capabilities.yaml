@@ -4,8 +4,8 @@ rows:
   - face: human
     title_zh: 聚合与切换
     title_en: Aggregate & switch
-    text_zh: 聚合传统搜索引擎与可保存的站外搜索，并在独立搜索页与结果页中快速切换
-    text_en: Aggregates conventional engines and saved site-scoped searches with fast switching on the Juso page and result pages
+    text_zh: 聚合传统搜索引擎与可保存的站外搜索，并在独立搜索页、划词弹窗与结果页中快速切换
+    text_en: Aggregates conventional engines and saved site-scoped searches with fast switching on the Juso page, selection popup, and result pages
   - face: human
     title_zh: AI 搜索 API
     title_en: AI search APIs

@@ -251,7 +251,7 @@ docs_human_sub:
 docs_human_sources_title:
   other: "Sources & switching"
 docs_human_sources_body:
-  other: "Conventional engines, site search, custom engines, and AI chat engines can all become unified sources that switch from the search page and supported result pages."
+  other: "Conventional engines, site search, custom engines, and AI chat engines can all become unified sources that switch from the search page, selection popup, and supported result pages."
 docs_human_keys_title:
   other: "Services & keys"
 docs_human_keys_body:
@@ -329,7 +329,7 @@ docs_hub_human_tag:
 docs_hub_human_title:
   other: "Configure, search & switch"
 docs_hub_human_body:
-  other: "From ready-to-use conventional engines to AI search services, AI Engines, instances, site search, custom engines, cache, and configuration management."
+  other: "From ready-to-use conventional engines and selection search to AI search services, AI Engines, instances, site search, custom engines, cache, and configuration management."
 docs_hub_human_link:
   other: "Open people documentation"
 docs_hub_agents_tag:
@@ -371,15 +371,15 @@ human_doc_nav_local:
 human_doc_start_title:
   other: "Begin with a usable search"
 human_doc_start_body:
-  other: "After installing, open the Juso search page. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no API key; enable hidden sources from Settings when needed."
+  other: "After installing, open the Juso search page. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, DuckDuckGo, and Sogou WeChat article search need no API key; enable hidden sources from Settings when needed."
 human_doc_sources_title:
   other: "Switch from the search page or result page"
 human_doc_sources_body:
-  other: "The search page selects sources. On supported conventional result pages, the SERP Switch Bar carries the current query to another engine or hands off to Juso's AI search page."
+  other: "The search page selects sources. When you select text on a page, the selection popup searches with its set source or expands to another enabled source; on supported conventional result pages, the SERP Switch Bar carries the current query to another engine or hands off to Juso's AI search page."
 human_doc_services_title:
   other: "Configure AI search services only when needed"
 human_doc_services_body:
-  other: "Only AI search services require their respective key. The interface receives configuration status, but never reads stored keys back into the page."
+  other: "Only AI search services, including Parallel, require their respective key. The interface receives configuration status, but never reads stored keys back into the page."
 human_doc_instances_title:
   other: "Keep several instances of one service"
 human_doc_instances_body:
