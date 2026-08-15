@@ -10,8 +10,8 @@ items:
     cmd: engine-search
     title_zh: 借真实浏览器检索传统引擎
     title_en: Search conventional engines via a real browser
-    desc_zh: <code>engine-search</code> 在真实浏览器中检索受支持的传统引擎（包括搜狗微信文章搜索），提取普通结果链接，不承诺 AI 摘要或知识面板。
-    desc_en: <code>engine-search</code> retrieves supported conventional engines, including Sogou WeChat article search, through a real browser, extracting ordinary result links only — no AI summaries or knowledge panels.
+    desc_zh: <code>engine-search</code> 在真实浏览器中检索受支持的传统引擎，提取普通结果链接，不承诺 AI 摘要或知识面板。
+    desc_en: <code>engine-search</code> retrieves supported conventional engines through a real browser, extracting ordinary result links only — no AI summaries or knowledge panels.
   - num: "03"
     cmd: list-providers
     title_zh: 列出已配置的服务

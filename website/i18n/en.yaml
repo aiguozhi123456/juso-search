@@ -379,7 +379,7 @@ human_doc_sources_body:
 human_doc_services_title:
   other: "Configure AI search services only when needed"
 human_doc_services_body:
-  other: "Only AI search services, including Parallel, require their respective key. The interface receives configuration status, but never reads stored keys back into the page."
+  other: "Only AI search services require their respective key. The interface receives configuration status, but never reads stored keys back into the page."
 human_doc_instances_title:
   other: "Keep several instances of one service"
 human_doc_instances_body:

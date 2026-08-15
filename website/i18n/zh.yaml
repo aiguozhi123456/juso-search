@@ -379,7 +379,7 @@ human_doc_sources_body:
 human_doc_services_title:
   other: "按需配置 AI 搜索服务"
 human_doc_services_body:
-  other: "只有调用 AI 搜索服务（包括 Parallel）时才需要配置对应密钥。服务配置状态会回传给界面，已存储的密钥不会被页面重新读取。"
+  other: "只有调用 AI 搜索服务时才需要配置对应密钥。服务配置状态会回传给界面，已存储的密钥不会被页面重新读取。"
 human_doc_instances_title:
   other: "为同一服务保存多套实例"
 human_doc_instances_body:
