@@ -25,33 +25,27 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 
 ## 截图与演示
 
-**AI 搜索：综合答案与结果列表同屏**
+> 下列图片按产品使用路径组织：从统一入口发起搜索，在原生结果页切换来源，再到来源编排和本地智能体接入。AI 搜索、来源编排与 Agent Bridge 图片使用演示配置，以便清晰呈现界面与信息层级；实际 API 可用性和返回内容取决于本地配置的服务与密钥。
 
-![Juso 搜索页，AI 服务返回带引用的综合答案，下方为结果列表](docs/assets/screenshot-search.png)
+### 1. 统一入口：综合答案、引用与结果同屏
 
-**SERP 切换栏：在搜索引擎结果页内一键切换**
+![中文亮色的 Juso 搜索页：包含来源分组、AI 综合答案、引用和卡片化结果列表](docs/assets/showcase/01-search-zh-light.png)
 
-![Bing 结果页顶部的 Juso 切换栏，可切到其他引擎或 AI 搜索](docs/assets/screenshot-serp.png)
+### 2. 划词即搜：在任意网页就近打开来源菜单
 
-**多实例：同一 AI 服务的多套参数，快切栏一等切换**
+![中文亮色的网页划词搜索：选中文本后，Juso 在光标附近展开 Google、搜索引擎、API 搜索与 AI 搜索来源菜单](docs/assets/showcase/07-selection-search-zh-light.png)
 
-![Juso 设置页的实例管理：为同一 AI 搜索服务保存多套调好参数的实例](docs/assets/screens/settings-instances-clean.png)
+### 3. 不离开结果页：原生 SERP 内快速切换
 
-**本地缓存与历史：成功的 AI 搜索可查看、可重放**
+![Bing 结果页顶部的 Juso 快切栏：可在 Exa、Google、Bing、Baidu、抖音和小红书之间切换](docs/assets/showcase/02-serp-quick-switch.png)
 
-![Juso 搜索页的缓存与历史面板](docs/assets/screens/search-cache-panel-clean.png)
+### 4. 一个布局编排全部来源
 
-**搜索来源管理：五类来源统一管理**
+![中文亮色的来源布局设置页：传统搜索引擎、API 搜索和 AI 对话入口按分组统一编排](docs/assets/showcase/03-sources-zh-light.png)
 
-![Juso 设置页的搜索来源管理](docs/assets/screens/settings-sources-clean.png)
+### 5. 本地 Agent Bridge：面向智能体的受限搜索入口
 
-**Agent Bridge：本地智能体的搜索入口**
-
-![Juso 设置页通用页的 Agent Bridge 开关](docs/assets/screens/settings-general-clean.png)
-
-**完整流程演示**
-
-![在 Juso 搜索页与搜索引擎结果页之间切换的演示](docs/assets/demo.gif)
+![中文亮色的 Juso 通用设置页：包含语言选择、Agent Bridge、配套 Agent Skill 和配置导入导出](docs/assets/showcase/09-agent-bridge-zh-light.png)
 
 ## 当前能力与来源
 

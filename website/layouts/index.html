@@ -3,6 +3,7 @@
 {{ define "description" }}{{ i18n "hero_positioning_overview" }}{{ end }}
 
 {{ define "main" }}
+{{ $isEn := eq .Site.Language.Lang "en" }}
 {{/* Hero —— 纯文案 + 下拉键指向双门 */}}
 {{ partial "hero.html" (dict
   "Page" .
@@ -40,6 +41,33 @@
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (printf "%s · %s" (i18n "face_human") (i18n "face_agent")) "title" (printf "%s — %s" (i18n "nav_human") (i18n "nav_agent")) "sub" (i18n "hero_positioning_overview")) }}
     {{ partial "capability-matrix.html" . }}
+  </div>
+</section>
+
+{{/* 产品体验 —— 随页面语言选择中文亮色或英文暗色截图 */}}
+<section class="section section--sunk" id="showcase">
+  <div class="wrap">
+    {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_showcase_human") "title" (i18n "sec_showcase_human") "sub" (i18n "sec_showcase_human_sub")) }}
+    <div class="showcase">
+      <div class="showcase__pair reveal">
+        <div class="shot">
+          <div class="windowbar" aria-hidden="true">
+            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+          </div>
+          {{ $searchShot := "img/showcase/search-zh-light.png" }}{{ if $isEn }}{{ $searchShot = "img/showcase/search-en-dark.png" }}{{ end }}
+          <img src="{{ $searchShot | relURL }}" alt="{{ i18n "cap_search" }}" loading="lazy" decoding="async" width="1600" height="900">
+          <div class="shot__cap"><b>{{ i18n "cap_search" }}</b></div>
+        </div>
+        <div class="shot">
+          <div class="windowbar" aria-hidden="true">
+            <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+          </div>
+          {{ $selectionShot := "img/showcase/selection-zh-light.png" }}{{ if $isEn }}{{ $selectionShot = "img/showcase/selection-en-dark.png" }}{{ end }}
+          <img src="{{ $selectionShot | relURL }}" alt="{{ i18n "cap_selection_search" }}" loading="lazy" decoding="async" width="1600" height="900">
+          <div class="shot__cap"><b>{{ i18n "cap_selection_search" }}</b></div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 

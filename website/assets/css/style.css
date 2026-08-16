@@ -433,7 +433,8 @@ p { color: var(--fg); }
 
 /* ---------- 展示区 ---------- */
 .showcase { display: grid; gap: clamp(24px, 3vw, 36px); }
-.showcase__pair { display: grid; grid-template-columns: 1.85fr 1fr; gap: clamp(16px, 2vw, 24px); align-items: stretch; }
+.showcase__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 24px); align-items: stretch; }
+.showcase__pair .shot img { display: block; aspect-ratio: 16 / 9; object-fit: cover; object-position: center top; }
 .shot {
   border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
   background: var(--bg-soft); box-shadow: var(--shadow-2);
@@ -463,6 +464,9 @@ p { color: var(--fg); }
 
 /* ---------- 双面桥（Agent Bridge 揭示另一面） ---------- */
 .bridge { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(24px, 3vw, 40px); align-items: center; }
+.bridge--single { grid-template-columns: minmax(0, 1fr); }
+.bridge--single .shot { width: min(100%, 960px); justify-self: center; }
+.bridge--single .bridge__copy { justify-self: center; }
 .bridge__copy p { color: var(--muted); font-size: 1.05rem; line-height: 1.7; margin-bottom: 22px; }
 
 /* ---------- 精炼窗框（截图统一呈现） ----------

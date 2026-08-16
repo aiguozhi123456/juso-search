@@ -128,6 +128,8 @@ cap_architecture:
   other: "Dual-face architecture"
 cap_search:
   other: "AI search: synthesized answer and results side by side"
+cap_selection_search:
+  other: "Selection search: open source groups beside selected webpage text"
 cap_demo:
   other: "Full flow demo"
 showcase_lazy_note:

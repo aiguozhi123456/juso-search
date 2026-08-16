@@ -27,7 +27,7 @@
   </div>
 </section>
 
-{{/* 展示区 —— 切换栏 / 架构 / 演示 */}}
+{{/* 展示区 —— 语言与主题一致的搜索 / 划词体验 */}}
 <section class="section section--sunk">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "sec_showcase_human") "title" (i18n "sec_showcase_human") "sub" (i18n "sec_showcase_human_sub")) }}
@@ -37,55 +37,40 @@
           <div class="windowbar" aria-hidden="true">
             <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
           </div>
-          <img src="{{ "img/screenshot-serp.png" | relURL }}" alt="{{ i18n "cap_serp" }}" loading="lazy" width="1200" height="641">
-          <div class="shot__cap"><b>{{ i18n "cap_serp" }}</b></div>
+          {{ $searchShot := "img/showcase/search-zh-light.png" }}{{ if $isEn }}{{ $searchShot = "img/showcase/search-en-dark.png" }}{{ end }}
+          <img src="{{ $searchShot | relURL }}" alt="{{ i18n "cap_search" }}" loading="lazy" decoding="async" width="1600" height="900">
+          <div class="shot__cap"><b>{{ i18n "cap_search" }}</b></div>
         </div>
         <div class="shot">
           <div class="windowbar" aria-hidden="true">
             <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
           </div>
-          {{ $arch := "img/architecture.svg" }}{{ if $isEn }}{{ $arch = "img/architecture-en.svg" }}{{ end }}
-          <img src="{{ $arch | relURL }}" alt="{{ i18n "cap_architecture" }}" loading="lazy" width="1040" height="1030">
-          <div class="shot__cap"><b>{{ i18n "cap_architecture" }}</b></div>
+          {{ $selectionShot := "img/showcase/selection-zh-light.png" }}{{ if $isEn }}{{ $selectionShot = "img/showcase/selection-en-dark.png" }}{{ end }}
+          <img src="{{ $selectionShot | relURL }}" alt="{{ i18n "cap_selection_search" }}" loading="lazy" decoding="async" width="1600" height="900">
+          <div class="shot__cap"><b>{{ i18n "cap_selection_search" }}</b></div>
         </div>
-      </div>
-      <div class="showcase__demo reveal">
-        <img src="{{ "img/demo.gif" | relURL }}" alt="{{ i18n "cap_demo" }}" loading="lazy" decoding="async" width="960" height="519">
-        <div class="shot__cap"><b>{{ i18n "cap_demo" }}</b> · <span class="shot__note">{{ i18n "showcase_lazy_note" }}</span></div>
       </div>
     </div>
   </div>
 </section>
 
-{{/* 深入一面 —— 实例 / 缓存 / 来源（设置页三连） */}}
+{{/* 中文亮色版本补充来源编排；英文页避免混入中文亮色素材。 */}}
+{{ if not $isEn }}
 <section class="section">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "face_human") "title" (i18n "sec_deeper_human") "sub" (i18n "sec_deeper_human_sub")) }}
-    <div class="deepgrid reveal">
+    <div class="bridge bridge--single reveal">
       <div class="shot">
         <div class="windowbar" aria-hidden="true">
           <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
-        <img src="{{ "img/screenshot-instances.png" | relURL }}" alt="{{ i18n "cap_instances" }}" loading="lazy" decoding="async" width="1200" height="641">
-        <div class="shot__cap"><b>{{ i18n "cap_instances" }}</b></div>
-      </div>
-      <div class="shot">
-        <div class="windowbar" aria-hidden="true">
-          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
-        </div>
-        <img src="{{ "img/screenshot-cache.png" | relURL }}" alt="{{ i18n "cap_cache" }}" loading="lazy" decoding="async" width="1200" height="641">
-        <div class="shot__cap"><b>{{ i18n "cap_cache" }}</b></div>
-      </div>
-      <div class="shot">
-        <div class="windowbar" aria-hidden="true">
-          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
-        </div>
-        <img src="{{ "img/screenshot-sources.png" | relURL }}" alt="{{ i18n "cap_sources" }}" loading="lazy" decoding="async" width="1200" height="641">
+        <img src="{{ "img/showcase/sources-zh-light.png" | relURL }}" alt="{{ i18n "cap_sources" }}" loading="lazy" decoding="async" width="1600" height="900">
         <div class="shot__cap"><b>{{ i18n "cap_sources" }}</b></div>
       </div>
     </div>
   </div>
 </section>
+{{ end }}
 
 {{/* 隐私模型 + 开源 */}}
 <section class="section" id="privacy">
@@ -110,12 +95,13 @@
 <section class="section section--sunk">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "face_agent") "title" (i18n "sec_bridge") "sub" (i18n "sec_bridge_sub")) }}
-    <div class="bridge reveal">
+    <div class="bridge bridge--single reveal">
       <div class="shot">
         <div class="windowbar" aria-hidden="true">
           <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
         </div>
-        <img src="{{ "img/screenshot-agent-bridge.png" | relURL }}" alt="{{ i18n "cap_agent_bridge" }}" loading="lazy" decoding="async" width="1200" height="641">
+        {{ $bridgeShot := "img/showcase/agent-bridge-zh-light.png" }}{{ if $isEn }}{{ $bridgeShot = "img/showcase/agent-bridge-en-dark.png" }}{{ end }}
+        <img src="{{ $bridgeShot | relURL }}" alt="{{ i18n "cap_agent_bridge" }}" loading="lazy" decoding="async" width="1600" height="900">
         <div class="shot__cap"><b>{{ i18n "cap_agent_bridge" }}</b></div>
       </div>
       <div class="bridge__copy">

@@ -128,6 +128,8 @@ cap_architecture:
   other: "双面架构"
 cap_search:
   other: "AI 搜索：综合答案与结果列表同屏"
+cap_selection_search:
+  other: "划词即搜：选中网页文字后就近打开来源菜单"
 cap_demo:
   other: "完整流程演示"
 showcase_lazy_note:

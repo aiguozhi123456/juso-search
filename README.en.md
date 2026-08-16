@@ -25,33 +25,19 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 ## Screenshots and Demo
 
-**AI search: synthesized answer and results side by side**
+> These images follow the product journey: start from one search entry, switch sources on a native result page, then organize sources and connect a local agent. AI search, source orchestration, and Agent Bridge images use a curated demo state to make the interface and information hierarchy clear; actual API availability and responses depend on each locally configured service and key.
 
-![Juso search page showing an AI answer with citations above the result list](docs/assets/screenshot-search.png)
+### 1. One entry: answer, citations, and results together
 
-**SERP Switch Bar: switch engines from any result page**
+![Dark English Juso search page with a full English query, an AI answer, citations, and card-based results](docs/assets/showcase/04-search-en-dark.png)
 
-![Juso switch bar at the top of a Bing result page](docs/assets/screenshot-serp.png)
+### 2. Search selected text from any webpage
 
-**Instances: multiple tuned presets per AI service, first-class in the switch bar**
+![A dark Juso selection-search popup beside a selected passage, with Google, Search Engines, API Search, and AI Search source groups](docs/assets/showcase/08-selection-search-en-dark.png)
 
-![Juso settings: instance management — save multiple tuned presets for one AI search service](docs/assets/screens/settings-instances-clean.png)
+### 3. Local Agent Bridge: a constrained search entry for agents
 
-**Local cache & history: successful AI searches are viewable and replayable**
-
-![Juso search page: cache and history panel](docs/assets/screens/search-cache-panel-clean.png)
-
-**Source management: all five source types in one place**
-
-![Juso settings: search source management](docs/assets/screens/settings-sources-clean.png)
-
-**Agent Bridge: the search entry for local agents**
-
-![Juso settings (general): the Agent Bridge toggle](docs/assets/screens/settings-general-clean.png)
-
-**Full flow demo**
-
-![Switching between the Juso search page and engine result pages](docs/assets/demo.gif)
+![Dark English Juso general settings page with Language, Agent Bridge, Companion Agent Skill, and configuration import and export](docs/assets/showcase/05-agent-bridge-en-dark.png)
 
 ## Current Capabilities and Sources
 
