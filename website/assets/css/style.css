@@ -502,15 +502,23 @@ p { color: var(--fg); }
   padding: 11px 16px; background: #221d1b; border-bottom: 1px solid #34302e;
 }
 .cli__bar .dot { width: 11px; height: 11px; border-radius: 50%; background: #4a4441; }
-.cli__bar .title { margin-left: 8px; font-family: var(--font-mono); font-size: .76rem; color: #b8aead; letter-spacing: .03em; }
-.cli__bar .lang { margin-left: auto; font-family: var(--font-mono); font-size: .7rem; color: #7a706e; }
-.cli__pre { margin: 0; padding: 18px 20px; overflow-x: auto; font-family: var(--font-mono); font-size: .86rem; line-height: 1.75; color: #e6dedd; }
+.cli__bar .title {
+  flex: 1 1 auto; min-width: 0; margin-left: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: .76rem; color: #b8aead; letter-spacing: .03em;
+}
+.cli__bar .lang { flex: 0 0 auto; margin-left: auto; font-family: var(--font-mono); font-size: .7rem; color: #7a706e; }
+.cli__pre {
+  margin: 0; padding: 18px 20px; min-width: 0;
+  overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--font-mono); font-size: .86rem; line-height: 1.75; color: #e6dedd;
+}
 .cli__pre .prompt { color: var(--brand); user-select: none; }
 .cli__pre .cmt { color: #8a7e7c; }
 .cli__pre .flag { color: #ffb3a8; }
 .cli__pre .str { color: #c9d6a8; }
 .cli__pre .cmd { color: #f0e6e4; font-weight: 600; }
-.cli__pre .arg { color: #d4c9a8; }
+.cli__pre .arg { color: #d4c9a8; white-space: nowrap; }
 .cli__caption { margin-top: 8px; padding: 0 4px; font-size: .85rem; color: var(--muted); }
 .cli__caption b { color: var(--fg); }
 
@@ -643,6 +651,12 @@ html.js .reveal.in { opacity: 1; transform: none; }
   .head-right { gap: 8px; }
   .head-right .btn--sm span.lbl-full { display: none; }
   .site-foot__top { grid-template-columns: 1fr; }
+
+  /* 终端命令以可复制、可阅读为先：长参数在手机上折行而非要求横向滚动。 */
+  .cli__bar { padding: 10px 12px; gap: 6px; }
+  .cli__bar .dot { width: 9px; height: 9px; }
+  .cli__bar .title { margin-left: 4px; font-size: .7rem; }
+  .cli__pre { padding: 15px 16px; font-size: .76rem; line-height: 1.7; }
 }
 
 @media (prefers-reduced-motion: reduce) {
