@@ -1,34 +1,37 @@
 ---
-title: Chrome Extension Dual-Version Release Process
+title: Chrome & Firefox Extension Release Process
 date: 2026-07-26
-last_updated: 2026-08-07
+last_updated: 2026-08-17
 category: workflow-issues
 module: release
 problem_type: workflow_issue
 component: development_workflow
 severity: medium
 applies_when:
-  - "Publishing a new version of the WXT Chrome MV3 extension"
+  - "Publishing a new version of the WXT Chrome/Firefox MV3 extension"
   - "Submitting to Chrome Web Store and creating a GitHub Release"
+  - "Building and attaching the Firefox ZIP for self-hosted distribution"
   - "Maintaining README accuracy across CWS and GitHub versions"
 tags:
   - release
   - build
   - chrome-mv3
+  - firefox
   - wxt
   - cws
   - github-release
   - extension-id
 ---
 
-# Chrome Extension Dual-Version Release Process
+# Chrome & Firefox Extension Release Process
 
 ## Context
 
-juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chrome MV3 扩展。项目需要同时面向两类分发渠道：
+juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chrome / Firefox MV3 扩展（v2.0.0 起支持 Firefox）。项目需要同时面向三类分发渠道：
 
 1. **Chrome Web Store (CWS)**：通过商店安装，依赖 CWS 签名机制
-2. **GitHub Release（自托管）**：通过 ZIP 包加载解包扩展，需要稳定的扩展 ID
+2. **GitHub Release（自托管，Chrome）**：通过 ZIP 包加载解包扩展，需要稳定的扩展 ID
+3. **GitHub Release（自托管，Firefox）**：通过 `about:debugging` 临时加载（无需稳定 ID；正式 AMO 分发未启用）
 
 在 v1.2.0 发布过程中，团队发现对两个构建变体的差异理解不够清晰——生产 ZIP 不含 `key` 字段，加载为解包扩展时 ID 不稳定，不能作为自托管分发包。此外 README 中 CWS 版本号与 GitHub 版本号容易混淆。
 
@@ -44,14 +47,15 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 2. **提交**：将版本变更作为独立 commit 提交（如 `chore(release): bump version to 1.2.0`）
 3. **构建生产 ZIP**：`npm run zip` → 生成 `juso-search-{version}-chrome.zip`
 4. **构建开发 ZIP**：先 `npm run build:dev`（`wxt build --mode development`，输出到 `.output/chrome-mv3-dev/`，manifest 内含签名 key、扩展 ID 稳定），再从该输出目录打包成 `juso-search-{version}-chrome-dev.zip`。注意：`package.json` 里有 `"build:dev": "wxt build --mode development"`（构建，非 zip）和 `"zip": "wxt zip"`（不带 mode 标志），并没有 `zip:dev` 脚本；开发 ZIP 是先 `build:dev` 产出目录、再对目录压缩得到的。
-5. **打标签**：创建 annotated tag（`git tag -a v1.2.0 -m "release: v1.2.0 ..."`）
-6. **推送标签**：`git push origin v1.2.0`
-7. **GitHub Release**：创建 Release，**仅附加 dev ZIP**
-8. **CWS 提交**：将生产 ZIP 上传至 Chrome Web Store Developer Dashboard
-9. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）；提交被拒（如关键字垃圾、字符超限）时按 [cws-listing-copy-submission-constraints.md](cws-listing-copy-submission-constraints.md) 的文案纪律重写后重新提交
-10. **仓库文档与架构图同步**：审计 `README.md` / `README.en.md`（中英两份对称）、`docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.en.md`、`AGENTS.md` 的架构章节，以及 `docs/assets/architecture*.svg`——确保来源类型、provider/引擎清单、agent 命令、版本号与当前代码一致。改完 SVG 后须重新导出 `architecture@2x.png` / `architecture-en@2x.png`（`node -e "require('sharp')(svg,{density:192}).resize(2080,2060,{fit:'fill'}).png().toFile(out)"`）。
+5. **构建 Firefox ZIP**：`npm run build:firefox` 只构建到 `.output/firefox-mv3/`（不产出 zip）；GitHub Release 附件用 `npx wxt zip -b firefox --mv3` → 生成 `juso-search-{version}-firefox.zip`。Firefox 版无 dev/prod 之分——临时加载不需要稳定 ID（`moz-extension://` host 是 per-install 随机 UUID），`wxt.config.ts` 中 Firefox 专属配置（gecko ID、`data_collection_permissions`）直接进 manifest。
+6. **打标签**：创建 annotated tag（`git tag -a v1.2.0 -m "release: v1.2.0 ..."`）
+7. **推送标签**：`git push origin v1.2.0`
+8. **GitHub Release**：创建 Release，**附加 dev ZIP 与 Firefox ZIP**
+9. **CWS 提交**：将生产 ZIP 上传至 Chrome Web Store Developer Dashboard（仅 Chrome 版；Firefox 暂无 AMO 提交流程）
+10. **CWS 商店文档同步**：同步更新商店文案、隐私问卷与隐私政策（见 [cws-store-docs-must-sync-with-release-features.md](cws-store-docs-must-sync-with-release-features.md)）；提交被拒（如关键字垃圾、字符超限）时按 [cws-listing-copy-submission-constraints.md](cws-listing-copy-submission-constraints.md) 的文案纪律重写后重新提交
+11. **仓库文档与架构图同步**：审计 `README.md` / `README.en.md`（中英两份对称）、`docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.en.md`、`AGENTS.md` 的架构章节，以及 `docs/assets/architecture*.svg`——确保来源类型、provider/引擎清单、agent 命令、版本号与当前代码一致。改完 SVG 后须重新导出 `architecture@2x.png` / `architecture-en@2x.png`（`node -e "require('sharp')(svg,{density:192}).resize(2080,2060,{fit:'fill'}).png().toFile(out)"`）。
 
-### 两个构建变体的差异
+### 两个构建变体的差异（Chrome）
 
 | 维度 | 生产构建 (`npm run build`) | 开发构建 (`npm run build:dev`) |
 |------|--------------------------|-------------------------------|
@@ -62,6 +66,8 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 | 用途 | 仅供 CWS 上传 | 自托管/开发分发 |
 | 能否直接加载 | ❌ 不建议（ID 不稳定） | ✅ 可作为解包扩展加载 |
 
+Firefox 版（`juso-search-{v}-firefox.zip`）不存在此二分：临时加载不需要 `key`/稳定 ID（`moz-extension://` host 是 per-install 随机 UUID），`wxt.config.ts` 为 Firefox 配置 gecko ID 与 `data_collection_permissions`。
+
 ### 扩展 ID 稳定性规则
 
 - **含 `key` 的 manifest** → Chrome 从公钥派生扩展 ID，只要 `key` 不变，ID 就稳定
@@ -70,12 +76,13 @@ juso-search（双面搜）是一个基于 WXT + React + TypeScript 构建的 Chr
 
 ### GitHub Release 附件规则
 
-**只上传 dev ZIP，不上传生产 ZIP。**
+**上传 dev ZIP 与 Firefox ZIP，不上传生产 ZIP。**
 
 原因：
 - 生产 ZIP 缺少 `key`，用户加载为解包扩展时 ID 不稳定，导致数据隔离问题（重装后丢失设置）
 - 生产 ZIP 的唯一合法去向是 CWS，CWS 会重新签名并分配 ID
-- 需要自托管分发的用户使用 dev ZIP，其稳定 ID 保证了数据持久性
+- 需要自托管分发的 Chrome 用户使用 dev ZIP，其稳定 ID 保证了数据持久性
+- Firefox 用户使用 firefox ZIP，通过 `about:debugging#/runtime/this-firefox` 临时加载（重启后需重新加载；此分发方式不要求稳定 ID）
 
 ### README 准确性维护
 
@@ -111,7 +118,7 @@ README 中涉及版本号时需区分两个来源：
 - 团队成员需要理解为什么存在两个构建命令
 
 不适用于：
-- Firefox MV2/MV3 扩展（WXT 的 Firefox 构建有不同的 ID 管理策略）
+- Safari 等未支持浏览器（Firefox 自 v2.0.0 起已纳入本流程，见上文步骤 5/8）
 - 纯 npm 包发布（无浏览器扩展场景）
 
 ## Examples
@@ -152,6 +159,14 @@ README 中涉及版本号时需区分两个来源：
 5. **README 更新**：
    - 合并"安装与更新"→"快速开始"
    - 标注：CWS 当前 v1.1.0，v1.2.0 pending review
+
+### v2.0.0 发布实例（新增 Firefox 支持）
+
+v2.0.0 是首个同时发布 Chrome 与 Firefox 的版本，流程差异点：
+
+1. **Firefox ZIP 构建**：`npx wxt zip -b firefox --mv3` → `juso-search-2.0.0-firefox.zip`（Firefox 无 dev/prod 之分）
+2. **Release 附件**：`gh release create v2.0.0 --title "Juso v2.0.0" --notes "..." juso-search-2.0.0-chrome-dev.zip juso-search-2.0.0-firefox.zip`
+3. **Firefox 安装指导**：Release notes 中写明 `about:debugging#/runtime/this-firefox` →「临时载入附加组件」→ 选择解压目录的 `manifest.json`；注明临时加载在 Firefox 重启后不保留
 
 ## Related
 

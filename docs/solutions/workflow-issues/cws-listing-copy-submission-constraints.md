@@ -117,7 +117,7 @@ provider 实例（见 `provider-instance-multi-config-model.md`）是同一 prov
 
 ### 9. GitHub Release notes 与 CWS 商店说明是两份产物
 
-GitHub Release notes（双语、经用户审定、附在 GitHub Release 上）与 CWS 商店说明（`docs/assets/store/cws-release.md`，CWS Developer Dashboard 填表文档）是**两份独立产物**。`chrome-extension-release-process.md` 已把它们分为两步（步骤 7 = GitHub Release，步骤 9 = CWS），但本轮一度把改给 CWS 说明的文案误贴进 Release notes、反之亦然。纪律：**两份产物分轨编辑，不要把一方的改动落到另一方**。
+GitHub Release notes（双语、经用户审定、附在 GitHub Release 上）与 CWS 商店说明（`docs/assets/store/cws-release.md`，CWS Developer Dashboard 填表文档）是**两份独立产物**。`chrome-extension-release-process.md` 已把它们分为两步（步骤 8 = GitHub Release，步骤 10 = CWS），但本轮一度把改给 CWS 说明的文案误贴进 Release notes、反之亦然。纪律：**两份产物分轨编辑，不要把一方的改动落到另一方**。
 
 ## Examples
 
@@ -202,6 +202,6 @@ export const PROVIDERS_WITH_INSTANCE_OPTIONS: ReadonlySet<ProviderId> =
 ## Related
 
 - [cws-store-docs-must-sync-with-release-features.md](./cws-store-docs-must-sync-with-release-features.md) — 商店三件套随版本同步的审计纪律；本经验补充了边界：引擎枚举发生在隐私问卷与隐私政策里，**不在商店说明里**；§6 模式描述对齐是其代码落地准确度的具体实例
-- [chrome-extension-release-process.md](./chrome-extension-release-process.md) — 双版本发布全流程；§7（`gh release edit` 丢资产）与 §9（双产物分轨）分别补充其步骤 7（GitHub Release）与步骤 9（CWS）
+- [chrome-extension-release-process.md](./chrome-extension-release-process.md) — Chrome & Firefox 发布全流程；§7（`gh release edit` 丢资产）与 §9（双产物分轨）分别补充其步骤 8（GitHub Release）与步骤 10（CWS）
 - [provider-instance-multi-config-model.md](../architecture-patterns/provider-instance-multi-config-model.md) — provider 实例模型权威；§8 术语（实例=调参变体、共享 key、`PROVIDERS_WITH_INSTANCE_OPTIONS`）以此为准
 - [default-off-capability-gating-for-cws-compliance.md](../architecture-patterns/default-off-capability-gating-for-cws-compliance.md) — 隐私问卷文案背后的代码门控事实（审核员真机核对一致）

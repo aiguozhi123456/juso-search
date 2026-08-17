@@ -134,4 +134,4 @@ grep -r "localhost:3000\|ws://" .output/chrome-mv3-dev/
 ## Related
 
 - [WXT Extension Icon Rasterization and Manifest Wiring](./wxt-extension-icon-rasterization-and-manifest-wiring.md) — also touches the `manifest()` callback in `wxt.config.ts`
-- [Chrome Extension Dual-Version Release Process](../workflow-issues/chrome-extension-release-process.md) — 完整的发布流程（版本升级、双版本构建、标签、GitHub Release、CWS 提交）
+- [Chrome & Firefox Extension Release Process](../workflow-issues/chrome-extension-release-process.md) — 完整的发布流程（版本升级、Chrome 双版本构建 + Firefox ZIP、标签、GitHub Release、CWS 提交）

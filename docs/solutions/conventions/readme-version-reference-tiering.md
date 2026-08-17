@@ -86,16 +86,16 @@ You may **not** need this when:
 Kept specific (not abstracted):
 
 ```markdown
-<!-- README.md:77 — status line, one occurrence per language -->
-Juso v1.4.0 已在 GitHub Release 与 Chrome Web Store 发布。
+<!-- README.md:71 — status line, one occurrence per language -->
+Juso v2.0.0 已在 GitHub Release 与 Chrome Web Store 发布。
 
-<!-- README.md:172 — historical fact, never abstract -->
+<!-- README.md:166 — historical fact, never abstract -->
 自 2026-07-23（v1.0.0 发布后）起，中文名改为「双面搜」…
 ```
 
 ### Verification
 
-After the change, `grep -E 'releases/tag/v|juso-search-[0-9]+\.[0-9]+\.[0-9]+' README*.md` returns nothing — no version-specific release link or version-stamped filename remains in either README. The only surviving `v1.4.0` mentions are the status line (line 77) and the historical narrative (line 172), both intentional. The `website/` tree needed no change — `hugo.toml` already used `releases/latest`.
+After the change, `grep -E 'releases/tag/v|juso-search-[0-9]+\.[0-9]+\.[0-9]+' README*.md` returns nothing — no version-specific release link or version-stamped filename remains in either README. The only surviving version mentions are the status line (line 71) and the historical narrative (line 166), both intentional. The `website/` tree needed no change — `hugo.toml` already used `releases/latest`.
 
 ## Related
 
