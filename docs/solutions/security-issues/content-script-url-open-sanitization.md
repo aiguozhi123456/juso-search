@@ -1,6 +1,7 @@
 ---
 title: "Sanitizing Content-Script-Supplied URLs Before the Worker Opens a Tab"
 date: 2026-08-02
+last_updated: 2026-08-17
 category: security-issues
 module: "background worker / custom-engines / serp"
 problem_type: security_issue
@@ -19,7 +20,7 @@ tags: [security, url-sanitization, content-script, worker, tabs-create, scheme-a
 
 ## Problem
 
-Custom Engine 的 SERP-bar 路径把结果在**新标签页**打开，并委托给 worker 执行——内容脚本（运行在 `google.com`/`bing.com` 等任意第三方 SERP 上）发送 `openNewTab(url)`，background 调用 `browser.tabs.create`（`entrypoints/background.ts:62-74`）。任何时候，只要 worker 会打开一个由调用方提供的 URL，调用方（一个运行在任意、可能被攻陷或敌对的第三方 SERP 上的内容脚本）就不能被允许打开特权 URL。worker 是特权上下文，它发起的导航不受普通网页的反滥用拦截约束，因此这条路径必须自己把守入口。
+Custom Engine 的 SERP-bar 路径把结果在**新标签页**打开，并委托给 worker 执行——内容脚本（运行在 `google.com`/`bing.com` 等任意第三方 SERP 上）发送 `openNewTab(url)`，background 调用 `browser.tabs.create`（`entrypoints/background.ts:94-106`）。任何时候，只要 worker 会打开一个由调用方提供的 URL，调用方（一个运行在任意、可能被攻陷或敌对的第三方 SERP 上的内容脚本）就不能被允许打开特权 URL。worker 是特权上下文，它发起的导航不受普通网页的反滥用拦截约束，因此这条路径必须自己把守入口。
 
 ## Symptoms
 
@@ -31,7 +32,7 @@ Custom Engine 的 SERP-bar 路径把结果在**新标签页**打开，并委托�
 - **只校验 `new URL(data).protocol` 然后导航原始 `data`。** 这校验的是某一种序列化，导航的却是可能不同的另一种——WHATWG URL 解析器会把空白 / C0 控制字符剥进 `url.href`，于是 raw `data` 与解析后的 `href` 可能并不一致。这是典型的「校验后用」（validate-then-use）差异，即 TOCTOU。
 - **不拒绝凭据。** 形如 `http://user:pass@host/` 的 URL 携带 `username`/`password`，未被拦下。
 - **静默拒绝。** 拒绝时不打日志，事后无从排查到底挡了什么。
-- **一段夸大其词的注释，声称 `sender.tab` 能区分内容脚本。** 它不能——「在标签页打开的扩展页」同样带有 `sender.tab`。当前代码的注释（`entrypoints/background.ts:63-65`）已修正为：`sender.tab` 只保证存在一个 tab 上下文，真正的安全边界是 `sanitizeOpenNewTabUrl` 内的 http/https 协议白名单（并拒绝凭据）。
+- **一段夸大其词的注释，声称 `sender.tab` 能区分内容脚本。** 它不能——「在标签页打开的扩展页」同样带有 `sender.tab`。当前代码的注释（`entrypoints/background.ts:95-97`）已修正为：`sender.tab` 只保证存在一个 tab 上下文，真正的安全边界是 `sanitizeOpenNewTabUrl` 内的 http/https 协议白名单（并拒绝凭据）。
 
 ## Solution
 
@@ -59,7 +60,7 @@ export function sanitizeOpenNewTabUrl(raw: string): string | null {
 - 强制长度上限；
 - 返回**解析后的** `url.href`（任何拒绝或解析失败则返回 `null`）。
 
-handler（`entrypoints/background.ts:62-74`）：
+handler（`entrypoints/background.ts:94-106`）：
 
 ```ts
 onMessage('openNewTab', ({ data, sender }) => {

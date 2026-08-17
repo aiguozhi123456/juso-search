@@ -1,6 +1,7 @@
 ---
 title: "Symmetric dual-face site structure: neutral overview root, symmetric face routes, and path-based face detection in Hugo"
 date: 2026-08-10
+last_updated: 2026-08-17
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -29,7 +30,7 @@ tags:
 
 The Juso marketing site (Hugo static site at `website/`, bilingual zh@root + `/en/`, deployed to the GitHub Pages subpath `/juso-search/`) had grown into an **asymmetric dual-face IA**: `/` carried the entire human face — carousel hero, capability matrix, sources, showcase, trust band, CTA — while the agent face lived under a single sub-page `/agents/`. The human audience owned the root URL and the agent audience got a corner of the site. During a review the user put it plainly: "我觉得这个网站的结构很怪，我想做成对称的" — the structure felt weird; they wanted symmetry.
 
-The decision: **stop giving either audience the root**. `/` became a neutral overview landing — a copy-only hero (the dual-face thesis; no visual — a scroll key leads down to the door cards), a "two doorways" section with two cards linking to `/human/` and `/agents/` (each with a face label and positioning text), a dual-face capability matrix, a sources icon wall, and a neutral CTA band. Each face then owns one symmetric section route:
+The decision: **stop giving either audience the root**. `/` became a neutral overview landing — a copy-only hero (the dual-face thesis; no visual — a scroll key leads down to the door cards), a "two doorways" section with two cards linking to `/human/` and `/agents/` (each with a face label and positioning text), a dual-face capability matrix, a bilingual showcase section, and a neutral CTA band (a same-day follow-up deduped the faces — matrix stayed on the root, the sources icon wall moved to `/human/`). Each face then owns one symmetric section route:
 
 - `/human/` — new section (`content/human/index.md` + `index.en.md`), layout `layouts/human/single.html` = a copy of the old `layouts/index.html` body.
 - `/agents/` — unchanged section.
@@ -85,7 +86,7 @@ The enlarged carousel-hero layout used to key off `.is-home` (root = human face)
 
 ### 5. i18n parity for every new key
 
-All five new keys (`hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`) went into **both** `zh.yaml` and `en.yaml`. Hugo silently renders an empty string for a missing key — a key in one file only is a blank on the other language that survives the build. Parity is a load-bearing invariant; verify it after every i18n edit (the two files must hold identical key sets — currently 83 keys each).
+All five new keys (`hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`) went into **both** `zh.yaml` and `en.yaml`. Hugo silently renders an empty string for a missing key — a key in one file only is a blank on the other language that survives the build. Parity is a load-bearing invariant; verify it after every i18n edit (the two files must hold identical key sets — currently 205 keys each).
 
 ### 6. Section-head correctness (matrix vs sources headings)
 
@@ -133,11 +134,11 @@ Rebuilt, every page (zh + en) carries the correct class: root → `face-overview
 
 ### Neutral root — overview section flow
 
-`content/_index.md`(+ en) renders the overview: copy-only hero (the dual-face thesis; the initial `hero-visual-overview.html` dual visual was removed in a later pass — the hero is text with a scroll key to the door cards), the two-doorway section (two `.door` cards → `/human/` + `/agents/`, each with face label + positioning text), dual-face capability matrix, sources icon wall, and a neutral CTA band. `content/human/index.md`(+ en) is the new human-face route; `layouts/human/single.html` is a copy of the old `layouts/index.html` body so the human face keeps its enlarged carousel hero (now driven by `.face-human` instead of the removed `.is-home`).
+`content/_index.md`(+ en) renders the overview: copy-only hero (the dual-face thesis; the initial `hero-visual-overview.html` dual visual was removed in a later pass — the hero is text with a scroll key to the door cards), the two-doorway section (two `.door` cards → `/human/` + `/agents/`, each with face label + positioning text), dual-face capability matrix, bilingual showcase section, and a neutral CTA band; the sources icon wall now lives on `/human/`. `content/human/index.md`(+ en) is the new human-face route; `layouts/human/single.html` is a copy of the old `layouts/index.html` body so the human face keeps its enlarged carousel hero (now driven by `.face-human` instead of the removed `.is-home`).
 
 ### i18n parity
 
-Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`. Key-set parity held at 83 keys each; a key added to one language only would render as an empty string on the other.
+Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`. Key-set parity held at 83 keys each then (205 as of 2026-08-16 after the docs-hub guides); a key added to one language only would render as an empty string on the other.
 
 ## Related
 
@@ -145,4 +146,4 @@ Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces
 - [`website-hugo-subpath-deployment.md`](../architecture-patterns/website-hugo-subpath-deployment.md) — overall website architecture and the GitHub Pages `/juso-search/` subpath deployment model.
 - [`hugo-subpath-hardcoded-paths.md`](../integration-issues/hugo-subpath-hardcoded-paths.md) — why all paths go through Hugo's `relURL` / `relLangURL`; the rebuilt site verifies 0 hardcoded paths.
 - [`website-drift-lock-enforcement.md`](../architecture-patterns/website-drift-lock-enforcement.md) — the drift-lock scripts (`check-website-tokens.py`, `check-website-assets.py`) used to verify this restructure.
-- [`website-carousel-hero-screenshot-design.md`](../design-patterns/website-carousel-hero-screenshot-design.md) — the carousel hero visual now shared (as the overview + human-face variant) by the dual-face structure.
+- [`website-carousel-hero-screenshot-design.md`](../design-patterns/website-carousel-hero-screenshot-design.md) — the carousel hero visual used by the human face; since the copy-only-hero pass the overview root carries no carousel.

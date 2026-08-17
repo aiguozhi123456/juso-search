@@ -40,7 +40,7 @@ tags:
 
 The SERP Switch Bar (快切栏) was **top-only**. On every supported engine it is inserted as an *inline anchor* — a preceding sibling of a persistent results container (`#rcnt` on Google, `#b_content` on Bing, `#container` on Baidu, etc.), horizontally aligned to the main content column via parent-relative `getBoundingClientRect()` math. That model works well on desktop, where the bar sits naturally above the fold. But mobile users had no thumb-friendly option: the top of a SERP is the least reachable region of the screen, and the inline-anchor model pushes the bar even further from the thumb once results render.
 
-A "bottom" position was developed on a feature branch that **diverged from main**. Adding a bottom bar is not a matter of reusing the existing anchor machinery: the per-engine inline-anchor model is structurally incapable of generalizing to a bottom bar (there is no persistent "bottom of results" element that survives SPA navigation across six engines, and even if there were the bar would scroll away). A bottom bar is fundamentally a **fixed viewport overlay** — `position: fixed; bottom: 0` — not an inline DOM insertion. That single difference cascades into a different positioning model (pad the page so the fixed bar does not cover content), a different interaction model (scroll-to-hide so the overlay yields screen real estate), and a mobile polish layer (safe-area insets, horizontal chip scroll).
+A "bottom" position was developed on a feature branch that **diverged from main**. Adding a bottom bar is not a matter of reusing the existing anchor machinery: the per-engine inline-anchor model is structurally incapable of generalizing to a bottom bar (there is no persistent "bottom of results" element that survives SPA navigation across the engine set, and even if there were the bar would scroll away). A bottom bar is fundamentally a **fixed viewport overlay** — `position: fixed; bottom: 0` — not an inline DOM insertion. That single difference cascades into a different positioning model (pad the page so the fixed bar does not cover content), a different interaction model (scroll-to-hide so the overlay yields screen real estate), and a mobile polish layer (safe-area insets, horizontal chip scroll).
 
 While the bottom-bar branch was in flight, **main independently added two things**: *source groups* (collapsible group pills with hover/click flyouts, projected by `projectLayout`) and *schema v5* (the `groupConfig` whitelist entry). The bottom-bar branch never saw groups — it shipped a flat row of chips. Only the **tip commit** (the bottom bar itself) was cherry-picked onto the now-groups-aware main. The merge therefore had to resolve conflicts between two parallel feature tracks that both reshape the same shadow-DOM UI region, and then fix the **coexistence bugs** that neither track's tests caught alone — because each track was tested in isolation against a UI the other track had already transformed. Three rounds of Oracle review surfaced and closed the traps (backdrop-filter containing block, overflow-clipping subtlety, touch focus/click race, shadow-safe outside dismiss, scroll-hide/flyout interplay). The coexistence fixes are the core learning recorded here: they are not one-off mistakes but recurring traps for *any* fixed-position overlay that also hosts a flyout/popover child.
 
@@ -65,7 +65,7 @@ The three placements are structurally different and must not share an anchor str
 }
 ```
 
-**Top** and **bottom** are *universal*: `position: fixed; top: 0` / `bottom: 0; width: 100%` ignores every engine's DOM. No anchor, no alignment target. One CSS block serves all six engines per overlay:
+**Top** and **bottom** are *universal*: `position: fixed; top: 0` / `bottom: 0; width: 100%` ignores every engine's DOM. No anchor, no alignment target. One CSS block serves every registered engine per overlay:
 
 ```css
 :host([data-position="bottom"]) {
@@ -166,15 +166,15 @@ const applyPositionChrome = (pos: 'top' | 'bottom' | 'inline', opts?: { resetScr
 Every position-change path calls it, then re-renders so the `overlayPosition` prop enters the React tree (the flyout anchoring and touch handlers branch on `overlayPosition`; outside-dismiss is unified across all placement modes since 2026-08-01 — see §4e):
 
 ```typescript
-// onMount (serp-bar.content.ts:245)
+// onMount (serp-bar.content.ts:262)
 applyPositionChrome(state.resolvedPosition);
 
-// syncLocation — SPA nav (serp-bar.content.ts:422)
+// syncLocation — SPA nav (serp-bar.content.ts:441)
 applyPositionChrome(state.resolvedPosition);
 syncAlignedHost(mountedHost, strategy);
 if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
 
-// resize — auto threshold crossing (serp-bar.content.ts:483-497)
+// resize — auto threshold crossing (serp-bar.content.ts:503-523)
 ctx.addEventListener(window, 'resize', () => {
   if (mountedHost && document.contains(mountedHost)) {
     syncAlignedHost(mountedHost, strategy);
@@ -188,7 +188,7 @@ ctx.addEventListener(window, 'resize', () => {
   }
 });
 
-// onPrefMessage — live sync from Options (serp-bar.content.ts:504-514)
+// onPrefMessage — live sync from Options (serp-bar.content.ts:530-553)
 const onPrefMessage = (message: unknown) => {
   if (!isUiPrefChangedMessage(message) || message.key !== 'serpBarPosition') return;
   state.barPositionPref = message.value;
@@ -606,18 +606,20 @@ The generalizable lesson: **a `position:fixed` overlay's containing block is det
 But when the `'top'` value was **redefined** in v8 (fixed overlay top, replacing the old inline behavior), legacy stored `'top'` data *did* need transforming — old `'top'` users must keep their inline experience, so their stored value is rewritten to `'inline'`. That value redefinition is exactly the "legacy data must transform" case, so `CURRENT_SCHEMA_VERSION` was bumped 7→8 and a value-rewrite migration entry was added:
 
 ```typescript
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
-// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此后的 aiAutoEnter / flatLayoutFewSources 仍由 getter 兜底，加入白名单未 bump。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources'] as const;
+// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource'] as const;
 
 // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
 // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ```
+
+> 2026-08-15 refresh: 版本现戳为 9（v8→v9 为 weixin 默认隐藏）；此后的 `aiAutoEnter` / `flatLayoutFewSources` / `selectionSearchEnabled` / `selectionSearchSource` 均由 getter 兜底加入白名单、未 bump——正是本节规则的后续印证。
 
 The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` (and later `aiAutoEnter` / `flatLayoutFewSources`) joined the whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
 

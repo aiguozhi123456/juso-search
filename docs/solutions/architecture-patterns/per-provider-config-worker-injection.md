@@ -1,7 +1,7 @@
 ---
 title: "Per-provider config via worker injection (BYOK pattern extended to non-secret prefs)"
 date: 2026-07-27
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: architecture-patterns
 module: lib/gateway
 problem_type: architecture_pattern
@@ -39,7 +39,7 @@ This repository is a WXT + React + TypeScript Chrome MV3 search extension with a
 
 The task: add a per-provider "max results" (搜索结果条数, 1–20) setting so a user can ask each provider to return fewer/more results than its built-in default.
 
-The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all seven REST adapters (tavily/exa/brave/stepfun/jina/doubao/doubao-global) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
+The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all eight REST adapters (tavily/exa/brave/stepfun/jina/doubao/doubao-global/parallel) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
 
 ## Guidance
 
@@ -62,7 +62,7 @@ The `...(maxResults !== null ? { maxResults } : {})` spread is the key idiom: **
 
 ### Do not bump the schema version for an additive, getter-fallback config key
 
-`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 8) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
+`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 9) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
 
 When adding `providerMaxResults`, the change to `lib/schema.ts` is just a whitelist append:
 
@@ -79,9 +79,9 @@ No version bump, no migration. The rule (documented inline at `lib/schema.ts`): 
 
 ### Put the enforcement point in the adapter factory, not in each provider
 
-Eight adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
+Nine adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
 
-The factory's truncation safety net handles all eight in one place:
+The factory's truncation safety net handles all nine in one place:
 
 ```ts
 async search(query, opts, apiKey) {
@@ -251,7 +251,7 @@ export async function handleSearch(request: SearchRequest, signal?: AbortSignal)
 }
 ```
 
-Note the ordering hazard: the cache check is **before** the maxResults read. That is fine *because* the cache-clear on set keeps the two consistent. If the cache-clear were ever removed, this ordering is exactly what would produce the silent-stale bug — the comment in `handleSetProviderMaxResults` exists to prevent a future "optimization" that deletes the `clearSearchCache()` call.
+Note the ordering hazard: the cache check is **before** the maxResults read. That is fine *because* the cache-clear on set keeps the two consistent. If the cache-clear were ever removed, this ordering is exactly what would produce the silent-stale bug — the comment in `handleSetProviderMaxResults` exists to prevent a future "optimization" that deletes the `clearSearchCache()` call. (This logic now lives in `runProviderSearch` behind the gateway's `resolveSearchSource()` boundary; the ordering claim — cache check before the maxResults read — still holds.)
 
 ### Example 2 — The cache-clear fix (before/after)
 
@@ -357,7 +357,7 @@ The `preventDefault` on `mouseDown` is the primary fix (the input never loses fo
 
 - **`docs/solutions/architecture-patterns/local-search-cache-mv3.md`** — cache-domain design; the cache-invalidation pitfall (C1) shows its cache key must account for config values that affect result shape.
 - **`docs/solutions/architecture-patterns/config-preference-pipeline.md`** — the end-to-end pref pipeline; maxResults is a third pref type (per-provider scalar map) distinct from the existing `SourceId[]` prefs.
-- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig`, `customEngines`, and `providerInstances` are getter-defaulted additions that joined without a bump, while `serpBarPosition` (the 13th) later forced a v7→v8 value-rewrite bump when `'top'` semantics changed; `aiAutoEnter` and `flatLayoutFewSources` are further getter-defaulted additions — the whitelist is now 17 entries.
+- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig`, `customEngines`, and `providerInstances` are getter-defaulted additions that joined without a bump, while `serpBarPosition` (the 13th) later forced a v7→v8 value-rewrite bump when `'top'` semantics changed; `aiAutoEnter` and `flatLayoutFewSources` are further getter-defaulted additions — the whitelist is now 19 entries.
 - **`docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`** — owns the `defineProvider` factory contract where the truncation safety net lives.
 - **`docs/solutions/architecture-patterns/provider-api-integration-patterns.md`** — provider adapter patterns; the count-propagation asymmetry (REST forwards upstream, MCP relies on factory slice).
 - **`docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`** — the BYOK/provider-config boundary this pref respects.

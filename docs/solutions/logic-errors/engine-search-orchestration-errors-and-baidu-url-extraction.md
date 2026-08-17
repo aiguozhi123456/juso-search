@@ -120,8 +120,8 @@ Right after parse setup, `browser.tabs.getCurrent()` then `tabs.update(id, { act
 
 **Skill acceptance and docs**
 
-- `skills/juso-search/scripts/juso_search.py` — `is_engine_search_reply` accepts `tab-closed`, `timeout`, `aborted`, `extract-failed` alongside page-state kinds (all still nonzero exit via existing result status).
-- `skills/juso-search/SKILL.md` — documents page-state vs orchestration error groups for Agents.
+- `skills/juso-search/scripts/juso_bridge.py` — `is_engine_search_reply` (single-source module, re-exported by `juso_search.py`) accepts `tab-closed`, `timeout`, `aborted`, `extract-failed` alongside page-state kinds (all still nonzero exit via existing result status).
+- `skills/juso-search/reference/errors.md` — documents page-state vs orchestration error groups for Agents (SKILL.md defers to the reference files).
 
 **Tests**
 
@@ -158,7 +158,7 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 - When adding tab orchestration paths, always distinguish abort vs timeout vs tab removal in tests (`tests/engine-search.test.ts`).
 - For any tab opened for Agent work (`engine-search` SERP or `bridge.html`), create inactive and re-assert `active: false` if the host may still focus the tab.
 - Do not introduce network redirect resolution in extractors without an explicit design decision; local shortcuts first.
-- Keep SKILL.md orchestration vs page-state lists in sync with `types.ts` and `juso_search.py`.
+- Keep the skill's orchestration vs page-state lists (`reference/errors.md`) in sync with `types.ts` and `juso_bridge.py`.
 - Never treat `status: 'complete'` alone as evidence that navigation committed; guard readiness on the tab URL being present and non-`about:` for background-tab flows (protects Firefox/Safari, where `tabs.create` resolves while the tab is still on `about:blank`).
 - Test engine-search on Firefox as part of the bridge test matrix, not just Chromium — the identical code path passed on Vivaldi and failed on Firefox.
 - Be skeptical of permission errors during background-tab injection. "Missing host permission" from `executeScript` was misleading (zero matching frames on `about:blank`); verify what URL/frames the tab exposes at the failure moment before adding permissions.
@@ -171,4 +171,4 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — parallel extractor DOM fragility on the same path
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — bridge.html fire-and-forget close (adjacent focus hygiene)
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — different timeout class (SW `fetch` this-binding), do not conflate with SERP `tab-closed` / load `timeout`
-- **Secondary bug (same Firefox session)** — `public/agent-skill/scripts/juso_search.py` `run()` bridge URL detection: `bridge_url = raw_bridge_url if raw_bridge_url and "__JUSO_BRIDGE_URL__" not in raw_bridge_url else None` — but `scripts/gen_skills.py` stamps `__JUSO_BRIDGE_URL__` everywhere, including inside this check, so after stamping the condition became `"actual-url" not in raw_bridge_url`, always False → `bridge_url=None` → `run_bridge()` fell back to a `chrome-extension://` URL that fails on Firefox's `moz-extension://`. Fixed with `bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None`. See also `docs/solutions/architecture-patterns/agent-skill-distribution-pipeline.md` (refresh candidate: its "exactly one placeholder" claim is now stale with the second `__JUSO_BRIDGE_URL__` placeholder).
+- **Secondary bug (same Firefox session)** — `public/agent-skill/scripts/juso_search.py` `run()` bridge URL detection: `bridge_url = raw_bridge_url if raw_bridge_url and "__JUSO_BRIDGE_URL__" not in raw_bridge_url else None` — but `scripts/gen_skills.py` stamps `__JUSO_BRIDGE_URL__` everywhere, including inside this check, so after stamping the condition became `"actual-url" not in raw_bridge_url`, always False → `bridge_url=None` → `run_bridge()` fell back to a `chrome-extension://` URL that fails on Firefox's `moz-extension://`. Fixed with `bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None`. See also `docs/solutions/architecture-patterns/agent-skill-distribution-pipeline.md`（其占位符描述已于 2026-08-11 修正为两个占位符，本条 refresh 候选注记随之解决）.

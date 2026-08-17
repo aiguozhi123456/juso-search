@@ -1,7 +1,7 @@
 ---
 title: "Website hero carousel, screenshot framing, and page-scoped hero sizing"
 date: 2026-08-08
-last_updated: 2026-08-10
+last_updated: 2026-08-17
 category: design-patterns
 module: website
 problem_type: design_pattern
@@ -19,7 +19,7 @@ tags: [carousel, hero, screenshot, windowbar, accessibility, reduced-motion, ari
 
 ## Context
 
-The Juso showcase website's hero section evolved through several iterations — from a single static screenshot, to a 4-slide auto-rotating carousel, to a page-scoped enlarged variant on the homepage only — each step adding interaction or visual sophistication. The carousel needs to feel premium (auto-rotate, smooth transitions) while respecting accessibility constraints (keyboard navigation, screen-reader roles, reduced-motion preference). The screenshot framing needed visual consistency across six different frames across the site's page variants. And the hero enlargement needed to apply only to the human-face page without leaking into the overview or agent page's layout.
+The Juso showcase website's hero section evolved through several iterations — from a single static screenshot, to a 4-slide auto-rotating carousel, to a page-scoped enlarged variant that lives on the human-face route `/human/` (since the symmetric-IA restructure the root overview is a copy-only hero) — each step adding interaction or visual sophistication. The carousel needs to feel premium (auto-rotate, smooth transitions) while respecting accessibility constraints (keyboard navigation, screen-reader roles, reduced-motion preference). The screenshot framing needed visual consistency across six different frames across the site's page variants. And the hero enlargement needed to apply only to the human-face page without leaking into the overview or agent page's layout.
 
 This document captures the durable design decisions so the next maintainer can evolve these components without re-deriving the accessibility model or the scoping strategy.
 
@@ -109,7 +109,7 @@ All screenshot frames on the site use a single `.windowbar` component: three rec
 ```
 
 **Screenshot dimensions** (consistent across all product screenshots):
-- Product screenshots: **1200×641** (SERP, instances, cache, sources, agent-bridge, search)
+- Carousel screenshots: **1200×641** (search, instances, cache, sources — the live slides; SERP and agent-bridge screenshots remain as assets but are no longer referenced by any layout). Showcase frames: **1600×900** (`static/img/showcase/*.png`, the bilingual zh-light/en-dark pairing added 2026-08-16)
 - Architecture diagram: **1040×1030** (square-ish, different aspect by design)
 - Demo GIF: **960×519**
 
@@ -123,7 +123,7 @@ Screenshots are captured once and copied to two locations with different naming 
 |---|---|
 | `screenshot-<topic>.png` | `<area>-<topic>-clean.png` |
 
-The mapping is documented in `static/img/README.md`. When a screenshot needs updating, both locations must be updated — and a CI drift-lock (`scripts/check-website-assets.py`) now SHA256-verifies every pair against the README's mapping table, so a forgotten re-sync fails the build instead of drifting silently.
+The mapping is documented in `static/img/README.md`. When a screenshot needs updating, both locations must be updated — and a CI drift-lock (`scripts/check-website-assets.py`) now SHA256-verifies every pair against the README's mapping table, so a forgotten re-sync fails the build instead of drifting silently. The `showcase/` subdirectory (7 images from `docs/assets/showcase/`, documented in the same README) is a newer dual-location set not yet drift-locked.
 
 A screenshot generation script was created, then removed: the script's parameter drift risk (capture coordinates, timing, viewport assumptions) exceeded the value of automation for a small, infrequently-updated set of screenshots. Manual capture + CI byte-equality drift-lock is the current workflow — the capture is manual, but the sync is enforced.
 
@@ -140,7 +140,7 @@ A screenshot generation script was created, then removed: the script's parameter
 - **Adding a slide to the carousel:** add a `dict` to the `$heroShots` slice in `partials/hero-visual-home.html` with `img`, `cap` (i18n key), and optional `eager: true` (only for the first slide). The IIFE auto-discovers new slides.
 - **Adding a second carousel:** the `[data-carousel]` discovery and the shared `visibilitychange` listener already handle multiple instances. Add the markup with `data-carousel` attribute — no JS changes needed.
 - **Scoping a new face's visual treatment:** add a face body class (`face-human`, `face-agents`, `face-overview`) and scope CSS under it. Do not use presentation-descriptive names (`hero-enlarged`, `wide-layout`).
-- **Adding a screenshot frame:** use the `.shot` → `.windowbar` + `<img>` + `.shot__cap` pattern. Match the 1200×641 dimension convention for product screenshots.
+- **Adding a screenshot frame:** use the `.shot` → `.windowbar` + `<img>` + `.shot__cap` pattern. Match the dimension convention: 1200×641 for carousel screenshots, 1600×900 for showcase frames.
 
 ## Examples
 

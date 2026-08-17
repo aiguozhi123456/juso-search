@@ -18,7 +18,7 @@ The three parallel identity sets of the source model: provider ids (key-backed A
 ### Search Engine
 A conventional web search engine (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, …) that has no API key or synthesized-answer contract. Each engine owns its navigation behavior and remains parallel to providers rather than joining their execution contract.
 
-Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Every registered engine now ships a real Engine Extractor (the placeholder path is retained but unused), and the Agent-facing search surface mirrors the full engine list through its allowlist; default visibility in the quick-switch bar remains the per-engine gate. Adding an engine is therefore several independent decisions — navigation registration, extraction support, Agent-surface inclusion, and default visibility — not one.
+Engine capability is layered, and membership in the engine identity set declares only navigation: every registered engine can be navigated to and can host the SERP Switch Bar, but exposing ordinary rendered SERP results through the separate browser-extraction path is a per-engine capability. Every registered engine now ships a real Engine Extractor (the placeholder path is retained but unused), and the Agent-facing search surface mirrors the full engine list through runtime discovery; default visibility in the quick-switch bar remains the per-engine gate. Adding an engine is therefore several independent decisions — navigation registration, extraction support, Agent-surface inclusion, and default visibility — not one.
 
 Each engine must emit its true canonical SERP URL (verified against the address the engine itself settles on after a real navigation): a non-canonical form that triggers a host-side redirect is an antifraud signal on engines like Yandex and can turn every navigation into a verification wall. The agent-bridge client (Python skill) discovers the engine set at runtime via the `list-engines` bridge action, so a newly extraction-capable engine is exposed to agents automatically once the worker registry includes it — no manual mirror to keep in sync.
 
@@ -80,6 +80,9 @@ A group flyout opened by clicking its group trigger, which stays open regardless
 
 Lifecycle: a click creates the pin (directly, or by converting a hover-transient flyout); only explicit actions close it — clicking the trigger again, Escape, pointerdown outside the group, selecting a source inside the flyout, or scroll-hiding the SERP bar overlay. At most one group is open at a time and a pinned group is always the open group; hovering another group clears the pin, and hovering back does not restore it. In nested flyout contexts (Selection Search Popup, where a group flyout lives inside an enclosing flyout that itself has a transient/pinned lifecycle), pinning a child group flyout cascades to pin the enclosing flyout — the child's pin survives only while the enclosing flyout remains open, so the parent must be pinned too or its hover-intent close resets the child's state.
 
+### Quick-Switch Bar
+The shared source-switcher control that renders the projected Search Source set as a row of pills (flat pinned pills plus collapsible group pills). Host surfaces — the search page's top bar, the SERP Switch Bar (the SERP-hosted instance), and the Selection Search Popup — render the pill row itself, while the right-click context menu mirrors the same projection as a menu tree; no surface keeps a per-surface copy of the Source Order / Source Visibility / Source Group Layout projection. Chinese docs call it 快切栏.
+
 ### SERP Switch Bar
 A search-source control embedded in a conventional Search Engine result page, allowing the current query to move between Search Engines and configured AI providers without first opening Juso.
 
@@ -94,6 +97,9 @@ A cursor-anchored floating popup shown after selecting text on any webpage, lett
 
 The popup's primary action uses the fixed-source preference when one is set, otherwise falls back to the Active Source, then the first visible source; the fixed-source preference is a UI-layer setting that never alters the persisted Active Source.
 
+### Context Menu Search
+The right-click search menu offered when text is selected on any page, whose menu tree mirrors the quick-switch bar's Source Group Layout — pinned sources at the top level, grouped sources in submenus — so both surfaces always agree. The background worker rebuilds the tree whenever a layout- or visibility-affecting preference changes. Picking an entry searches once with the chosen source over the selection (direct navigation, or the Juso search page via deep link for provider-backed sources) and does not change the persisted Active Source — the same one-shot semantics as the Selection Search Popup.
+
 ### SERP Scope
 The approved set of conventional Search Engine result pages on which the SERP Switch Bar may operate. Membership requires both an approved exact hostname and the engine's canonical secure result route; broad browser match syntax is only an injection boundary and does not itself make a page part of the SERP Scope.
 
@@ -101,6 +107,9 @@ SERP Scope controls where the bar mounts and remains deliberately separate from 
 
 ### Deep Link
 A `search.html?provider=X&query=Y` URL that drops the user into the Juso search page with a preselected provider and an auto-fired query. The SERP bar uses it when a provider chip is clicked from a regular search engine page; the page's mount effect parses it (provider must be configured to be honored, else falls back to the active provider). It lets the SERP bar hand off to the AI search experience in one current-tab navigation.
+
+### SERP Handoff
+The resolution step that turns "the user picked a source chip away from the search page" into a concrete navigation intent, uniform per source kind: engine-family sources (engines, Site Engines, Custom Engines) and AI Engines resolve to a direct navigation URL (AI inject sites may carry the auto-submit enter parameter), while provider-backed sources resolve to a Deep Link into the Juso search page delegated through the background worker. The origin surface (SERP bar, selection popup, context menu) decides execution details like same-tab versus new-tab; per-source-kind routing stays uniform.
 
 ## Security
 
@@ -175,7 +184,7 @@ Groups are an information-architecture shell: they do not replace individual pre
 When the active provider does not support synthesized answers, the UI hides the "AI 回答" section and shows only the results list. The provider adapter's `supportsAnswer` field drives this: only providers whose adapter declares answer support render the section, so the capability list is owned by the adapters, not by any fixed enumeration.
 
 ### Local Search Cache
-The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by active provider plus normalized query, so providers do not share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
+The local, per-device cache of successful provider searches used to avoid repeat billing for the same search object. A search object is keyed by the resolved search source — the Provider Instance id for instance searches, else the provider id — plus normalized query, so different sources never share cached results. Cache hits return the stored normalized response without calling the provider; explicit refresh bypasses the cache and may incur provider billing.
 
 The cache key is a subset of the inputs that produced the cached value. When a stored setting influences the response shape (e.g. per-provider result count), the key does not include it — so writes to that setting must invalidate the cache, or cache hits silently return responses with the stale shape. The cache also caps how many results it stores per entry; that cap must be at least the maximum the adapter is allowed to return, or a cache hit returns fewer results than the live miss did.
 
@@ -186,6 +195,15 @@ The lightweight index entry shown in the history panel. It contains query, provi
 
 ### Storage Schema Domain
 A logical partition of `chrome.storage.local` that has its own schema version stamp and migration registry, evolving independently of other domains. The project uses two: a small config domain (user keys and preferences) and a larger cache pool domain (the search result cache). When adding a new persistent storage key, it belongs to exactly one domain, and future shape changes to that key flow through that domain's migration chain — not a global migration. Worker startup checks each domain's version stamp (a single-key read) and runs pending migrations before any gateway handler touches storage; steady-state checks cost near zero because they short-circuit on the stamp alone.
+
+### Source Graph
+The coupled family of source-model state — Source Order, Source Visibility, the user-defined source definitions (Site Engines, Custom Engines, Provider Instances), the Source Group Layout, and the Active Source — which is read, normalized, and mutated as one coherent unit behind a single serialized mutation boundary. Every writer in the family must thread the complete definition set through the shared normalizers; a writer that reads only its own key silently drops members that parallel work added, which is the historical data-loss bug this shape exists to prevent.
+
+### Default-by-Getter
+A preference key whose absent-value default is supplied by the reader at read time instead of being written by a migration, so introducing the key needs no schema version bump: existing installs simply see the getter's default. A bump becomes necessary only when a stored, non-default value must be written or an old stored value has become invalid (see Value-Rewrite Migration).
+
+### Value-Rewrite Migration
+A schema migration that rewrites the stored values of existing keys — typically retiring a value the preference no longer accepts and remapping it — rather than introducing new keys. It is the one case where a preference that followed the Default-by-Getter no-bump rule requires a version bump: the value domain under an unchanged key changed, so stale stored values must be rewritten.
 
 ## Storage Concurrency
 

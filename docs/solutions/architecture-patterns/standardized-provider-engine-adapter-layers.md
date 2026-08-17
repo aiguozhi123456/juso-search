@@ -47,7 +47,7 @@ cheaply" ergonomics, but which were standardized at different times and had
 drifted into opposite shapes:
 
 - **Providers** (`lib/providers/`): AI search adapters — `tavily`, `exa`,
-  `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global` — each behind a
+  `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`, `parallel` — each behind a
   `ProviderAdapter.search(query, opts, key)` contract, BYOK keys, return
   `{ answer?, results }`.
 - **Engines** (`lib/engines/`): navigation-only SERP targets — `google`,
@@ -300,6 +300,7 @@ const engines: Record<EngineId, SearchEngine> = {
   bilibili: bilibiliEngine,
   yandex: yandexEngine,
   duckduckgo: duckduckgoEngine,
+  weixin: weixinEngine,
 };
 
 export function allEngines(): SearchEngine[] { return Object.values(engines); }
@@ -356,7 +357,7 @@ behavior change for zero structural benefit.
 **`ProviderId` and `EngineId` stay un-merged.** This preserves a documented v2
 decision. `ProviderId` is bound to the BYOK key read-path (`storage.getKey`)
 and the `search(query, opts, key)` contract; engines satisfy neither.
-`lib/sources.ts`'s `SourceId = ProviderId | EngineId | SiteEngineId` is the **only**
+`lib/sources.ts`'s `SourceId` (six members as of 2026-08: provider, engine, site, custom, instance, ai-engine ids) is the **only**
 composition point. Resist any urge to make `defineProvider` / an
 engine-factory return a common base type "for symmetry."
 

@@ -1,6 +1,7 @@
 ---
 title: Adding a conventional search engine to Juso — the full twelve-touchpoint registration pattern
 date: 2026-08-13
+last_updated: 2026-08-17
 category: docs/solutions/architecture-patterns/
 module: lib/engines
 problem_type: architecture_pattern
@@ -95,9 +96,12 @@ The full touchpoint list, grouped by layer:
 8. `entrypoints/engine-extractor.content.ts` — add a `hostsForEngine`
    case (so challenge/consent redirect pages on the new host are
    recognized) and add the id to the `isRequest` allowlist literal.
-9. `wxt.config.ts` — add the favicon to
-   `web_accessible_resources.resources` (matched against
-   `SERP_HOST_MATCH_PATTERNS`).
+9. `wxt.config.ts` — add the favicon to the `resources` arrays of BOTH
+   `web_accessible_resources` entries: the SERP-scope entry (matched
+   against `SERP_HOST_MATCH_PATTERNS`) and the `<all_urls>` entry
+   (which serves favicons to the selection-search popup on arbitrary
+   pages). The two lists are kept identical; omitting the second entry
+   makes the favicon 404 in the popup.
 10. `lib/i18n.ts` + `public/_locales/{zh_CN,en}/messages.json` — add the
     `engine_<id>` message-name constant and its localized label.
 11. `public/icons/<id>.svg` — the favicon, plus a mirror copy to
@@ -500,6 +504,11 @@ web_accessible_resources: [
     ],
     matches: SERP_HOST_MATCH_PATTERNS,
   },
+  {
+    // The selection-search popup renders favicons on any page.
+    resources: [ /* …the same icon list… */ ],
+    matches: ['<all_urls>'],
+  },
 ],
 ```
 
@@ -611,7 +620,7 @@ characterized the `weixin` review findings.
 | 6 | Extractor registry | `lib/engines/extractors/registry.ts` | `weixin: weixinExtractor` |
 | 7 | Schema migration | `lib/schema.ts` | v8→v9: `mergeHiddenFactory(['weixin'])`, `CURRENT_SCHEMA_VERSION = 9` |
 | 8 | Content-script allowlist | `entrypoints/engine-extractor.content.ts` | `hostsForEngine` case + `isRequest` literal |
-| 9 | Manifest resources | `wxt.config.ts` | `'icons/weixin.svg'` in `web_accessible_resources` |
+| 9 | Manifest resources | `wxt.config.ts` | `'icons/weixin.svg'` in `web_accessible_resources` — note the `<all_urls>` entry postdates weixin; new engines must hit both entries |
 | 10 | i18n | `lib/i18n.ts` + `_locales/{zh_CN,en}/messages.json` | `engine_weixin` → "搜狗公众号" / "WeChat Articles" |
 | 11 | Favicon + mirror | `public/icons/weixin.svg` + `website/static/icons/weixin.svg` | New SVG, byte-identical copy (INT-1 fix) |
 | 12 | Agent reference doc | `public/agent-skill/reference/engines.md` | `## weixin` section documenting wrapper-URL caveat + anti-bot (INT-2 fix) |

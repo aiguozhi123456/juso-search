@@ -51,6 +51,14 @@ Per-engine cascade (priority order, primary first):
 | Google | `#rcnt + before + alignTo #center_col` (above AIO) | `#center_col + first` (defensive; lands below AIO if ever used) |
 | Baidu | `#container + first` | `#content_left + before + alignTo #content_left` |
 | Bing | `#b_content + before + alignTo #b_content` (single-element cascade; matches searchEngineJump v5.26.11's Bing rule) | — |
+| DuckDuckGo | `nav + after + alignTo nav` | `#header_wrapper + after + alignTo #header_wrapper` |
+| Yandex | `#search-result + before + alignTo #search-result` | `main + first` |
+| Bilibili | `.search-input + after + alignTo .search-input-wrap` | `.search-header + after`, then `#i_cecream + first` (last-resort) |
+| Xiaohongshu | `#search-input + after` | `.feeds-container + before + alignTo`, then `#app + first` (last-resort) |
+| Douyin | `#search-result-container + before + alignTo #search-content-area`（fixed 栏贴 header 下沿） | `#search-content-area + before + alignTo #search-content-area` |
+| Weixin（搜狗微信） | `#main + first` | `.results + before`, then `ul.news-list + before` |
+
+**Update 2026-08-15**: the cascade is now the universal contract — every registered engine (all nine, resolved via `anchorsFor(engine|null)` in `lib/engines/registry.ts`) declares an ordered `anchors` array; the original 2026-07-17 snapshot above listed only Google/Baidu/Bing. The Xiaohongshu/Douyin last-resort budget and SPA remount interplay is documented in [serp-bar-spa-remount-and-last-resort-upgrade](serp-bar-spa-remount-and-last-resort-upgrade.md); the full per-engine registration checklist (anchors, scopes, extractor, schema, i18n) lives in [adding-search-engine](../architecture-patterns/adding-search-engine.md).
 
 **AIO ordering — original measured geometry reaffirmed; cascade priority reversed.** The 2026-07-17 cascade initially tried `#center_col + first` as the Google primary, hoping to skip alignTo rect math by inheriting `#center_col`'s width. Real-device testing initially appeared to show the bar above AI Overview, but **repeat testing confirmed the original 2026-07-14 measurement**: the bar lands **below** AIO. Google's DOM has not changed — AIO is still a sibling of `#center_col` inside `#rcnt`, rendered before it (see Phase 4 / "Google `#search + before`" below for the measured geometry). The cascade is therefore retained with reversed priority: primary is `#rcnt + before + alignTo #center_col` (above AIO), with `#center_col + first` kept only as a defensive fallback for layouts where `#rcnt` is absent. Google ships no `pageStyles` (the shim was paired with the rolled-back primary). **Baidu's cascade (`#container + first` primary) is retained pending similar real-device verification** — the same AIO-style layout risk may apply if Baidu's `#container` first child is not the visual top of results.
 
@@ -110,6 +118,9 @@ The final solution combines one shared host-layout primitive with engine-specifi
 Pass the component stylesheet through `createShadowRootUi`'s `css` option. WXT appends this CSS after its reset inside the same shadow context:
 
 ```typescript
+// 2026-07 历史形态：字符串 anchor + 固定 append。现行代码用函数 anchor
+// （overlay 模式返回 'body'，inline 模式返回 pickAnchor 结果）+ 自定义 append（含 body-mount 分支）；
+// 本片段保留用于说明 css 选项的级联位置。
 const ui = await createShadowRootUi(ctx, {
   name: 'juso-serp-bar',
   position: 'inline',
@@ -197,7 +208,7 @@ function syncAlignedHost(host: HTMLElement, strategy: AnchorStrategy): void {
 }
 ```
 
-Note: the current `syncAlignedHost` (`serp-bar.content.ts:608-609`) also writes `--juso-serp-left` — the align target's **viewport** content left — added for the Douyin `position: fixed` host, which needs a viewport coordinate rather than a parent-relative offset.
+Note: the current `syncAlignedHost` (`serp-bar.content.ts:658-660`) also writes `--juso-serp-left` — the align target's **viewport** content left — added for the Douyin `position: fixed` host, which needs a viewport coordinate rather than a parent-relative offset.
 
 `calculateAlignedHostLayout` is a DOM-independent helper. Parent and target rectangles both remain in viewport coordinates; the helper computes the target content box relative to the actual host-parent content origin:
 
@@ -241,7 +252,7 @@ const syncLocation = (url: string) => {
   if (mountedHost) syncAlignedHost(mountedHost, strategy);
 };
 
-The snippet is a simplification of the current version (`serp-bar.content.ts:422-466`): `syncLocation` is now `async` — on SPA navigation it refreshes the bar's config snapshot (site definitions, source order/hidden, persisted active source, group layout) via `loadBarState`, re-renders, and re-arms the detach/upgrade watchers, rather than only resyncing host geometry.
+The snippet is a simplification of the current version (`serp-bar.content.ts:441-486`): `syncLocation` is now `async` — on SPA navigation it refreshes the bar's config snapshot (site definitions, source order/hidden, persisted active source, group layout) via `loadBarState`, re-renders, and re-arms the detach/upgrade watchers, rather than only resyncing host geometry.
 
 ctx.addEventListener(window, 'wxt:locationchange', ({ newUrl }) => {
   syncLocation(newUrl.href);

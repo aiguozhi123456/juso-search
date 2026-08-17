@@ -1,6 +1,7 @@
 ---
 title: Service Worker fetch Illegal invocation when passing global fetch as a dependency
 date: 2026-07-23
+last_updated: 2026-08-17
 category: runtime-errors
 module: agent-bridge
 problem_type: runtime_error
@@ -70,7 +71,11 @@ return runAgentBridge(data, {
 });
 ```
 
+> The deps object has since gained `handleSearchInstance` / `listInstances` / `listEngines` (v2 protocol actions) — see `entrypoints/background.ts:155-168`; the `fetch` wrapper form is unchanged.
+
 Equivalent alternatives: `fetch.bind(globalThis)` or an explicit wrapper that calls the free function form.
+
+Firefox MV3 note (since dual-browser support): Firefox does not use a service worker — the built `firefox-mv3` manifest declares `"background": { "scripts": ["background.js"] }` (an event page), so `WorkerGlobalScope` never appears there and bare `fetch` extraction does not throw. The arrow wrapper remains the correct cross-browser form: harmless on Firefox's event-page global, mandatory on Chrome's service worker, so the single `deps.fetch` injection ships unchanged on both.
 
 ## Why This Works
 

@@ -1,6 +1,7 @@
 ---
 title: "Website Hugo template maintainability: partial extraction patterns and i18n unification"
 date: 2026-08-08
+last_updated: 2026-08-17
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -18,7 +19,7 @@ tags: [hugo, template, partials, i18n, maintainability, inline-styles, css-token
 
 ## Context
 
-The Juso marketing site has three surfaces sharing one skeleton — a neutral overview (`layouts/index.html`), a human-face page (`layouts/human/single.html`), and an agent-face page (`layouts/agents/single.html`) — that share ~80% of their structure: identical hero skeletons, identical CTA bands, and a repeated ~5-line section-head block appearing across all three templates. A maintainability audit found that this duplication, plus scattered inline styles and hardcoded bilingual strings, made every template edit a "remember to change both files" exercise. The hero was the worst offender: ~45 lines of near-identical markup in each template, differing only in one visual region (a carousel vs. a CLI demo block).
+The Juso marketing site has six surfaces sharing one skeleton — a neutral overview (`layouts/index.html`), the two face pages (`layouts/human/single.html`, `layouts/agents/single.html`), and the docs guides (`layouts/docs/list.html`, `layouts/human-docs/single.html`, `layouts/agents-docs/single.html`) — that share ~80% of their structure: identical hero skeletons, identical CTA bands, and a repeated ~5-line section-head block appearing across all three templates. A maintainability audit found that this duplication, plus scattered inline styles and hardcoded bilingual strings, made every template edit a "remember to change both files" exercise. The hero was the worst offender: ~45 lines of near-identical markup in each template, differing only in one visual region (a carousel vs. a CLI demo block).
 
 This document captures the five structural patterns applied in the refactor (commit `377fd27`) so the next maintainer evolves the templates safely instead of re-deriving the approach.
 
@@ -123,7 +124,7 @@ Inline `style=` attributes cannot be overridden by media queries, cannot be them
 
 Hardcoded bilingual strings (`{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}`) are invisible to translation audits and create ambiguity. The worst case: the same concept had two different English strings in two places ("Dual-face architecture" vs "Two-sided architecture").
 
-**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 83 keys each).
+**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 205 keys each).
 
 ```go
 {{/* Before — inconsistent, unsearchable */}}

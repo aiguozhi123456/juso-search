@@ -64,7 +64,7 @@ mouseup / click → 节点已分离，React onClick 不触发
 
 测试：
 
-- tests/selection-search-dismiss.test.ts（新建，5 用例）：内部 mousedown → 压制；外部 → 不压制；host null → 不压制；clear() 恢复；连续 mousedown 以最后一次为准。
+- tests/selection-search-dismiss.test.ts（新建，6 用例）：内部 mousedown → 压制；外部 → 不压制；host null → 不压制；clear() 恢复；连续 mousedown 以最后一次为准；`dismissPopup` 应 `guard.clear()`（防止跨弹窗重建泄漏压制窗口）。content script 的 `dismissPopup` 在卸载弹窗时同步清除守卫状态。
 - tests/SelectionSearchPopup.test.tsx 新增：对弹窗根与分组根 dispatch 真实 `new MouseEvent('mousedown', { bubbles: true, cancelable: true })`，断言 `ev.defaultPrevented === true`——jsdom 里唯一能抓住"选区塌陷被阻止"的可行断言（触发器本身无法用 fireEvent 复现，只能验证 preventDefault 与决策逻辑）。
 
 ## Why This Works

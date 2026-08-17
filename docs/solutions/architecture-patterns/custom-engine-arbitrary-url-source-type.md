@@ -1,6 +1,7 @@
 ---
 title: "Custom Engine as Fourth Search Source: Arbitrary-URL Template with New-Tab SERP Handoff"
 date: 2026-08-02
+last_updated: 2026-08-17
 category: architecture-patterns
 module: "custom-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -20,8 +21,8 @@ tags: [custom-engine, search-source, url-template, percent-s-placeholder, chrome
 
 Juso（Chrome MV3，WXT + React + TypeScript）此前已有三类 Search Source：
 
-1. **BYOK AI provider**（tavily / exa / stepfun / stepfun-plan / jina / doubao / doubao-global）——worker 内调用 API，归一化为统一结果模型；
-2. **常规引擎**（Google / Bing / Baidu / Douyin / Xiaohongshu / Bilibili / Yandex / DuckDuckGo）——engine registry 提供 `buildSerpUrl` / SERP 抽取器；
+1. **BYOK AI provider**（tavily / exa / brave / stepfun / stepfun-plan / jina / doubao / doubao-global / parallel）——worker 内调用 API，归一化为统一结果模型；
+2. **常规引擎**（Google / Bing / Baidu / Douyin / Xiaohongshu / Bilibili / Yandex / DuckDuckGo / 微信公众号（weixin））——engine registry 提供 `buildSerpUrl` / SERP 抽取器；
 3. **Site Engine**（`site:<uuid>`）——在固定的底层引擎上注入 `site:` 作用域。
 
 逐个适配每个搜索引擎既不现实，也有一些目标（ChatGPT、GitHub、StackOverflow……）根本不符合「engine registry + SERP 抽取」模型——它们没有可匹配/可抽取的标准 SERP URL。Custom Engine 因此引入**第四类** Source：用户定义的「名称 + URL 模板」，模板用 `%s` 作为查询占位符——与浏览器内置的「管理搜索引擎」完全同构。
@@ -33,9 +34,9 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有三类 Search Source�
 ### 1. 一等公民 Source：动态 id 与统一投影
 
 - 动态 id：`custom:<uuid>`，与 `site:<uuid>` 平行；类型 `CustomEngineId = \`custom:${string}\``。
-- `SourceKind` 增加 `'custom-engine'`，`SourceId` 并入 `CustomEngineId`（见 `lib/sources.ts:16-17`）。
+- `SourceKind` 增加 `'custom-engine'`，`SourceId` 并入 `CustomEngineId`（见 `lib/sources.ts:20-21`）。
 - 持久化记录 `CustomEngineDefinition { id, name, urlTemplate }`。
-- 通过 `allSources(...)` 投影：`favicon: '/icons/custom-engine.svg'`、`labelDescriptor: { kind: 'literal', value: name }`（用户名字面量，绕过 i18n）、`supportsAnswer: false`，并携带 `customEngine` 执行描述符（`lib/sources.ts:169-174`）。
+- 通过 `allSources(...)` 投影：`favicon: '/icons/custom-engine.svg'`、`labelDescriptor: { kind: 'literal', value: name }`（用户名字面量，绕过 i18n）、`supportsAnswer: false`，并携带 `customEngine` 执行描述符（`lib/sources.ts:249-253`）。
 - `allKnownSourceIds` / `normalizeSourceOrder` / `normalizeSourceHidden` 全部穿透 `customDefinitions` 参数——新增源类型必须贯穿所有 mutation 与规范化路径（参见 Related 的 source-graph 文档）。
 
 ### 2. URL 模板契约（`lib/custom-engines.ts`）
@@ -70,9 +71,9 @@ const canonical = url.href.replace(SENTINEL, '%s');
 
 两个界面共同点：**空查询不导航**。搜索页空查询仍 `setActiveSource` 持久化（与内置/站点引擎一致），只是不跳转；SERP 栏对「仍有效但空查询」的 chip 直接 `return`，连快照往返与重渲染都省掉。
 
-SERP 栏**不为 Custom Engine 持久化 active source**（`serp-bar.content.ts:711-712` 显式注释：与内置引擎一致，不调用 `setActiveSource`）。
+SERP 栏**不为 Custom Engine 持久化 active source**（`serp-bar.content.ts:761-768` 显式注释：与内置引擎一致，不调用 `setActiveSource`）。
 
-worker 侧 `openNewTab` 用 `sanitizeOpenNewTabUrl` 净化：仅 http/https、拒绝凭据、导航到解析后的 `url.href`（`entrypoints/background.ts:62-73`）。
+worker 侧 `openNewTab` 用 `sanitizeOpenNewTabUrl` 净化：仅 http/https、拒绝凭据、导航到解析后的 `url.href`（`entrypoints/background.ts:94-106`）。
 
 ### 4. 与 Site Engine 的对照
 

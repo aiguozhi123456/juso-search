@@ -1,7 +1,7 @@
 ---
 title: Adding REST Search Providers (Jina and Brave)
 date: 2026-07-27
-last_updated: 2026-08-01
+last_updated: 2026-08-17
 category: tooling-decisions
 module: providers
 problem_type: tooling_decision
@@ -131,7 +131,7 @@ Keep a provider's request-specific details inside its adapter. Extend `restTrans
 Append the new id to the union so the type system recognizes it everywhere:
 
 ```ts
-export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global';
+export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global' | 'parallel';
 ```
 
 ### 3. Registry (`lib/providers/registry.ts`)
@@ -141,6 +141,7 @@ Import the adapter, add it to the `adapters` record, and append it to `allProvid
 ```ts
 import { jinaAdapter } from './jina';
 import { braveAdapter } from './brave';
+import { parallelAdapter } from './parallel';
 
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
@@ -151,6 +152,7 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   jina: jinaAdapter,
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
+  parallel: parallelAdapter,
 };
 
 export function allProviders(): ProviderAdapter[] {
@@ -163,6 +165,7 @@ export function allProviders(): ProviderAdapter[] {
     adapters.jina,
     adapters.doubao,
     adapters['doubao-global'],
+    adapters.parallel,
   ];
 }
 ```

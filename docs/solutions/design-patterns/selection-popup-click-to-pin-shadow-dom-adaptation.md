@@ -6,7 +6,7 @@ module: SelectionSearchPopup
 problem_type: design_pattern
 component: frontend_stimulus
 severity: low
-description: 把快切栏 SourceSwitcher 的 click-to-pin 交互模式适配到划词搜索弹窗时，shadow DOM 边界与嵌套浮层结构引入了五个分歧点——composedPath 外部点击判定、子浮层纵向翻转、blur-close 键盘可达性、嵌套固定域 cascade、selectionchange 误杀压制。本文档收拢这些适配决策，作为既有三篇 bug 文档的索引与导向。
+description: 把快切栏 SourceSwitcher 的 click-to-pin 交互模式适配到划词搜索弹窗时，shadow DOM 边界与嵌套浮层结构引入了六个分歧点——composedPath 外部点击判定、子浮层纵向翻转、blur-close 键盘可达性、嵌套固定域 cascade、selectionchange 误杀压制、ARIA 菜单组合。本文档收拢这些适配决策，作为既有三篇 bug 文档的索引与导向。
 applies_when:
   - 把 hover-intent / click-to-pin 交互模式适配进 shadow DOM 弹窗或嵌套浮层结构
   - 在 shadow DOM 内做外部点击关闭、键盘焦点管理、或依赖页面选区的浮层
@@ -26,7 +26,7 @@ tags:
 
 快切栏 `components/SourceSwitcher.tsx` 建立了 click-to-pin 交互模式：`openGroupId`/`pinnedGroupId` 双状态、三分支 toggle、`pinnedRef` 守卫的 hover-intent 延迟关闭、外部 pointerdown 关闭。它运行在常驻栏（light DOM，无外层瞬态容器），pin 分组即足够。
 
-划词搜索弹窗 `components/SelectionSearchPopup.tsx` 需要同一交互，但运行环境不同：content script 注入的 shadow DOM、弹窗由页面选区触发、分组子浮层嵌套在主浮层内（主浮层自身有瞬态/固定两种生命周期）。适配过程中暴露了五个分歧点，每个都对应一个 bug 类——其中三个已各自有独立 bug 文档记录。本文档是这些适配决策的索引与导向，不重复状态机细节（见 [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md)）。
+划词搜索弹窗 `components/SelectionSearchPopup.tsx` 需要同一交互，但运行环境不同：content script 注入的 shadow DOM、弹窗由页面选区触发、分组子浮层嵌套在主浮层内（主浮层自身有瞬态/固定两种生命周期）。适配过程中暴露了六个分歧点，每个都对应一个 bug 类——其中三个已各自有独立 bug 文档记录。本文档是这些适配决策的索引与导向，不重复状态机细节（见 [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md)）。
 
 ## Guidance
 
@@ -72,7 +72,7 @@ SourceSwitcher 的分组行是 `role="button"`。SelectionSearchPopup 的主 fly
 
 ## Why This Matters
 
-每个适配点对应一个 shadow DOM 或嵌套结构特有的 bug 类。跳过任一项都会在真实浏览器复现一个已修过的 bug，而 jsdom 测试可能全绿（jsdom 无真实选区模型、无 shadow retargeting、无 selectionchange 时序）。把模式适配到新环境时，逐条审计这五个分歧点比"复制状态机然后跑测试"可靠——测试镜像的往往是 workaround 路径而非真实操作路径。
+每个适配点对应一个 shadow DOM 或嵌套结构特有的 bug 类。跳过任一项都会在真实浏览器复现一个已修过的 bug，而 jsdom 测试可能全绿（jsdom 无真实选区模型、无 shadow retargeting、无 selectionchange 时序）。把模式适配到新环境时，逐条审计这六个分歧点比"复制状态机然后跑测试"可靠——测试镜像的往往是 workaround 路径而非真实操作路径。
 
 ## When to Apply
 

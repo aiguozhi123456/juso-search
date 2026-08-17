@@ -1,6 +1,7 @@
 ---
 title: data: URL downloads ignore the filename parameter — files save as "下载.xxx"
 date: 2026-08-07
+last_updated: 2026-08-17
 category: runtime-errors
 module: gateway
 problem_type: runtime_error
@@ -67,10 +68,19 @@ export function installDownloadFilenameGuard(): void {
 }
 
 async function triggerDownload(url: string, filename: string): Promise<void> {
+  // Firefox 拒绝 data: URL 下载（bug 1318564，仍 open）；event page 有 URL.createObjectURL，
+  // 转 blob: URL 绕过。Chrome service worker 无 URL.createObjectURL，保留 data: URL + 下方守卫。
+  let downloadUrl = url;
+  if (url.startsWith('data:') && typeof URL.createObjectURL === 'function') {
+    const blob = await (await fetch(url)).blob();
+    downloadUrl = URL.createObjectURL(blob);
+  }
   pendingFilenames.push(filename);
-  await browser.downloads.download({ url, filename, saveAs: true });
+  await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
 }
 ```
+
+（data: → blob: 转换为 Firefox MV3 支持（74b17b4）所加：Firefox 根本不接受 data: 下载；Chrome service worker 无 `URL.createObjectURL`，仍走 data: URL + 守卫路径，故本守卫仍是 Chrome 侧的必要修复。）
 
 **`entrypoints/background.ts`** — call the installer once at worker startup so the listener is registered before any download can fire:
 

@@ -1,7 +1,7 @@
 ---
 title: WXT Self-Contained Development Build with Stable Extension ID
 date: 2026-07-24
-last_updated: 2026-08-01
+last_updated: 2026-08-17
 category: tooling-decisions
 module: build
 problem_type: tooling_decision
@@ -49,12 +49,16 @@ Gate the signing key on `mode` instead of `command`:
 ```typescript
 // wxt.config.ts
 export default defineConfig({
-  manifest: ({ mode }) => ({
-    ...(mode === 'development' ? { key: DEV_EXTENSION_KEY } : {}),
+  manifest: ({ browser, mode }) => ({
+    ...((mode === 'development' && browser === 'chrome')
+      ? { key: DEV_EXTENSION_KEY }
+      : {}),
     // ...rest of manifest
   }),
 });
 ```
+
+Since Firefox support landed, the key is additionally gated on `browser === 'chrome'`: Firefox ignores the manifest `key` field and `web-ext lint` flags it as unknown, so Firefox builds (dev or production) stay key-free.
 
 Add a dedicated script:
 
@@ -112,8 +116,10 @@ Running `wxt build` or `wxt build --mode development` produced a manifest withou
 ```typescript
 // wxt.config.ts
 export default defineConfig({
-  manifest: ({ mode }) => ({
-    ...(mode === 'development' ? { key: DEV_EXTENSION_KEY } : {}),
+  manifest: ({ browser, mode }) => ({
+    ...((mode === 'development' && browser === 'chrome')
+      ? { key: DEV_EXTENSION_KEY }
+      : {}),
   }),
 });
 ```

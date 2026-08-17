@@ -1,6 +1,7 @@
 ---
 title: "ChatGPT & Doubao AI Engine Injectors: Enter Auto-Submit Broken (ProseMirror events + sec-fetch-site gating + selector drift)"
 date: 2026-08-07
+last_updated: 2026-08-17
 category: integration-issues
 module: "lib/ai-engines/injectors"
 problem_type: integration_issue
@@ -202,8 +203,8 @@ DeepSeek 用同一个 `dispatchEnter` helper，但它的输入框是普通 `<tex
 
 ## Related Issues
 
-- 姊妹文档 `docs/solutions/architecture-patterns/ai-engine-enter-param-auto-submit-contract.md` —— `enter=1` URL 契约把「自动提交」从「原生预填」解耦；本文是该契约在 ChatGPT（sec-fetch-site 门控）与豆包（选择器漂移）上的运行时修复。该文档的注入器行为表已过时，待 ce-compound-refresh 更新。
-- `docs/solutions/architecture-patterns/ai-engine-conversation-navigation-source-type.md` —— 注入型 content script 的社区来源与协议，`shared.ts` DOM 工具基于此。该文档的框架分类（Lexical/Slate）与 ChatGPT 机制描述已过时，待 ce-compound-refresh 更新。
+- 姊妹文档 `docs/solutions/architecture-patterns/ai-engine-enter-param-auto-submit-contract.md` —— `enter=1` URL 契约把「自动提交」从「原生预填」解耦；本文是该契约在 ChatGPT（sec-fetch-site 门控）与豆包（选择器漂移）上的运行时修复。该文档的注入器行为表已随 2026-08-14 刷新更新（含豆包选择器漂移后的条件式 dispatchEnter）。
+- `docs/solutions/architecture-patterns/ai-engine-conversation-navigation-source-type.md` —— 注入型 content script 的社区来源与协议，`shared.ts` DOM 工具基于此。该文档已更新 ChatGPT 机制描述（ProseMirror + sec-fetch-site 门控）。
 - MCP-SuperAssistant issue #195（2026-04）—— 完整诊断 + 修复，症状与本 bug 一致（ProseMirror `#prompt-textarea` + `insertParagraph` beforeinput 方案）。
 - Tenable TRA-2025-22 —— ChatGPT `?q=` auto-submit 的 `sec-fetch-site` 门控安全公告。
 - steipete/oracle `promptComposer.ts` —— 2026 生产环境驱动，验证 ProseMirror 点击发送按钮为主路径。

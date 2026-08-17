@@ -1,8 +1,8 @@
 ---
 title: MCP server provider_id declared optional but worker bridge requires it
 date: 2026-08-09
-last_updated: 2026-08-10
-category: docs/solutions/integration-issues
+last_updated: 2026-08-17
+category: integration-issues
 module: mcp-server
 problem_type: integration_issue
 component: tooling
@@ -142,7 +142,7 @@ contract.
 ## Related
 
 - `lib/agent-bridge.ts:15` — `AgentSearchRequest` type (providerId required)
-- `lib/agent-bridge.ts:252` — bridge validator (rejects null/non-string providerId via `isProviderId()`)
+- `lib/agent-bridge.ts:253-258` — bridge validator (rejects null/non-string providerId via `isProviderId()`)
 - `mcp-server/juso_search/server.py` — MCP tool definitions (provider/engine params are plain `str` since 2026-08-10)
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — the shared bridge architecture
 - `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md` — the structural fix that replaced the `ProviderId`/`EngineId` enums with plain strings and runtime discovery

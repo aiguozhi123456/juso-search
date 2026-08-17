@@ -1,6 +1,7 @@
 ---
 title: Testable content-script helpers via lib extraction with injectable defaults
 date: 2026-07-18
+last_updated: 2026-08-17
 category: architecture-patterns
 module: serp-bar / content-script testing
 problem_type: architecture_pattern
@@ -101,7 +102,7 @@ removePageStyles();                                      // 调用点不变
 - **`lib/serp-bar-layout.ts`** — 抽自 `syncAlignedHost` 的纯几何计算（尺寸/位置）。
 - **`lib/serp-handoff.ts`** — 抽自 `onSelect` 的纯导航解析器（受 `serp-to-extension-page-blocked-by-client.md` 约束驱动而抽出）。
 
-`tests/serp-bar-mount.test.ts` 用 10 个单测覆盖：`pickAnchor` 首匹配胜出、回退到末位、单候选命中/不命中、默认 `document.querySelector` 路径；`injectPageStyles` 唯一 `<style>` 与正确 id/data-engine/textContent、Bing（无 `pageStyles`）no-op、双调幂等；`removePageStyles` 移除已注入元素与缺场 no-op。
+`tests/serp-bar-mount.test.ts` 现有 36 个单测（其中 10 个直接覆盖本学习引入的三个辅助函数，其余覆盖后续并入该模块的重挂预算/升级策略、底栏/顶栏垫高样式、`resolveBarPosition` 与 `shouldMountForEngine`）：`pickAnchor` 首匹配胜出、回退到末位、单候选命中/不命中、默认 `document.querySelector` 路径；`injectPageStyles` 唯一 `<style>` 与正确 id/data-engine/textContent、Bing（无 `pageStyles`）no-op、双调幂等；`removePageStyles` 移除已注入元素与缺场 no-op。
 
 ## Related
 

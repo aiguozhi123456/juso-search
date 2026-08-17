@@ -1,6 +1,7 @@
 ---
 title: Options tabbed sidebar IA and shared page atmosphere substrate
 date: 2026-07-26
+last_updated: 2026-08-17
 category: design-patterns
 module: options UI / shared page atmosphere
 problem_type: design_pattern
@@ -46,8 +47,8 @@ Do not mirror every `<section>` as a top-level nav item. Collapse into a small s
 
 | Group | Sections |
 |-------|----------|
-| 搜索 | active engine, site engines, quickbar |
-| 密钥 | API keys |
+| 搜索 | active engine, selection search, site engines, custom engines, source-groups layout editor, quickbar |
+| 密钥 | API keys, provider instances |
 | 通用 | locale, agent bridge, config I/O |
 | 关于 | about-brand, about-links, about-tech, about-ack |
 
@@ -109,10 +110,10 @@ Do not page groups when a single short form is still scannable end-to-end. Do no
 ```tsx
 const [activeGroup, setActiveGroup] = useState('search');
 const navGroups = [
-  { id: 'search', label: '搜索' },
-  { id: 'keys', label: '密钥' },
-  { id: 'general', label: '通用' },
-  { id: 'about', label: '关于' },
+  { id: 'search', label: t(MSG.opts_nav_search), icon: <SearchIcon size={16} /> },
+  { id: 'keys', label: t(MSG.opts_nav_keys), icon: <KeyIcon size={16} /> },
+  { id: 'general', label: t(MSG.opts_nav_general), icon: <SettingsIcon size={16} /> },
+  { id: 'about', label: t(MSG.opts_about_heading), icon: <InfoIcon size={16} /> },
 ];
 
 // render only the active group's sections

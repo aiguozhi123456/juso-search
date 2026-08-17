@@ -15,7 +15,7 @@
 
 ## 技术栈
 
-WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`browser`、`defineContentScript` 与 React hooks（无需手写 import）。使用 `browser`（已类型化），不要用 `chrome`。
+WXT + React + TypeScript，Chrome/Firefox MV3（`wxt.config.ts` 按 browser 分支）。WXT 自动导入 `defineBackground`、`browser`、`defineContentScript` 与 React hooks（无需手写 import）。使用 `browser`（已类型化），不要用 `chrome`。
 
 ## 架构
 
@@ -23,9 +23,9 @@ WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`b
 
 - `CONCEPTS.md` — 项目领域词汇（实体、命名流程、状态概念），阅读代码前可先查阅
 - `docs/solutions/` — 已记录的问题解决方案，按类别组织，YAML frontmatter 含 module/tags/problem_type；在已记录领域实现、调试或决策时可检索
-- `lib/providers/` — 八个适配器（tavily/exa/brave/stepfun/stepfun-plan/jina/doubao/doubao-global）归一化为统一模型；共享 `http.ts`（REST）+ `mcp-client.ts`（Step Plan MCP）
+- `lib/providers/` — 九个适配器（tavily/exa/brave/stepfun/stepfun-plan/jina/doubao/doubao-global/parallel）归一化为统一模型；共享 `http.ts`（REST）+ `mcp-client.ts`（Step Plan MCP）
 - `lib/provider-instances.ts` — 同一 provider 的多实例（调好参数的变体），实例是快切栏一等目标，不持有密钥；gateway 在边界解析 `ProviderInstanceId → { providerId, options }`
-- `lib/engines/` — 传统搜索引擎（google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo）
+- `lib/engines/` — 传统搜索引擎（google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo/weixin）
 - `lib/ai-engines/` — AI 对话引擎（grok/chatgpt/deepseek/doubao/gemini），注入或 URL 预填
 - `lib/site-engines.ts`、`lib/custom-engines.ts` — 站外搜索（`site:`）、自定义引擎（`%s` URL 模板）
 - `lib/gateway.ts` — worker 处理器（key 仅 worker 读）；`lib/messaging.ts`（@webext-core/messaging，ok/error 判别联合）

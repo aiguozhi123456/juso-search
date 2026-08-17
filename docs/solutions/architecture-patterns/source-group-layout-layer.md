@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -130,7 +130,7 @@ Pins-once is the key invariant: once a source appears as a pinned `{kind:'source
 
 ### 5. Schema bump without migration — lazy getter defaults
 
-Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 8`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
+Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 9`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
 
 ```ts
 // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
@@ -226,7 +226,7 @@ The quick-switch list (options page) originally offered per-item ↑↓ arrows, 
 
 **Touch fallback.** Native DnD is unavailable on touch devices, so member chips keep a pair of small ↑↓ arrows calling the **same** `moveGroupMember(groupId, index, index ± 1)` the drag uses — both interaction paths share one implementation and can never diverge. First/last members disable the out-of-bounds arrow.
 
-**i18n and styling.** Two new keys (`opts_group_drag_handle` drag-handle hint, `opts_group_member_drag` member-drag hint with `{0}` source-name placeholder) plus rewritten `opts_quickbar_hint` / `opts_source_groups_hint`; zh/en `messages.json` stay in sync (i18n-parity test guards). Drag visuals reuse existing CSS variables (`--brand`/`--muted`/`--brand-soft`/`--duration-fast`) — no new palette.
+**i18n and styling.** Two new keys (`opts_group_drag_handle` drag-handle hint, `opts_group_member_drag` member-drag hint with `$1` source-name placeholder) plus rewritten `opts_quickbar_hint` / `opts_source_groups_hint`; zh/en `messages.json` stay in sync (i18n-parity test guards). Drag visuals reuse existing CSS variables (`--brand`/`--muted`/`--brand-soft`/`--duration-fast`) — no new palette.
 
 **Pitfalls encountered while building this:**
 - **`foldIntoGroup` cross-group pollution** — the first version used `orders[oldGroupId]` as the base, mixing the old group's order into the new group. The base must be the **target** group's explicit order, merged with `groupOrderOf(groupId)`.
@@ -352,7 +352,7 @@ This is the kind of detail that only matters once data has been persisted and pa
 
 ### The v4→v5 no-migration decision
 
-The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v8 — v5→v6 hides yandex/duckduckgo, v6→v7 hides AI engines, v7→v8 rewrites `serpBarPosition: 'top'`→`'inline'` — but the no-op lesson here still holds):
+The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v9 — v5→v6 hides yandex/duckduckgo, v6→v7 hides AI engines, v7→v8 rewrites `serpBarPosition: 'top'`→`'inline'`, v8→v9 hides weixin — but the no-op lesson here still holds):
 
 ```ts
 // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.

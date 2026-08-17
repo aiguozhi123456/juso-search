@@ -1,6 +1,7 @@
 ---
 title: "Right-click context menu search and MV3 worker lifecycle defects"
 date: 2026-08-12
+last_updated: 2026-08-17
 category: logic-errors
 module: "lib/context-menu / entrypoints/background / lib/storage / lib/sources / lib/source-groups / lib/serp-handoff / lib/i18n / wxt.config"
 problem_type: logic_error
@@ -134,7 +135,7 @@ do/while 天然合并突发重建请求（第一轮结束前的多次请求只�
 - **测试用例**（见 `tests/context-menu.test.ts`）：
   - S1：`vi.resetModules()` 后重新 import 全新模块实例（map 为空），`handleContextMenuClick` 仍能从快照解析并 `tabs.create` 正确 URL —— 直接复现「worker 冷启动首次点击」。
   - S2（间接）：无重建后可直接验证；并发时序测试覆盖成本高，由 S1 的幂等性 + do/while 结构保障。
-  - 菜单树结构精确断言（18 项 id 序列）、无源时仅 `removeAll` 不 `create`。
+  - 菜单树结构精确断言（19 项 id 序列，随引擎注册表增长）、无源时仅 `removeAll` 不 `create`。
 
 ---
 
@@ -195,7 +196,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 
 ## Examples
 
-- 真实实现参考：`C:\workspace\search\lib\context-menu.ts`（206 行，修复后最终版）、`entrypoints/background.ts`（接线）、`tests/context-menu.test.ts`（11 用例，覆盖 REBUILD_KEYS 判定、菜单树 18 项精确序列、navigate/openSearchPage 两跳转分支、空选词、非叶子前缀、M2 projectLayout 分支、M3 aiAutoEnter:false、S1 快照回退）。
+- 真实实现参考：`C:\workspace\search\lib\context-menu.ts`（206 行，修复后最终版）、`entrypoints/background.ts`（接线）、`tests/context-menu.test.ts`（11 用例，覆盖 REBUILD_KEYS 判定、菜单树 19 项精确序列（weixin 引擎加入后由 18 增至 19）、navigate/openSearchPage 两跳转分支、空选词、非叶子前缀、M2 projectLayout 分支、M3 aiAutoEnter:false、S1 快照回退）。
 - 测试断言示例（engine → navigate）：
   ```ts
   await handleContextMenuClick({ menuItemId: 'juso-src:google', selectionText: 'hello world' });

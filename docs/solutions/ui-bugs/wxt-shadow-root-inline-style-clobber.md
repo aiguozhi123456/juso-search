@@ -1,6 +1,7 @@
 ---
 title: 划词搜索浮层不可见：WXT shadow root host 的 all:initial 重置吞掉内联定位
 date: 2026-08-14
+last_updated: 2026-08-15
 category: docs/solutions/ui-bugs/
 module: selection-search content script（划词搜索）
 problem_type: ui_bug
@@ -86,6 +87,7 @@ onMount(uiContainer, _shadow, shadowHost) {
   shadowHost.dataset.style = state.stylePref;
   shadowHost.dataset.flyoutUp = state.flyoutUp ? 'true' : 'false';
   shadowHost.dataset.subFlyoutLeft = state.subFlyoutLeft ? 'true' : 'false';
+  shadowHost.dataset.subFlyoutUp = state.subFlyoutUp ? 'true' : 'false';
   mountedHost = shadowHost;
   const wrapper = document.createElement('div');
   wrapper.style.position = 'absolute';
@@ -111,6 +113,7 @@ popupState = {
   y: pos.y + window.scrollY,
   flyoutUp: pos.flyoutUp,
   subFlyoutLeft,
+  subFlyoutUp: pos.flyoutUp, // 主浮层上翻时子浮层同步向上展开
 };
 ui.mount();
 ```
@@ -200,7 +203,7 @@ async function showPopup(text: string, mouseX: number, mouseY: number) {
 
 ### 5. 分组侧边级联子浮层 + 边缘翻转 + 选区折叠关闭（Bug 6）
 
-分组源列表改为悬停分组行时向右展开的级联子浮层（`position: absolute; left: 100%; top: 0`），由 CSS `:hover`/`:focus-within` 驱动，替代内联手风琴：
+分组源列表改为悬停分组行时向右展开的级联子浮层（`position: absolute; left: 100%; top: 0`）。初版由 CSS `:hover`/`:focus-within` 驱动；引入分组点击固定（click-to-pin）后改为 React 状态驱动——`openGroupId` 状态在分组行上打 `.open` class，`:hover` 只负责行背景高亮：
 
 ```css
 .juso-sel-group-sources {
@@ -218,8 +221,9 @@ async function showPopup(text: string, mouseX: number, mouseY: number) {
   padding-left: 6px !important;
   z-index: 2 !important;
 }
-.juso-sel-group:hover > .juso-sel-group-sources,
-.juso-sel-group:focus-within > .juso-sel-group-sources {
+/* 初版用 .juso-sel-group:hover / :focus-within 控制 display；分组点击固定落地后，
+   展开态由 React 的 openGroupId 状态经 .open class 驱动（hover 只做行背景高亮）。 */
+.juso-sel-group.open > .juso-sel-group-sources {
   display: block !important;
 }
 ```
@@ -233,6 +237,12 @@ async function showPopup(text: string, mouseX: number, mouseY: number) {
   right: 100% !important;
   padding-left: 4px !important;
   padding-right: 6px !important;
+}
+
+/* 弹窗上翻（flyoutUp）时子浮层向上展开，避免溢出视口底部（同走 host attribute + CSS）。 */
+:host([data-sub-flyout-up="true"]) .juso-sel-group-sources {
+  top: auto !important;
+  bottom: 100% !important;
 }
 ```
 
@@ -253,11 +263,12 @@ async function showPopup(text: string, mouseX: number, mouseY: number) {
 </button>
 ```
 
-选区折叠时关闭弹窗，用 `mountedHost` 守卫避免每次 selectionchange 都做多余处理：
+选区折叠时关闭弹窗，用 `mountedHost` 守卫避免每次 selectionchange 都做多余处理。后续又补了弹窗内按下的压制守卫（见 [selection-popup-inside-click-selectionchange-dismissal](selection-popup-inside-click-selectionchange-dismissal.md)）：弹窗内 mousedown 引起的选区塌陷不关闭弹窗，`dismissPopup` 同步 `guard.clear()` 防跨弹窗重建泄漏：
 
 ```ts
 function handleSelectionChange() {
   if (!mountedHost) return;
+  if (guard.shouldSuppressSelectionDismiss()) return; // 弹窗内 mousedown 引起的塌陷不关闭
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed) dismissPopup();
 }
@@ -270,7 +281,7 @@ function handleSelectionChange() {
 - **无缝隙 + hover-intent**：`margin-top: 4px` 的缝隙是 mouseleave 的"缝隙"，鼠标穿过时触发 `mouseleave` 使浮层收回；`top:100%` 无缝贴合后鼠标路径上不再有非热区，内部 `padding-top` 提供视觉呼吸而不产生事件缝隙。150ms 延迟关闭 + 重新进入取消关闭，让指针短暂滑出又滑回也不会闪断（与 SERP 快切栏同一 hover-intent 模式）。
 - **absolute + 页面坐标**：`position: fixed` 相对视口，滚动后弹窗钉在屏幕位置上、与所选文字脱节（用户最初感知为"弹窗不见了"）；`position: absolute` 相对 `document.documentElement`，用 `pos.x + window.scrollX / pos.y + window.scrollY` 把视口坐标转页面坐标后，弹窗随页面滚动停在被选文字附近。
 - **epoch 守卫**：WXT 的 `mount()` 不检查是否已挂载，`onMount` 无条件执行；两次快速 `showPopup` 的 await 段交错，旧的一次 await 完成后再 `ui.mount()`，就会二次 `createRoot(wrapper)` 产生孤儿 root + 叠加弹窗。epoch 使旧调用在 await 后自检退出，只有最新的一次能 mount。
-- **子浮层用 CSS 而非 JS 状态**：`:hover`/`:focus-within` 级联天然在指针路径上保持展开，不需要 JS 事件桥接，也支持键盘 focus；`data-sub-flyout-left` 走 host attribute，CSS 一行翻转，不引入 JS 分支。
+- **子浮层显隐机制（两阶段）**：初版用 `:hover`/`:focus-within` 级联驱动展开——指针路径天然保持、无需 JS 事件桥接、支持键盘 focus；后续引入分组点击固定（click-to-pin）后，展开态必须可被 pin 状态机持有，改为 React `openGroupId` 状态打 `.open` class（`:hover` 只做行背景高亮），完整状态机见 [selection-popup-click-to-pin](../design-patterns/selection-popup-click-to-pin-shadow-dom-adaptation.md)。翻转与上翻始终走 host attribute（`data-sub-flyout-left` / `data-sub-flyout-up`）+ CSS，JS 只算几何。
 
 ## Prevention
 
@@ -284,6 +295,8 @@ function handleSelectionChange() {
 
 ## Related Issues
 
+- [selection-popup-click-to-pin-shadow-dom-adaptation](../design-patterns/selection-popup-click-to-pin-shadow-dom-adaptation.md) — 本文落地后，把快切栏 click-to-pin 模式适配进该弹窗的完整决策索引（含 §5 子浮层从 CSS `:hover` 驱动改为 React `.open` class 的原因）。
+- [selection-popup-inside-click-selectionchange-dismissal](selection-popup-inside-click-selectionchange-dismissal.md) — 本文"选区折叠关闭弹窗"路径的后续修复：弹窗内 mousedown 引起的选区塌陷被误杀，补 inside-pointer 守卫。
 - [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md) — 本次 Bug 3（hover 穿缝）复用其文档化的 hover-intent 两段式模式（无 margin 缝隙贴合 + 延迟关闭/取消关闭定时器）；本次的 `scheduleClose`/`cancelClose` 与其 `pinnedGroupId` 状态机共享同一"指针热区 + 定时器"结构。
 - [serp-bar-bottom-position-and-scroll-hide](../architecture-patterns/serp-bar-bottom-position-and-scroll-hide.md) — SERP 快切栏浮层状态机（hover-intent 120ms、touch focus/click 竞态、shadow-safe 外部关闭、scroll-hide 关浮层）是划词弹窗交互的姊妹文档；group-flyout 的"无缝贴合 + padding 呼吸"与 `data-flyout-up` 翻转写法在此均有对应。
 - [serp-bar-engine-specific-anchors](../ui-bugs/serp-bar-engine-specific-anchors.md) — WXT `:host { all: initial !important }` host-reset 陷阱的既有文档，其预防规则是"在 shadow CSS 里 restore host + 用 namespaced CSS custom properties 传动态值"；本学习证明了浮层类 UI 的更简单逃生路径——host 零尺寸 static + 内部 wrapper 定位（reset 只作用于 host 元素本身）。两者是同一陷阱的两种解法，非矛盾。

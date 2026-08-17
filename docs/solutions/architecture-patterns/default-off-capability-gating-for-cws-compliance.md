@@ -1,7 +1,7 @@
 ---
 title: Default-off capability gating for Agent Bridge and engine-search (CWS compliance)
 date: 2026-07-25
-last_updated: 2026-08-14
+last_updated: 2026-08-15
 category: docs/solutions/architecture-patterns
 module: Agent Bridge / background worker
 problem_type: architecture_pattern
@@ -18,7 +18,7 @@ tags: [agent-bridge, engine-search, cws-compliance, default-off, feature-flag, g
 
 ## Context
 
-Juso's Agent Bridge exposes the extension's search capability to a local AI assistant over loopback (`127.0.0.1`). One of its three actions, `engine-search`, lets the agent ask the worker to open a **background** tab (`tabs.create({ active: false })`) to Google/Bing/Baidu, read only the publicly-rendered result metadata (title/url/snippet) via the engine-extractor content script, close the tab, and return the data to the agent.
+Juso's Agent Bridge exposes the extension's search capability to a local AI assistant over loopback (`127.0.0.1`). One of its actions, `engine-search`, lets the agent ask the worker to open a **background** tab (`tabs.create({ active: false })`) to Google/Bing/Baidu, read only the publicly-rendered result metadata (title/url/snippet) via the engine-extractor content script, close the tab, and return the data to the agent.
 
 This is useful, but it is also the textbook shape of a **scraping tool**: an external process drives the browser to silently load search-engine pages and extract their results. A Chrome Web Store policy review (ora-1, code-grounded) flagged it as the single highest rejection risk — not because the capability is forbidden, but because it was **on by default with no rate limit and no user-facing signal**. Competing extensions (Kimi WebBridge, OpenCLI) ship similar local-agent bridges and pass review, which confirms the category is not a red line; the risk is in the *default-on, silent, undisclosed* posture, not the feature itself.
 
@@ -41,7 +41,7 @@ Gate at the **caller**, not inside the library. The library (`lib/agent-bridge.t
 // entrypoints/background.ts
 onMessage('agentBridgeClaim', async ({ data, sender }) => {
   if (!isTrustedBridgeSender(sender, browser.runtime.id)) return { ok: false };
-  // Total switch: gates the entire bridge (search / list-providers / engine-search).
+  // Total switch: gates the entire bridge（写文时为 search / list-providers / engine-search 三个动作，现共六个）。
   if (!(await getAgentBridgeEnabled())) return { ok: false };
   return runAgentBridge(data, {
     fetch: (...args) => fetch(...args),

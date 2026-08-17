@@ -70,7 +70,7 @@ Any hand-edit to a tracked directory, or any template change not followed by `np
 
 1. `const extId = browser.runtime.id` (`:53`), validated against `EXTENSION_ID_RE = /^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-…\})$/` (`:21`) — relaxed to also accept Firefox email-style ids and `{GUID}`s, so the same packager serves both browsers. A mismatch throws with a message that flags a dev/custom build as the expected cause rather than a generic failure.
 2. `fetch(browser.runtime.getURL('agent-skill/SKILL.md'))`, `.../scripts/juso_search.py`, `.../scripts/juso_bridge.py`, and the `reference/*.md` chapters read the bundled template. The bridge URL is derived as `browser.runtime.getURL('bridge.html')` (`:67`) — full URL, not id-derived, because Firefox's `moz-extension://` host is a per-install random UUID.
-3. `stamp(text, placeholder, value)` (`:29`) splits on the placeholder and joins with the value, applied once per placeholder: `__JUSO_EXTENSION_ID__` ← runtime id and `__JUSO_BRIDGE_URL__` ← bridge URL (`:82-84`). Post-stamp checks (`:85-90`, plus `reference/` at `:94-99`) throw if either placeholder remains — a guard against template drift sneaking past the build.
+3. `stamp(text, placeholder, value)` (`:29`) splits on the placeholder and joins with the value, applied once per placeholder: `__JUSO_EXTENSION_ID__` ← runtime id and `__JUSO_BRIDGE_URL__` ← bridge URL (`:82-84`). Post-stamp checks (`:85-90`, plus `reference/` at `:92-101`) throw if either placeholder remains — a guard against template drift sneaking past the build.
 4. `createStoreZip` (`lib/zip.ts`) packages the entries under a **uniform** `juso-search/` top-level folder, with auto-inserted directory entries (`juso-search/`, `juso-search/scripts/`, `juso-search/reference/`).
 5. The result is returned as `{ dataUrl, filename }` — `data:application/zip;base64,...` and `juso-search[-dev]-<version>.zip`, where `<version> = browser.runtime.getManifest().version`.
 
@@ -82,23 +82,23 @@ The pipeline uses three distinct seams that are easy to conflate:
 
 - **`__JUSO_EXTENSION_ID__`** — a *runtime* placeholder in the template, resolved at download time from `browser.runtime.id`. This is the seam that covers unknown custom dev ids with no rebuild.
 - **`__JUSO_BRIDGE_URL__`** — a second *runtime* placeholder, resolved at download time from `browser.runtime.getURL('bridge.html')`. Chrome could derive this from the id (`chrome-extension://{id}/bridge.html`), but Firefox's `moz-extension://` host is a per-install random UUID, so the full URL must be stamped into the skill for it to reach the right bridge page.
-- **`__SKILL_VARIANT__`** — a *build-time* constant injected by Vite `define` in `wxt.config.ts:14-18` (`env.mode === 'development' ? 'dev' : 'prod'`), surfaced through `lib/skill-variant.ts`. It is used **only** to pick the zip filename token inside `packageAgentSkill`. It never reaches skill content, and it never reaches the Python generator (which has its own per-variant config).
+- **`__SKILL_VARIANT__`** — a *build-time* constant injected by Vite `define` in `wxt.config.ts:12-17` (`env.mode === 'development' ? 'dev' : 'prod'`), surfaced through `lib/skill-variant.ts`. It is used **only** to pick the zip filename token inside `packageAgentSkill`. It never reaches skill content, and it never reaches the Python generator (which has its own per-variant config).
 
 Keeping these seams separate is the reason a custom dev build (unknown id, but `mode === 'development'` so `__SKILL_VARIANT__ === 'dev'`) produces a correctly-named `juso-search-dev-<version>.zip` whose content is stamped with the *user's own* runtime id and bridge URL.
 
 ### Worker-side packaging and messaging flow
 
-The packager runs entirely inside the MV3 worker. The flow mirrors the existing `handleExportConfig` precedent (`lib/gateway.ts:333`):
+The packager runs entirely inside the MV3 worker. The flow mirrors the existing `handleExportConfig` precedent (`lib/gateway.ts:381`):
 
 ```text
 Options UI (AgentBridgeSettings) ──sendMessage('packageAgentSkill')──▶ worker
-  entrypoints/background.ts:116  onMessage('packageAgentSkill', () => handlePackageAgentSkill())
-  lib/gateway.ts:360             handlePackageAgentSkill() → packageAgentSkill(SKILL_VARIANT)
+  entrypoints/background.ts:146  onMessage('packageAgentSkill', () => handlePackageAgentSkill())
+  lib/gateway.ts:408             handlePackageAgentSkill() → packageAgentSkill(SKILL_VARIANT)
                                   → triggerDownload(dataUrl, filename)  (browser.downloads.download)
                                   → { ok: true } | { ok: false, error }
 ```
 
-`packageAgentSkill` is declared in `lib/messaging.ts:115` with the standard ok/error discriminated-union reply (`PackageAgentSkillReply` at `:66`). The template is a keyless text resource, the worker is the only reader of BYOK keys, and the data URL never enters page memory — so the packager preserves the existing BYOK boundary without any new privilege.
+`packageAgentSkill` is declared in `lib/messaging.ts:125` with the standard ok/error discriminated-union reply (`PackageAgentSkillReply` at `:68`). The template is a keyless text resource, the worker is the only reader of BYOK keys, and the data URL never enters page memory — so the packager preserves the existing BYOK boundary without any new privilege.
 
 ### Compact flow
 

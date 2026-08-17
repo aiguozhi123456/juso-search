@@ -100,7 +100,7 @@ Upgrade observer only runs when mounted on **last-resort**; never remount solely
 ### 5. Default-hidden engines（schema version-gated）
 
 - 新引擎 `douyin` / `xiaohongshu` 注册方式与 Google/Bing/Baidu 相同。
-- `CURRENT_SCHEMA_VERSION = 8`。v1→v2 合并 douyin/xiaohongshu 到 `sourceHidden`、v2→v3 添加 bilibili 默认隐藏、v3→v4 添加 siteEngines（均为历史）；v4→v5 为 groupConfig 空迁移（仅 bump 版本戳），v5→v6 添加 yandex/duckduckgo 默认隐藏，v6→v7 添加 AI 引擎默认隐藏，v7→v8 重定义 serpBarPosition `'top'`→`'inline'`。每次迁移幂等；取消隐藏后不会重新合并。
+- `CURRENT_SCHEMA_VERSION = 9`。v1→v2 合并 douyin/xiaohongshu 到 `sourceHidden`、v2→v3 添加 bilibili 默认隐藏、v3→v4 添加 siteEngines（均为历史）；v4→v5 为 groupConfig 空迁移（仅 bump 版本戳），v5→v6 添加 yandex/duckduckgo 默认隐藏，v6→v7 添加 AI 引擎默认隐藏，v7→v8 重定义 serpBarPosition `'top'`→`'inline'`，v8→v9 添加 weixin 默认隐藏。每次迁移幂等；取消隐藏后不会重新合并。
 - `ensureSchema` **先设置**迁移后的键（包括版本），**再**移除过时键。
 
 ## Why This Works
@@ -116,7 +116,7 @@ Upgrade observer only runs when mounted on **last-resort**; never remount solely
 - Keep remount / upgrade policy in `lib/serp-bar-mount.ts` with unit tests (`tests/serp-bar-mount.test.ts`); do not re-embed policy only inside the content-script IIFE.
 - When adding engines with delayed SPA shells: declare ordered `anchors` with an intentional last-resort; never “upgrade between non-last-resort” for position-sensitive UIs.
 - For `position: fixed` SERP hosts, store viewport coordinates (`--juso-serp-left`), not parent-relative offsets alone.
-- Schema 迁移引入默认隐藏来源时必须用版本门控，用户取消隐藏后不得重新合并。当前 schema 版本为 8（v2: douyin/xiaohongshu, v3: bilibili, v4: siteEngines, v5: groupConfig 空迁移, v6: yandex/duckduckgo, v7: AI 引擎默认隐藏, v8: serpBarPosition 重定义）。
+- Schema 迁移引入默认隐藏来源时必须用版本门控，用户取消隐藏后不得重新合并。当前 schema 版本为 9（v2: douyin/xiaohongshu, v3: bilibili, v4: siteEngines, v5: groupConfig 空迁移, v6: yandex/duckduckgo, v7: AI 引擎默认隐藏, v8: serpBarPosition 重定义, v9: weixin 默认隐藏）。
 - Content-script match patterns may be broader than `engine.matches`; keep `matches`/`extractQuery` strict and tested (including negative nested paths).
 
 ## Related Issues

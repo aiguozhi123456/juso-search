@@ -82,9 +82,9 @@ The server was constructing `MCPServer("Juso Search", version="0.1.0")` with a h
 `load_config` parses `JUSO_EXTENSION_ID` and `JUSO_TIMEOUT` from the MCP client's `env` block. Two validation gaps could let invalid config through to runtime:
 
 - **L1 — reject `inf`/`nan` timeouts.** `float("inf")` and `float("nan")` parse successfully through `float(raw_timeout)` and pass a naive `> 0` check (`nan` fails it, but `inf` passes), then propagate into `run_bridge` as a timeout that never elapses — the server would hang forever on a stalled bridge cycle. The fix calls `math.isfinite(parsed)` after parsing and rejects non-finite values with a clear stderr message before they reach the bridge.
-- **L3 — validate extension ID at config time.** `juso_bridge.EXTENSION_ID_RE` (`^[a-p]{32}$`, the 32-lowercase-letter Chrome extension id shape) already existed and was checked inside `run_bridge`. But a malformed `JUSO_EXTENSION_ID` would only fail after Chromium launched, opened `bridge.html`, and timed out — a confusing multi-second failure with no message. The fix runs `EXTENSION_ID_RE.fullmatch(extension_id)` in `load_config`, so a typo or a pasted URL fragment fails fast at startup with `juso-search: JUSO_EXTENSION_ID must be 32 lowercase letters a-p ...` on stderr and a non-zero exit.
+- **L3 — validate extension ID at config time.** `juso_bridge.EXTENSION_ID_RE` (at the time `^[a-p]{32}$`, the 32-lowercase-letter Chrome extension id shape; since relaxed to also accept Firefox email-style ids and `{GUID}` forms) already existed and was checked inside `run_bridge`. But a malformed `JUSO_EXTENSION_ID` would only fail after Chromium launched, opened `bridge.html`, and timed out — a confusing multi-second failure with no message. The fix runs `EXTENSION_ID_RE.fullmatch(extension_id)` in `load_config`, so a typo or a pasted URL fragment fails fast at startup with the id-shape error on stderr and a non-zero exit.
 
-`JUSO_CHROME_PATH` is also required at startup (validated in `config.py:72-80`) — the server refuses to guess a browser (auto-discovery is a CLI-skill convenience, not an MCP one) and exits via the same `_die()` stderr discipline if it is missing.
+`JUSO_BROWSER_PATH` is also required at startup (validated in `config.py:78-87`; `JUSO_CHROME_PATH` is accepted as a legacy alias) — the server refuses to guess a browser (auto-discovery is a CLI-skill convenience, not an MCP one) and exits via the same `_die()` stderr discipline if it is missing. The bridge target itself comes from `JUSO_EXTENSION_ID` or `JUSO_BRIDGE_URL` (at least one; the URL form serves Firefox, whose ids cannot be resolved to a loopback origin).
 
 Both validations use the existing `_die()` helper, which writes to **stderr** only (never stdout — stdout is reserved for JSON-RPC) and raises `SystemExit(EXIT_CONFIG_ERROR)` (code 2), keeping all config failures out of the JSON-RPC transport path.
 
@@ -218,14 +218,14 @@ def build_server(config: Config) -> MCPServer:
     def search(
         ctx: Context,
         query: str,
-        provider: ProviderId,
+        provider: str,
         force_refresh: bool = False,
     ) -> CallToolResult:
         return call_bridge(
             "search",
             config,
             query=query,
-            provider_id=_value(provider),
+            provider_id=provider,
             force_refresh=force_refresh,
             cancel_event=_cancel_event(ctx),
         )
@@ -266,6 +266,7 @@ def call_bridge(
             chrome_path=config.chrome_path,
             profile=config.profile,
             timeout=config.timeout,
+            bridge_url=config.bridge_url,
             cancel_event=cancel_event,
         )
     except juso_bridge.BridgeError as error:

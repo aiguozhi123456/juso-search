@@ -1,7 +1,7 @@
 ---
 title: "Source-Level Favicon Field Mirrored Across Engine and Provider Adapters"
 date: 2026-07-23
-last_updated: 2026-08-01
+last_updated: 2026-08-17
 category: design-patterns
 module: "providers / engines / sources"
 problem_type: design_pattern
@@ -30,7 +30,7 @@ tags:
 
 ## Context
 
-`SearchSource` (`lib/sources.ts`) is the unified view layer the `SourceSwitcher` consumes for *both* AI providers (tavily/exa/brave/stepfun/stepfun-plan/jina/doubao/doubao-global) and conventional engines (google/bing/baidu/douyin/xiaohongshu). Originally only engines carried a `favicon: string` — an extension-relative SVG path rendered as a 14px `<img>` in the switcher. Providers rendered as bare text pills (plus an optional "no-answer" badge), so the switcher looked visually asymmetric: engine pills had brand marks, provider pills did not.
+`SearchSource` (`lib/sources.ts`) is the unified view layer the `SourceSwitcher` consumes for *both* AI providers (tavily/exa/brave/stepfun/stepfun-plan/jina/doubao/doubao-global/parallel) and conventional engines (google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo/weixin). Originally only engines carried a `favicon: string` — an extension-relative SVG path rendered as a 14px `<img>` in the switcher. Providers rendered as bare text pills (plus an optional "no-answer" badge), so the switcher looked visually asymmetric: engine pills had brand marks, provider pills did not.
 
 The gap was a missing *field on the adapter*, not a missing render path. `SourceSwitcher.tsx` already conditionally renders `<img src={resolveIconUrl(s.favicon)}>` for any source carrying a `favicon`, so the fix was pure data plumbing: give `ProviderAdapter` the same field engines have and thread it through the factory and projection. No render-side code changed.
 
@@ -39,7 +39,7 @@ The gap was a missing *field on the adapter*, not a missing render path. `Source
 To add or backfill a source-level metadata field that should be uniform across engines and providers, touch the pipeline in this order — each layer exists specifically to be the one place a cross-cutting source attribute is declared:
 
 1. **Type contract** — `lib/providers/types.ts` `ProviderAdapter` (and the matching engine type `lib/engines/types.ts`). Mirror the field name and semantics exactly. Keep it a plain string path, not an imported asset or React component, so it survives the worker/extension/shadow-DOM boundaries unchanged.
-2. **Factory** — `lib/providers/base.ts` `ProviderDefinition` + `defineProvider`. Add the field to the definition interface and pass it through in the returned object. This is the single seam every provider adapter funnels through, so declaring it here guarantees all eight adapters carry it.
+2. **Factory** — `lib/providers/base.ts` `ProviderDefinition` + `defineProvider`. Add the field to the definition interface and pass it through in the returned object. This is the single seam every provider adapter funnels through, so declaring it here guarantees all nine adapters carry it.
 3. **Each adapter** — set the value per provider (`favicon: '/icons/<name>.svg'`). Co-branded providers may share one asset (stepfun + stepfun-plan both point at `stepfun.svg`).
 4. **Projection** — `lib/sources.ts` `allSources()`. The provider branch originally omitted `favicon` (it was an engine-only concept); add `favicon: provider.favicon` so the field reaches `SearchSource.favicon`.
 5. **Manifest (the easy-to-forget step)** — `wxt.config.ts` `web_accessible_resources.resources`. The SVG loads fine on the extension's own page via the dev server, but inside the injected SERP shadow DOM `runtime.getURL()` only resolves resources declared here. A new icon that renders on the search page but 404s in the SERP bar is the symptom of skipping this step.
@@ -58,14 +58,23 @@ export interface ProviderAdapter {
 
 ```ts
 // lib/sources.ts — provider branch of allSources() now carries favicon
+// (a configured provider with instances projects one pill per instance; instance chips pass the adapter favicon through)
 if (provider) {
-  return configuredProviderIds.includes(provider.id) ? [{
+  if (!configuredProviderIds.includes(provider.id)) return [];
+  const instances = instancesByProvider.get(provider.id);
+  if (instances && instances.length > 0) {
+    // 有实例的 provider：投影实例 pill（每个实例一个），不投影裸 provider pill。
+    return projectInstanceGroup(provider.id, provider.supportsAnswer, provider.favicon);
+  }
+  projected.add(provider.id);
+  return [{
     id: provider.id,
     kind: 'provider',
     label: provider.label,
+    labelDescriptor: { kind: 'i18n', key: provider.label },
     supportsAnswer: provider.supportsAnswer,
     favicon: provider.favicon,
-  }] : [];
+  }];
 }
 ```
 
@@ -82,6 +91,8 @@ web_accessible_resources: [{
   matches: SERP_HOST_MATCH_PATTERNS,
 }],
 ```
+
+Note: the selection-search popup (injected on any page, not just SERP hosts) loads the same favicons via `resolveIconUrl`, so the resources also ship under a second `web_accessible_resources` entry with `matches: ['<all_urls>']` — a new consumer surface outside the SERP hosts needs its own match entry.
 
 ## Why This Matters
 

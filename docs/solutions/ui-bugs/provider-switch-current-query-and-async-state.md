@@ -1,7 +1,7 @@
 ---
 title: "Source switching should serialize active-source writes and search the current input"
 date: 2026-07-07
-last_updated: 2026-08-01
+last_updated: 2026-08-17
 category: ui-bugs
 module: "search provider switching UI"
 problem_type: ui_bug
@@ -43,7 +43,7 @@ The first implementation fixed the single-click behavior by auto-searching after
 
 Make the search box controlled by the search page, route active-source writes through the background worker, and serialize source switching while search or switch work is pending.
 
-> Simplified illustration — current impl handles all source kinds (`provider` / `site-engine` / `custom-engine` / `ai-engine`) via `lib/serp-handoff.ts` resolvers (`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`); see `entrypoints/search/App.tsx` for the full per-kind source-selection logic. The `handleSearch` signature is now `handleSearch(rawQuery, opts: { ... selectedSource? ... })`.
+> Simplified illustration — current impl handles all source kinds (`provider` / `provider-instance` / `site-engine` / `custom-engine` / `engine` / `ai-engine`) via `lib/serp-handoff.ts` resolvers (`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`); instance chips route through the same serialized switch + `handleSearch({ providerId: instanceId })` path as bare provider chips; see `entrypoints/search/App.tsx` for the full per-kind source-selection logic. The `handleSearch` signature is now `handleSearch(rawQuery, opts: { ... selectedSource? ... })`.
 
 ```tsx
 // entrypoints/search/App.tsx

@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -100,7 +100,7 @@ This is the same discipline `separate-active-search-source-from-active-byok-prov
 The boundary lives in `lib/gateway.ts` as `resolveInstance`:
 
 ```ts
-// lib/gateway.ts:416-429
+// lib/gateway.ts:545-558
 export async function resolveInstance(sourceId: SourceId | undefined): Promise<{
   providerId: ProviderId;
   providerSettings?: Record<string, unknown>;
@@ -122,7 +122,7 @@ Three things happen here: (1) the instance id is converted to its base `Provider
 The `cacheKeyId` is the subtle part. It is threaded through `resolveSearchSource` → `resolveBareProvider` → `runProviderSearch` so that the cache read and the cache write agree on the key:
 
 ```ts
-// lib/gateway.ts:451-457
+// lib/gateway.ts:580-586
 async function resolveBareProvider(providerId: ProviderId): Promise<{ providerId: ProviderId; providerSettings?: Record<string, unknown>; cacheKeyId: string }> {
   const instances = await getProviderInstances();
   const defaultInstance = instances.find((instance) => instance.baseProviderId === providerId);
@@ -137,7 +137,7 @@ Note `resolveBareProvider` deliberately uses the **default instance's id** as th
 `runProviderSearch` consumes the resolution and uses `cacheKeyId` for both the cache read and the cache write:
 
 ```ts
-// lib/gateway.ts:373-407
+// lib/gateway.ts:502-536
 async function runProviderSearch(
   query: string,
   resolution: { providerId: ProviderId; providerSettings?: Record<string, unknown>; cacheKeyId: string },
@@ -177,9 +177,9 @@ When a bare provider id is searched (agent v1, or a UI that hasn't migrated to i
 
 **Auto-create on key config.** When a provider key is saved (`handleSaveProviderKey`) and the provider is in `PROVIDERS_WITH_INSTANCE_OPTIONS` and has no existing instances, a default instance is auto-created with empty options (`{}` — the adapter's normalizer fills defaults) and the provider's display label as its name. This is done atomically via `ensureDefaultInstance` (in `lib/storage/provider-instance-store.ts`, inside `withSourceMutation(() => withProviderInstancesMutation(...))` — source queue first, then instance queue, matching `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`), which checks for existing instances before creating — so re-adding a deleted key does not create a duplicate. This ensures every instance-supporting provider always has ≥1 instance, making the model uniform (no bare pill ever appears for instance-supporting providers).
 
-**Backfill on config read.** Key-save auto-create only covers users who save a key *after* the instance feature shipped. Older users who configured exa/doubao keys before instances existed would otherwise keep a bare provider pill forever. `handleGetProviderConfig` (`lib/gateway.ts`) therefore lazily backfills: it reads the config snapshot, and for any provider in `PROVIDERS_WITH_INSTANCE_OPTIONS` that is configured (key exists — only read in the worker context, BYOK-safe) yet has zero instances, it calls the same `ensureDefaultInstance`. The snapshot returned to the UI is re-read after backfill so the new instance is projected immediately. The backfill is idempotent (missing set is empty once done — `ensureDefaultInstance` is itself a no-op when an instance exists), costs zero extra storage reads in steady state, and is best-effort: a failed backfill never blocks the config reply. Chosen trigger point: every UI surface (search page / options / SERP bar) pulls config through this one worker message, so a single lazy backfill here self-heals all of them. A read-path backfill is preferred over a schema migration for three reasons: (1) it also covers keys filled by config import (`mergeImport` only fills empty slots and never re-triggers key-save auto-create); (2) it keeps the migration chain (`ensureSchema`, worker-only at `lib/gateway.ts:67-74`, pre-warmed at `entrypoints/background.ts:50`) a pure key-stamping function — a migration would have to read key existence inside schema code, leaking the BYOK check out of the read path it belongs to; (3) it self-heals storage that was manually edited back to zero instances.
+**Backfill on config read.** Key-save auto-create only covers users who save a key *after* the instance feature shipped. Older users who configured exa/doubao keys before instances existed would otherwise keep a bare provider pill forever. `handleGetProviderConfig` (`lib/gateway.ts`) therefore lazily backfills: it reads the config snapshot, and for any provider in `PROVIDERS_WITH_INSTANCE_OPTIONS` that is configured (key exists — only read in the worker context, BYOK-safe) yet has zero instances, it calls the same `ensureDefaultInstance`. The snapshot returned to the UI is re-read after backfill so the new instance is projected immediately. The backfill is idempotent (missing set is empty once done — `ensureDefaultInstance` is itself a no-op when an instance exists), costs zero extra storage reads in steady state, and is best-effort: a failed backfill never blocks the config reply. Chosen trigger point: every UI surface (search page / options / SERP bar) pulls config through this one worker message, so a single lazy backfill here self-heals all of them. A read-path backfill is preferred over a schema migration for three reasons: (1) it also covers keys filled by config import (`mergeImport` only fills empty slots and never re-triggers key-save auto-create); (2) it keeps the migration chain (`ensureSchema`, worker-only at `lib/gateway.ts:67-74`, pre-warmed at `entrypoints/background.ts:60`) a pure key-stamping function — a migration would have to read key existence inside schema code, leaking the BYOK check out of the read path it belongs to; (3) it self-heals storage that was manually edited back to zero instances.
 
-The cost of implicit-first is that "first in storage order" is an implicit contract. It is documented at `resolveBareProvider` (`lib/gateway.ts:449-450`) and exercised by tests. The benefit is one fewer storage field and one fewer consistency invariant to maintain. The auto-create + sole-instance protection together ensure the default is always present and stable.
+The cost of implicit-first is that "first in storage order" is an implicit contract. It is documented at `resolveBareProvider` (`lib/gateway.ts:578-579`) and exercised by tests. The benefit is one fewer storage field and one fewer consistency invariant to maintain. The auto-create + sole-instance protection together ensure the default is always present and stable.
 
 ### `effectiveActiveSource` must map bare provider ids to instance ids
 
@@ -207,7 +207,7 @@ export interface AgentListInstancesRequest {
 }
 ```
 
-The v1 `search` action and its `providerId: ProviderId` field are untouched. The parser still rejects an instance id in `search`'s `providerId` slot (`lib/agent-bridge.ts:224`: `!isProviderId(value.providerId)`). Old skills keep working unchanged; new skills opt into v2 by sending `search-instance` or `list-instances`.
+The v1 `search` action and its `providerId: ProviderId` field are untouched. The parser still rejects an instance id in `search`'s `providerId` slot (`lib/agent-bridge.ts:257`: `!isProviderId(value.providerId)`). Old skills keep working unchanged; new skills opt into v2 by sending `search-instance` or `list-instances`.
 
 Protocol negotiation is by claim version. `parseAgentClaim` accepts both `protocol: 1` and `protocol: 2` claims, and the bridge replies on whichever protocol the claim used (`lib/agent-bridge.ts:89-96`, `:137`). A v1 skill never sees v2 shapes; a v2 skill can call both v1 and v2 actions.
 
@@ -384,7 +384,7 @@ This bug was found during reconciliation, not during implementation. The plan sp
 
 The seam: IU4's `runProviderSearch` **keyed the cache by `providerId`** and called `saveCachedSearch(response)` **without the instance id** — because IU4 was written before IU6's `saveCachedSearch(response, id)` signature existed, and the fixer did not reconcile after IU6 landed. The result: IU6's per-instance keying was in place, but IU4 bypassed it by passing the provider id as the key and omitting the instance id from the save. Two instances of the same provider would write under the same `providerId:query` key, and the second would overwrite the first. The per-instance keying existed in the cache module but was never exercised by the gateway.
 
-The fix was to thread `cacheKeyId` through the entire resolution chain (`resolveInstance` / `resolveSearchSource` / `resolveBareProvider` all return it; `runProviderSearch` reads it and passes it to both `getCachedSearch` and `saveCachedSearch`). This is the `cacheKeyId` field visible in `lib/gateway.ts:375` and `:379`.
+The fix was to thread `cacheKeyId` through the entire resolution chain (`resolveInstance` / `resolveSearchSource` / `resolveBareProvider` all return it; `runProviderSearch` reads it and passes it to both `getCachedSearch` and `saveCachedSearch`). This is the `cacheKeyId` field visible in `lib/gateway.ts:504` and `:508`.
 
 **The general lesson:** when two parallel work units touch a shared seam (here: the cache key and the cache write), the integration point must be explicitly reconciled. "Both units passed their own tests" is not sufficient, because each unit's tests mocked the other side. The seam only exists in the integrated path. The reconciliation audit — "does `runProviderSearch` pass the same id to `getCachedSearch` and `saveCachedSearch` that `resolveInstance` chose?" — is the check that catches this class of bug. It should be a mandatory step whenever a parameter is threaded across a unit boundary that was implemented in parallel.
 
@@ -392,9 +392,9 @@ The fix was to thread `cacheKeyId` through the entire resolution chain (`resolve
 
 This bug was found in a fresh review after the cache-key bug was fixed. `normalizeSourceOrder`, `normalizeSourceHidden`, and `allKnownSourceIds` in `lib/sources.ts` each gained a `providerInstances` parameter (defaulting to `[]`). The default is the trap: a caller that forgets to pass the instances sees an empty set, and every instance id is silently stripped from `sourceOrder` / `sourceHidden` / `groupConfig`.
 
-`lib/config-io.ts` threaded the argument correctly at every call site — it was written alongside the instance feature and the author was aware. `lib/storage.ts` was modified by the same parallel work, and **~15 call sites** in `storage.ts` called `normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds` **without** the `providerInstances` argument. The default `[]` kicked in. Instance ids were stripped from `sourceOrder` on every read-modify-write. The user-facing symptom: hiding, pinning, grouping, and reordering instances silently failed. The instance pill appeared in the bar, but moving it did nothing, and hiding it did nothing — because the write normalized the id out of existence before persisting.
+`lib/config-io.ts` threaded the argument correctly at every call site — it was written alongside the instance feature and the author was aware. `lib/storage` (then the monolithic `storage.ts`, since split into domain modules) was modified by the same parallel work, and **~15 call sites** called `normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds` **without** the `providerInstances` argument. The default `[]` kicked in. Instance ids were stripped from `sourceOrder` on every read-modify-write. The user-facing symptom: hiding, pinning, grouping, and reordering instances silently failed. The instance pill appeared in the bar, but moving it did nothing, and hiding it did nothing — because the write normalized the id out of existence before persisting.
 
-The fix was to mirror `config-io.ts`'s pattern in `storage.ts`: every call site that already read `PROVIDER_INSTANCES_KEY` into `instances` must pass `instances` as the fourth argument. This is visible throughout `lib/storage.ts` — e.g. `:157-158` in `clearKey`, `:388` in `getSourceOrder`, `:410` in `setSourceHidden`, `:425-429` in `getGroupConfig`, `:629-631` in `deleteProviderInstance`. The `getProviderConfigSnapshot` function (`:660-677`) reads all keys in one batch and threads `providerInstances` into every normalizer that needs it.
+The fix was to mirror `config-io.ts`'s pattern in `storage.ts`: every call site that already read `PROVIDER_INSTANCES_KEY` into `instances` must pass `instances` as the fourth argument. This is visible throughout `lib/storage/` after the barrel split — `clearKey` in `provider-keys-store.ts`, `getSourceOrder`/`setSourceHidden`/`getGroupConfig` in `source-graph-store.ts`, `deleteProviderInstance` in `provider-instance-store.ts`. The `getProviderConfigSnapshot` function (`lib/storage/snapshot.ts:18`) reads all keys in one batch and threads `providerInstances` into every normalizer that needs it.
 
 **The general lesson:** when a function gains a parameter that defaults to "empty," every existing call site is a latent bug. The default makes the code compile and the existing tests pass, but it silently changes behavior for any caller whose data is non-empty. The migration strategy for such a parameter is **not** "add it with a default and hope callers update" — it is "add it, then grep every call site and update it explicitly, then add a lint rule or a non-defaulting overload to prevent regression." The codebase's `normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds` now all require the argument at every call site in `lib/storage/` and `config-io.ts`; the default remains only for call sites in `sources.ts` itself and in tests that genuinely want an empty set.
 
@@ -419,7 +419,7 @@ Do not apply the "additive action" pattern when the new capability is a true gen
 The single function that converts a `SourceId` (which may be an instance id) into the `{ providerId, providerSettings, cacheKeyId }` triple that the worker BYOK path consumes. After this function returns, no instance id flows further:
 
 ```ts
-// lib/gateway.ts:416-429
+// lib/gateway.ts:545-558
 export async function resolveInstance(sourceId: SourceId | undefined): Promise<{
   providerId: ProviderId;
   providerSettings?: Record<string, unknown>;
@@ -443,7 +443,7 @@ export async function resolveInstance(sourceId: SourceId | undefined): Promise<{
 The resolution returns a `cacheKeyId`; `runProviderSearch` uses it for both read and write. This is the seam that was broken in cautionary lesson 1, and the fix is the `cacheKeyId` parameter visible here:
 
 ```ts
-// lib/gateway.ts:379-405 (excerpt)
+// lib/gateway.ts:508-534 (excerpt)
 const { providerId, providerSettings, cacheKeyId } = resolution;
 if (!forceRefresh) {
   const cached = await getCachedSearch(cacheKeyId, query);          // <- read with cacheKeyId
@@ -485,10 +485,10 @@ if (value.action === 'search-instance') {
 }
 ```
 
-The v1 `search` action follows and still rejects instance ids in the `providerId` slot (`lib/agent-bridge.ts:224`: `!isProviderId(value.providerId)`). `handleListAgentInstances` returns the desensitized shape:
+The v1 `search` action follows and still rejects instance ids in the `providerId` slot (`lib/agent-bridge.ts:257`: `!isProviderId(value.providerId)`). `handleListAgentInstances` returns the desensitized shape:
 
 ```ts
-// lib/gateway.ts:137-150
+// lib/gateway.ts:176-189
 export async function handleListAgentInstances(): Promise<{ instances: AgentInstance[] }> {
   await getSchemaReady();
   const [instances, configured] = await Promise.all([getProviderInstances(), getConfiguredProviderIds()]);
@@ -510,7 +510,7 @@ export async function handleListAgentInstances(): Promise<{ instances: AgentInst
 The gateway injects `providerSettings` as a generic bag; the Exa adapter owns the schema and sanitizes at its boundary:
 
 ```ts
-// lib/gateway.ts:396-401
+// lib/gateway.ts:525-530
 const options: SearchOptions = {
   signal,
   ...(maxResults !== null ? { maxResults } : {}),

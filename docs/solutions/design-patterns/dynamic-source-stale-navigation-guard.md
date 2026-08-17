@@ -22,7 +22,7 @@ tags: [dynamic-source, stale-navigation, post-write-re-resolve, race-guard, serp
 
 ## Guidance
 
-导航到一个动态源之前，做一次全新的 `getProviderConfig` 读取，并用 `resolveCurrent<Type>Handoff(id, query, freshDefinitions)` 重新解析（`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`，`lib/serp-handoff.ts:109`、`lib/serp-handoff.ts:126`）：
+导航到一个动态源之前，做一次全新的 `getProviderConfig` 读取，并用 `resolveCurrent<Type>Handoff(id, query, freshDefinitions)` 重新解析（`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`，`lib/serp-handoff.ts:149`、`lib/serp-handoff.ts:166`）：
 
 - **未解析（定义已消失）** → 丢弃过期 chip（应用 config 快照），**不**导航，也**不**替用户持久化新的 active source。
 - **已解析** → 用 fresh / post-write 的 URL 导航。
@@ -79,7 +79,7 @@ if (!handoff || handoff.kind !== 'navigate') {
 void sendMessage('openNewTab', handoff.url); // SERP 栏 custom engine：新标签页
 ```
 
-`resolveCurrentCustomEngineHandoff` 的签名（`lib/serp-handoff.ts:126`）：
+`resolveCurrentCustomEngineHandoff` 的签名（`lib/serp-handoff.ts:166`）：
 
 ```ts
 export function resolveCurrentCustomEngineHandoff(

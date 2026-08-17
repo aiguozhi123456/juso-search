@@ -1,6 +1,7 @@
 ---
 title: "Website drift-lock enforcement: CI tests that catch manual-sync drift across the site↔extension boundary"
 date: 2026-08-10
+last_updated: 2026-08-17
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -21,7 +22,7 @@ tags: [website, hugo, drift-lock, design-system, i18n, ci, single-source, manual
 The Juso marketing website (`website/`) is a Hugo static site that "inherits" its design system from the Chrome extension — but the inheritance is manual. Three channels copy values from the extension (or other repo locations) into the site by hand:
 
 1. **CSS design tokens** — `website/assets/css/style.css` hand-copies a subset of `entrypoints/shared/tokens.css` (brand colors, neutrals, shadows, durations).
-2. **Brand icons** — `website/static/icons/*.svg` are byte-identical copies of `public/icons/*.svg` (21 files, both sets tracked in git).
+2. **Brand icons** — `website/static/icons/*.svg` are byte-identical copies of `public/icons/*.svg` (23 files as of 2026-08-15 — `parallel.svg` and `weixin.svg` joined after the lock was created; both sets tracked in git).
 3. **Screenshots** — `website/static/img/screenshot-*.png` are copies of `docs/assets/screens/*.png` (4 files; `static/img/README.md` is the mapping contract).
 
 A fourth channel — the i18n boundary between Hugo's `{{ i18n "key" }}` (UI strings) and data-file `*_zh`/`*_en` field pairs (structured content) — relied on human judgment to decide which mechanism each new string belonged in, with no enforcement.
@@ -77,6 +78,7 @@ The "lock the copy" pattern is the right choice for the website because the copi
 ## When to Apply
 
 - **Adding a new manually-copied asset or token** that has a counterpart elsewhere in the repo → add a byte-equality (binary assets) or value-equality (text values) pair to the relevant drift-lock script.
+- **The showcase image channel** — `website/static/img/showcase/*.png` (bilingual zh-light/en-dark frames, added 2026-08-16, sourced from `docs/assets/showcase/` per the same README) is a manual copy not yet covered by `check-website-assets.py`; add a pair list when locking it.
 - **Changing `entrypoints/shared/tokens.css`** → the CI now triggers on that path; the drift-lock will catch whether `style.css` needs the same change.
 - **Adding a user-facing string to the website** → apply the i18n A/B boundary rule (atomic → i18n key; structured → data file). Verify key-set parity after.
 - **Deciding lock vs. generate for a new manual-sync channel** → if the copy is consumed at build time by a static pipeline (Hugo, bundler), lock it. If the copy is consumed at runtime by a process that could read the source directly, generate it (or remove the copy via runtime discovery — see `skill-mcp-vocabulary-decoupling.md`).

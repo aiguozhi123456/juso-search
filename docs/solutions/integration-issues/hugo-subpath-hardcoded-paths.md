@@ -1,6 +1,7 @@
 ---
 title: "Hugo subpath deployment breaks hardcoded template paths"
 date: 2026-08-08
+last_updated: 2026-08-17
 category: integration-issues
 module: website
 problem_type: integration_issue
@@ -19,7 +20,7 @@ tags: [hugo, github-pages, subpath, baseurl, relurl, static-site, deployment]
 
 ## Problem
 
-The Juso website is a Hugo static site deployed to a GitHub Pages **project subpath** (`https://<user>.github.io/juso-search/`), configured via `hugo --baseURL https://<user>.github.io/juso-search/`.
+The Juso website is a Hugo static site deployed to a GitHub Pages **project subpath** (`https://<user>.github.io/juso-search/`). At incident time the baseURL came from a CI `hugo --baseURL` flag; it has since moved into `website/hugo.toml`, so a plain `hugo --source website --minify` reproduces production paths.
 
 After a clean deploy, every image returned 404 and every internal navigation link (logo, face-switcher, language-switcher, footer) jumped to the domain root (`https://<user>.github.io/...`) — which hosts a different site (a blog). The build exited green the whole time.
 
@@ -85,7 +86,7 @@ Hardcoded strings bypass all of this. Once every path goes through a URL functio
 
 - **Verify resources, not just documents.** After a subpath deploy, fetch the deployed HTML, extract the actual `src=`/`href=` values, and fetch *those* URLs. A page returning 200 tells you nothing about whether its images, CSS, fonts, and internal links resolve correctly.
 - **Never hardcode root-absolute paths in Hugo templates** when the site may live under a subpath. Use `relURL`/`absURL`/`relLangURL` exclusively.
-- **Smoke-test with the real baseURL.** Run `hugo server --baseURL /juso-search/ --port 1313` (or build with `--baseURL ...` and inspect `public/`) to catch path issues before deploy. The default `hugo server` uses baseURL `/`, which hides subpath bugs.
+- **Smoke-test with the real baseURL.** Run `hugo server --baseURL /juso-search/ --port 1313` (or build with `--baseURL ...` and inspect `public/`) to catch path issues before deploy. The default `hugo server` uses baseURL `/`, which hides subpath bugs. (baseURL is already set in `website/hugo.toml`; the flag only overrides it locally)
 - **Audit command.** A grep for `src="/`, `href="/`, `url(/` across `layouts/` after template work catches regressions early.
 
 ## Related Issues

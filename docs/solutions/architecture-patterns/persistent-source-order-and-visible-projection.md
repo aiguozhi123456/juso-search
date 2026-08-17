@@ -1,7 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -61,7 +61,7 @@ Juso 的快切栏同时包含需要 BYOK key 的 AI provider 和始终可用的�
 
 ```ts
 normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
-// ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']
+// ['bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']
 ```
 
 `allSources(configuredProviderIds, sourceOrder)` 先遍历规范化后的完整顺序，最后才过滤未配置 provider；engine 始终保留。不要先构造可见列表再排序，否则隐藏项的位置已经丢失。
@@ -88,6 +88,8 @@ normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
 ['tavily', 'stepfun', 'google', 'stepfun-plan', 'exa', 'jina', 'doubao', 'doubao-global', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo']
 ```
 
+（示例数组为写作时 registry 快照；此后新增的 brave / parallel / weixin 与 `ai:*` 引擎会经同一条补尾规则追加到末尾。）
+
 隐藏 provider 仍保留在偏好中，重新配置后会按用户原有位置意图重新出现。
 
 （历史 UI 细节，控件已移除：移动控件曾要求完整交互状态——本地化 `aria-label` 和 `title`；首项上移、末项下移禁用；保存 pending 时禁用所有移动按钮；点击后乐观更新；写入失败时回滚到 `previousOrder`，并用 `role="alert"` 告知用户。）
@@ -96,11 +98,11 @@ normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
 
 页面不直接读写 `sourceOrder`。它作为 `ProviderConfigReply` 脱敏配置快照的一部分返回，`setSourceOrder` 消息由 background 路由到 gateway，再由 storage helper 规范化并持久化。这延续了 BYOK worker-only 边界，不会让页面接触 `providerKeys` 或已存明文 key；主题、语言等非敏感 UI 偏好仍可通过各自 helper 精确读写。
 
-`getSourceOrder` 精确读取自身键与 site-engine 定义（规范化补尾需要完整定义集）：
+`getSourceOrder` 精确读取自身键与 site-engine / custom-engine / provider-instance 定义（规范化补尾需要完整定义集）：
 
 ```ts
-const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_ENGINES_KEY]);
-return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]));
+const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
 ```
 
 不要用 `get(null)` 读取一个偏好；那会把敏感 key 和缓存池等无关数据读入同一个 record。`sourceOrder` 同时属于 config storage domain 白名单。
@@ -118,7 +120,7 @@ return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinition
 
 因此只有“仍是最新请求，且请求期间顺序 revision 未变化”的响应才能更新 `sourceOrder`。响应中的 active source 和 configured providers 仍可同步，陈旧顺序快照则被丢弃。
 
-worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines、activeSource 和 groupConfig）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
+worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines、customEngines、providerInstances、activeSource 和 groupConfig）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
 
 ### 区分字段缺失与字段值
 

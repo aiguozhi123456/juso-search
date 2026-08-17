@@ -1,6 +1,7 @@
 ---
 title: "Bilingual visual assets: ship one localized variant per README language"
 date: 2026-07-24
+last_updated: 2026-08-17
 category: conventions
 module: "docs/assets / README / i18n"
 problem_type: convention
@@ -16,22 +17,22 @@ tags: ["bilingual", "i18n", "readme", "svg", "architecture-diagram", "localizati
 
 ## Context
 
-This repo ships two READMEs (`README.md` in Chinese, `README.en.md` in English), each embedding an architecture diagram. The first diagram's node labels were Chinese (搜索页 / 智能体侧 / 共享核心 …). When the references were synced, the English README was pointed at that same Chinese diagram, so English readers saw an architecture diagram full of Chinese labels — the text renders, but they cannot read it. The problem was not translation quality; it was that one text-bearing image was shared across two languages of documentation.
+This repo ships two READMEs (`README.md` in Chinese, `README.en.md` in English) and two matching dev docs (`docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.en.md`); the architecture diagram is embedded once per language in the dev docs (it originally lived in the READMEs and moved out when they became install-focused). The first diagram's node labels were Chinese (搜索页 / 智能体侧 / 共享核心 …). When the references were synced, the English README was pointed at that same Chinese diagram, so English readers saw an architecture diagram full of Chinese labels — the text renders, but they cannot read it. The problem was not translation quality; it was that one text-bearing image was shared across two languages of documentation.
 
 ## Guidance
 
-**For any visual asset that contains translatable text (architecture diagrams, annotated screenshots, flowcharts), ship one variant per README language, and have each README reference its own language's variant.** Do not make a single "bilingual-label" image serve both: mixing Chinese and English crowds the nodes, overflows the label boxes, and forces each reader to look at annotations they do not need — the Chinese reader does not need the English note and vice versa. Each side reading its mother-tongue image is the cleanest outcome.
+**For any visual asset that contains translatable text (architecture diagrams, annotated screenshots, flowcharts), ship one variant per reader language, and have each README / dev doc reference its own language's variant.** Do not make a single "bilingual-label" image serve both: mixing Chinese and English crowds the nodes, overflows the label boxes, and forces each reader to look at annotations they do not need — the Chinese reader does not need the English note and vice versa. Each side reading its mother-tongue image is the cleanest outcome.
 
 In practice the second image should be a **translation-only variant** of the first: same viewBox, same coordinates, same box sizes, same colors, same arrows, same legend positions, same layering order — only the text strings change. That keeps the two images visually identical in structure, so a layout change is made once and the text is re-synced. The official Chinese name inside a brand lockup (e.g. 双面搜 in the title) stays untranslated, because it *is* the brand spelling and matches the README's brand wording; the body labels are fully translated.
 
 Name the files with a language suffix in one assets directory: `architecture.svg` / `architecture-en.svg` (and each `@2x.png`). Each README references its own language's file:
 
 ```markdown
-<!-- README.md -->
-![双面搜架构](docs/assets/architecture.svg)
+<!-- docs/DEVELOPMENT.md -->
+![双面搜架构](assets/architecture.svg)
 
-<!-- README.en.md -->
-![Juso Architecture](docs/assets/architecture-en.svg)
+<!-- docs/DEVELOPMENT.en.md -->
+![Juso Architecture](assets/architecture-en.svg)
 ```
 
 **Pure graphics with no translatable text** (icons, decoration, text-free screenshots) are shared as a single file — no duplication. The test is simply "does the image contain words that need translating."
@@ -48,7 +49,7 @@ Sharing one text-bearing image means half the readers see a half-finished artifa
 
 ## Examples
 
-Current state of this repo's `docs/assets/`: `architecture.svg` (Chinese labels) for `README.md`, and `architecture-en.svg` (English labels, geometry identical coordinate-for-coordinate) for `README.en.md`. Both use the same viewBox `0 0 1040 1030`, the same palette and arrow routing, and differ only in text; the title keeps the 双面搜 / Juso brand lockup.
+Current state of this repo's `docs/assets/`: `architecture.svg` (Chinese labels) for `docs/DEVELOPMENT.md`, and `architecture-en.svg` (English labels, geometry identical coordinate-for-coordinate) for `docs/DEVELOPMENT.en.md`. Both use the same viewBox `0 0 1040 1030`, the same palette and arrow routing, and differ only in text; the title keeps the 双面搜 / Juso brand lockup. The README showcase screenshots follow the same convention with per-language captures (`01-search-zh-light.png` for the Chinese README, `04-search-en-dark.png` for the English one).
 
 Counter-example (do not do this): writing `搜索页 / Search Page` as two lines in every node of one SVG — the boxes must grow taller, the text crowds, and each language's reader is forced to look at the line they do not need.
 

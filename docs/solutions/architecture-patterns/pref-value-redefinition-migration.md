@@ -2,6 +2,7 @@
 title: Redefining a preference value's semantics requires a value-rewrite schema migration
 module: lib/schema, lib/storage
 date: 2026-08-04
+last_updated: 2026-08-17
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -47,7 +48,7 @@ The migration must be:
 
 ```typescript
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9; // was 8 when the v7→v8 entry below landed; later bumps (v8→v9, weixin default-hidden) appended after it
 
 export const migrations: Migration[] = [
   // …earlier migrations…
@@ -135,7 +136,7 @@ export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number)
 After — `'top'` = fixed overlay, `'inline'` = old inline, v7→v8 rewrites stored `'top'`→`'inline'`:
 
 ```typescript
-// lib/schema.ts — CURRENT_SCHEMA_VERSION = 8
+// lib/schema.ts — CURRENT_SCHEMA_VERSION = 9 (8 at the time of this migration)
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 
 // lib/serp-bar-mount.ts
@@ -169,5 +170,5 @@ A v8 backup with `serpBarPosition: 'top'` means overlay and is left untouched (`
 
 ## Related
 
-- [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — the schema versioning architecture this migration runs under. §"CONFIG_KEYS without a schema bump" was updated to reflect that `serpBarPosition` later *did* require a v7→v8 value-rewrite bump.
+- [dual-domain-storage-schema-versioning](./dual-domain-storage-schema-versioning.md) — the schema versioning architecture this migration runs under. §"You may bump the version stamp without migrating any data" records the no-bump default and the `serpBarPosition` v7→v8 value-rewrite exception.
 - [serp-bar-bottom-position-and-scroll-hide](./serp-bar-bottom-position-and-scroll-hide.md) — the bar positioning architecture. §5 documents the v7→v8 migration in the context of the three placement models (inline / top overlay / bottom overlay); §4g documents the `document.body` body-mount strategy shared by both overlay variants, on which the `inline ↔ overlay` flip remount rule depends.

@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -31,7 +31,7 @@ tags:
 
 ## Context
 
-This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan — the v1-era four; the family has since grown to eight, incl. Brave) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
+This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan — the v1-era four; the family has since grown to nine, incl. Brave and Parallel) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
 
 The extension's storage had grown organically and accumulated three latent problems:
 
@@ -49,12 +49,12 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on seventeen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on nineteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`, `selectionSearchEnabled`, `selectionSearchSource`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export const migrations: Migration[] = [
   // each entry: { version: N, migrate: (config) => config }
@@ -80,7 +80,7 @@ The two version numbers move on their own schedules. A config-only change does *
 `ensureSchema()` and `ensureCacheSchema()` each implement three layers, in order of expected frequency:
 
 1. **Steady state (every worker wakeup):** read the single version-stamp key. If it already equals the current version, return immediately. This path does *not* read any config or cache data — it reads exactly one small key.
-2. **First install (one-time):** the version key is missing entirely. Stamp the current version and return.
+2. **First install (one-time):** the version key is missing entirely (reads as `0`). The config domain is read and the migration chain runs from 0 — this is what materializes default-hidden engine ids into `sourceHidden` on a fresh install — then the stamp is written.
 3. **Upgrade (one-time):** the stored version is behind. Read the domain's data, run the migration chain, write the diff back, and stamp the new version *last*.
 
 ```ts
@@ -198,7 +198,7 @@ Merge semantics are deliberately conservative on both axes:
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
 - **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`, `sourceOrder`). Older export files without `sourceOrder` preserve the current quick-switch order.
 
-For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, activeSource), so an older import cannot overwrite a later quick-switch move.
+For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, groupConfig, activeSource), so an older import cannot overwrite a later quick-switch move.
 
 ### Never use `get(null)` when you know the keys you need
 
@@ -280,16 +280,13 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export async function ensureSchema(): Promise<void> {
-  const { schemaVersion: v } = await browser.storage.local.get('schemaVersion');
+  const v = await readSchemaVersion();                     // missing stamp reads as 0
   if (v === CURRENT_SCHEMA_VERSION) return;               // layer 1: steady state
-  if (v === undefined) {                                   // layer 2: first install
-    await browser.storage.local.set({ schemaVersion: CURRENT_SCHEMA_VERSION });
-    return;
-  }
-  const data = await readConfigKeys();                     // layer 3: upgrade
+  // layer 2 + 3: first install (v = 0) or upgrade — run the chain from v, stamp last
+  const data = await readConfigKeys();
   const migrated = migrateConfig(data, v, CURRENT_SCHEMA_VERSION);
   await browser.storage.local.set({
     ...diffKeys(data, migrated),

@@ -1,7 +1,7 @@
 ---
 title: "Agent Bridge skill contract drift (fragment version, provider whitelist, abort signaling, process cleanup, Windows encoding)"
 date: 2026-08-03
-last_updated: 2026-08-10
+last_updated: 2026-08-17
 category: integration-issues
 module: agent-bridge
 problem_type: integration_issue
@@ -22,7 +22,7 @@ tags: [agent-bridge, juso-skill, contract-drift, fragment-version, provider-whit
 
 ## Problem
 
-The Juso Search Agent Bridge — a local loopback HTTP protocol between the Python skill script (`skills/juso-search/scripts/juso_search.py` and the `-dev` twin) and the extension's background worker (`lib/agent-bridge.ts`, `entrypoints/bridge/main.ts`) — carried five independent alignment defects that together made every skill invocation fail, hang, or crash. An end-to-end review against the live dev extension (Vivaldi) surfaced all five; each was fixed and verified by `npm run typecheck`, `npm run lint`, `npm test` (1058 tests), the Python suite (22 tests), and a live E2E run.
+The Juso Search Agent Bridge — a local loopback HTTP protocol between the Python skill script (single source `public/agent-skill/scripts/juso_search.py` + `juso_bridge.py`, generated into `skills/juso-search/` and `skills/juso-search-dev/`) and the extension's background worker (`lib/agent-bridge.ts`, `entrypoints/bridge/main.ts`) — carried five independent alignment defects that together made every skill invocation fail, hang, or crash. An end-to-end review against the live dev extension (Vivaldi) surfaced all five; each was fixed and verified by `npm run typecheck`, `npm run lint`, `npm test` (1058 tests), the Python suite (22 tests), and a live E2E run.
 
 ## Symptoms
 
@@ -49,23 +49,24 @@ A deeper cause ran through bugs 1 and 2: the fragment `v` (credential format ver
 
 ### Bug 1 — Fragment version mismatch
 
-The bridge fragment carries `v` (credential format version), `p` (port), `t` (token). The worker's `parseBridgeFragment` (`lib/agent-bridge.ts:53-70`) strictly requires `v=1`. Commit `5d27315` bumped the Python fragment from `v=1` to `v=2` alongside a `PROTOCOL=2` bump for the claim/complete JSON protocol — but the fragment `v` and JSON `protocol` are independent axes. The fragment structure (`v/p/t`) never changed; only the JSON schema did (to add `search-instance`/`list-instances`).
+The bridge fragment carries `v` (credential format version), `p` (port), `t` (token). The worker's `parseBridgeFragment` (`lib/agent-bridge.ts:57-74`) strictly requires `v=1`. Commit `5d27315` bumped the Python fragment from `v=1` to `v=2` alongside a `PROTOCOL=2` bump for the claim/complete JSON protocol — but the fragment `v` and JSON `protocol` are independent axes. The fragment structure (`v/p/t`) never changed; only the JSON schema did (to add `search-instance`/`list-instances`).
 
-**Before** (`juso_search.py:418`, both scripts):
+**Before** (pre-split `juso_search.py:418`, both scripts):
 ```python
 url = f"chrome-extension://{args.extension_id}/bridge.html#v=2&p={server.server_port}&t={token}"
 ```
 
-**After**:
+**After**（now `juso_bridge.py:580-581`; since Firefox support the base may be a stamped `moz-extension://` `--bridge-url` / `__JUSO_BRIDGE_URL__` value）:
 ```python
-url = f"chrome-extension://{args.extension_id}/bridge.html#v=1&p={server.server_port}&t={token}"
+base_url = bridge_url or f"chrome-extension://{extension_id}/bridge.html"
+url = f"{base_url}#v=1&p={server.server_port}&t={token}"
 ```
 
 The JSON `PROTOCOL = 2` constant is unchanged — it correctly reflects the claim/complete message schema.
 
 ### Bug 2 — Provider whitelist drift (`brave` missing)
 
-`lib/providers/types.ts` defines `ProviderId` as 8 providers including `brave`. `handleListAgentProviders` (`lib/gateway.ts:126`) maps `allProviders()` — all 8. But Python's `PROVIDERS` tuple had only 7, missing `brave`. Python's `is_provider_list_reply` validator requires every `provider["id"] in PROVIDERS`, so `brave` failed → `invalid_reply` → HTTP 400.
+`lib/providers/types.ts` defined `ProviderId` as 8 providers including `brave` (it has since grown to 9 with `parallel`). `handleListAgentProviders` (`lib/gateway.ts:155`) maps `allProviders()` — all of them. But Python's `PROVIDERS` tuple had only 7, missing `brave`. Python's `is_provider_list_reply` validator requires every `provider["id"] in PROVIDERS`, so `brave` failed → `invalid_reply` → HTTP 400.
 
 This violates `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md`: the engine whitelist must mirror the worker's registry. The engine side was already aligned at 8=8; the provider side was missed.
 
@@ -119,7 +120,7 @@ async function notifyAbort(fragment: string): Promise<void> {
 }
 ```
 
-**`juso_search.py`** (both scripts) — new `aborted` state and `/v1/abort` endpoint:
+**`juso_bridge.py`** (the single-source bridge core, extracted from the former monolithic `juso_search.py`; see CONCEPTS.md → Juso Bridge) — new `aborted` state and `/v1/abort` endpoint:
 ```python
 class BridgeState:
     def __init__(self, token, request_id):
@@ -183,7 +184,7 @@ Already-exited processes (e.g. when the command was forwarded to an already-runn
 
 Windows consoles default to GBK. `json.dumps(..., ensure_ascii=False)` produces Unicode strings; `print()` writing non-GBK characters to a GBK stdout crashes.
 
-**Fix** (`juso_search.py`, both scripts, after imports):
+**Fix** (CLI wrapper only — `public/agent-skill/scripts/juso_search.py:23-25`, generated into both published variants; the `juso_bridge.py` core never prints and needs no reconfigure):
 ```python
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, 'reconfigure'):

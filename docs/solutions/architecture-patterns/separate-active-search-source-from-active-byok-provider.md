@@ -1,7 +1,7 @@
 ---
 title: "Separate active search source from active BYOK provider"
 date: 2026-07-09
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: architecture-patterns
 module: search-source-configuration
 problem_type: architecture_pattern
@@ -29,8 +29,8 @@ tags: [byok, search-sources, chrome-extension, configuration, worker-boundary]
 
 The extension has two kinds of search choices with different runtime contracts:
 
-- **BYOK providers** (`tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`) require saved API keys and flow through the background worker, `ProviderAdapter.search()`, normalized responses, and the local provider-keyed cache.
-- **Regular engines** (`google`, `bing`, `baidu`, `douyin`, `xiaohongshu`, `bilibili`, `yandex`, `duckduckgo`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
+- **BYOK providers** (`tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`, `parallel`) require saved API keys and flow through the background worker, `ProviderAdapter.search()`, normalized responses, and the local provider-keyed cache.
+- **Regular engines** (`google`, `bing`, `baidu`, `douyin`, `xiaohongshu`, `bilibili`, `yandex`, `duckduckgo`, `weixin`) require no API key and are navigation-only targets. They build home/SERP URLs and never return normalized answers.
 
 Delete-key support exposed the architecture gap. After removing provider keys, the extension was still legitimately usable through Google or Bing, but the options page selector labeled “激活的搜索引擎” listed only configured BYOK providers. Treating engines as providers would make the selector look right while allowing engine IDs to leak into provider-only code paths such as `resolveSearchProvider()`, `getAdapter()`, key lookup, and cache refresh.
 
@@ -44,7 +44,7 @@ Model BYOK providers and regular engines as separate concepts, then compose them
 
 - Keep `activeProvider` as the provider-only value used by worker search fallback and provider-result refresh semantics.
 - Add `activeSource` as the UI/default-source preference that may be either a provider ID or an engine ID.
-- Keep `sendMessage('search')`, `resolveSearchProvider()`, and `getAdapter()` provider-only.
+- Keep `sendMessage('search')` provider-only: the gateway's `resolveSearchSource()` boundary resolves any `SourceId` (incl. instance ids) down to a `ProviderId` before `getAdapter()`/`getKey()`.
 - Treat Google and Bing as navigation targets: no key, no answer model, no cache-backed provider refresh.
 - Re-fetch provider config after save, delete, and import operations so the options selector reflects the latest configured providers and effective active source.
 
@@ -54,7 +54,7 @@ The storage layer owns the fallback rule:
 // Effective source fallback:
 // valid stored activeSource -> activeProvider with key -> first configured provider -> google
 export async function getActiveSourceId(): Promise<SourceId> {
-  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY]);
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
   // ...validate stored source/provider against known IDs, provider keys, and site-engine definitions
 }
 ```

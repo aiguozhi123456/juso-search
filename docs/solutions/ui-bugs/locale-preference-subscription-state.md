@@ -1,6 +1,7 @@
 ---
 title: "Locale preference updates must notify even when the resolved locale is unchanged"
 date: 2026-07-06
+last_updated: 2026-08-17
 category: docs/solutions/ui-bugs
 module: "i18n / settings UI"
 problem_type: ui_bug
@@ -41,17 +42,18 @@ This surfaced while moving language selection out of the search/start page and i
 
 ```tsx
 // entrypoints/options/App.tsx
-<section>
+<section data-section="locale">
   <h2>{t(MSG.locale_group)}</h2>
   <LocaleToggle />
 </section>
 ```
 
-Remove the search-page topbar instance so the start/search page keeps only theme and settings actions:
+Remove the search-page topbar instance so the start/search page keeps only history, theme, and settings actions:
 
 ```tsx
 // entrypoints/search/App.tsx
 <div className="topbar-actions">
+  <HistoryButton onClick={() => setHistoryOpen(true)} disabled={switching} />
   <ThemeToggle />
   <SettingsButton onClick={openSettings} />
 </div>
@@ -93,8 +95,9 @@ Fix the i18n store by comparing the previous preference before deciding whether 
 export function setLocale(pref: LocalePref): void {
   const next = resolvePref(pref);
   const prevPref = currentPref;
+  const prevLocale = getResolvedLocale();
   currentPref = pref;
-  if (next === currentLocale && pref === prevPref && pref !== 'auto') return;
+  if (next === prevLocale && pref === prevPref && pref !== 'auto') return; // 非.auto 且无变化才跳过
   currentLocale = next;
   for (const l of listeners) l();
 }

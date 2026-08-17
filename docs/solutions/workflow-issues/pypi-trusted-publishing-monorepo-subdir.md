@@ -1,6 +1,7 @@
 ---
 title: PyPI Trusted Publishing workflow for a monorepo-subdir Python package
 date: 2026-08-09
+last_updated: 2026-08-17
 category: docs/solutions/workflow-issues
 module: mcp-server
 problem_type: workflow_issue
@@ -20,7 +21,7 @@ tags: [pypi, trusted-publishing, oidc, github-actions, pep-639, setuptools]
 The `juso-search` MCP server pip package lives in `mcp-server/` within a
 Chrome-extension monorepo. It needed a GitHub Actions workflow to publish to
 PyPI on release. The package uses setuptools + `pyproject.toml` (build-system
-`setuptools>=77`, one dependency `mcp>=2.0,<3`, a console_script entry point).
+`setuptools>=77`, dependencies `mcp>=2.0,<3` and `pydantic>=2.0,<3`, a console_script entry point).
 
 Three non-obvious issues surfaced during setup and first publish:
 

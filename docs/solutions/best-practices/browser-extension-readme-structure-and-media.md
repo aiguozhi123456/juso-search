@@ -1,6 +1,7 @@
 ---
 title: "Structuring a browser-extension README for conversion and dual audience"
 date: 2026-07-24
+last_updated: 2026-08-17
 category: best-practices
 module: "README / docs/assets"
 problem_type: best_practice
@@ -28,7 +29,7 @@ Organize the top for "decide in three seconds whether to install," and the botto
 3. **Human-first section order**: the capability table lists the human rows first, and Screenshots & Demo follows right after, so a pure-human user sees "what can I do with it, what does it look like" before the agent interface, which goes later. Reordering is not favoritism — it lowers the primary reader's cognitive cost.
 4. **Placeholder the screenshots & demo section first**: pre-place the image markdown references inside an HTML comment with semantic filenames, plus a one-line "coming soon" note. Once the captures exist, uncomment and they render — zero structural change. Fix the placeholder filenames (e.g. `screenshot-search.png` / `screenshot-serp.png` / `demo.gif`) up front so whoever captures saves under those exact names.
 5. **Each image gets a bold sub-caption plus semantic alt**: the caption states "what this image proves" (e.g. "SERP Switch Bar: switch engines from any result page"); the alt serves screen readers and the broken-image fallback.
-6. **Embed the architecture diagram in the Development & Architecture section**, and reference the variant matching the README's language (see the bilingual-assets convention).
+6. **Keep the architecture diagram in the development doc, not the README**, and reference the variant matching that doc's language (see the bilingual-assets convention). This repo originally embedded the diagram in a README "Development & Architecture" section; it later moved to `docs/DEVELOPMENT.md` / `docs/DEVELOPMENT.en.md` so the README stays install-focused.
 
 For capture selection, a browser extension wants at minimum: the main search page (showing the source bar plus the core result, e.g. an AI answer with citations), one embedded interaction (e.g. the switch bar on a result page — proof of the "works on someone else's turf" differentiator), and one 10–15 second GIF that strings the loop together. Use the same query throughout, and one that returns results on every engine, so the viewer can follow "the same question jumping across sources."
 
@@ -44,7 +45,7 @@ The README is the extension's landing page; most people look only at it before i
 
 ## Examples
 
-The current top-down structure of this repo's `README.md` / `README.en.md`: title → badge row → language-switch link → tagline → intro (with the human-side zero-config statement) → capability table (human rows first) → Screenshots & Demo (now rendering real media: `docs/assets/screenshot-search.png`, `docs/assets/screenshot-serp.png`, and `docs/assets/demo.gif`, each with a bold sub-caption) → Current Capabilities → For People → Quick Start (People / Agents subsections) → Installation → Security boundaries → Agent interface → Development & Architecture (architecture diagram embedded) → Future / Naming / Acknowledgements / License. Before the media landed, the Screenshots & Demo section used the placeholder form below (HTML comment + "coming soon" note), so the structure could be fixed before captures existed. This is the **before** state — the READMEs have since shipped real screenshots and demo:
+The current top-down structure of this repo's `README.md` / `README.en.md`: title → badge row (8 badges) → language-switch link → tagline → intro (human-side zero-config statement) → capability table (human rows first) → Screenshots & Demo (numbered H3 subsections organized by product journey, one showcase image each with descriptive alt; the Chinese README uses `docs/assets/showcase/01-search-zh-light.png` etc., the English README its en-dark counterparts) → Current Capabilities and Sources → For People → Quick Start (opens with the v2.0.0 status line; Install the extension / People / Local AI Agents subsections — installation lives inside Quick Start, not a separate section) → Security and Data Boundaries → Agent Interface and Limits → Development (link to `docs/DEVELOPMENT*.md`; the architecture diagram lives there) → Possible Future → Naming History → Acknowledgements → Trademark Notice → License. Before the media landed, the Screenshots & Demo section used the placeholder form below (HTML comment + "coming soon" note), so the structure could be fixed before captures existed. This is the **before** state — the READMEs have since shipped real screenshots (first the three files above, later replaced by the static showcase set now in use):
 
 ```markdown
 ## Screenshots and Demo

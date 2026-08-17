@@ -27,7 +27,7 @@ tags:
 
 ## Context
 
-Juso stores provider keys in `chrome.storage.local` and permits only the background worker to read them. A local Agent also needs provider search, provider discovery, and natural-result search on the extraction-capable engine subset (currently all eight registered engines — google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo — each ship a real extractor; see `engine-capability-is-per-registry-not-per-id-union.md`) without receiving those keys.
+Juso stores provider keys in `chrome.storage.local` and permits only the background worker to read them. A local Agent also needs provider search, provider discovery, and natural-result search on the extraction-capable engine subset (currently all nine registered engines — google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo/weixin — each ship a real extractor; see `engine-capability-is-per-registry-not-per-id-union.md`) without receiving those keys.
 
 A Chrome MV3 extension cannot directly act as a general MCP stdio server: it has no Agent-controlled stdin/stdout, cannot listen on a local server socket, and its service worker lifecycle belongs to Chrome. A separate process also cannot safely or portably parse an extension profile to read `chrome.storage.local`; doing so would break the worker-only BYOK boundary.
 
@@ -136,7 +136,7 @@ The skill is now distributed from one source rather than hand-maintained copies:
 
 ### MCP server variant (stdio)
 
-The MCP server is an **alternative to the CLI skill** — use one or the other, not both. It is pip-distributed as `juso-search` and speaks standard MCP over stdio. MCP-native clients (Claude Desktop, Cursor, Cline, Claude Code) configure it in their own `mcp.json` through `command`/`args`/`env`; the `env` block carries `JUSO_EXTENSION_ID` (required) plus optional `JUSO_CHROME_PATH`, `JUSO_CHROME_PROFILE`, and `JUSO_TIMEOUT`. Per-client snippets live in `mcp-server/README.md`, which is the canonical MCP setup guide.
+The MCP server is an **alternative to the CLI skill** — use one or the other, not both. It is pip-distributed as `juso-search` and speaks standard MCP over stdio. MCP-native clients (Claude Desktop, Cursor, Cline, Claude Code) configure it in their own `mcp.json` through `command`/`args`/`env`; the `env` block carries `JUSO_BROWSER_PATH` (required; `JUSO_CHROME_PATH` is accepted as a legacy alias) plus `JUSO_EXTENSION_ID` **or** `JUSO_BRIDGE_URL` (at least one; the URL form is required for Firefox, which cannot be resolved from an extension id) and optional `JUSO_BROWSER_PROFILE` / `JUSO_TIMEOUT`. Per-client snippets live in `mcp-server/README.md`, which is the canonical MCP setup guide.
 
 It is just another bridge client. Every `tools/call` runs one short-lived bridge cycle — spawn Chromium, open `bridge.html` with the claim fragment, wait for the worker to claim and complete — independent of any previous call. The bridge protocol, worker sender-trust checks, loopback-only binding, two-layer opt-in gating, and the "keys never leave the worker" guarantee are all unchanged; the server only relays the reply.
 
@@ -162,7 +162,7 @@ The strict action and reply schemas also prevent a valid response from one actio
 
 Do not use this pattern for a long-lived multi-client local service, CAPTCHA bypass, arbitrary page scraping, or workloads requiring strong protection from another malicious process running as the same OS user. Those cases need a managed daemon, OS IPC controls, or Native Messaging.
 
-A **stdio MCP server is compatible** with this pattern: the client spawns one server process **per session** and tears it down when done, and each capability call is still a single short-lived bridge cycle. It is **not** a long-lived multi-client daemon serving many simultaneous clients, so it does not cross the managed-daemon / Native Messaging threshold above.
+A **stdio MCP server is compatible** with this pattern: the client spawns one server process **per session** and tears it down when done, and each capability call is still a single short-lived bridge cycle. It is **not** a long-lived multi-client daemon serving many simultaneous clients, so it does not cross the managed-daemon / Native Messaging threshold above. One caveat: a cancelled in-flight stdio tool call does not kill the worker thread running the bridge cycle — the server needs the cooperative-cancellation pattern (`CancelBridgeMiddleware` bridging MCP cancel notifications to a per-request `threading.Event` consumed by the bridge call); see `mcp-server-cancellation-robustness-hardening.md`.
 
 When the bridge does expose a scraping-adjacent capability like engine-search, that capability must ship off by default behind an explicit opt-in — a default-on silent page-loading capability will be read as undeclared scraping by Chrome Web Store review (see `default-off-capability-gating-for-cws-compliance.md`).
 

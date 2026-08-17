@@ -1,7 +1,7 @@
 ---
 title: "Local Search Cache for Repeat-Billing Avoidance in an MV3 Extension"
 date: 2026-07-07
-last_updated: 2026-08-14
+last_updated: 2026-08-17
 category: architecture-patterns
 module: "storage / gateway / messaging"
 problem_type: architecture_pattern
@@ -181,9 +181,9 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 Pages receive only typed `uiPrefChanged` messages with validated scalar values.
 The `providerKeys` change object never enters page memory.
 
-Since this doc was written, the broadcast covers **four** UI prefs, not the two
-shown above: `themePref`, `localePref`, `stylePref`, and `serpBarPosition`
-(`entrypoints/background.ts`). The pattern is unchanged — validated scalars
+Since this doc was written, the broadcast covers **five** UI prefs, not the two
+shown above: `themePref`, `localePref`, `stylePref`, `serpBarPosition`, and
+`selectionSearchEnabled` (`entrypoints/background.ts`). The pattern is unchanged — validated scalars
 only, never the `providerKeys` change object.
 
 ## Why This Matters

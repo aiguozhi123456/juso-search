@@ -1,6 +1,7 @@
 ---
 title: "Adding a New Source Type Silently Drops Its Order/Visibility Unless Threaded Through Every Source-Graph Mutation Path"
 date: 2026-08-02
+last_updated: 2026-08-17
 category: logic-errors
 module: "sources / storage / source-groups"
 problem_type: logic_error
@@ -49,18 +50,21 @@ tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-e
 修复后 `createSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）的读取与写入：
 
 ```ts
-const got = await browser.storage.local.get([SITE_ENGINES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, CUSTOM_ENGINES_KEY]);
+const got = await browser.storage.local.get([SITE_ENGINES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
 const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
 const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
+const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
 // ...
 await browser.storage.local.set({
   [SITE_ENGINES_KEY]: next,
-  [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], next, customDefinitions),
-  [SOURCE_HIDDEN_KEY]: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], next, customDefinitions),
+  [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], next, customDefinitions, instances),
+  [SOURCE_HIDDEN_KEY]: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], next, customDefinitions, instances),
 });
 ```
 
-`updateSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）同理；`deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`） additionally 把 `customDefinitions` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site engine 后挑选 fallback 激活源时也不会误判 custom engine 的可用性。
+（后续 Provider Instance 成为新来源类型时，同一清单又被执行了一遍——第四个实参 `instances` 即那次补穿；本文的教训随 registry 演进持续适用。）
+
+`updateSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）同理；`deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`） additionally 把 `customDefinitions` 与 `instances` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site engine 后挑选 fallback 激活源时也不会误判 custom engine / provider instance 的可用性。
 
 ### 同类实例 L4：`normalizeGroupConfig` 漏补新内置组到非空 layout
 
@@ -70,7 +74,7 @@ await browser.storage.local.set({
 
 ### 同类实例 L1：新 storage key 未登记进 `CONFIG_KEYS`
 
-新增的 `customEngines` storage key 最初没有被加进 `lib/schema.ts` 的 `CONFIG_KEYS`（该文件自己文档化的约定：新增 config 键必须同步进白名单）。当下无害——没有迁移会读写它，getter 回退到 `[]`，`ensureSchema` 也删不掉它（因为它从不出现在 before-snapshot 里）——但这是一处潜伏陷阱：**第一个**需要读取/转换 `customEngines` 的迁移会静默地看不到它。修复：把 `'customEngines'` 加进 `CONFIG_KEYS`（`lib/schema.ts:21`）。
+新增的 `customEngines` storage key 最初没有被加进 `lib/schema.ts` 的 `CONFIG_KEYS`（该文件自己文档化的约定：新增 config 键必须同步进白名单）。当下无害——没有迁移会读写它，getter 回退到 `[]`，`ensureSchema` 也删不掉它（因为它从不出现在 before-snapshot 里）——但这是一处潜伏陷阱：**第一个**需要读取/转换 `customEngines` 的迁移会静默地看不到它。修复：把 `'customEngines'` 加进 `CONFIG_KEYS`（`lib/schema.ts:24`）。
 
 ## Why This Works
 

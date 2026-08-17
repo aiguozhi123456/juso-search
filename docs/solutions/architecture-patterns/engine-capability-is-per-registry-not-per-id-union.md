@@ -1,7 +1,7 @@
 ---
 title: "Engine capability is layered per registry, but the shared EngineId union hides the layers"
 date: 2026-07-23
-last_updated: 2026-08-10
+last_updated: 2026-08-15
 category: architecture-patterns
 module: engines
 problem_type: architecture_pattern
@@ -58,6 +58,7 @@ const engines: Record<EngineId, SearchEngine> = {
   bilibili: bilibiliEngine,
   yandex: yandexEngine,
   duckduckgo: duckduckgoEngine,
+  weixin: weixinEngine,
 };
 ```
 
@@ -77,10 +78,11 @@ const extractors: Record<EngineId, EngineExtractor> = {
   bilibili: bilibiliExtractor,
   yandex: yandexExtractor,
   duckduckgo: duckduckgoExtractor,
+  weixin: weixinExtractor,
 };
 ```
 
-As of 2026-07-31, all eight registered engines have real extractors (the three Chinese sites were added after this doc was written — see _Status change_ below). The placeholder `UNSUPPORTED_EXTRACTOR` (`lib/engines/extractors/unsupported.ts`) is retained as a fallback mechanism for future engines not yet implementing DOM extraction:
+As of 2026-08-15, all nine registered engines have real extractors (the three Chinese sites and Sogou-Weixin were added after this doc was written — see _Status change_ below). The placeholder `UNSUPPORTED_EXTRACTOR` (`lib/engines/extractors/unsupported.ts`) is retained as a fallback mechanism for future engines not yet implementing DOM extraction:
 
 ```ts
 export const UNSUPPORTED_EXTRACTOR: EngineExtractor = {
@@ -106,7 +108,7 @@ The four-layer rule below still holds — it is now satisfied (all layers list a
 
 The skill no longer maintains an engine whitelist. The `ENGINES` tuple in `juso_search.py` and the hardcoded engine list in `SKILL.md` were **removed** (2026-08-10): the agent discovers the live engine set at runtime via the bridge's `list-engines` action (`python scripts/juso_search.py list-engines`; MCP `list-engines` tool), which returns `allEngines()` from the registry. `--engine` now accepts any string and the extension validates it at claim time. This removes Layer 3 as a separate registry — it can no longer drift — see `skill-mcp-vocabulary-decoupling.md`.
 
-> Historical (pre-2026-08-10): the CLI whitelist was `ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")` in `juso_search.py` line 30, hand-synced with `SKILL.md` line 32. As of 2026-07-31 it covered all eight engines (mirroring the extractor registry). That manual mirror is what drifted and is now gone.
+> Historical (pre-2026-08-10): the CLI whitelist was `ENGINES = ("google", "bing", "baidu", "yandex", "duckduckgo", "bilibili", "xiaohongshu", "douyin")` in `juso_search.py` line 30, hand-synced with `SKILL.md` line 32. As of 2026-07-31 it covered all then-eight engines (mirroring the extractor registry; weixin post-dates the whitelist era). That manual mirror is what drifted and is now gone.
 
 ### Layer 4 — Default visibility in quick-switch bar
 
@@ -117,9 +119,10 @@ Source of truth: `lib/schema.ts` versioned migrations.
 const DEFAULT_HIDDEN_ENGINE_IDS_V2: readonly string[] = ['douyin', 'xiaohongshu'];
 const DEFAULT_HIDDEN_ENGINE_IDS_V3: readonly string[] = ['bilibili'];
 const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo'];
+const DEFAULT_HIDDEN_ENGINE_IDS_V5: readonly string[] = ['weixin'];
 ```
 
-Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 8`；本层只覆盖传统引擎，v6→v7 迁移把 AI 对话引擎（DeepSeek/ChatGPT/Gemini/豆包/Grok）默认隐藏进 `sourceHidden`（见 `DEFAULT_HIDDEN_AI_ENGINE_IDS`，AI 引擎有独立的注册表与能力分层，不在 `EngineId` union 内）。
+Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 9`（v8→v9 迁移把 weixin 默认隐藏进 `sourceHidden`，见 `DEFAULT_HIDDEN_ENGINE_IDS_V5`）；本层只覆盖传统引擎，v6→v7 迁移把 AI 对话引擎（DeepSeek/ChatGPT/Gemini/豆包/Grok）默认隐藏进 `sourceHidden`（见 `DEFAULT_HIDDEN_AI_ENGINE_IDS`，AI 引擎有独立的注册表与能力分层，不在 `EngineId` union 内）。
 
 ### The rule
 
@@ -137,7 +140,7 @@ When adding a new engine:
 - A shared identifier union (`EngineId`) implies uniform capability to anyone reading the type. The asymmetry is intentional and code-commented but invisible at the type level—TypeScript cannot distinguish "registered for navigation" from "supports extraction."
 - Doc over-claims promise agents capabilities that return `unsupported-layout` errors at runtime. An agent following the README would call `engine-search --engine douyin` and get an `unsupported-layout` from the extractor stub. (The CLI whitelist parse-error path is historical: since 2026-08-10 `--engine` accepts any string and the extension rejects unknown ids at claim time via `/v1/abort` — see `skill-mcp-vocabulary-decoupling.md`.)
 - The remaining registries (extractor registry, default-hidden list) can drift independently. Adding an engine to Layer 1 without updating Layers 2 and 4 creates silent mismatches. Layer 3 can no longer drift — it is not a separate registry anymore (auto-discovered via `list-engines` since 2026-08-10). The v1.1.0 incident was exactly this drift surfacing in documentation.
-- The manifest injection surface (`ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` covering all eight engines' hosts, consumed by the auto-registered `entrypoints/engine-extractor.content.ts`) is a necessary condition for extraction but not a sufficient one—it exists so the content script can receive messages on challenge/consent redirect pages, not because extraction is implemented.
+- The manifest injection surface (`ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS` covering every registered engine's hosts, consumed by the auto-registered `entrypoints/engine-extractor.content.ts`) is a necessary condition for extraction but not a sufficient one—it exists so the content script can receive messages on challenge/consent redirect pages, not because extraction is implemented.
 
 ## When to Apply
 
@@ -179,12 +182,12 @@ When adding a new engine:
 
 ### Layer checklist
 
-| Layer | Source of truth | Current support (2026-07-31) | Evidence of absence |
+| Layer | Source of truth | Current support (2026-08-17) | Evidence of absence |
 |-------|----------------|------------------------------|---------------------|
-| 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 8 engines | — |
-| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 8 engines (Chinese sites added 2026-07-31) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
-| 3 — Agent-facing engine vocabulary | `list-engines` bridge action → `allEngines()` | all 8 engines (auto-discovered since 2026-08-10) | no mirror to drift — vocabulary fetched at runtime via `list-engines` |
-| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6) | google/bing/baidu are never default-hidden; AI engines have a parallel default-hidden layer at v6→v7 |
+| 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 9 engines | — |
+| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 9 engines (Chinese sites added 2026-07-31; weixin 2026-08-13) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
+| 3 — Agent-facing engine vocabulary | `list-engines` bridge action → `allEngines()` | all 9 engines (auto-discovered since 2026-08-10) | no mirror to drift — vocabulary fetched at runtime via `list-engines` |
+| 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6), weixin (v8→v9) | google/bing/baidu are never default-hidden; AI engines have a parallel default-hidden layer at v6→v7 |
 
 ### Misleading signal that caused the incident
 

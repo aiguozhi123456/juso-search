@@ -1,6 +1,7 @@
 ---
 title: "Runtime discovery for Agent Skill and MCP vocabulary (eliminate provider/engine tuple drift)"
 date: 2026-08-10
+last_updated: 2026-08-15
 category: architecture-patterns
 module: agent-bridge
 problem_type: architecture_pattern
@@ -21,7 +22,7 @@ tags: [agent-bridge, juso-skill, mcp-server, runtime-discovery, drift, single-so
 The Juso Search extension (WXT + React + TypeScript, Chrome MV3) ships two external interfaces for AI agents:
 
 1. **Agent Skill** — a Python CLI (`juso_search.py` + `juso_bridge.py`) that launches a local loopback HTTP bridge to the extension. The Python side binds `127.0.0.1` on an OS-assigned port, launches Chromium with a `chrome-extension://<id>/bridge.html#v=1&p=<port>&t=<token>` URL, the extension claims the request over `/v1/claim`, processes it through the worker gateway (`lib/gateway.ts`), and POSTs the reply back over `/v1/complete`. The Python side validates the reply shape before returning it.
-2. **MCP server** — a pip package (`juso-search`) that exposes the same five bridge actions (`search`, `list-providers`, `list-instances`, `engine-search`, and now `list-engines`) as MCP tools over stdio.
+2. **MCP server** — a pip package (`juso-search`) that exposes the same six bridge actions (`search`, `engine-search`, `search-instance`, `list-providers`, `list-instances`, `list-engines`) as MCP tools over stdio.
 
 Both interfaces are thin transport layers. The authoritative source of the provider and engine vocabularies lives in the extension itself: `lib/providers/types.ts` defines `ProviderId` as a TypeScript union and `allProviders()` reads the registry; `lib/engines/` together with `allEngines()` define the engine registry. Adding a provider or engine is meant to be a one-line registry change.
 
@@ -166,7 +167,7 @@ EngineId = Enum("EngineId", {engine: engine for engine in juso_bridge.ENGINES})
 _INSTANCE_ID_PATTERN = r"^inst:(?:tavily|exa|brave|stepfun|stepfun-plan|jina|doubao|doubao-global):[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
 ```
 
-**After** (`mcp-server/server.py`):
+**After** (`mcp-server/juso_search/server.py`):
 ```python
 # ProviderId / EngineId enums removed.
 
@@ -360,4 +361,4 @@ Adding a ninth engine to the registry now flows through to the bridge claim hand
 - `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — the registry-is-authoritative principle for the engine whitelist; this learning generalizes it from "mirror must be tested for equality" to "do not maintain a mirror at all."
 - `docs/solutions/architecture-patterns/agent-skill-distribution-pipeline.md` — the `scripts/gen_skills.py` single-source template + drift-lock discipline; this learning removes the tuples that the drift lock was byte-copying, so the lock now covers fewer (and less dangerous) surfaces.
 - `docs/solutions/architecture-patterns/default-off-capability-gating-for-cws-compliance.md` — why `list-engines` and `engine-search` must remain behind the existing `agentBridgeEnabled` / `engineSearchEnabled` opt-in gates; discovery does not relax gating.
-- `skills/juso-search/SKILL.md`, `lib/agent-bridge.ts`, `lib/gateway.ts`, `entrypoints/bridge/main.ts`, `mcp-server/server.py`, `public/agent-skill/scripts/juso_bridge.py`
+- `skills/juso-search/SKILL.md`, `lib/agent-bridge.ts`, `lib/gateway.ts`, `entrypoints/bridge/main.ts`, `mcp-server/juso_search/server.py`, `public/agent-skill/scripts/juso_bridge.py`
