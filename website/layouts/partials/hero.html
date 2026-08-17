@@ -13,6 +13,9 @@
         <a class="btn btn--primary" href="{{ .cta_primary_href }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" $p }}{{ i18n .cta_primary_key }}</a>
         <a class="btn btn--ghost" href="{{ .cta_ghost_href }}" target="_blank" rel="noopener">{{ i18n .cta_ghost_key }}</a>
       </div>
+      {{ with .shared_href }}
+      <a class="hero__doc-link reveal-load d5" href="{{ . }}">{{ i18n $.shared_key }} <span aria-hidden="true">→</span></a>
+      {{ end }}
       {{ with .doc_href }}
       <a class="hero__doc-link reveal-load d5" href="{{ . }}">{{ i18n $.doc_key }} <span aria-hidden="true">→</span></a>
       {{ end }}

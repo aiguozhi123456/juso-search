@@ -6,7 +6,7 @@
       <span class="lang">bash</span>
     </div>
     {{/* CLI 演示前两条命令 —— data/cli.yaml（与 cli.html 同源，避免重复内容） */}}
-    <pre class="cli__pre">{{ range $i, $item := first 2 hugo.Data.cli.items }}{{ $title := partial "i18n-field.html" (dict "obj" $item "field" "title" "lang" $.Page.Site.Language.Lang) }}<span class="cmt" aria-hidden="true"># {{ $title }}</span>
+    <pre class="cli__pre">{{ range $i, $item := first 2 site.Data.cli.items }}{{ $title := partial "i18n-field.html" (dict "obj" $item "field" "title" "lang" $.Page.Site.Language.Lang) }}<span class="cmt" aria-hidden="true"># {{ $title }}</span>
 {{ replaceRE `<span class="(prompt|cmt)"` `<span class="$1" aria-hidden="true"` $item.html | safeHTML }}{{ if eq $i 0 }}
 
 {{ end }}{{ end }}</pre>

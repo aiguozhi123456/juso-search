@@ -17,7 +17,7 @@
   "scroll_target" "#doors"
 ) }}
 
-{{/* 双门 —— 人类面 / 智能体面 */}}
+{{/* 三入口 —— 人类面 / 智能体面 / 共享文档 */}}
 <section class="section section--sunk" id="doors">
   <div class="wrap">
     {{ partial "section-head.html" (dict "eyebrow" (i18n "hero_eyebrow") "title" (i18n "sec_faces") "sub" (i18n "sec_faces_sub")) }}
@@ -31,6 +31,11 @@
         <span class="door__face"><span class="door__dot" aria-hidden="true"></span>{{ i18n "face_agent" }}</span>
         <p class="door__copy">{{ i18n "hero_positioning_agents" }}</p>
         <a class="door__link" href="{{ "agents/" | relLangURL }}">{{ i18n "nav_agent" }}<span class="door__arrow" aria-hidden="true">→</span></a>
+      </div>
+      <div class="door door--docs">
+        <span class="door__face"><span class="door__dot" aria-hidden="true"></span>{{ i18n "nav_docs" }}</span>
+        <p class="door__copy">{{ i18n "home_door_docs_copy" }}</p>
+        <a class="door__link" href="{{ "docs/" | relLangURL }}">{{ i18n "home_door_docs_link" }}<span class="door__arrow" aria-hidden="true">→</span></a>
       </div>
     </div>
   </div>

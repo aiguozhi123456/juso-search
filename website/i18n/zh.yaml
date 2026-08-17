@@ -323,9 +323,9 @@ docs_cta_p:
 
 # 文档树（/docs/、/human/docs/、/agents/docs/）
 docs_hub_title:
-  other: "选择你的文档路径"
+  other: "从共同基础开始使用双面搜"
 docs_hub_sub:
-  other: "双面搜由同一个浏览器扩展承载，但人类使用与本地智能体接入是两条不同的工作流。先安装扩展，再进入适合你的完整指南。"
+  other: "无论你自己搜索，还是让本地智能体搜索，都先从同一个扩展、同一套安装前置与数据边界开始；完成后再进入人类或智能体的独立指南。"
 docs_hub_human_tag:
   other: "人类使用"
 docs_hub_human_title:
@@ -401,7 +401,7 @@ human_doc_local_title:
 human_doc_local_body:
   other: "成功的 AI 搜索会按服务与规范化查询缓存在当前设备，历史可重放。需要最新结果时使用刷新；配置导出包含未加密的密钥与偏好，应仅在你主动需要备份时创建并安全保管。"
 human_doc_open_app:
-  other: "打开人类面概览"
+  other: "进入开始使用"
 agents_doc_eyebrow:
   other: "AGENTS DOCUMENTATION"
 agents_doc_title:
@@ -447,4 +447,12 @@ agents_doc_recovery_body:
 agents_doc_mcp_link:
   other: "阅读 MCP Server 配置"
 agents_doc_open_app:
-  other: "打开智能体面概览"
+  other: "进入接入前置条件"
+
+# 共享安装中心与首页三入口
+home_door_docs_copy:
+  other: "共同安装、搜索与两面使用指南"
+home_door_docs_link:
+  other: "开始使用"
+hero_shared_docs_link:
+  other: "共同安装与使用"

@@ -1,7 +1,7 @@
 {{/* 智能体接入步骤 —— data/agent-setup.yaml */}}
 {{ $lang := .Site.Language.Lang }}
 <div class="steps reveal">
-  {{ range hugo.Data.agent_setup.steps }}
+  {{ range site.Data.agent_setup.steps }}
     {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
     {{ $body := partial "i18n-field.html" (dict "obj" . "field" "body" "lang" $lang) }}
     <div class="step">
