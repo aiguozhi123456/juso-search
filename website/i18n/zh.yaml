@@ -456,3 +456,5 @@ home_door_docs_link:
   other: "开始使用"
 hero_shared_docs_link:
   other: "共同安装与使用"
+cta_next_steps:
+  other: "读完后下一步"

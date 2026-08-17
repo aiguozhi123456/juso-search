@@ -448,3 +448,13 @@ agents_doc_mcp_link:
   other: "Read MCP Server configuration"
 agents_doc_open_app:
   other: "Go to prerequisites"
+
+# Shared installation center and homepage third entry
+home_door_docs_copy:
+  other: "Shared installation, search, and both-face guides"
+home_door_docs_link:
+  other: "Get started"
+hero_shared_docs_link:
+  other: "Shared installation & usage"
+cta_next_steps:
+  other: "Next steps after reading"
