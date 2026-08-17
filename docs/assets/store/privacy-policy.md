@@ -1,6 +1,6 @@
 # Privacy Policy / 隐私政策
 
-**Last updated: 2026-08-07**
+**Last updated: 2026-08-17**
 
 > This policy describes how the **Juso (双面搜)** browser extension ("the extension") handles data. The extension is a Bring-Your-Own-Key (BYOK) search aggregator: it lets you query AI search providers you have paid for, and switch queries between those providers and conventional search engines.
 
@@ -63,19 +63,23 @@ On the pages of supported **AI conversation engines** (ChatGPT, DeepSeek, Doubao
 
 No content script on any of these pages reads cookies, stored credentials, account data, or personal identifiers, and none transmits page content to any external server.
 
-### 7. Remote code
+### 7. Right-click context-menu search
+
+The extension adds its own submenu to the browser's right-click context menu. It appears **only when you right-click selected text** on a page (selection context) and lists your search sources mirroring the quick-switch bar layout. Clicking an item sends **only the text you selected** to the search source you chose and opens the result in a new tab. The extension does **not** read the page you are on — no URL, no cookies, no other page content — and nothing is sent to the page. The menu is rebuilt when the extension starts, is installed or updated, or your source configuration changes.
+
+### 8. Remote code
 
 The extension does **not** use remote code. All JavaScript is bundled into the extension package. There are no external `<script>` references, no external module imports, and no `eval` or `new Function` string evaluation.
 
-### 8. Children's privacy
+### 9. Children's privacy
 
 The extension is not directed to children and does not knowingly collect data from children.
 
-### 9. Changes
+### 10. Changes
 
 We may update this policy. Material changes will be reflected by the "Last updated" date above.
 
-### 10. Contact
+### 11. Contact
 
 For privacy questions, open an issue in the extension's source repository.
 
@@ -138,18 +142,22 @@ For privacy questions, open an issue in the extension's source repository.
 
 这些页面上的内容脚本均不读取 Cookie、已存凭据、账号数据或个人标识,均不向任何外部服务器发送页面内容。
 
-### 7. 远程代码
+### 7. 右键菜单搜索
+
+扩展在浏览器右键菜单中添加自己的子菜单。它**仅在您右键选中文字时**出现(selection 上下文),列出与快切栏布局一致的搜索来源。点击某项时,仅将**您选中的文字**发送给您选择的搜索来源,并在新标签页中打开结果。扩展**不读取**您所在的页面——不读 URL、不读 Cookie、不读任何其他页面内容,也不会向该页面发送任何数据。菜单在扩展启动、安装或更新,或您的来源配置变化时重建。
+
+### 8. 远程代码
 
 本扩展**不使用**远程代码。所有 JavaScript 均打包进扩展包。无外部 `<script>` 引用、无外部模块导入、无 `eval` 或 `new Function` 字符串执行。
 
-### 8. 儿童隐私
+### 9. 儿童隐私
 
 本扩展不面向儿童,也不 knowingly 收集儿童数据。
 
-### 9. 政策变更
+### 10. 政策变更
 
 我们可能更新本政策。重大变更将通过上方"最后更新"日期体现。
 
-### 10. 联系方式
+### 11. 联系方式
 
 如有隐私问题,请在扩展源代码仓库提 issue。

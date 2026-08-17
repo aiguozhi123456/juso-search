@@ -1,7 +1,7 @@
 ---
 title: Chrome Web Store Listing and Privacy Docs Must Be Updated for Each Release
 date: 2026-07-27
-last_updated: 2026-08-12
+last_updated: 2026-08-17
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -87,7 +87,7 @@ The v1.2.0 examples above were behind the live codebase: the Brave, Jina, and Do
 
 **Status: closed by the v1.3.0 release pass.** The v1.3.0 release (2026-08-01) synced the store trio, READMEs, and DEVELOPMENT docs with the live codebase (Brave/Jina/Doubao providers, Yandex/DuckDuckGo engines, `api.search.brave.com`, source groups, per-provider maxResults, SERP bar positions), and removed the redundant bilingual `description.md` copy. One boundary was added during that pass: **engine enumeration belongs in the privacy questionnaire and privacy policy, not in the store listing description** — the v1.3.0 submission was rejected once for keyword stuffing (Yellow Argon) because the listing enumerated engine brand names; the fix and the general copy-writing constraints are recorded in [cws-listing-copy-submission-constraints.md](./cws-listing-copy-submission-constraints.md).
 
-**Status: open (2026-08-12) — `contextMenus` permission gap.** The right-click context-menu search feature added `contextMenus` to the manifest permissions (`wxt.config.ts:55`), but `docs/assets/store/privacy.md` (last updated 2026-08-07) covers only `storage`, `downloads`, and host permissions — there is no `contextMenus` permission-reasons section, and `cws-release.md` / `privacy-policy.md` do not mention it. The feature reads the user's selected text only on an explicit right-click action and sends it to a search source the user picks from the menu; the questionnaire's permission-reasons section should state this so the declared permission list matches the store answers. This audit run added the manifest-permission trigger to *When to Apply* above; closing this gap is the release-time work.
+**Status: closed by the v2.0.0 release pass (2026-08-17).** The v2.0.0 release added the `contextMenus` permission-reasons section to `docs/assets/store/privacy.md` (§5, ~555 chars, mirrors the quick-switch-bar layout, selection-only context, new-tab handoff), mentioned the right-click menu in the single-purpose statement, added the feature to `cws-release.md` (右键菜单搜索 + 划词搜索弹窗) and a dedicated bilingual section to `privacy-policy.md` (§7, both languages), and recorded the code facts in `privacy.md` 附 A (menu built only in selection context; `handleContextMenuClick` reads only `info.selectionText`; rebuilt on worker start/install/config change). This audit run added the manifest-permission trigger to *When to Apply* above; the gap is now closed.
 
 ## Related
 

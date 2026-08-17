@@ -2,13 +2,13 @@
 
 归档 Chrome Web Store Developer Dashboard「隐私权」步骤各字段填表内容。**英文为填表主版**。配合代码门控(Agent Bridge + engine-search 默认关闭)与公开隐私政策(`privacy-policy.md`)。
 
-最后更新:2026-08-07
+最后更新:2026-08-17
 
 ---
 
 ## 1. 单一用途(Single Purpose)
 
-> Unified search interface for querying and switching between multiple search sources — conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, DuckDuckGo), AI conversation engines (ChatGPT, DeepSeek, Gemini, Doubao, Grok — query auto-filled, optionally auto-submitted), custom search engines (URL templates with %s, no API key), site-scoped searches (Site Engines, no API key), and AI search APIs (Tavily, Exa, Brave, Stepfun, Jina, Doubao, user's own keys). Users search from a toolbar page and move the query between sources via a switch bar on supported search-engine result pages. Optionally, the user can expose this same search capability to a locally-run AI assistant (e.g. a coding agent) over a loopback bridge, so the assistant searches through the user's already-configured sources without receiving the stored keys; this is the same search function exposed programmatically rather than via the toolbar UI, and the only programmatic surface.
+> Unified search interface for querying and switching between multiple search sources — conventional web search engines (Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, DuckDuckGo), AI conversation engines (ChatGPT, DeepSeek, Gemini, Doubao, Grok — query auto-filled, optionally auto-submitted), custom search engines (URL templates with %s, no API key), site-scoped searches (Site Engines, no API key), and AI search APIs (Tavily, Exa, Brave, Stepfun, Jina, Doubao, user's own keys). Users search from a toolbar page, move queries between sources via a switch bar on supported search-engine result pages, or search selected text via a right-click menu. Optionally, the user can expose this same search capability to a locally-run AI assistant (e.g. a coding agent) over a loopback bridge, so the assistant searches through the user's already-configured sources without receiving the stored keys — the same search function exposed programmatically, and the only programmatic surface.
 
 ## 2. 权限理由 — storage
 
@@ -26,7 +26,11 @@
 >
 > (3) Content scripts on search-engine result pages (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili/Yandex/DuckDuckGo) and AI chat pages (chatgpt.com, chat.deepseek.com, www.doubao.com, gemini.google.com): injects closed shadow-root bar + <style> (inline: repositions Baidu/Douyin toolbars; top/bottom: pads page). Reads only anchors + URL query on search pages (no result alteration); fills query into chat input on AI pages, optionally submits. Extractor reads public results on request. No cookies/credentials/account data read; nothing sent externally.
 
-## 5. 远程代码:否
+## 5. 权限理由 — contextMenus (限 1000 字符;实测 ~555)
+
+> Lets the user search selected text via the extension's own right-click context-menu tree, which mirrors the quick-switch bar layout (pinned sources flat, grouped sources in submenus). The menu appears only when the user right-clicks selected text on a page (selection context); clicking a leaf item sends only that selected text to the user-chosen search source and opens the result in a new tab. No page content is read unless the user explicitly right-clicks selected text and picks an item; nothing is read from or sent to the page the menu appears on.
+
+## 6. 远程代码:否
 
 选「No, this extension does not use remote code.」
 
@@ -42,6 +46,7 @@
 - **子开关 UI 依赖总开关**:`components/AgentBridgeSettings.tsx` 子开关 `disabled={!bridgeEnabled}`。
 - **新偏好入 config schema 白名单**:`lib/schema.ts` 的 `CONFIG_KEYS` 含两键;未 bump version(默认 false,getter 兜底)。
 - **隐私政策已就绪**:`docs/assets/store/privacy-policy.md`(双语,用作公开 Privacy Policy URL)。
+- **contextMenus 仅 selection 上下文**:`lib/context-menu.ts` 的菜单项 `contexts: ['selection']`(仅选中文本时显示);`handleContextMenuClick` 只取 `info.selectionText` 解析跳转、新标签打开,无页面内容读取。菜单在 worker 启动/安装/相关 storage 键变化时重建(`entrypoints/background.ts:67-69,198`)。
 
 ## 附 B:ora-1 代码审查关键修正(已落地)
 
