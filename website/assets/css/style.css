@@ -585,6 +585,9 @@ p { color: var(--fg); }
 .ctaband h2 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); margin-bottom: 14px; }
 .ctaband p { color: var(--muted); margin-bottom: 28px; font-size: 1.05rem; }
 .ctaband__cta { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+.ctaband__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin-top: 22px; }
+.ctaband__links a { color: var(--brand); font-size: .92rem; font-weight: 650; }
+.ctaband__links a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------- 页脚 ---------- */
 .site-foot { border-top: 1px solid var(--border); background: var(--bg-soft); padding-block: clamp(40px, 6vw, 64px) 32px; }

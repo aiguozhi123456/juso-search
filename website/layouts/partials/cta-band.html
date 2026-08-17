@@ -9,6 +9,12 @@
           <a class="btn btn--primary" href="{{ .primary_href }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" $p }}{{ i18n .primary_key }}</a>
           <a class="btn btn--ghost" href="{{ .ghost_href }}" target="_blank" rel="noopener">{{ i18n .ghost_key }}</a>
         </div>
+        {{ if or .shared_href .guide_href }}
+        <nav class="ctaband__links" aria-label="{{ i18n "cta_next_steps" }}">
+          {{ with .shared_href }}<a href="{{ . }}">{{ i18n $.shared_key }} <span aria-hidden="true">→</span></a>{{ end }}
+          {{ with .guide_href }}<a href="{{ . }}">{{ i18n $.guide_key }} <span aria-hidden="true">→</span></a>{{ end }}
+        </nav>
+        {{ end }}
       </div>
     </div>
   </div>
