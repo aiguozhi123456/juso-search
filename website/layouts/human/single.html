@@ -93,26 +93,6 @@
   </div>
 </section>
 
-{{/* 双面桥 —— Agent Bridge 揭示另一面 */}}
-<section class="section section--sunk">
-  <div class="wrap">
-    {{ partial "section-head.html" (dict "eyebrow" (i18n "face_agent") "title" (i18n "sec_bridge") "sub" (i18n "sec_bridge_sub")) }}
-    <div class="bridge bridge--single reveal">
-      <div class="shot">
-        <div class="windowbar" aria-hidden="true">
-          <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
-        </div>
-        {{ $bridgeShot := "img/showcase/agent-bridge-zh-light.png" }}{{ if $isEn }}{{ $bridgeShot = "img/showcase/agent-bridge-en-dark.png" }}{{ end }}
-        <img src="{{ $bridgeShot | relURL }}" alt="{{ i18n "cap_agent_bridge" }}" loading="lazy" decoding="async" width="1600" height="900">
-        <div class="shot__cap"><b>{{ i18n "cap_agent_bridge" }}</b></div>
-      </div>
-      <div class="bridge__copy">
-        <a class="btn btn--ghost" href="{{ "agents/" | relLangURL }}">{{ i18n "sec_bridge_link" }}</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 {{/* CTA */}}
 {{ partial "cta-band.html" (dict
   "Page" .
