@@ -68,7 +68,7 @@ Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索
 
 ## 快速开始
 
-Juso v1.4.0 已在 GitHub Release 与 Chrome Web Store 发布。
+Juso v2.0.0 已在 GitHub Release 与 Chrome Web Store 发布。
 
 ### 安装扩展
 
