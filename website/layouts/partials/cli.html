@@ -1,6 +1,6 @@
 {{/* CLI 代码块 —— data/cli.yaml；prompt/comment 装饰性 span 加 aria-hidden */}}
 <div class="cli reveal">
-  {{ range hugo.Data.cli.items }}
+  {{ range site.Data.cli.items }}
     {{ $lang := $.Site.Language.Lang }}
     {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
     {{ $cap := partial "i18n-field.html" (dict "obj" . "field" "cap" "lang" $lang) }}

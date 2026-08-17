@@ -1,7 +1,7 @@
 {{/* 智能体能力网格 —— data/agent-capabilities.yaml */}}
 {{ $lang := .Site.Language.Lang }}
 <div class="capgrid reveal">
-  {{ range hugo.Data.agent_capabilities.items }}
+  {{ range site.Data.agent_capabilities.items }}
     {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
     {{ $desc := partial "i18n-field.html" (dict "obj" . "field" "desc" "lang" $lang) }}
     <div class="capcard">

@@ -592,6 +592,9 @@ p { color: var(--fg); }
 .site-foot__top { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: clamp(24px, 4vw, 48px); }
 .site-foot__brand .brandlock { margin-bottom: 14px; }
 .site-foot__brand p { color: var(--muted); font-size: .9rem; max-width: 34ch; }
+.foot-entry-links { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 16px; }
+.foot-entry-links a { color: var(--brand); font-size: .86rem; font-weight: 600; }
+.foot-entry-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .foot-agent-link {
   display: inline-flex; align-items: center; gap: 5px; margin-top: 14px;
   font-size: .88rem; font-weight: 600; color: var(--brand);
@@ -664,10 +667,10 @@ html.js .reveal.in { opacity: 1; transform: none; }
   html.js .reveal { opacity: 1; transform: none; }
 }
 
-/* ---------- 双门：人类面 / 智能体面入口卡片（中性根页） ----------
+/* ---------- 三入口：人类面 / 智能体面 / 共享文档（中性根页） ----------
    卡片语言沿用 .capcard / .shot：细线边框 + 圆角 + 悬停上浮。
    整卡可点由 .door__link::after 拉伸覆盖；链接可访问名仅 “人类 →”，不含整段定位文。 */
-.doors { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(18px, 2.4vw, 28px); }
+.doors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(18px, 2.4vw, 28px); }
 .door {
   position: relative;
   display: flex; flex-direction: column; gap: 16px;
@@ -694,6 +697,10 @@ html.js .reveal.in { opacity: 1; transform: none; }
 .door__arrow { transition: transform var(--duration-normal) var(--ease-out); }
 .door:hover .door__link { gap: 12px; }
 .door:hover .door__arrow { transform: translateX(3px); }
+
+@media (max-width: 1080px) {
+  .doors { grid-template-columns: 1fr 1fr; }
+}
 
 @media (max-width: 900px) {
   .doors { grid-template-columns: 1fr; }

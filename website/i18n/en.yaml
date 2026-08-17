@@ -323,9 +323,9 @@ docs_cta_p:
 
 # Documentation tree (/docs/, /human/docs/, /agents/docs/)
 docs_hub_title:
-  other: "Choose your documentation path"
+  other: "Start with the shared Juso foundation"
 docs_hub_sub:
-  other: "Juso is one browser extension, but searching for yourself and connecting local agents are different workflows. Install the extension first, then enter the complete guide that fits your use."
+  other: "Whether you search for yourself or let a local agent search, begin with the same extension, installation prerequisites, and data boundaries; then enter the independent guide for your side."
 docs_hub_human_tag:
   other: "PEOPLE USE"
 docs_hub_human_title:
@@ -401,7 +401,7 @@ human_doc_local_title:
 human_doc_local_body:
   other: "Successful AI searches are cached per service and normalised query on the current device, and history can be replayed. Refresh for fresh results. Configuration export includes unencrypted keys and preferences, so create it only for a deliberate backup and store it safely."
 human_doc_open_app:
-  other: "Open people-face overview"
+  other: "Go to getting started"
 agents_doc_eyebrow:
   other: "AGENTS DOCUMENTATION"
 agents_doc_title:
@@ -447,4 +447,4 @@ agents_doc_recovery_body:
 agents_doc_mcp_link:
   other: "Read MCP Server configuration"
 agents_doc_open_app:
-  other: "Open agents-face overview"
+  other: "Go to prerequisites"

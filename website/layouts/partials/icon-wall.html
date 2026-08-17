@@ -1,7 +1,7 @@
 {{/* 来源图标墙 —— data/sources.yaml */}}
 {{ $lang := .Site.Language.Lang }}
 <div class="iconwall">
-  {{ range hugo.Data.sources.groups }}
+  {{ range site.Data.sources.groups }}
     <div class="iconwall__group">
       <h3>{{ i18n (printf "group_%s" .key) }} <span class="count">{{ len .items }}</span></h3>
       <div class="iconwall__items">

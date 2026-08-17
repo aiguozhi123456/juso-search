@@ -9,9 +9,11 @@
           {{ if eq $curLang "zh" }}<span class="brandlock__sep">/</span><span class="brandlock__en">{{ i18n "brand_latin" }}</span>{{ end }}
         </a>
         <p>{{ i18n "footer_tagline" }}</p>
-        <a class="foot-agent-link" href="{{ "agents/" | relLangURL }}">
-          {{ i18n "footer_agent_access" }}<span class="foot-agent-link__arrow" aria-hidden="true">→</span>
-        </a>
+        <nav class="foot-entry-links" aria-label="{{ i18n "face_switch_label" }}">
+          <a href="{{ "human/" | relLangURL }}">{{ i18n "nav_human" }}</a>
+          <a href="{{ "agents/" | relLangURL }}">{{ i18n "nav_agent" }}</a>
+          <a href="{{ "docs/" | relLangURL }}">{{ i18n "nav_docs" }}</a>
+        </nav>
       </div>
       <div class="site-foot__col">
         <h4>{{ i18n "footer_get" }}</h4>

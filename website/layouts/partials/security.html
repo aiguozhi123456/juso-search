@@ -1,7 +1,7 @@
 {{/* 安全/隐私事实清单 —— data/security.yaml，face=human|agent */}}
 {{ $face := .face }}
 {{ $lang := .Page.Site.Language.Lang }}
-{{ $items := index hugo.Data.security $face }}
+{{ $items := index site.Data.security $face }}
 <div class="facts reveal">
   {{ range $items }}
     {{ $title := partial "i18n-field.html" (dict "obj" . "field" "title" "lang" $lang) }}
