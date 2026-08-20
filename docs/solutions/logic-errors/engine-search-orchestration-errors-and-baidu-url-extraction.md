@@ -1,7 +1,7 @@
 ---
 title: Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
 date: 2026-07-23
-last_updated: 2026-08-11
+last_updated: 2026-08-20
 category: logic-errors
 module: engine-search
 problem_type: logic_error
@@ -12,6 +12,7 @@ symptoms:
   - "Baidu organic URLs often remained baidu.com/link shells or nourl placeholders"
   - "Temporary SERP and bridge tabs could still steal focus on some Chromium builds"
   - "Google engine-search timeouts were mislabeled as unsupported-layout"
+  - "On Vivaldi 8.1.4087.68 every engine-search returned timeout after ~15s while the SERP tab visibly loaded (2026-08-20; see Solution D)"
 root_cause: logic_error
 resolution_type: code_fix
 severity: high
@@ -24,6 +25,10 @@ tags:
   - tab-orchestration
   - url-extraction
   - unsupported-layout
+  - vivaldi
+  - tab-url
+  - permission-filtering
+  - timeout
 ---
 
 # Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
@@ -103,7 +108,7 @@ Design constraint (explicit): local DOM only; no network follow-redirect. Order 
 - Immediate `tabs.update?.(tabId, { active: false })` (best-effort) because some builds still focus background creates.
 - `tabs.onRemoved` listener sets `closedByUser` when the SERP tab id is removed; finally removes listener and closes the tab only if not already user-closed.
 - `waitForComplete`:
-  - resolves on `status === 'complete'` **and** the tab URL is present and not `about:`-prefixed (listener + `tabs.get` race; the URL guard is mandatory for Firefox, where `tabs.create` resolves before navigation commits and the tab sits on `about:blank` — see Solution C)
+  - resolves on `status === 'complete'` **and** the tab URL is present and not `about:`-prefixed (listener + `tabs.get` race; the URL guard is mandatory for Firefox, where `tabs.create` resolves before navigation commits and the tab sits on `about:blank` — see Solution C). *Update 2026-08-20 (Solution D): the guard is now conditional — it applies only when the URL is observable; permission-filtered tabs resolve on status alone.*
   - rejects `AbortError` on signal abort
   - rejects `Error('tab did not finish loading')` on timer → classified as `timeout` via `isTimeoutError` (`/did not finish loading|timeout/i`)
   - rejects `Error('tab closed')` on `onRemoved` or failed `tabs.get` → outer path prefers `closedByUser` → `tab-closed`
@@ -138,10 +143,60 @@ Right after parse setup, `browser.tabs.getCurrent()` then `tabs.update(id, { act
 **Fix** (`lib/engine-search.ts`):
 
 - `waitForComplete` now re-reads tab state via `tabs.get(tabId)` and resolves only when `status === 'complete'` **and** the URL is present and not `about:`-prefixed. The guard applies both in the `onUpdated` handler and in the initial recheck.
-- Retry budget raised: `READY_RETRIES` 8→20, `RETRY_DELAY_MS` 100→150, `COMPLETE_TIMEOUT_MS` 10_000→15_000.
+- Retry budget raised: `READY_RETRIES` 8→20, `RETRY_DELAY_MS` 100→150, `COMPLETE_TIMEOUT_MS` 10_000→15_000. *Update 2026-08-20 (Solution D): superseded — retries are now deadline-based (`READY_RETRIES` removed), share one wall-clock budget with the load wait, and `COMPLETE_TIMEOUT_MS` is 30_000.*
 - `TabsApi` type gained `url` on the create/get results and onUpdated change objects; `tests/engine-search.test.ts` mocks now carry a `url` and `emitUpdated` syncs the mocked `get` status so the guard is exercised.
 
 **Dead end encountered:** a `browser.scripting.executeScript` manual-injection fallback failed with "Missing host permission for the tab" even after adding Firefox-only SERP `host_permissions` and `granted_host_permissions: true`. That error was misleading — `about:blank` matches zero frames, so there was nothing to inject into regardless of permissions. The real fix was the readiness guard; all the injection scaffolding was removed after the timing fix landed.
+
+### D. Vivaldi 8.1 permission-filtered `tab.url` starved the readiness gate (2026-08-20)
+
+**Symptom:** on Vivaldi 8.1.4087.68, `engine-search` returned `{"error":"timeout"}` for **every** engine (bing/baidu/duckduckgo/bilibili/weixin) after ~15s, via both the MCP server and the Python skill CLI, while the temporary SERP tab visibly loaded fine. Provider searches through the same bridge kept working (no tab orchestration). Failure latency matched `COMPLETE_TIMEOUT_MS` exactly — a deadline firing, not a page error.
+
+**Root cause:** the C-era guard required `status === 'complete'` AND `tab.url` present AND not `about:` as one compound condition, hard-coupling readiness to URL *visibility*. The manifest deliberately ships without the `"tabs"` permission and without SERP `host_permissions` (CWS minimal-permission policy; see `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md`). Chromium-family browsers strip the `url` field from `tabs.get()`/`tabs.onUpdated` without those permissions. Vivaldi used to leak `tab.url` anyway — which is why the C fix "worked on Chromium (Vivaldi)" on 2026-08-11 — and 8.1 started enforcing the filtering. Readiness became unreachable by construction: status reached `'complete'`, `url` stayed `null` forever, the timer fired, classified `timeout`.
+
+**Empirical confirmation (CDP probe):** a throwaway Vivaldi instance (temp profile, `--load-extension`, `--remote-debugging-port`) driven with `Runtime.evaluate` **inside the extension's own service worker**:
+
+| Probe | Result |
+|---|---|
+| `tabs.create(...)` return value | `{status: 'loading', url: null}` |
+| Polling `tabs.get(tabId)` | `status: 'complete'` at ~3.3s, `url: null` forever |
+| `tabs.onUpdated` events | Fired, including `status: 'complete'` |
+
+The page loaded; the extension was blind to its URL. Dead ends first excluded: Vivaldi lazy background-tab loading (disproven — status completed at ~3.3s) and extractor/page-layout issues (disproven — the extraction message was never sent; the flow was stuck in its own readiness gate).
+
+**Fix (`lib/engine-search.ts`):**
+
+1. *Readiness degrades gracefully when the URL is unobservable* — one helper replaces the three inline compound conditions:
+
+```ts
+// Without the "tabs" permission (or a matching host permission), Chromium-family browsers
+// strip the url field from tabs.get()/tabs.onUpdated results. When the url is unobservable,
+// status alone is the only readiness signal; the about:blank race it cannot detect is then
+// absorbed by sendWithRetry, which keeps retrying until the extractor answers or the deadline.
+function isTabReady(tab: { status?: string; url?: string }): boolean {
+  if (tab.status !== 'complete') return false;
+  if (!tab.url) return true;             // url unobservable → trust status
+  return !tab.url.startsWith('about:');  // url visible → Firefox about:blank guard still applies
+}
+```
+
+2. *Deadline-based handshake retry sharing one budget* — `sendWithRetry` drops the fixed `READY_RETRIES`×delay count; both the load wait and the handshake retries draw from one wall-clock deadline. Receiver-absence exhaustion throws `'extractor handshake timeout'`, classified `timeout` by `isTimeoutError` — matching the handshake-wait semantics in the skill's `reference/errors.md`. A hidden-URL tab still on `about:blank` is undetectable at this layer, but `sendMessage` fails with "receiving end does not exist" there, so retries simply continue until the SERP commits and the content script answers — free when already ready, self-terminating when not.
+
+3. *Budget retune 15s→30s* — measured in-extension, baidu/bilibili/weixin needed 15–20s for load plus extraction. A 60s default was tested live and deliberately reverted: dead engines (network-blocked duckduckgo) should fail faster, and agent ergonomics value fast classified errors over long hangs.
+
+**Bridge deadline re-arm (`lib/agent-bridge.ts`):** the generic 30s action deadline would abort the now-30s engine budget mid-flight, so after claim parsing reveals the action, engine-search re-arms its own timer to `AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS = 35_000`; every other action keeps `AGENT_BRIDGE_DEADLINE_MS = 30_000`; the CLI/MCP client default wait stays 40s. The chain is strictly nested — each outer layer outlives the one it wraps, so errors are classified by the innermost owner first:
+
+| Layer | Budget | Source |
+|---|---|---|
+| engine-search load + handshake total budget | 30s | `lib/engine-search.ts` `COMPLETE_TIMEOUT_MS` |
+| Agent Bridge engine-search action deadline | 35s | `lib/agent-bridge.ts` `AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS` |
+| Agent Bridge all other actions | 30s | `lib/agent-bridge.ts` `AGENT_BRIDGE_DEADLINE_MS` |
+| CLI / MCP client default wait | 40s | `juso_bridge.py` `timeout=40.0`; `mcp-server/juso_search/config.py` `DEFAULT_TIMEOUT` |
+
+**Tests:** `tests/engine-search.test.ts` gained three opaque-url cases — hidden-url tab becomes ready on status and retries until the receiver appears (results returned); receiver never appears within the remaining budget → `timeout`; a visible `about:blank` tab is still rejected with the extraction message never sent.
+
+**Live verification:** bing 5.8s; baidu/bilibili/weixin return real results (~22s wall including browser overhead); duckduckgo stays `timeout` (network-blocked environment — classified error is the correct outcome there).
+
 
 ## Why This Works
 
@@ -159,8 +214,8 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 - For any tab opened for Agent work (`engine-search` SERP or `bridge.html`), create inactive and re-assert `active: false` if the host may still focus the tab.
 - Do not introduce network redirect resolution in extractors without an explicit design decision; local shortcuts first.
 - Keep the skill's orchestration vs page-state lists (`reference/errors.md`) in sync with `types.ts` and `juso_bridge.py`.
-- Never treat `status: 'complete'` alone as evidence that navigation committed; guard readiness on the tab URL being present and non-`about:` for background-tab flows (protects Firefox/Safari, where `tabs.create` resolves while the tab is still on `about:blank`).
-- Test engine-search on Firefox as part of the bridge test matrix, not just Chromium — the identical code path passed on Vivaldi and failed on Firefox.
+- Never treat `status === 'complete'` and URL presence as one compound readiness condition *(revised 2026-08-20, Solution D)*. Status is a load signal; URL visibility is a permission artifact of the caller, not a property of the page. When the URL is observable, keep the non-`about:` guard (Firefox `about:blank` race); when it is permission-filtered away, resolve on status alone and push the undetectable race down to the layer that can observe it — the message-retry loop sees "no receiver on `about:blank`" directly.
+- Test engine-search on Firefox as part of the bridge test matrix, not just Chromium — the identical code path passed on Vivaldi and failed on Firefox. *Caveat added 2026-08-20 (Solution D): browser quirks drift in both directions — Vivaldi later regressed the same guard by enforcing Chromium url permission filtering. Keep the orchestration path in the cross-browser matrix with pinned unit tests for both the Firefox `about:blank` race and the Chromium permission-filtered-url case.*
 - Be skeptical of permission errors during background-tab injection. "Missing host permission" from `executeScript` was misleading (zero matching frames on `about:blank`); verify what URL/frames the tab exposes at the failure moment before adding permissions.
 - Don't ship debugging scaffolding: remove temporary `console.log`s, injection fallbacks, and permissions added to chase a hypothesis once the real fix lands.
 - Keep placeholder detection robust to stamping: placeholders replaced by a packager can appear *inside* the code that checks for them — detect by scheme (`"://"`) rather than by the placeholder literal (see Related Issues).
@@ -168,6 +223,8 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 ## Related Issues
 
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — engine-search temporary tabs, page-state errors, Baidu natural-result contract
+- `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — the least-privilege decision that keeps SERP hosts out of `host_permissions`; this is precisely why `tab.url` is permission-filtered on enforcing Chromium builds (Solution D accepts url-unobservability instead of widening permissions)
+- `docs/solutions/integration-issues/agent-bridge-skill-contract-drift.md` — Python-side bridge timeout contract; the Solution D deadline chain (30s → 35s → 40s) must stay nested under these caller timeouts
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — parallel extractor DOM fragility on the same path
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — bridge.html fire-and-forget close (adjacent focus hygiene)
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — different timeout class (SW `fetch` this-binding), do not conflate with SERP `tab-closed` / load `timeout`
