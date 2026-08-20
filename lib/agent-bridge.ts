@@ -9,6 +9,8 @@ import type { EngineExtractionResult } from './engines/extractors';
 export const AGENT_BRIDGE_PROTOCOL = 2;
 export const AGENT_BRIDGE_MAX_BODY_BYTES = 64 * 1024;
 export const AGENT_BRIDGE_DEADLINE_MS = 30_000;
+// engine-search 独享更长截止：覆盖 engine-search.ts 的 30s 加载+握手总预算（慢引擎页实测可达 ~20s）。
+export const AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS = 35_000;
 export const AGENT_BRIDGE_COMPLETE_DEADLINE_MS = 5_000;
 
 export type BridgeCredentials = { port: number; token: string };
@@ -126,7 +128,7 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
   const claimUrl = buildAgentEndpoint(credentials.port, '/v1/claim');
   if (!claimUrl || !isBase64UrlToken(credentials.token)) return { ok: false };
   const actionController = new AbortController();
-  const actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_DEADLINE_MS);
+  let actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_DEADLINE_MS);
   try {
     const claimResponse = await deps.fetch(claimUrl, claimRequestOptions(credentials.token, actionController.signal));
     if (!claimResponse.ok) return { ok: false };
@@ -140,6 +142,11 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
     }
     const claim = parseAgentClaim(rawClaim);
     if (!claim.ok) return { ok: false };
+    if (claim.value.request.action === 'engine-search') {
+      // 认领后才知道 action；engine-search 的 30s 页面预算叠加回传余量后超出通用 30s 截止，为其单独放宽到 35s。
+      clearTimeout(actionTimeout);
+      actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS);
+    }
     let reply: AgentComplete['reply'];
     try {
       reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.value.request, actionController.signal)

@@ -86,4 +86,33 @@ describe('runEngineSearch', () => {
     await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api })).resolves.toEqual({ engine: 'google', query: 'hello', error: 'extract-failed' });
     expect(api.remove).not.toHaveBeenCalled();
   });
+
+  it('treats a permission-hidden url as ready once status completes and retries until the receiver appears', async () => {
+    // Vivaldi/Chrome without "tabs" permission strip url from tabs.get()/onUpdated.
+    const api = tabs('loading', undefined);
+    api.sendMessage
+      .mockRejectedValueOnce(new Error('Could not establish connection. Receiving end does not exist.'))
+      .mockRejectedValueOnce(new Error('Could not establish connection. Receiving end does not exist.'))
+      .mockResolvedValue({ requestId: 'id', engine: 'bing', query: 'hello', results: [] });
+    const promise = runEngineSearch({ engineId: 'bing', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', retryDelayMs: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    api.emitUpdated(7, { status: 'complete' });
+    await expect(promise).resolves.toEqual({ engine: 'bing', query: 'hello', results: [] });
+    expect(api.sendMessage).toHaveBeenCalledTimes(3);
+    expect(api.remove).toHaveBeenCalledWith(7);
+  });
+
+  it('reports timeout when the receiver never appears within the remaining budget (about:blank race)', async () => {
+    const api = tabs('complete', undefined);
+    api.sendMessage.mockRejectedValue(new Error('Could not establish connection. Receiving end does not exist.'));
+    await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', retryDelayMs: 0, completeTimeoutMs: 40 })).resolves.toEqual({ engine: 'google', query: 'hello', error: 'timeout' });
+    expect(api.remove).toHaveBeenCalledWith(7);
+  });
+
+  it('still rejects an about:blank tab whose url is visible (Firefox race guard)', async () => {
+    const api = tabs('complete', 'about:blank');
+    api.get.mockResolvedValue({ id: 7, status: 'complete', url: 'about:blank' });
+    await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', completeTimeoutMs: 30 })).resolves.toEqual({ engine: 'google', query: 'hello', error: 'timeout' });
+    expect(api.sendMessage).not.toHaveBeenCalled();
+  });
 });

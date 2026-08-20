@@ -32,7 +32,7 @@ Find the UUID from the installed extension's manifest (in `about:debugging#/runt
 
 Profile handling also differs by browser: Chrome uses `--profile-directory=<name>`, Firefox uses `-p <name>` (the flag is chosen automatically from the detected browser type).
 
-Use `--timeout` (or `JUSO_TIMEOUT`) to change the bridge wait time (default: 40 seconds, leaving time beyond the extension's 30-second request deadline).
+Use `--timeout` (or `JUSO_TIMEOUT`) to change the bridge wait time (default: 40 seconds, leaving time beyond the extension's 35-second engine-search deadline; other actions complete within 30 seconds).
 
 ## Persisting settings
 

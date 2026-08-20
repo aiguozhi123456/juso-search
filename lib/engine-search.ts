@@ -23,14 +23,13 @@ type TabsApi = {
 export type EngineSearchDeps = {
   tabs: TabsApi;
   requestId?: () => string;
-  readyRetries?: number;
   retryDelayMs?: number;
+  /** Total budget covering tab load wait plus extractor handshake retries. */
   completeTimeoutMs?: number;
 };
 
-const READY_RETRIES = 20;
 const RETRY_DELAY_MS = 150;
-const COMPLETE_TIMEOUT_MS = 15_000;
+const COMPLETE_TIMEOUT_MS = 30_000;
 
 const PAGE_STATE_ERRORS = new Set<string>(['challenge', 'consent', 'unsupported-layout', 'no-results']);
 const ORCHESTRATION_ERRORS = new Set<string>(['tab-closed', 'timeout', 'aborted', 'extract-failed']);
@@ -49,9 +48,10 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
     // Some Chromium builds still focus a newly created background tab; force inactive.
     void deps.tabs.update?.(tabId, { active: false }).catch(() => undefined);
     deps.tabs.onRemoved?.addListener(onRemoved);
-    await waitForComplete(tab, deps.tabs, signal, deps.completeTimeoutMs ?? COMPLETE_TIMEOUT_MS);
+    const deadline = Date.now() + (deps.completeTimeoutMs ?? COMPLETE_TIMEOUT_MS);
+    await waitForComplete(tab, deps.tabs, signal, deadline);
     if (closedByUser) return extractionError(request, 'tab-closed');
-    const reply = await sendWithRetry(tabId, { type: 'juso:extract-engine-results', requestId, ...request }, deps, signal);
+    const reply = await sendWithRetry(tabId, { type: 'juso:extract-engine-results', requestId, ...request }, deps, signal, deadline);
     return isExtractionReply(reply, request, requestId) ? stripRequestId(reply) : extractionError(request, 'extract-failed');
   } catch (error) {
     if (closedByUser) return extractionError(request, 'tab-closed');
@@ -64,10 +64,21 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
   }
 }
 
-function waitForComplete(tab: { id?: number; status?: string; url?: string }, tabs: TabsApi, signal?: AbortSignal, timeoutMs = COMPLETE_TIMEOUT_MS): Promise<void> {
+// Without the "tabs" permission (or a matching host permission), Chromium-family browsers
+// strip the url field from tabs.get()/tabs.onUpdated results. When the url is unobservable,
+// status alone is the only readiness signal; the about:blank race it cannot detect is then
+// absorbed by sendWithRetry, which keeps retrying until the extractor answers or the deadline.
+function isTabReady(tab: { status?: string; url?: string }): boolean {
+  if (tab.status !== 'complete') return false;
+  if (!tab.url) return true;
+  return !tab.url.startsWith('about:');
+}
+
+function waitForComplete(tab: { id?: number; status?: string; url?: string }, tabs: TabsApi, signal: AbortSignal | undefined, deadline: number): Promise<void> {
   // Firefox: tabs.create() resolves before navigation commits — tab is still on about:blank.
-  // about:blank has status "complete", so we must check the URL to avoid resolving prematurely.
-  if (tab.status === 'complete' && tab.url && !tab.url.startsWith('about:')) return Promise.resolve();
+  // about:blank has status "complete" with a visible url, so isTabReady still rejects it;
+  // when the url is permission-hidden, readiness falls through to the sendWithRetry deadline.
+  if (isTabReady(tab)) return Promise.resolve();
   if (tab.id === undefined) return Promise.reject(new Error('tab id unavailable'));
   const tabId = tab.id;
   return new Promise((resolve, reject) => {
@@ -92,9 +103,9 @@ function waitForComplete(tab: { id?: number; status?: string; url?: string }, ta
     };
     const onUpdated = (updatedTabId: number, change: { status?: string; url?: string }) => {
       if (updatedTabId !== tabId || change.status !== 'complete') return;
-      // Verify the real page has loaded (not about:blank).
+      // Re-read the tab rather than trusting the event payload (url may be filtered).
       void tabs.get(tabId).then((currentTab) => {
-        if (currentTab.status === 'complete' && currentTab.url && !currentTab.url.startsWith('about:')) {
+        if (isTabReady(currentTab)) {
           cleanup();
           resolve();
         }
@@ -102,11 +113,11 @@ function waitForComplete(tab: { id?: number; status?: string; url?: string }, ta
     };
     tabs.onUpdated.addListener(onUpdated);
     tabs.onRemoved?.addListener(onTabRemoved);
-    const timeout = setTimeout(onTimeout, timeoutMs);
+    const timeout = setTimeout(onTimeout, Math.max(0, deadline - Date.now()));
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) return onAbort();
     void tabs.get(tabId).then((currentTab) => {
-      if (currentTab.status === 'complete' && currentTab.url && !currentTab.url.startsWith('about:')) {
+      if (isTabReady(currentTab)) {
         cleanup();
         resolve();
       }
@@ -117,18 +128,20 @@ function waitForComplete(tab: { id?: number; status?: string; url?: string }, ta
   });
 }
 
-async function sendWithRetry(tabId: number, message: object, deps: EngineSearchDeps, signal?: AbortSignal): Promise<unknown> {
-  const retries = deps.readyRetries ?? READY_RETRIES;
-  for (let attempt = 0; attempt < retries; attempt += 1) {
+// Retries the extraction handshake until the content script answers or the shared deadline
+// passes. Covers both a slow-injecting content script and the permission-hidden about:blank
+// race (no receiver exists on about:blank, so retries continue until the SERP commits).
+async function sendWithRetry(tabId: number, message: object, deps: EngineSearchDeps, signal: AbortSignal | undefined, deadline: number): Promise<unknown> {
+  const retryDelayMs = deps.retryDelayMs ?? RETRY_DELAY_MS;
+  for (;;) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     try {
       return await deps.tabs.sendMessage(tabId, message);
     } catch (error) {
-      if (attempt === retries - 1) throw error;
-      await delay(deps.retryDelayMs ?? RETRY_DELAY_MS, signal);
+      if (Date.now() >= deadline) throw new Error('extractor handshake timeout', { cause: error });
+      await delay(retryDelayMs, signal);
     }
   }
-  throw new Error('content script unavailable');
 }
 
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
