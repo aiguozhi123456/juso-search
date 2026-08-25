@@ -8,21 +8,30 @@ import type { EngineExtractionResult } from './engines/extractors';
 
 export const AGENT_BRIDGE_PROTOCOL = 2;
 export const AGENT_BRIDGE_MAX_BODY_BYTES = 64 * 1024;
-export const AGENT_BRIDGE_DEADLINE_MS = 30_000;
-// engine-search 独享更长截止：覆盖 engine-search.ts 的 30s 加载+握手总预算（慢引擎页实测可达 ~20s）。
-export const AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS = 35_000;
+// 所有 action 共用的默认截止（35s：沿用 engine-search 原有余量，覆盖 engine-search.ts 的
+// 30s 加载+握手总预算，慢引擎页实测可达 ~20s；其余 action 由 30s 放宽到 35s）。
+export const AGENT_BRIDGE_ACTION_DEADLINE_MS = 35_000;
 export const AGENT_BRIDGE_COMPLETE_DEADLINE_MS = 5_000;
+// claim 可选 timeoutMs：声明端到端预算（complete 阶段计入预留；claim fetch 不从其中扣除，
+// 仅受上面 35s 预 arm 上限约束——回环 claim 服务常驻内存，延迟为毫秒级），区间与换算如下。
+export const AGENT_BRIDGE_MIN_TIMEOUT_MS = 7_000;
+export const AGENT_BRIDGE_MAX_TIMEOUT_MS = 300_000;
+// timeoutMs 中为 complete 阶段（5s）+ 1s 松弛预留的部分，剩余才是 action 可用时长。
+export const AGENT_BRIDGE_TIMEOUT_RESERVE_MS = 6_000;
+// engine-search 内层预算比外层截止提前的余量：保证内层 timeout 错误先于外层 aborted 判定。
+export const AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS = 750;
 
 export type BridgeCredentials = { port: number; token: string };
-export type AgentSearchRequest = { action: 'search'; query: string; providerId: ProviderId; forceRefresh?: boolean };
+export type AgentSearchRequest = { action: 'search'; query: string; providerId: ProviderId; forceRefresh?: boolean; timeoutMs?: number };
 export type AgentListProvidersRequest = { action: 'list-providers' };
 export type AgentListEnginesRequest = { action: 'list-engines' };
-export type AgentEngineSearchRequest = { action: 'engine-search'; query: string; engineId: EngineId; maxResults?: number };
+export type AgentEngineSearchRequest = { action: 'engine-search'; query: string; engineId: EngineId; maxResults?: number; timeoutMs?: number };
 export interface AgentSearchInstanceRequest {
   action: 'search-instance';
   query: string;
   instanceId: ProviderInstanceId;
   forceRefresh?: boolean;
+  timeoutMs?: number;
 }
 export interface AgentListInstancesRequest {
   action: 'list-instances';
@@ -47,7 +56,7 @@ export type AgentBridgeDeps = {
   fetch: typeof fetch;
   handleSearch: (request: SearchRequest, signal?: AbortSignal) => Promise<SearchReply>;
   listProviders: () => Promise<AgentListProvidersReply>;
-  handleEngineSearch: (request: AgentEngineSearchRequest, signal?: AbortSignal) => Promise<EngineExtractionResult>;
+  handleEngineSearch: (request: AgentEngineSearchRequest, signal: AbortSignal | undefined, deadline: number) => Promise<EngineExtractionResult>;
   handleSearchInstance?: (request: AgentSearchInstanceRequest, signal?: AbortSignal) => Promise<SearchReply>;
   listInstances?: () => Promise<AgentListInstancesReply>;
   listEngines?: () => Promise<AgentListEnginesReply>;
@@ -124,11 +133,34 @@ export function parseAgentClaim(payload: unknown): ParseResult<AgentClaim> {
   return request.ok ? { ok: true, value: { protocol: payload.protocol as 1 | 2, requestId: payload.requestId, request: request.value } } : request;
 }
 
+/** 校验 timeoutMs：仅接受 [MIN, MAX] 内的整数，非法返回 null（parse 据此拒绝 claim）。 */
+export function clampTimeoutMs(value: number): number | null {
+  return Number.isInteger(value) && value >= AGENT_BRIDGE_MIN_TIMEOUT_MS && value <= AGENT_BRIDGE_MAX_TIMEOUT_MS ? value : null;
+}
+
+/** action 实际可用时长：claim 的 timeoutMs（扣除 complete 预留）优先，其次测试 override，否则默认截止。 */
+export function effectiveActionDurationMs(timeoutMs: number | undefined, overrideDeadlineMs: number | undefined): number {
+  if (timeoutMs !== undefined) return timeoutMs - AGENT_BRIDGE_TIMEOUT_RESERVE_MS;
+  return overrideDeadlineMs ?? AGENT_BRIDGE_ACTION_DEADLINE_MS;
+}
+
+/** engine-search 内层预算：比外层截止提前 MARGIN，保证内层 timeout 先于外层 aborted；负数钳为 0。 */
+export function engineInnerBudgetMs(deadline: number, now: number): number {
+  return Math.max(0, deadline - now - AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS);
+}
+
+// list-* claim 不携带 timeoutMs；三个支持预算的 action 读取各自的可选字段。
+function claimTimeoutMs(request: AgentRequest): number | undefined {
+  return request.action === 'search' || request.action === 'engine-search' || request.action === 'search-instance' ? request.timeoutMs : undefined;
+}
+
 export async function runAgentBridge(credentials: BridgeCredentials, deps: AgentBridgeDeps): Promise<{ ok: boolean }> {
   const claimUrl = buildAgentEndpoint(credentials.port, '/v1/claim');
   if (!claimUrl || !isBase64UrlToken(credentials.token)) return { ok: false };
   const actionController = new AbortController();
-  let actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_DEADLINE_MS);
+  // claim fetch 前先按默认/override 时长武装（fetch 与解析计入预算，保守）：认领前不知道 claim
+  // 是否携带 timeoutMs，先兜底；认领后统一替换为按 pure 函数算出的唯一截止。
+  let actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_ACTION_DEADLINE_MS);
   try {
     const claimResponse = await deps.fetch(claimUrl, claimRequestOptions(credentials.token, actionController.signal));
     if (!claimResponse.ok) return { ok: false };
@@ -142,15 +174,17 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
     }
     const claim = parseAgentClaim(rawClaim);
     if (!claim.ok) return { ok: false };
-    if (claim.value.request.action === 'engine-search') {
-      // 认领后才知道 action；engine-search 的 30s 页面预算叠加回传余量后超出通用 30s 截止，为其单独放宽到 35s。
-      clearTimeout(actionTimeout);
-      actionTimeout = setTimeout(() => actionController.abort(), deps.deadlineMs ?? AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS);
-    }
+    // 端到端唯一截止：所有 action 共用（engine-search 不再单独放宽），由 claim 的 timeoutMs
+    // 扣除 complete 预留、测试 override 或默认值决定；engine-search 额外拿到绝对 epoch 截止
+    // 用于收窄 runEngineSearch 的内部预算。
+    const actionDurationMs = effectiveActionDurationMs(claimTimeoutMs(claim.value.request), deps.deadlineMs);
+    clearTimeout(actionTimeout);
+    actionTimeout = setTimeout(() => actionController.abort(), actionDurationMs);
+    const actionDeadline = Date.now() + actionDurationMs;
     let reply: AgentComplete['reply'];
     try {
       reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.value.request, actionController.signal)
-        : claim.value.request.action === 'engine-search' ? await deps.handleEngineSearch(claim.value.request, actionController.signal)
+        : claim.value.request.action === 'engine-search' ? await deps.handleEngineSearch(claim.value.request, actionController.signal, actionDeadline)
           : claim.value.request.action === 'search-instance'
             ? (await deps.handleSearchInstance?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
             : claim.value.request.action === 'list-instances'
@@ -235,10 +269,11 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
       : { ok: false, error: 'invalid list providers request' };
   }
   if (value.action === 'engine-search') {
-    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults']) || typeof value.query !== 'string' || typeof value.engineId !== 'string' || !isEngineId(value.engineId)) return { ok: false, error: 'invalid engine search request' };
+    if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults', 'timeoutMs']) || typeof value.query !== 'string' || typeof value.engineId !== 'string' || !isEngineId(value.engineId)) return { ok: false, error: 'invalid engine search request' };
     const query = value.query.trim();
     if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20))) return { ok: false, error: 'invalid engine search request' };
-    return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }) } };
+    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid engine search request' };
+    return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action === 'list-instances') {
     return hasOnlyKeys(value, ['action'])
@@ -251,13 +286,14 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
       : { ok: false, error: 'invalid list engines request' };
   }
   if (value.action === 'search-instance') {
-    if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };
+    if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };
     const query = value.query.trim();
     if (!query || query.length > 8192 || typeof value.instanceId !== 'string' || !isProviderInstanceId(value.instanceId)) return { ok: false, error: 'invalid search instance request' };
     if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search instance request' };
-    return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }) } };
+    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid search instance request' };
+    return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
-  if (value.action !== 'search' || !hasOnlyKeys(value, ['action', 'query', 'providerId', 'forceRefresh']) || typeof value.query !== 'string') {
+  if (value.action !== 'search' || !hasOnlyKeys(value, ['action', 'query', 'providerId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') {
     return { ok: false, error: 'invalid search request' };
   }
   const query = value.query.trim();
@@ -265,7 +301,8 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     return { ok: false, error: 'invalid search request' };
   }
   if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search request' };
-  return { ok: true, value: { action: 'search', query, providerId: value.providerId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }) } };
+  if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid search request' };
+  return { ok: true, value: { action: 'search', query, providerId: value.providerId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
 }
 
 function parsePort(value: string): number | null {

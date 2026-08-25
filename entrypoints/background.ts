@@ -41,7 +41,7 @@ import {
 import { isBarPositionPref, isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
-import { isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
+import { engineInnerBudgetMs, isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
 import { runEngineSearch } from '@/lib/engine-search';
 import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
 import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
@@ -159,11 +159,12 @@ export default defineBackground(() => {
       handleSearchInstance: handleSearchInstance,
       listInstances: handleListAgentInstances,
       listEngines: handleListAgentEngines,
-      handleEngineSearch: async (request, signal) => {
+      handleEngineSearch: async (request, signal, deadline) => {
         if (!(await getEngineSearchEnabled())) {
           return { engine: request.engineId, query: request.query, error: 'extract-failed' };
         }
-        return runEngineSearch(request, signal, { tabs: browser.tabs });
+        // 内层预算 = 外层截止 - 余量：保证 runEngineSearch 的 timeout 先于桥接层的 aborted 判定。
+        return runEngineSearch(request, signal, { tabs: browser.tabs, completeTimeoutMs: engineInnerBudgetMs(deadline, Date.now()) });
       },
     });
   });

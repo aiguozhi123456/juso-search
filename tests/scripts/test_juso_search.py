@@ -165,7 +165,7 @@ class PureFunctionTests(unittest.TestCase):
         self.assertEqual(juso_search.extension_id("a" * 32), "a" * 32)
         with self.assertRaises(Exception):
             juso_search.extension_id("invalid")
-        self.assertEqual(juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"]).timeout, 40.0)
+        self.assertIsNone(juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"]).timeout)
         engine_args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "engine-search", "hello", "--engine", "google", "--max-results", "2"])
         self.assertEqual((engine_args.engine, engine_args.max_results), ("google", 2))
         self.assertEqual(juso_search.make_claim("engine-search", "hello", None, False, "id", "google", 2)["request"], {"action": "engine-search", "query": "hello", "engineId": "google", "maxResults": 2})
@@ -224,27 +224,88 @@ class PureFunctionTests(unittest.TestCase):
         self.assertEqual(payload["error"]["kind"], "invalid_extension_id")
 
     def test_timeout_env_and_cli_precedence(self):
-        """JUSO_TIMEOUT 覆盖默认 40s；CLI --timeout 优先于环境变量。"""
-        # 合法 env 值覆盖默认
+        """JUSO_TIMEOUT/--timeout 显式时才有值；未设（含空 env）为 None 哨兵，默认在 run() 回退。"""
+        # env 未设 → None 哨兵（默认路径在 run() 里回退 juso_bridge.DEFAULT_TIMEOUT_SECONDS）
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["list-providers"])
+            self.assertIsNone(args.timeout)
+        # 合法 env 值 → 显式超时
         with patch.dict(os.environ, {"JUSO_TIMEOUT": "90"}, clear=True):
             args = juso_search.parser().parse_args(["list-providers"])
             self.assertEqual(args.timeout, 90.0)
             # CLI 优先于 env
             args = juso_search.parser().parse_args(["--timeout", "12", "list-providers"])
             self.assertEqual(args.timeout, 12.0)
-        # 空字符串 env 回退默认 40.0
+        # 空字符串 env 视为未设置 → None
         with patch.dict(os.environ, {"JUSO_TIMEOUT": ""}, clear=True):
             args = juso_search.parser().parse_args(["list-providers"])
-            self.assertEqual(args.timeout, 40.0)
-        # env 未设 → 默认 40.0
-        with patch.dict(os.environ, {}, clear=True):
-            args = juso_search.parser().parse_args(["list-providers"])
-            self.assertEqual(args.timeout, 40.0)
-        # 非法 env 值在 parse 阶段 SystemExit（与 extension_id 既有约定一致）
+            self.assertIsNone(args.timeout)
+        # 非法 env/flag 值在 parse 阶段 SystemExit（与 extension_id 既有约定一致）
         for bad in ("bad", "0", "-1", "nan", "inf"):
             with patch.dict(os.environ, {"JUSO_TIMEOUT": bad}, clear=True):
                 with self.assertRaises(SystemExit):
                     juso_search.parser().parse_args(["list-providers"])
+            with self.assertRaises(SystemExit):
+                juso_search.parser().parse_args(["--timeout", bad, "list-providers"])
+
+    def test_run_timeout_derivation(self):
+        """显式超时（flag 或 JUSO_TIMEOUT）→ run() 推导 clamp 后的 timeoutMs；默认路径不携带。"""
+        # JUSO_TIMEOUT=120 → 等待 120s，claim 携带 timeoutMs=120000
+        with patch.dict(os.environ, {"JUSO_TIMEOUT": "120"}, clear=True):
+            args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        kwargs = run_bridge.call_args.kwargs
+        self.assertEqual(kwargs["timeout"], 120.0)
+        self.assertEqual(kwargs["timeout_ms"], 120000)
+        # 显式 2s → timeoutMs clamp 到 7000（无 sub-8s 特判，显式值一律发出）
+        with patch.dict(os.environ, {"JUSO_TIMEOUT": "2"}, clear=True):
+            args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        kwargs = run_bridge.call_args.kwargs
+        self.assertEqual(kwargs["timeout"], 2.0)
+        self.assertEqual(kwargs["timeout_ms"], 7000)
+        # 默认路径：args.timeout 为 None → 等待回退 40s、不携带 timeoutMs
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        kwargs = run_bridge.call_args.kwargs
+        self.assertEqual(kwargs["timeout"], 40.0)
+        self.assertIsNone(kwargs["timeout_ms"])
+
+    def test_make_claim_timeout_ms(self):
+        """不带 timeout_ms 时 claim 与既有形状完全一致；显式时携带并 clamp 到 [7000, 300000]。"""
+        # 不传 timeout_ms：claim 逐字段等于旧形状（兼容不变量）
+        self.assertEqual(
+            juso_search.make_claim("search", "hello", "tavily", False, "request-1"),
+            {"protocol": 2, "requestId": "request-1", "request": {"action": "search", "query": "hello", "providerId": "tavily"}},
+        )
+        self.assertEqual(
+            juso_search.make_claim("engine-search", "hello", None, False, "request-1", "google", 2),
+            {"protocol": 2, "requestId": "request-1", "request": {"action": "engine-search", "query": "hello", "engineId": "google", "maxResults": 2}},
+        )
+        self.assertEqual(
+            juso_search.make_claim("search-instance", "hello", None, False, "request-1", instance_id="inst:exa:abc123"),
+            {"protocol": 2, "requestId": "request-1", "request": {"action": "search-instance", "query": "hello", "instanceId": "inst:exa:abc123"}},
+        )
+        # 显式 timeoutMs：出现在 request 中并被 clamp
+        self.assertEqual(juso_search.make_claim("search", "hello", "tavily", False, "request-1", timeout_ms=40000)["request"]["timeoutMs"], 40000)
+        self.assertEqual(juso_search.make_claim("search", "hello", "tavily", False, "request-1", timeout_ms=5000)["request"]["timeoutMs"], 7000)
+        self.assertEqual(juso_search.make_claim("search", "hello", "tavily", False, "request-1", timeout_ms=400000)["request"]["timeoutMs"], 300000)
+        self.assertEqual(juso_search.make_claim("search", "hello", "tavily", False, "request-1", timeout_ms=39999.6)["request"]["timeoutMs"], 40000)
+
+    def test_clamp_timeout_ms(self):
+        """clamp_timeout_ms 将毫秒预算限制在 [7000, 300000] 且返回 int。"""
+        self.assertEqual(juso_search.clamp_timeout_ms(7000), 7000)
+        self.assertEqual(juso_search.clamp_timeout_ms(300000), 300000)
+        self.assertEqual(juso_search.clamp_timeout_ms(40000), 40000)
+        self.assertEqual(juso_search.clamp_timeout_ms(5000), 7000)
+        self.assertEqual(juso_search.clamp_timeout_ms(400000), 300000)
+        self.assertEqual(juso_search.clamp_timeout_ms(39999.6), 40000)
+        self.assertEqual(juso_search.clamp_timeout_ms(2000.4), 7000)  # 先 round→2000 再 clamp
+        self.assertIsInstance(juso_search.clamp_timeout_ms(40000.0), int)
 
     def test_reply_validation_status_and_path_lookup(self):
         error_reply = {"ok": False, "error": {"kind": "unknown", "message": "safe"}}

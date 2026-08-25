@@ -60,6 +60,12 @@ def call_bridge(
     cancel_event: threading.Event | None = None,
 ) -> CallToolResult:
     """Run one ``run_bridge`` cycle for ``action`` and wrap its outcome."""
+    # Resolve at call time: None (JUSO_TIMEOUT unset/empty) falls back to the
+    # bridge default and keeps the claim free of timeoutMs; an explicit value
+    # is also carried to the extension as a clamped timeoutMs budget.
+    explicit_timeout = config.timeout is not None
+    timeout = config.timeout if explicit_timeout else juso_bridge.DEFAULT_TIMEOUT_SECONDS
+    timeout_ms = juso_bridge.clamp_timeout_ms(config.timeout * 1000) if explicit_timeout else None
     try:
         reply = juso_bridge.run_bridge(
             action,
@@ -72,7 +78,8 @@ def call_bridge(
             extension_id=config.extension_id,
             chrome_path=config.chrome_path,
             profile=config.profile,
-            timeout=config.timeout,
+            timeout=timeout,
+            timeout_ms=timeout_ms,
             cancel_event=cancel_event,
             bridge_url=config.bridge_url,
         )

@@ -45,6 +45,7 @@ __all__ = [
     "PROTOCOL",
     "MAX_BODY_BYTES",
     "SOCKET_TIMEOUT_SECONDS",
+    "DEFAULT_TIMEOUT_SECONDS",
     "EXTENSION_ID_RE",
     "RECOVERY_HINT",
     "ERROR_INVALID_EXTENSION_ID",
@@ -70,6 +71,7 @@ __all__ = [
     "result_status",
     "wait_failure",
     "make_handler",
+    "clamp_timeout_ms",
     "make_claim",
     "run_bridge",
 ]
@@ -77,6 +79,10 @@ __all__ = [
 PROTOCOL = 2
 MAX_BODY_BYTES = 8 * 1024 * 1024
 SOCKET_TIMEOUT_SECONDS = 1.0
+# Default Python-side total wait (seconds) for one full bridge cycle. The CLI
+# wrapper and the MCP server fall back to this instead of keeping their own
+# copy of the number.
+DEFAULT_TIMEOUT_SECONDS = 40.0
 EXTENSION_ID_RE = re.compile(r"^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})$")
 
 # Stable failure classifiers raised by run_bridge() via BridgeError.
@@ -479,7 +485,12 @@ def make_handler(state: BridgeState):
     return BridgeHandler
 
 
-def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None, instance_id: str | None = None) -> dict[str, Any]:
+def clamp_timeout_ms(value: float) -> int:
+    """Clamp a millisecond budget into the extension's accepted [7000, 300000] range."""
+    return min(300000, max(7000, int(round(value))))
+
+
+def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None, instance_id: str | None = None, timeout_ms: float | None = None) -> dict[str, Any]:
     request: dict[str, Any] = {"action": action}
     if action == "search":
         request.update(query=query, providerId=provider)
@@ -494,13 +505,19 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
         if force_refresh:
             request["forceRefresh"] = True
     # list-providers, list-instances, and list-engines have no extra fields
+    # Optional extension-side action budget: omitted entirely (claim stays
+    # byte-identical to a default run) unless the caller customized the
+    # timeout. Any explicit value, however small, is emitted clamped.
+    if timeout_ms is not None:
+        request["timeoutMs"] = clamp_timeout_ms(timeout_ms)
     return {"protocol": PROTOCOL, "requestId": request_id, "request": request}
 
 
 def run_bridge(action: str, query: str | None, *, provider_id: str | None = None, engine_id: str | None = None,
                instance_id: str | None = None, force_refresh: bool = False, max_results: int | None = None,
                extension_id: str | None = None, chrome_path: str | None = None, profile: str | None = None,
-               timeout: float = 40.0, cancel_event: threading.Event | None = None,
+               timeout: float = DEFAULT_TIMEOUT_SECONDS, timeout_ms: float | None = None,
+               cancel_event: threading.Event | None = None,
                bridge_url: str | None = None, browser_type: str | None = None) -> dict[str, Any]:
     """Run one full bridge cycle and return the extension's reply dict.
 
@@ -520,7 +537,15 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
             Optional when bridge_url is set.
         chrome_path: explicit browser executable (auto-discovery otherwise).
         profile: optional profile name (--profile-directory for Chrome, -p for Firefox).
-        timeout: seconds to wait for the extension to complete the request.
+        timeout: Python-side total wait in seconds for the extension to
+            complete the request (includes browser launch); bounds the
+            local wait loop only.
+        timeout_ms: optional extension-side action budget carried in the
+            claim as ``timeoutMs`` (milliseconds, defensively clamped to
+            [7000, 300000]). None omits the field and keeps the claim
+            byte-identical to a default run. Callers should keep
+            ``timeout * 1000 >= timeout_ms + 1000`` so the local wait
+            outlives the extension-side budget.
         cancel_event: optional threading.Event; when set before the
             extension completes, run_bridge stops waiting and raises
             BridgeError(kind=cancelled). Cleanup (loopback server shutdown,
@@ -570,6 +595,7 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         engine_id,
         max_results,
         instance_id,
+        timeout_ms,
     )
     server: BridgeHTTPServer | None = None
     process: subprocess.Popen | None = None

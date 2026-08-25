@@ -46,7 +46,7 @@ mcp-server/.venv/Scripts/juso-search --help
 | `JUSO_BROWSER_PATH`  | **yes**  | Explicit browser executable (Chrome, Chromium, Edge, Firefox, …). The server refuses to guess — set it explicitly. (`JUSO_CHROME_PATH` is a legacy alias.) |
 | `JUSO_BRIDGE_URL`    | no*      | Full bridge URL base, e.g. `moz-extension://<uuid>/bridge.html` — **required for Firefox** (the `moz-extension://` host is a per-install random UUID, not derivable from the id). |
 | `JUSO_BROWSER_PROFILE`| no      | Browser profile (Chrome directory name / Firefox profile name; auto-selected if unset). (`JUSO_CHROME_PROFILE` is a legacy alias.) |
-| `JUSO_TIMEOUT`       | no       | Seconds to wait for the extension to claim a request (default 40). |
+| `JUSO_TIMEOUT`       | no       | End-to-end per-call budget in seconds, browser launch included (default 40). When set, it is also carried to the extension as the action budget (`timeout − ~6s` reply reserve, clamped to 7–300 s — needs a current extension version). |
 
 \* Either `JUSO_EXTENSION_ID` **or** `JUSO_BRIDGE_URL` must be set. Chrome can
 derive the bridge URL from the id, so only the id is needed; Firefox needs the

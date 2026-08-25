@@ -49,7 +49,7 @@ def spawn_server(extra_env: dict[str, str] | None = None) -> subprocess.Popen:
     env["PYTHONPATH"] = str(MCP_SERVER_DIR)
     env["JUSO_EXTENSION_ID"] = EXTENSION_ID
     env["JUSO_CHROME_PATH"] = NO_SUCH_CHROME
-    env["JUSO_TIMEOUT"] = "2"
+    env["JUSO_TIMEOUT"] = "40"
     if extra_env:
         env.update(extra_env)
     return subprocess.Popen(

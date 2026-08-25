@@ -42,8 +42,11 @@ EXTENSION_ID = "a" * 32
 FAKE_CHROME = "/fake/chrome"
 
 
-def _claim_and_complete(reply):
-    """Return a Popen side_effect that claims then completes the bridge request."""
+def _claim_and_complete(reply, capture=None):
+    """Return a Popen side_effect that claims then completes the bridge request.
+
+    ``capture`` (optional dict) receives the served claim for seam-level assertions.
+    """
     def handler(command, **_kwargs):
         url = command[-1]
         fragment = url.split("#", 1)[1]
@@ -59,6 +62,8 @@ def _claim_and_complete(reply):
             response = connection.getresponse()
             assert response.status == 200
             claim = json.loads(response.read())
+            if capture is not None:
+                capture.update(claim)
             complete = {
                 "protocol": claim["protocol"],
                 "requestId": claim["requestId"],
@@ -113,6 +118,34 @@ class RunBridgeTests(unittest.TestCase):
             )
         self.assertEqual(reply, SEARCH_REPLY)
         self.assertEqual(juso_bridge.result_status(reply), 0)
+
+    def test_run_bridge_forwards_timeout_ms_into_claim(self):
+        """Seam regression lock: run_bridge must serialize timeout_ms into the served claim.
+
+        Dropping the make_claim(..., timeout_ms=...) forwarding inside run_bridge would
+        otherwise pass every suite green while the budget silently stops being carried
+        (the original "fake custom timeout" bug class).
+        """
+        explicit, default = {}, {}
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(SEARCH_REPLY, capture=explicit)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "search", "hello", provider_id="tavily",
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0, timeout_ms=120000,
+            )
+        self.assertEqual(reply, SEARCH_REPLY)
+        self.assertEqual(explicit["request"]["timeoutMs"], 120000)
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(SEARCH_REPLY, capture=default)),
+        ):
+            juso_bridge.run_bridge(
+                "search", "hello", provider_id="tavily",
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertNotIn("timeoutMs", default["request"])
 
     def test_run_bridge_engine_search(self):
         with (

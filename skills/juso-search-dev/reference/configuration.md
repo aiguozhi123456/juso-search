@@ -32,7 +32,7 @@ Find the UUID from the installed extension's manifest (in `about:debugging#/runt
 
 Profile handling also differs by browser: Chrome uses `--profile-directory=<name>`, Firefox uses `-p <name>` (the flag is chosen automatically from the detected browser type).
 
-Use `--timeout` (or `JUSO_TIMEOUT`) to change the bridge wait time (default: 40 seconds, leaving time beyond the extension's 35-second engine-search deadline; other actions complete within 30 seconds).
+Use `--timeout` (or `JUSO_TIMEOUT`) to set the end-to-end budget for one bridge call (default: 40 seconds, browser launch included). An explicit value is carried to the extension, which grants the action itself `timeout − ~6s` (the reserve covers the final reply POST); the wait stays exactly as configured. The carried budget is clamped to 7–300 seconds — values below 7s are raised, values above 300s are capped (the wait is not). Budget passthrough requires a current extension: an older extension rejects the claim and the call fails fast with a "reload the extension" hint.
 
 ## Persisting settings
 

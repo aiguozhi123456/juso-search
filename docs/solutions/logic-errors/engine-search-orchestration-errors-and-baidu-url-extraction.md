@@ -1,7 +1,7 @@
 ---
 title: Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
 date: 2026-07-23
-last_updated: 2026-08-20
+last_updated: 2026-08-23
 category: logic-errors
 module: engine-search
 problem_type: logic_error
@@ -13,6 +13,7 @@ symptoms:
   - "Temporary SERP and bridge tabs could still steal focus on some Chromium builds"
   - "Google engine-search timeouts were mislabeled as unsupported-layout"
   - "On Vivaldi 8.1.4087.68 every engine-search returned timeout after ~15s while the SERP tab visibly loaded (2026-08-20; see Solution D)"
+  - "CLI --timeout / MCP JUSO_TIMEOUT appeared configurable but had no effect on extension-side action deadlines (2026-08-23; see Solution E)"
 root_cause: logic_error
 resolution_type: code_fix
 severity: high
@@ -29,6 +30,8 @@ tags:
   - tab-url
   - permission-filtering
   - timeout
+  - claim-protocol
+  - budget-propagation
 ---
 
 # Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
@@ -193,10 +196,38 @@ function isTabReady(tab: { status?: string; url?: string }): boolean {
 | Agent Bridge all other actions | 30s | `lib/agent-bridge.ts` `AGENT_BRIDGE_DEADLINE_MS` |
 | CLI / MCP client default wait | 40s | `juso_bridge.py` `timeout=40.0`; `mcp-server/juso_search/config.py` `DEFAULT_TIMEOUT` |
 
+*Update 2026-08-23 (Solution E): superseded — the engine-search re-arm branch and the 30s/35s constant pair were removed in favor of one unified action deadline plus the client-carried `timeoutMs` budget; see Solution E for the current chain.*
+
 **Tests:** `tests/engine-search.test.ts` gained three opaque-url cases — hidden-url tab becomes ready on status and retries until the receiver appears (results returned); receiver never appears within the remaining budget → `timeout`; a visible `about:blank` tab is still rejected with the extraction message never sent.
 
 **Live verification:** bing 5.8s; baidu/bilibili/weixin return real results (~22s wall including browser overhead); duckduckgo stays `timeout` (network-blocked environment — classified error is the correct outcome there).
 
+
+### E. "Fake" custom timeout — the client wait never reached the extension (2026-08-23)
+
+**Symptom:** raising `--timeout` / `JUSO_TIMEOUT` (CLI and MCP) had no effect: the extension still aborted actions at its own 30/35s deadlines and the client finished early with the error reply. Lowering it only made the client give up sooner.
+
+**Root cause:** the user-facing timeout only bounded the Python-side wait (`_wait_for_completion` in `juso_bridge.py`). It was never serialized into the claim (`make_claim` carried only action/query/provider/engine/instance/maxResults/forceRefresh), and the extension-side deadlines were compile-time constants (`AGENT_BRIDGE_DEADLINE_MS = 30_000`, `AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS = 35_000`, engine-search inner `COMPLETE_TIMEOUT_MS = 30_000`). The strict `hasOnlyKeys` claim parsing would have rejected any extra field, so there was no channel at all — the knob was local-only by construction, i.e. a "custom timeout" in name only.
+
+**Fix (TS + Python, one carrier field):**
+
+1. *Claim protocol* — `search` / `engine-search` / `search-instance` claims accept an optional integer `timeoutMs` ∈ [7000, 300000] (out-of-range rejects the claim, same style as `maxResults`); `list-*` stays unchanged. Pure helpers (`clampTimeoutMs`, `effectiveActionDurationMs`, `engineInnerBudgetMs`) are exported so deadline math is unit-testable without timers.
+2. *Unified action deadline* — the engine-search re-arm branch is deleted; one `AGENT_BRIDGE_ACTION_DEADLINE_MS = 35_000` covers every action (35 keeps engine-search's existing headroom; other actions widen 30→35s, harmless since they normally finish in seconds). Effective deadline = `timeoutMs − 6000` (complete-POST reserve) when the claim carries `timeoutMs`, else the test-hook `deps.deadlineMs`, else the 35s default; computed once, armed once.
+3. *Engine-search inner budget* — always `remaining − 750 ms` of the action deadline (clamped ≥ 0), passed as `deps.completeTimeoutMs` from `background.ts`; the 750ms margin makes the inner `timeout` classification deterministically beat the outer `aborted`. `COMPLETE_TIMEOUT_MS` remains only as a defensive fallback for direct/test calls that pass no budget.
+4. *Python single source* — `DEFAULT_TIMEOUT_SECONDS = 40.0` lives once in `juso_bridge.py` (`__all__`-exported; CLI and `config.py` reference it, `Config.timeout` is `float | None` with None = not customized). CLI/MCP emit `timeoutMs` **only when the timeout was explicitly configured** (flag given or `JUSO_TIMEOUT` set), so the default path's claim bytes are unchanged — zero impact on old extensions.
+
+**Current deadline chain (default / custom):**
+
+| Layer | Default path | Custom path (explicit T) | Source |
+|---|---|---|---|
+| engine-search inner (load + handshake) | remaining − 750 ms (≈ 34.25 s) | same formula | `engineInnerBudgetMs` → `deps.completeTimeoutMs`; `COMPLETE_TIMEOUT_MS = 30_000` is fallback-only |
+| Agent Bridge action deadline (all actions) | 35 s | clamp(T·1000, 7000, 300000) − 6000 | `lib/agent-bridge.ts` `AGENT_BRIDGE_ACTION_DEADLINE_MS` / `effectiveActionDurationMs` |
+| complete POST | 5 s | 5 s | `AGENT_BRIDGE_COMPLETE_DEADLINE_MS` |
+| CLI / MCP wait | 40 s | T (browser launch included) | `juso_bridge.py` `DEFAULT_TIMEOUT_SECONDS` (single source) |
+
+**Compat matrix:** old skill + new extension — identical (no field, defaults). New skill + old extension, default timeout — identical. New skill + old extension, explicit timeout — old extension rejects the unknown field, bridge page fast-fails via `/v1/abort`, error says "reload the extension" (loud, readable; documented). Accepted tradeoffs: explicit sub-8s values clamp the budget up to 7s (user decision — no special-casing); >300s caps the budget but keeps the wait.
+
+**Tests:** pure-helper units; claim parse accept/reject (`tests/agent-bridge.test.ts`); deadline pass-through via stubbed `handleEngineSearch` (tolerance-based, no timers); CLI derivation/precedence + `make_claim` byte-stability + `clamp_timeout_ms` (`tests/scripts/test_juso_search.py`); MCP config None/explicit (`mcp-server/tests/test_config_env.py`).
 
 ## Why This Works
 
@@ -214,6 +245,7 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 - For any tab opened for Agent work (`engine-search` SERP or `bridge.html`), create inactive and re-assert `active: false` if the host may still focus the tab.
 - Do not introduce network redirect resolution in extractors without an explicit design decision; local shortcuts first.
 - Keep the skill's orchestration vs page-state lists (`reference/errors.md`) in sync with `types.ts` and `juso_bridge.py`.
+- A client-facing timeout must be plumbed end-to-end or documented as local-only. When a budget knob needs to cross the bridge, carry it as an optional validated claim field (default-path claims stay byte-identical for old extensions) — never assume the extension will infer it from client behavior. *(Solution E)*
 - Never treat `status === 'complete'` and URL presence as one compound readiness condition *(revised 2026-08-20, Solution D)*. Status is a load signal; URL visibility is a permission artifact of the caller, not a property of the page. When the URL is observable, keep the non-`about:` guard (Firefox `about:blank` race); when it is permission-filtered away, resolve on status alone and push the undetectable race down to the layer that can observe it — the message-retry loop sees "no receiver on `about:blank`" directly.
 - Test engine-search on Firefox as part of the bridge test matrix, not just Chromium — the identical code path passed on Vivaldi and failed on Firefox. *Caveat added 2026-08-20 (Solution D): browser quirks drift in both directions — Vivaldi later regressed the same guard by enforcing Chromium url permission filtering. Keep the orchestration path in the cross-browser matrix with pinned unit tests for both the Firefox `about:blank` race and the Chromium permission-filtered-url case.*
 - Be skeptical of permission errors during background-tab injection. "Missing host permission" from `executeScript` was misleading (zero matching frames on `about:blank`); verify what URL/frames the tab exposes at the failure moment before adding permissions.
@@ -222,9 +254,10 @@ The Firefox fix works because it stops trusting `status: 'complete'` as evidence
 
 ## Related Issues
 
-- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — engine-search temporary tabs, page-state errors, Baidu natural-result contract
+- `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — engine-search temporary tabs, page-state errors, Baidu natural-result contract; **deadline table and claim-direction section now reference the unified `AGENT_BRIDGE_ACTION_DEADLINE_MS` and `timeoutMs` carrier (refresh needed for stale `AGENT_BRIDGE_DEADLINE_MS` / `AGENT_BRIDGE_ENGINE_SEARCH_DEADLINE_MS` mentions)**
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — the least-privilege decision that keeps SERP hosts out of `host_permissions`; this is precisely why `tab.url` is permission-filtered on enforcing Chromium builds (Solution D accepts url-unobservability instead of widening permissions)
-- `docs/solutions/integration-issues/agent-bridge-skill-contract-drift.md` — Python-side bridge timeout contract; the Solution D deadline chain (30s → 35s → 40s) must stay nested under these caller timeouts
+- `docs/solutions/integration-issues/agent-bridge-skill-contract-drift.md` — Python-side bridge timeout contract; the Solution D deadline chain (30s → 35s → 40s) must stay nested under these caller timeouts; **Solution E supersedes the "40s client-side-only" framing — the wait is now a real end-to-end budget carried via `timeoutMs`**
+- `docs/solutions/architecture-patterns/mcp-server-cancellation-robustness-hardening.md` — JUSO_TIMEOUT validation gaps (inf/nan) are now higher-impact because the value feeds the end-to-end budget; refresh to note `DEFAULT_TIMEOUT_SECONDS` single-source in `juso_bridge.py`
 - `docs/solutions/logic-errors/google-serp-extractor-nested-wrapper.md` — parallel extractor DOM fragility on the same path
 - `docs/solutions/ui-bugs/bridge-page-auto-close-after-claim.md` — bridge.html fire-and-forget close (adjacent focus hygiene)
 - `docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md` — different timeout class (SW `fetch` this-binding), do not conflate with SERP `tab-closed` / load `timeout`

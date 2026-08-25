@@ -7,6 +7,12 @@ UUID host), ``JUSO_BROWSER_PROFILE`` and ``JUSO_TIMEOUT`` (optional). The legacy
 aliases ``JUSO_CHROME_PATH`` / ``JUSO_CHROME_PROFILE`` are still accepted. The
 MCP path intentionally has no CLI flags — config is env-only by design.
 
+``JUSO_TIMEOUT`` is an end-to-end budget: unset/empty keeps
+``Config.timeout`` None (the server resolves
+``juso_bridge.DEFAULT_TIMEOUT_SECONDS`` at call time and omits ``timeoutMs``
+from the claim); a set value is carried to the extension as ``timeoutMs``
+(clamped to [7, 300] seconds) while the local wait uses it directly.
+
 ``JUSO_BROWSER_PATH`` is required at startup: a missing value fails fast with a
 message on **stderr** and a non-zero exit code. The server never guesses an
 extension id or a browser executable, so a wrong or unset value can never be
@@ -29,8 +35,8 @@ from typing import Mapping
 from . import juso_bridge
 
 # Seconds to wait for the extension to claim+complete a bridge request.
-# Matches juso_bridge.run_bridge's own default.
-DEFAULT_TIMEOUT = 40.0
+# Alias of the bridge-core default so the template stays the single source.
+DEFAULT_TIMEOUT = juso_bridge.DEFAULT_TIMEOUT_SECONDS
 
 # Non-zero exit code used for configuration failures.
 EXIT_CONFIG_ERROR = 2
@@ -43,7 +49,10 @@ class Config:
     extension_id: str | None
     chrome_path: str
     profile: str | None = None
-    timeout: float = DEFAULT_TIMEOUT
+    # None = not customized (JUSO_TIMEOUT unset/empty): resolve the bridge
+    # default at call time and omit timeoutMs from the claim. A value is an
+    # end-to-end budget carried to the extension as clamped timeoutMs.
+    timeout: float | None = None
     bridge_url: str | None = None
 
 
@@ -87,7 +96,7 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         )
     profile = (env.get("JUSO_BROWSER_PROFILE") or env.get("JUSO_CHROME_PROFILE") or "").strip() or None
 
-    timeout = DEFAULT_TIMEOUT
+    timeout = None
     raw_timeout = env.get("JUSO_TIMEOUT")
     if raw_timeout:
         try:

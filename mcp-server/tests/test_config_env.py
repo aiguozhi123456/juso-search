@@ -34,7 +34,7 @@ def test_defaults():
     assert config.extension_id == EXTENSION_ID
     assert config.chrome_path == CHROME_PATH
     assert config.profile is None
-    assert config.timeout == DEFAULT_TIMEOUT
+    assert config.timeout is None  # None = not customized; resolved at call time
 
 
 def test_env_parsing_and_passthrough():
@@ -114,7 +114,29 @@ def test_config_passed_to_run_bridge(server, config, monkeypatch):
     assert kwargs["extension_id"] == EXTENSION_ID
     assert kwargs["chrome_path"] == config.chrome_path
     assert kwargs["profile"] is None
+    # None (not customized) is resolved in bridge_call to the bridge default
     assert kwargs["timeout"] == DEFAULT_TIMEOUT
+    assert kwargs["timeout_ms"] is None
+
+
+def test_explicit_timeout_carries_timeout_ms(monkeypatch):
+    """JUSO_TIMEOUT set → run_bridge gets the explicit wait plus a clamped timeoutMs."""
+    from juso_search.bridge_call import call_bridge
+
+    config = load_config(
+        {
+            "JUSO_EXTENSION_ID": EXTENSION_ID,
+            "JUSO_CHROME_PATH": CHROME_PATH,
+            "JUSO_TIMEOUT": "15.5",
+        }
+    )
+    with patch("juso_search.bridge_call.juso_bridge.run_bridge") as run_bridge:
+        run_bridge.return_value = {"providers": [{"id": "tavily", "supportsAnswer": False, "configured": True}]}
+        result = call_bridge("list-providers", config)
+    kwargs = run_bridge.call_args.kwargs
+    assert kwargs["timeout"] == 15.5
+    assert kwargs["timeout_ms"] == 15500
+    assert not result.is_error
 
 
 def test_main_missing_env_exits_nonzero(capsys, monkeypatch):

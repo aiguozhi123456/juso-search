@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_BRIDGE_PROTOCOL, buildAgentEndpoint, extractLooseBridgeCredentials, isTrustedBridgeSender, parseAgentClaim, parseBridgeFragment, runAgentBridge } from '@/lib/agent-bridge';
+import {
+  AGENT_BRIDGE_ACTION_DEADLINE_MS,
+  AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS,
+  AGENT_BRIDGE_MAX_TIMEOUT_MS,
+  AGENT_BRIDGE_MIN_TIMEOUT_MS,
+  AGENT_BRIDGE_PROTOCOL,
+  AGENT_BRIDGE_TIMEOUT_RESERVE_MS,
+  buildAgentEndpoint,
+  clampTimeoutMs,
+  effectiveActionDurationMs,
+  engineInnerBudgetMs,
+  extractLooseBridgeCredentials,
+  isTrustedBridgeSender,
+  parseAgentClaim,
+  parseBridgeFragment,
+  runAgentBridge,
+} from '@/lib/agent-bridge';
 
 const token = 'a'.repeat(24);
 const claim = { protocol: 1, requestId: 'request-1', request: { action: 'search', query: ' hello ', providerId: 'tavily' } };
@@ -207,5 +223,96 @@ describe('agent bridge v2 dispatch', () => {
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listEngines })).resolves.toEqual({ ok: true });
     expect(listEngines).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: enginesReply });
+  });
+});
+
+describe('agent bridge timeout budget helpers', () => {
+  it('clampTimeoutMs accepts only integers within [MIN, MAX]', () => {
+    expect(clampTimeoutMs(AGENT_BRIDGE_MIN_TIMEOUT_MS - 1)).toBeNull();
+    expect(clampTimeoutMs(AGENT_BRIDGE_MIN_TIMEOUT_MS)).toBe(AGENT_BRIDGE_MIN_TIMEOUT_MS);
+    expect(clampTimeoutMs(AGENT_BRIDGE_MAX_TIMEOUT_MS)).toBe(AGENT_BRIDGE_MAX_TIMEOUT_MS);
+    expect(clampTimeoutMs(AGENT_BRIDGE_MAX_TIMEOUT_MS + 1)).toBeNull();
+    expect(clampTimeoutMs(7000.5)).toBeNull();
+    expect(clampTimeoutMs(NaN)).toBeNull();
+    expect(clampTimeoutMs(Infinity)).toBeNull();
+  });
+
+  it('effectiveActionDurationMs prefers claim timeoutMs over override over default', () => {
+    expect(effectiveActionDurationMs(40_000, undefined)).toBe(40_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
+    expect(effectiveActionDurationMs(40_000, 1_000)).toBe(34_000); // timeoutMs 胜过 override
+    expect(effectiveActionDurationMs(undefined, 1_000)).toBe(1_000); // override 胜过默认
+    expect(effectiveActionDurationMs(undefined, undefined)).toBe(AGENT_BRIDGE_ACTION_DEADLINE_MS);
+  });
+
+  it('engineInnerBudgetMs subtracts the margin and clamps negatives to zero', () => {
+    expect(engineInnerBudgetMs(10_000, 2_000)).toBe(10_000 - 2_000 - AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS);
+    expect(engineInnerBudgetMs(1_000, 2_000)).toBe(0);
+  });
+});
+
+describe('agent bridge claim timeoutMs parsing', () => {
+  it('accepts timeoutMs on search, engine-search, and search-instance claims', () => {
+    expect(parseAgentClaim({ protocol: 1, requestId: 'r', request: { action: 'search', query: 'x', providerId: 'tavily', timeoutMs: 12_000 } }))
+      .toMatchObject({ ok: true, value: { request: { action: 'search', query: 'x', providerId: 'tavily', timeoutMs: 12_000 } } });
+    expect(parseAgentClaim({ protocol: 1, requestId: 'r', request: { action: 'engine-search', query: 'x', engineId: 'google', timeoutMs: 12_000 } }))
+      .toMatchObject({ ok: true, value: { request: { action: 'engine-search', engineId: 'google', timeoutMs: 12_000 } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-instance', query: 'x', instanceId: 'inst:exa:abc123', timeoutMs: 12_000 } }))
+      .toMatchObject({ ok: true, value: { request: { action: 'search-instance', instanceId: 'inst:exa:abc123', timeoutMs: 12_000 } } });
+  });
+
+  it('rejects out-of-range, non-integer, and non-number timeoutMs like other invalid fields', () => {
+    const base = { protocol: 1, requestId: 'r', request: { action: 'search', query: 'x', providerId: 'tavily' } };
+    for (const bad of [6_999, 300_001, 7_000.5, '12000', null, true]) {
+      expect(parseAgentClaim({ ...base, request: { ...base.request, timeoutMs: bad } })).toMatchObject({ ok: false, error: 'invalid search request' });
+    }
+    // 闭区间边界值仍接受
+    expect(parseAgentClaim({ ...base, request: { ...base.request, timeoutMs: AGENT_BRIDGE_MIN_TIMEOUT_MS } })).toMatchObject({ ok: true });
+    expect(parseAgentClaim({ ...base, request: { ...base.request, timeoutMs: AGENT_BRIDGE_MAX_TIMEOUT_MS } })).toMatchObject({ ok: true });
+    // engine-search / search-instance 同样按各自错误串拒绝
+    expect(parseAgentClaim({ protocol: 1, requestId: 'r', request: { action: 'engine-search', query: 'x', engineId: 'google', timeoutMs: 6_999 } })).toMatchObject({ ok: false, error: 'invalid engine search request' });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-instance', query: 'x', instanceId: 'inst:exa:abc123', timeoutMs: 300_001 } })).toMatchObject({ ok: false, error: 'invalid search instance request' });
+  });
+
+  it('still rejects timeoutMs on list-* claims', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-providers', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-instances', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-engines', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
+  });
+
+  it('parses claims without timeoutMs unchanged (no stray field on the parsed request)', () => {
+    const parsed = parseAgentClaim(claim);
+    expect(parsed).toMatchObject({ ok: true, value: { request: { query: 'hello' } } });
+    expect(parsed.ok && 'timeoutMs' in parsed.value.request).toBe(false);
+  });
+});
+
+describe('agent bridge action deadline pass-through', () => {
+  it('derives the engine-search deadline from the claim timeoutMs', async () => {
+    const engineClaim = { protocol: 1, requestId: 'engine', request: { action: 'engine-search', query: 'hello', engineId: 'google', timeoutMs: 120_000 } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(engineClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const handleEngineSearch = vi.fn().mockResolvedValue({ engine: 'google', query: 'hello', error: 'no-results' });
+    const before = Date.now();
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
+    const after = Date.now();
+    expect(handleEngineSearch.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
+    const deadline = handleEngineSearch.mock.calls[0][2];
+    expect(deadline).toBeGreaterThanOrEqual(before + 120_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
+    expect(deadline).toBeLessThanOrEqual(after + 120_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
+  });
+
+  it('falls back to the default action deadline when the claim has no timeoutMs', async () => {
+    const engineClaim = { protocol: 1, requestId: 'engine', request: { action: 'engine-search', query: 'hello', engineId: 'google' } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(engineClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const handleEngineSearch = vi.fn().mockResolvedValue({ engine: 'google', query: 'hello', error: 'no-results' });
+    const before = Date.now();
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
+    const after = Date.now();
+    const deadline = handleEngineSearch.mock.calls[0][2];
+    expect(deadline).toBeGreaterThanOrEqual(before + AGENT_BRIDGE_ACTION_DEADLINE_MS);
+    expect(deadline).toBeLessThanOrEqual(after + AGENT_BRIDGE_ACTION_DEADLINE_MS);
   });
 });

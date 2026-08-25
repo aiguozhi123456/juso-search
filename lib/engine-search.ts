@@ -29,6 +29,9 @@ export type EngineSearchDeps = {
 };
 
 const RETRY_DELAY_MS = 150;
+// Defensive fallback only: the agent-bridge path passes a deadline-narrowed budget via
+// deps.completeTimeoutMs (see engineInnerBudgetMs in agent-bridge); this constant covers
+// direct/test calls that do not provide one.
 const COMPLETE_TIMEOUT_MS = 30_000;
 
 const PAGE_STATE_ERRORS = new Set<string>(['challenge', 'consent', 'unsupported-layout', 'no-results']);

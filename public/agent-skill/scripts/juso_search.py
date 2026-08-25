@@ -57,7 +57,10 @@ def parser() -> argparse.ArgumentParser:
     argument_parser.add_argument("--browser", default=os.environ.get("JUSO_BROWSER_PATH") or os.environ.get("JUSO_CHROME_PATH"))
     argument_parser.add_argument("--profile", default=os.environ.get("JUSO_BROWSER_PROFILE") or os.environ.get("JUSO_CHROME_PROFILE"))
     argument_parser.add_argument("--bridge-url", default=os.environ.get("JUSO_BRIDGE_URL") or DEFAULT_BRIDGE_URL)
-    argument_parser.add_argument("--timeout", type=positive_timeout, default=os.environ.get("JUSO_TIMEOUT") or "40.0")
+    # None 哨兵 = 未显式配置（无 --timeout 且 JUSO_TIMEOUT 未设/为空）：run() 回退
+    # juso_bridge 默认等待并省略 timeoutMs（claim 字节不变）；非空 env 值仍经
+    # positive_timeout 在 parse 阶段校验。
+    argument_parser.add_argument("--timeout", type=positive_timeout, default=os.environ.get("JUSO_TIMEOUT") or None)
     commands = argument_parser.add_subparsers(dest="command", required=True)
     search = commands.add_parser("search")
     search.add_argument("query", type=search_query)
@@ -84,6 +87,11 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
     # Using "://" check instead of placeholder string because gen_skills.py stamps the placeholder
     # everywhere — including this check — which would make it always False after stamping.
     bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None
+    # An explicit timeout (flag or non-empty JUSO_TIMEOUT) doubles as the
+    # extension-side budget; the None sentinel keeps the default-path claim
+    # free of timeoutMs (byte-identical to before).
+    timeout = args.timeout if args.timeout is not None else juso_bridge.DEFAULT_TIMEOUT_SECONDS
+    timeout_ms = juso_bridge.clamp_timeout_ms(args.timeout * 1000) if args.timeout is not None else None
     try:
         reply = juso_bridge.run_bridge(
             args.command,
@@ -96,7 +104,8 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
             extension_id=args.extension_id,
             chrome_path=args.browser,
             profile=args.profile,
-            timeout=args.timeout,
+            timeout=timeout,
+            timeout_ms=timeout_ms,
             bridge_url=bridge_url,
         )
     except juso_bridge.BridgeError as error:
