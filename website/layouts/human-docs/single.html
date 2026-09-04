@@ -4,11 +4,15 @@
 {{ define "main" }}
 <section class="guide-hero">
   <div class="wrap guide-hero__inner">
-    <a class="guide-back" href="{{ "docs/" | relLangURL }}">← {{ i18n "guide_back" }}</a>
-    <p class="eyebrow"><span></span>{{ i18n "human_doc_eyebrow" }}</p>
+    <nav class="guide-back" aria-label="{{ i18n "docs_jump_label" }}">
+      <a href="{{ "human/" | relLangURL }}">← {{ i18n "guide_back_human" }}</a>
+      <span class="guide-back__sep" aria-hidden="true">·</span>
+      <a href="{{ "docs/" | relLangURL }}">{{ i18n "guide_back" }}</a>
+    </nav>
+    <p class="eyebrow"><span class="dot"></span>{{ i18n "human_doc_eyebrow" }}</p>
     <h1>{{ i18n "human_doc_title" }}</h1>
     <p>{{ i18n "human_doc_sub" }}</p>
-    <a class="btn btn--primary" href="#start">{{ i18n "human_doc_open_app" }}</a>
+    <a class="btn btn--primary" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">{{ partial "icon/chrome.svg" . }}{{ i18n "docs_jump_install" }}</a>
   </div>
 </section>
 
@@ -65,4 +69,20 @@
     </div>
   </div>
 </section>
+
+{{/* 读完后下一步 —— 安装 + 交叉引向另一面 */}}
+{{ partial "cta-band.html" (dict
+  "Page" .
+  "h2_key" "guide_next_h2"
+  "p_key" "guide_next_human_p"
+  "primary_key" "docs_jump_install"
+  "primary_href" .Site.Params.cwsURL
+  "ghost_key" "cta_release"
+  "ghost_href" .Site.Params.releaseURL
+  "shared_href" ("human/" | relLangURL)
+  "shared_key" "guide_back_human"
+  "guide_href" ("agents/docs/" | relLangURL)
+  "guide_key" "guide_cross_agents"
+  "aria_key" "cta_next_steps"
+) }}
 {{ end }}

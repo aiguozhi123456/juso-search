@@ -354,6 +354,22 @@ guide_back:
   other: "全部文档"
 guide_on_page:
   other: "本页内容"
+# 指南返回行双链（面页 + 文档中枢）
+guide_back_human:
+  other: "人类面"
+guide_back_agents:
+  other: "智能体面"
+# 指南末尾 next-band：交叉引向另一面
+guide_cross_human:
+  other: "查看人类使用文档"
+guide_cross_agents:
+  other: "查看智能体接入文档"
+guide_next_h2:
+  other: "读完手册，装上试试"
+guide_next_human_p:
+  other: "剩下的体验都在浏览器里：安装扩展，从无需密钥的传统引擎开始第一次搜索。"
+guide_next_agents_p:
+  other: "安装扩展后开启 Agent Bridge、下载配套技能，让智能体完成第一次调用。"
 human_doc_eyebrow:
   other: "PEOPLE DOCUMENTATION"
 human_doc_title:
@@ -400,8 +416,6 @@ human_doc_local_title:
   other: "让本地数据保持可控"
 human_doc_local_body:
   other: "成功的 AI 搜索会按服务与规范化查询缓存在当前设备，历史可重放。需要最新结果时使用刷新；配置导出包含未加密的密钥与偏好，应仅在你主动需要备份时创建并安全保管。"
-human_doc_open_app:
-  other: "进入开始使用"
 agents_doc_eyebrow:
   other: "AGENTS DOCUMENTATION"
 agents_doc_title:
@@ -446,8 +460,6 @@ agents_doc_recovery_body:
   other: "若出现 extension_did_not_claim，请检查扩展是否安装并启用、Agent Bridge 总开关是否开启，以及启动的浏览器是否使用了正确 profile。若 engine-search 返回 extract-failed，先检查其独立子开关；验证页、同意页、挑战页与不支持的结果布局也会返回结构化失败，而不是空成功。"
 agents_doc_mcp_link:
   other: "阅读 MCP Server 配置"
-agents_doc_open_app:
-  other: "进入接入前置条件"
 
 # 共享安装中心与首页三入口
 home_door_docs_copy:
@@ -455,6 +467,9 @@ home_door_docs_copy:
 home_door_docs_link:
   other: "开始使用"
 hero_shared_docs_link:
-  other: "共同安装与使用"
+  other: "使用文档"
 cta_next_steps:
   other: "读完后下一步"
+# 非指南页 cta-band 链接区的中性 aria 标签
+cta_links_label:
+  other: "下一步"

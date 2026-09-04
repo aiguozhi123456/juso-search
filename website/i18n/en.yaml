@@ -354,6 +354,22 @@ guide_back:
   other: "All documentation"
 guide_on_page:
   other: "On this page"
+# Guide back row, dual links (face page + docs hub)
+guide_back_human:
+  other: "People face"
+guide_back_agents:
+  other: "Agents face"
+# Guide next-band: cross-link to the other face's guide
+guide_cross_human:
+  other: "Read the people guide"
+guide_cross_agents:
+  other: "Read the agents guide"
+guide_next_h2:
+  other: "Done reading? Install and try it"
+guide_next_human_p:
+  other: "The rest lives in the browser: install the extension and start your first search with keyless conventional engines."
+guide_next_agents_p:
+  other: "Install the extension, enable Agent Bridge, and download the companion skill to make your agent's first call."
 human_doc_eyebrow:
   other: "PEOPLE DOCUMENTATION"
 human_doc_title:
@@ -400,8 +416,6 @@ human_doc_local_title:
   other: "Keep local data under your control"
 human_doc_local_body:
   other: "Successful AI searches are cached per service and normalised query on the current device, and history can be replayed. Refresh for fresh results. Configuration export includes unencrypted keys and preferences, so create it only for a deliberate backup and store it safely."
-human_doc_open_app:
-  other: "Go to getting started"
 agents_doc_eyebrow:
   other: "AGENTS DOCUMENTATION"
 agents_doc_title:
@@ -446,8 +460,6 @@ agents_doc_recovery_body:
   other: "For extension_did_not_claim, confirm that Juso is installed and enabled, the Agent Bridge master switch is on, and the launched browser uses the intended profile. If engine-search returns extract-failed, check its separate sub-switch first; consent pages, challenge pages, and unsupported result layouts also return structured failures rather than empty success."
 agents_doc_mcp_link:
   other: "Read MCP Server configuration"
-agents_doc_open_app:
-  other: "Go to prerequisites"
 
 # Shared installation center and homepage third entry
 home_door_docs_copy:
@@ -455,6 +467,9 @@ home_door_docs_copy:
 home_door_docs_link:
   other: "Get started"
 hero_shared_docs_link:
-  other: "Shared installation & usage"
+  other: "Documentation"
 cta_next_steps:
   other: "Next steps after reading"
+# Neutral aria label for cta-band link rows on non-guide pages
+cta_links_label:
+  other: "Next steps"

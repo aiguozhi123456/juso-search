@@ -800,8 +800,9 @@ html.js .reveal.in { opacity: 1; transform: none; }
 .guide-hero { position: relative; overflow: hidden; padding-block: clamp(58px, 9vw, 110px); background: linear-gradient(120deg, var(--bg) 20%, color-mix(in srgb, var(--brand) 7%, var(--bg)) 100%); }
 .guide-hero::after { content: ""; position: absolute; right: -12rem; bottom: -16rem; width: 35rem; height: 35rem; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--brand) 15%, transparent), transparent 68%); pointer-events: none; }
 .guide-hero__inner { position: relative; z-index: 1; max-width: 920px; }
-.guide-back { display: inline-flex; color: var(--muted); font-size: .89rem; font-weight: 600; margin-bottom: clamp(36px, 6vw, 70px); }
-.guide-back:hover { color: var(--brand); }
+.guide-back { display: inline-flex; align-items: center; gap: 12px; color: var(--muted); font-size: .89rem; font-weight: 600; margin-bottom: clamp(36px, 6vw, 70px); }
+.guide-back a:hover { color: var(--brand); }
+.guide-back__sep { color: var(--faint); font-weight: 400; }
 .guide-hero .eyebrow { margin-bottom: 20px; }
 .guide-hero h1 { max-width: 15ch; font-size: clamp(2.8rem, 6vw, 5rem); margin-bottom: 22px; }
 .guide-hero p:not(.eyebrow) { max-width: 66ch; color: var(--muted); font-size: clamp(1rem, 1.45vw, 1.12rem); line-height: 1.75; }
