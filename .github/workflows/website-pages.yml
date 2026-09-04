@@ -40,7 +40,7 @@ jobs:
       # 已记录在 style.css :root 注释中，脚本允许其不同；runner 自带 Python 3。
       - name: Design token drift-lock
         run: python scripts/check-website-tokens.py
-      # 资产漂移锁：website/static/icons ↔ public/icons（1:1 按文件名，21 对）
+      # 资产漂移锁：website/static/icons ↔ public/icons（1:1 按文件名，对数随目录涌现）
       # 与 website/static/img/screenshot-* ↔ docs/assets/screens（README.md
       # 映射表，4 对）必须逐字节一致；runner 自带 Python 3。
       - name: Asset drift-lock

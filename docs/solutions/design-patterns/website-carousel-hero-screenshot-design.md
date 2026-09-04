@@ -1,7 +1,7 @@
 ---
 title: "Website hero carousel, screenshot framing, and page-scoped hero sizing"
 date: 2026-08-08
-last_updated: 2026-08-17
+last_updated: 2026-09-04
 category: design-patterns
 module: website
 problem_type: design_pattern
@@ -60,17 +60,17 @@ The carousel is a framework-free IIFE in `layouts/_default/baseof.html`, discove
     <!-- ...more slides, aria-hidden toggles via JS... -->
   </div>
   <div class="carousel__caption">
-    <span data-carousel-caption aria-live="polite">{{ i18n "cap_search" }}</span>
+    <span class="carousel__captext" data-carousel-caption aria-live="polite">{{ i18n "cap_search" }}</span>
     <div class="carousel__dots" role="tablist" aria-label="...">
       <button class="carousel__dot is-active" role="tab"
               aria-selected="true" aria-controls="slide-0"
-              aria-label="Slide 1 of 4"></button>
+              aria-label="{{ i18n "carousel_slide" (dict "n" (add $i 1) "m" (len $heroShots)) }}"></button>
     </div>
   </div>
 </div>
 ```
 
-The `data-carousel-caption` element updates via JS on each slide change, and `aria-live="polite"` announces the new caption to screen readers without interrupting.
+Slide captions travel on the slide element as `data-caption="{{ i18n $s.cap }}"`; the JS copies it into the `data-carousel-caption` element on each change, and `aria-live="polite"` announces the new caption to screen readers without interrupting. Even decorative ARIA strings go through i18n keys (`carousel_slide` in both zh/en) — the slide counter is user-facing.
 
 ### 2. Page-scoped hero enlargement — face body class
 
@@ -103,15 +103,14 @@ All screenshot frames on the site use a single `.windowbar` component: three rec
     <span class="windowbar__dot"></span>
     <span class="windowbar__dot"></span>
   </div>
-  <img src="..." alt="..." width="1200" height="641">
+  <img src="..." alt="..." width="1600" height="900">
   <div class="shot__cap"><b>{{ i18n "cap_search" }}</b></div>
 </div>
 ```
 
 **Screenshot dimensions** (consistent across all product screenshots):
-- Carousel screenshots: **1200×641** (search, instances, cache, sources — the live slides; SERP and agent-bridge screenshots remain as assets but are no longer referenced by any layout). Showcase frames: **1600×900** (`static/img/showcase/*.png`, the bilingual zh-light/en-dark pairing added 2026-08-16)
-- Architecture diagram: **1040×1030** (square-ish, different aspect by design)
-- Demo GIF: **960×519**
+- Carousel screenshots: **1200×641** (search, instances, cache, sources — the live slides inside `.carousel__slide`; the 1200×641 img is not a `.shot` child). Showcase frames (`.shot`): **1600×900** (`static/img/showcase/*.png`, the bilingual zh-light/en-dark pairing added 2026-08-16)
+- The architecture diagram (now SVG) and demo GIF remain in `static/img/` as assets but are no longer referenced by any layout — same status as the SERP and agent-bridge screenshots.
 
 Correct `width`/`height` attributes on every `<img>` prevent CLS (cumulative layout shift). A mismatch caused visible jank before the unification pass.
 

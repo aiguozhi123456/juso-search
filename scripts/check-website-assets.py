@@ -7,8 +7,9 @@ script SHA256-compares byte identity of each pair and exits 1 with a clear
 diff (filename + which side differs) if any pair has drifted.
 
   · Icons —— website/static/icons/*.svg  ↔  public/icons/*.svg
-    The website mirrors the extension's engine icons 1:1 by filename (21
-    pairs). Any new or renamed icon must be copied to BOTH directories.
+    The website mirrors the extension's engine icons 1:1 by filename (the
+    pair count is emergent). Any new or renamed icon must be copied to
+    BOTH directories.
 
   · Screenshots —— website/static/img/screenshot-*.png  ↔  docs/assets/screens/*.png
     The website build needs its own copies of the marketing screenshots, so

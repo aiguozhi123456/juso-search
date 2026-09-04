@@ -232,6 +232,9 @@ The project's drift-lock family includes the `juso_bridge` byte-equality locks (
 ### Face
 The product's two-audience presentation model ("双面搜"): a human face for people searching directly, and an agent face for local AI agents searching through the same browser. The marketing site mirrors this structure — a neutral overview presents both faces as equal doorways, and each face owns its own section route on the site.
 
+### Docs Hub (文档中枢)
+The shared documentation section of the marketing site serving both Faces equally — the common installation prerequisite, the entry cards to both per-face guides, and the shared data boundaries. It is the only site surface addressed to both audiences at once.
+
 ## Flagged ambiguities
 
 - "pinned" 在快切栏领域有两个独立含义：Source Group Layout 的"置顶平铺"（layout pinned —— source 直接平铺顶行，与之相对的是折叠进分组）与 Group Flyout 的"点击固定展开"（flyout pinned —— 已展开浮层不随 hover 收起）。前者决定 source 是否进分组，后者决定浮层的关闭时机，互不干扰。

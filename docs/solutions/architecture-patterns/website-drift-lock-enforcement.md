@@ -1,7 +1,7 @@
 ---
 title: "Website drift-lock enforcement: CI tests that catch manual-sync drift across the site↔extension boundary"
 date: 2026-08-10
-last_updated: 2026-08-17
+last_updated: 2026-09-04
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -47,7 +47,7 @@ Two scripts, both Python (matching `scripts/gen_skills.py`'s style), wired into 
 
 **`scripts/check-website-tokens.py`** — value-equality lock. Parses `:root` (light) and the first `@media (prefers-color-scheme: dark)` block from both `style.css` and `tokens.css`, and asserts a **must-match** token set is value-identical: brand colors (`--brand`, `--brand-soft`, `--brand-softer`, `--brand-on`), neutrals (`--bg`, `--bg-soft`, `--fg`, `--muted`, `--border`), and durations (`--duration-fast`/`normal`/`slow`). Exits 0 if matched, 1 with a per-token diff if drifted.
 
-**`scripts/check-website-assets.py`** — byte-equality lock. SHA256-compares `website/static/icons/*.svg` ↔ `public/icons/*.svg` (21 pairs) and `website/static/img/screenshot-*.png` ↔ `docs/assets/screens/*.png` (4 pairs, per `static/img/README.md`'s mapping table). Exits 0 if all pairs byte-identical, 1 with the drifted filename if not.
+**`scripts/check-website-assets.py`** — byte-equality lock. SHA256-compares `website/static/icons/*.svg` ↔ `public/icons/*.svg` (23 pairs as of 2026-09-04 — the script compares the two directories 1:1 by filename, so the pair count is emergent) and `website/static/img/screenshot-*.png` ↔ `docs/assets/screens/*.png` (4 pairs, per `static/img/README.md`'s mapping table). Exits 0 if all pairs byte-identical, 1 with the drifted filename if not.
 
 ### 3. Split must-match from intentional divergence
 
@@ -67,11 +67,11 @@ The two i18n mechanisms are architecturally correct and should not be collapsed:
 - **Structured record with fields** → data file with `*_zh`/`*_en` pairs, resolved via `partials/i18n-field.html`.
 - **Brand wordmark and decorative glyphs** (`双面搜`+`Juso`, `人`/`智` matrix numerals, `juso-search`/`bash` terminal labels) → accepted constants, documented, not i18n keys.
 
-The load-bearing invariant is **key-set parity** between `zh.yaml` and `en.yaml`. A key present in one but not the other produces a blank on the missing side that nobody notices until a user reports it.
+The load-bearing invariant is **key-set parity** between `zh.yaml` and `en.yaml`. A key present in one but not the other produces a blank on the missing side that nobody notices until a user reports it. Enforcement status, stated honestly: channels 1–3 (tokens, icons, screenshots) are CI-locked, but this i18n channel is a **codified rule verified by hand** — there is no key-parity or key-usage script. The gap is live: the navigation pass (commit `0673ccf`) caught orphan keys (`sec_bridge`) and dead keys (`human_doc_open_app`/`agents_doc_open_app`) only by manual audit. If the rule keeps catching real drift, the next step is a parity lock script — not more vigilance.
 
 ## Why This Matters
 
-Without drift-locks, the three manual-copy channels drift silently. The build stays green. The site looks slightly wrong in dark mode, or an icon goes stale, or a screenshot shows an old UI — and nobody notices until a user reports it. The `website-hugo-subpath-deployment.md` doc explicitly admitted this (line 41: "the site is not automatically in sync — update the site's CSS variables to match") and listed "design drift" as failure mode #2, but its prevention was a manual checklist that relied on a human remembering to check. **A manual checklist is not enforcement.** A CI test that turns red is enforcement.
+Without drift-locks, the three manual-copy channels drift silently. The build stays green. The site looks slightly wrong in dark mode, or an icon goes stale, or a screenshot shows an old UI — and nobody notices until a user reports it. Before the drift-locks landed (2026-08-17), `website-hugo-subpath-deployment.md` could only warn that "the site is not automatically in sync" and list design drift as a failure mode with a manual checklist as prevention; it now points at the CI lock instead. **A manual checklist is not enforcement.** A CI test that turns red is enforcement.
 
 The "lock the copy" pattern is the right choice for the website because the copies (CSS values, marketing assets) cannot be runtime-discovered — they are consumed by Hugo's build pipeline, not by a running process. This contrasts with the `agent-skill-distribution-pipeline.md` pattern, which collapses the copy into a single template + generator so drift is impossible by construction ("generate the copy"). The website chose "lock" because generation would require restructuring Hugo's asset pipeline for a small marketing site — disproportionate. **Lock when the copy can't be generated; generate when it can.**
 
@@ -91,19 +91,15 @@ The "lock the copy" pattern is the right choice for the website because the copi
 `scripts/check-website-tokens.py` extracts custom properties from both files and asserts the must-match set:
 
 ```python
-# Must match across style.css and tokens.css (system tokens)
-MUST_MATCH_LIGHT = {
-    "--brand", "--brand-soft", "--brand-softer", "--brand-on",
-    "--bg", "--bg-soft", "--fg", "--muted", "--border",
-    "--duration-fast", "--duration-normal", "--duration-slow",
-}
-# Intentional divergences — allowed to differ without failing
-INTENTIONAL = {
-    "--font-display", "--font-sans", "--font-mono",  # site self-hosts, ext uses system
-    "--shadow-2", "--shadow-3",                      # site larger/softer for marketing
-    "--brand-ink", "--faint", "--bg-sunk", "--maxw", "--gut",  # site-only
-}
+# scripts/check-website-tokens.py — real constant structure
+COLOR_TOKENS = ["--brand", "--brand-soft", "--brand-softer", "--brand-on",
+                "--bg", "--bg-soft", "--fg", "--muted", "--border"]
+DURATION_TOKENS = ["--duration-fast", "--duration-normal", "--duration-slow"]
+MUST_MATCH_LIGHT = COLOR_TOKENS + DURATION_TOKENS
+MUST_MATCH_DARK = COLOR_TOKENS   # durations live in :root only; cascade into dark
 ```
+
+There is no `INTENTIONAL` set constant: the split is "must-match is checked, everything else is deliberately unchecked", documented in the script's docstring and the `:root` comment block in `style.css`.
 
 When `--muted` drifted (`#5f5f5f` vs `#666`), the script reported:
 ```
@@ -141,6 +137,7 @@ After reconciliation, it passes: `must-match tokens in sync (light + dark); inte
 ## Related
 
 - [`website-hugo-template-maintainability.md`](./website-hugo-template-maintainability.md) — canonical home of the i18n A/B boundary rule (§5). This doc is the enforcement arm; that doc is the structural-extraction arm.
+- [`website-one-forward-path-navigation.md`](../design-patterns/website-one-forward-path-navigation.md) — its link-graph audit is the newest manual verification channel (built-HTML href extraction with the minify-strips-quotes gotcha). Still unlocked: template-comment drift, i18n key↔template-reference drift, and the link-graph audit itself.
 - [`website-hugo-subpath-deployment.md`](./website-hugo-subpath-deployment.md) — admitted the manual-sync gap (line 41, failure mode #2). The drift-locks close it.
 - [`agent-skill-distribution-pipeline.md`](./agent-skill-distribution-pipeline.md) — the `juso_bridge` drift-lock pattern this learning reuses. That pipeline *generates* the copy (drift impossible by construction); the website *locks* the copy (drift caught by CI).
 - [`single-source-product-versioning.md`](../best-practices/single-source-product-versioning.md) — same drift-gate family; the token value-equality lock is the closest sibling to its version-string gate test.

@@ -1,7 +1,7 @@
 ---
 title: "Symmetric dual-face site structure: neutral overview root, symmetric face routes, and path-based face detection in Hugo"
 date: 2026-08-10
-last_updated: 2026-08-17
+last_updated: 2026-09-04
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -39,7 +39,7 @@ The decision: **stop giving either audience the root**. `/` became a neutral ove
 
 The header faceswitch changed from an asymmetric pair (one active face + root) to **two pills → `/human/` + `/agents/` with a 3-state active logic**: root shows no pill active; human/agent pages highlight their own pill. `baseof.html` gained a `face-overview` / `face-human` / `face-agents` body class hook, and CSS moved the enlarged carousel-hero sizing from `.is-home` to `.face-human`, adding `.face-overview` centered-copy styling plus `.doors` / `.door` / `.hero__scroll` styles (a later pass removed the dual-face visual partial and its `.hero__card--dual` / `.dual` CSS — the overview hero is text with a scroll key). Five new i18n keys (`hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`) were added to **both** `zh.yaml` and `en.yaml` to preserve the key-parity invariant (83 keys each).
 
-**The bug this run caught:** initial face detection used Hugo's `.Type` (`{{ if eq .Type "human" }}` / `{{ if eq .Type "agents" }}`) in `baseof.html` and `header.html`. On every page it fell through to `face-overview` — every page rendered `<body class="face-overview">`, and the header never highlighted a pill. Root cause: for an `index.md` **leaf bundle**, `.Type` does **not** match the section name; it resolves to the home page type. The fix switched to **path-based detection** via `.RelPermalink` (`strings.Contains .RelPermalink "/human"` / `"/agents"`) — the exact pattern the pre-existing `header.html` had used all along. Notably, Hugo still selected `layouts/agents/single.html` (and the new `layouts/human/single.html`) via section-based template lookup even though `.Type` was wrong, so the bug was invisible until the body-class logic consumed `.Type`. Lesson: **build and verify template assumptions** — the fixer assumed `.Type` semantics without running a build.
+**The bug this run caught:** initial face detection used Hugo's `.Type` (`{{ if eq .Type "human" }}` / `{{ if eq .Type "agents" }}`) in `baseof.html` and `header.html`. On every page it fell through to `face-overview` — every page rendered `<body class="face-overview">`, and the header never highlighted a pill. Root cause: for an `index.md` **leaf bundle**, `.Type` does **not** match the section name; it resolves to the home page type. The fix switched to **path-based detection** via `.RelPermalink` (`strings.Contains .RelPermalink "/human"` / `"/agents"`) — the exact pattern the pre-existing `header.html` had used all along. Notably, Hugo still selected `layouts/agents/single.html` (and the new `layouts/human/single.html`) via section-based template lookup even though `.Type` was wrong, so the bug was invisible until the body-class logic consumed `.Type`. Lesson: **build and verify template assumptions** — the fixer assumed `.Type` semantics without running a build. (Today the content files additionally pin `type:` front matter, so `.Type` happens to resolve correctly — RelPermalink detection remains the convention and the defensive default.)
 
 ## Guidance
 
@@ -86,7 +86,7 @@ The enlarged carousel-hero layout used to key off `.is-home` (root = human face)
 
 ### 5. i18n parity for every new key
 
-All five new keys (`hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`) went into **both** `zh.yaml` and `en.yaml`. Hugo silently renders an empty string for a missing key — a key in one file only is a blank on the other language that survives the build. Parity is a load-bearing invariant; verify it after every i18n edit (the two files must hold identical key sets — currently 205 keys each).
+All five new keys (`hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`) went into **both** `zh.yaml` and `en.yaml`. Hugo silently renders an empty string for a missing key — a key in one file only is a blank on the other language that survives the build. Parity is a load-bearing invariant; verify it after every i18n edit (the two files must hold identical key sets — 215 keys each as of 2026-09-04; the number drifts, the invariant is identical key sets).
 
 ### 6. Section-head correctness (matrix vs sources headings)
 
@@ -138,7 +138,7 @@ Rebuilt, every page (zh + en) carries the correct class: root → `face-overview
 
 ### i18n parity
 
-Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`. Key-set parity held at 83 keys each then (205 as of 2026-08-16 after the docs-hub guides); a key added to one language only would render as an empty string on the other.
+Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces`, `sec_faces_sub`, `cta_overview_h2`, `cta_overview_p`. Key-set parity held at 83 keys each then (215 as of 2026-09-04 after the one-forward-path navigation pass — commit `0673ccf` added 8 keys and removed 2); a key added to one language only would render as an empty string on the other.
 
 ## Related
 
@@ -147,3 +147,4 @@ Five keys added to both files (zh + en): `hero_positioning_overview`, `sec_faces
 - [`hugo-subpath-hardcoded-paths.md`](../integration-issues/hugo-subpath-hardcoded-paths.md) — why all paths go through Hugo's `relURL` / `relLangURL`; the rebuilt site verifies 0 hardcoded paths.
 - [`website-drift-lock-enforcement.md`](../architecture-patterns/website-drift-lock-enforcement.md) — the drift-lock scripts (`check-website-tokens.py`, `check-website-assets.py`) used to verify this restructure.
 - [`website-carousel-hero-screenshot-design.md`](../design-patterns/website-carousel-hero-screenshot-design.md) — the carousel hero visual used by the human face; since the copy-only-hero pass the overview root carries no carousel.
+- [`website-one-forward-path-navigation.md`](../design-patterns/website-one-forward-path-navigation.md) — the forward-link wiring layered beneath this IA: face pages link only to their own guide, the overview carries the hub door, the hub has symmetric dual exits (post-`0673ccf`).

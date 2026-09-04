@@ -1,7 +1,7 @@
 ---
 title: "Website Hugo template maintainability: partial extraction patterns and i18n unification"
 date: 2026-08-08
-last_updated: 2026-08-17
+last_updated: 2026-09-04
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -31,7 +31,7 @@ This document captures the five structural patterns applied in the refactor (com
 
 When two page variants share a layout skeleton but differ in one content region, extract the skeleton into a partial and pass the variant region's **partial name** as a string parameter. Hugo resolves `{{ partial .visual . }}` dynamically.
 
-**`layouts/partials/hero.html`** — the shared skeleton:
+**`layouts/partials/hero.html`** — the shared skeleton (the visual region is guarded — later passes added the optional `shared_href` / `doc_href` doc-link rows and the `scroll_target` slot, both `with`-guarded like the visual):
 ```go
 {{- $p := .Page -}}
 {{- $isEn := eq $p.Site.Language.Lang "en" -}}
@@ -40,22 +40,27 @@ When two page variants share a layout skeleton but differ in one content region,
     <div class="hero__copy">
       <div class="eyebrow hero__eyebrow reveal-load d1"><span class="dot"></span>{{ i18n "hero_eyebrow" }}</div>
       <h1 class="wordmark reveal-load d2">双面搜<span class="wordmark__latin">Juso</span></h1>
-      <!-- ...tagline, positioning, CTA — parameterized via dict fields... -->
+      <!-- ...tagline, positioning, CTA — parameterized via dict fields...
+           plus optional with-guarded doc-link rows: shared_href/doc_href → .hero__doc-link -->
     </div>
+    {{ if .visual }}
     <div class="hero__visual reveal-load d6 crop-frame">
       <span class="crop-bl"></span><span class="crop-br"></span>
       {{ partial .visual . }}   {{/* ← sub-partial slot: "hero-visual-home" | "hero-visual-agent"（视觉可选，中性总览页不传 visual） */}}
     </div>
+    {{ end }}
+    {{ with .scroll_target }}{{/* → .hero__scroll 下拉键 */}}{{ end }}
   </div>
 </section>
 ```
 
-**Call site** (human/single.html — the human face; the neutral overview `index.html` is a third call site that passes **no visual** — copy-only hero with a `scroll_target` param instead):
+**Call site** (human/single.html — the human face; the neutral overview `index.html` is a third call site that passes **no visual** — copy-only hero with a `scroll_target` param instead; post-`0673ccf` the face pages also carry `doc_href`/`doc_key` pointing at their own guide, and their cta-band calls pass `guide_href`/`guide_key` the same way):
 ```go
 {{ partial "hero.html" (dict "Page" . "tagline_zh" (i18n "tagline_zh") "tagline_en" (i18n "tagline_en")
   "positioning_key" "hero_positioning_human" "cta_primary_key" "cta_cws"
   "cta_primary_href" .Site.Params.cwsURL "cta_ghost_key" "cta_release"
-  "cta_ghost_href" .Site.Params.releaseURL "visual" "hero-visual-home") }}
+  "cta_ghost_href" .Site.Params.releaseURL "visual" "hero-visual-home"
+  "doc_href" ("human/docs/" | relLangURL) "doc_key" "docs_hub_human_link") }}
 ```
 
 The variant content lives in `partials/hero-visual-home.html` (carousel) and `partials/hero-visual-agent.html` (CLI block). A visual is optional: the neutral overview (`index.html`) passes no `visual` at all and instead passes `scroll_target` — the shared skeleton renders a copy-only hero with a scroll key, zero edits to the skeleton. Each face adds at most one visual partial and one call site — zero edits to the shared skeleton.
@@ -124,7 +129,7 @@ Inline `style=` attributes cannot be overridden by media queries, cannot be them
 
 Hardcoded bilingual strings (`{{ if $isEn }}Dual-face architecture{{ else }}双面架构{{ end }}`) are invisible to translation audits and create ambiguity. The worst case: the same concept had two different English strings in two places ("Dual-face architecture" vs "Two-sided architecture").
 
-**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (currently 205 keys each).
+**Rule:** every user-facing string goes through an i18n key. One key per concept. Add paired keys to both `i18n/zh.yaml` and `i18n/en.yaml` — the two files must have identical key sets (215 keys each as of 2026-09-04; parity is the invariant, not the count).
 
 ```go
 {{/* Before — inconsistent, unsearchable */}}
@@ -192,9 +197,11 @@ New partials created:
 - `partials/section-head.html` — shared section heading block
 - `partials/i18n-field.html` — value-returning bilingual field resolver
 
-Result: `index.html` went from 211 lines to 56; `agents/single.html` from 111 to 62. The reduction is all duplicated skeleton, not content. In the symmetric-IA restructure the human-face body moved from `layouts/index.html` into `layouts/human/single.html` (a copy of the old body), and `layouts/index.html` became the neutral overview.
+Result: `index.html` went from 211 lines to 56; `agents/single.html` from 111 to 62 (counts as of that refactor; the pages have since grown with the docs-hub and navigation passes). The reduction is all duplicated skeleton, not content. In the symmetric-IA restructure the human-face body moved from `layouts/index.html` into `layouts/human/single.html` (a copy of the old body), and `layouts/index.html` became the neutral overview.
 
 ## Related
 
 - [`website-hugo-subpath-deployment.md`](./website-hugo-subpath-deployment.md) — overall website architecture, deployment model, design-system inheritance. This doc extends it with template-level maintainability patterns.
 - [`hugo-subpath-hardcoded-paths.md`](../integration-issues/hugo-subpath-hardcoded-paths.md) — why all template paths must go through Hugo's `relURL` / `relLangURL` (the baseURL consolidation in this refactor moved the production URL from a CI `--baseURL` flag into `hugo.toml`, so local dev and production resolve paths consistently).
+- [`juso-marketing-site-symmetric-dual-face-ia.md`](./juso-marketing-site-symmetric-dual-face-ia.md) — the route-level IA (neutral overview + symmetric face sections) that these templates implement.
+- [`website-one-forward-path-navigation.md`](../design-patterns/website-one-forward-path-navigation.md) — extends these partial patterns with CTA-href correctness (real install link vs in-page anchor) and parameterized aria-labels on shared partials (post-`0673ccf`).

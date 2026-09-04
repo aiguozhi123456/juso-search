@@ -1,7 +1,7 @@
 ---
 title: "Website architecture and deployment: Hugo on GitHub Pages project subpath"
 date: 2026-08-08
-last_updated: 2026-08-17
+last_updated: 2026-09-04
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -26,7 +26,7 @@ Juso needed a showcase website for the browser extension (Chrome-family browsers
 ### Tooling and structure
 
 - **Hugo v0.164 extended**, no theme — all layouts are custom under `layouts/`. The extended build is required for SCSS piping and image processing.
-- **Bilingual via Hugo i18n**: Chinese at the root (`defaultContentLanguage = "zh"`), English under `/en/`. Content files use the `_index.md` / `_index.en.md` / `index.md` / `index.en.md` suffix convention; UI strings live in `i18n/zh.yaml` and `i18n/en.yaml` (keep the two key sets identical).
+- **Bilingual via Hugo i18n**: Chinese at the root (`defaultContentLanguage = "zh"`), English under `/en/`. Content files use a suffix convention — `_index.md`/`_index.en.md` for section lists, `index.md`/`index.en.md` for the two face leaf bundles (`human/`, `agents/`), and plain `<name>.md`/`<name>.en.md` leaf pages for the guides (`human-docs.md`, `agents-docs.md`); UI strings live in `i18n/zh.yaml` and `i18n/en.yaml` (keep the two key sets identical).
 - **Data-driven content**: structured content (capability matrices, source icon grids, CLI examples, security fact lists) lives in `data/*.yaml` and is consumed by partials. This keeps prose in markdown and structured lists in data files.
 - **Partials for reuse**: `partials/header.html`, `partials/footer.html`, and section partials (`capability-matrix.html`, `cli.html`, `icon-wall.html`, etc.) are the reuse layer. Six surfaces share one skeleton via `layouts/_default/baseof.html`: `layouts/index.html` (neutral overview), `layouts/human/single.html` / `layouts/agents/single.html` (the two faces), and the docs guides added 2026-08-12 — `layouts/docs/list.html` (`/docs/`), `layouts/human-docs/single.html` (`/human/docs/`), `layouts/agents-docs/single.html` (`/agents/docs/`).
 
@@ -55,8 +55,8 @@ When the extension's `tokens.css` changes, a CI drift-lock (`scripts/check-websi
 
 A subpath deploy can build green while serving a broken site. Verify at the **resource level**, not just the document level:
 
-1. Build with the real baseURL: `hugo --source website --baseURL https://<user>.github.io/juso-search/ --minify`.
-2. Grep the output HTML for `src="/` or `href="/` — any match is a hardcoded path that will break on the subpath.
+1. Build: `hugo --source website --minify` — baseURL is inherited from `hugo.toml`; pass `--baseURL` only to *override* it (e.g. local smoke tests).
+2. Grep the output HTML with **quote-free patterns** — `grep -o 'src=[^ >]*'` and `grep -o 'href=[^ >]*'` — because `hugo --minify` strips attribute quotes, so a quoted `src="/` pattern silently matches nothing. Any extracted value not starting with the subpath prefix is a hardcoded path. See [`website-one-forward-path-navigation.md`](../design-patterns/website-one-forward-path-navigation.md) §7 for the gotcha.
 3. Fetch the deployed HTML, extract the actual `src=`/`href=` values, and fetch *those* URLs. A page returning 200 tells you nothing about whether its images, CSS, fonts, and internal links resolve correctly.
 4. `hugo server --baseURL /juso-search/ --port 1313` lets you smoke-test the subpath locally before deploying.
 
@@ -85,6 +85,8 @@ Both are invisible to the build and only show up on the live site.
 ## Related
 
 - [`website-drift-lock-enforcement.md`](./website-drift-lock-enforcement.md) — the CI drift-locks that now enforce the design-system inheritance (closes the manual-sync gap noted above).
+- [`website-hugo-template-maintainability.md`](./website-hugo-template-maintainability.md) — companion doc: the template-level patterns (partial extraction, i18n discipline) these layouts are built on.
+- [`website-one-forward-path-navigation.md`](../design-patterns/website-one-forward-path-navigation.md) — extends the resource-level verification below with a per-page built-HTML link-graph audit (forward destinations, loop detection).
 - [hugo-subpath-hardcoded-paths](../integration-issues/hugo-subpath-hardcoded-paths.md) — the concrete subpath incident that this architecture knowledge would have prevented.
 - `entrypoints/shared/tokens.css` — the design-system source the site inherits.
 - `.github/workflows/website-pages.yml` — the deployment mechanism.
