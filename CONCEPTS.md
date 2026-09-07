@@ -235,6 +235,13 @@ The product's two-audience presentation model ("双面搜"): a human face for pe
 ### Docs Hub (文档中枢)
 The shared documentation section of the marketing site serving both Faces equally — the common installation prerequisite, the entry cards to both per-face guides, and the shared data boundaries. It is the only site surface addressed to both audiences at once.
 
+## Onboarding
+
+### Onboarding Demo
+引导页中复刻真实产品 UI 的非交互纯 CSS 循环动画，让用户在动手配置前看到各功能形态（搜索、密钥保存、快切栏、划词、来源布局）。中文统称「演示 / 示意」。
+
+演示不可交互：aria-hidden、pointer-events:none、无 JS 定时器，交互示例一律以动画相位呈现。它必须与真实产品样式保持构造同步——直接复用真实样式表与真实类名，或注入与生产同源的 shadow-root 样式串；与真实的差异只允许以带注释的小型作用域覆盖组存在，不允许成组拷贝。
+
 ## Flagged ambiguities
 
 - "pinned" 在快切栏领域有两个独立含义：Source Group Layout 的"置顶平铺"（layout pinned —— source 直接平铺顶行，与之相对的是折叠进分组）与 Group Flyout 的"点击固定展开"（flyout pinned —— 已展开浮层不随 hover 收起）。前者决定 source 是否进分组，后者决定浮层的关闭时机，互不干扰。

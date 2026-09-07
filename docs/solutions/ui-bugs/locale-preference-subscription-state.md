@@ -145,5 +145,6 @@ it('notifies subscribers when pref changes even if resolved locale stays the sam
 
 ## Related Issues
 
+- `docs/solutions/ui-bugs/app-root-locale-subscription-frozen-text.md` — the consumer-side complement to this store-side rule: `useSyncExternalStore` subscribed only in LocaleToggle/Wordmark froze all other page text on locale switch; fix is a root-level `useLocale()` in every page App plus render-time evaluation of locale-derived content. Together the two docs cover full locale re-render correctness.
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` — related i18n, persisted preference, storage, and listener-testing practices; this document covers the narrower UI bug where preference and resolved locale diverge.
 - `docs/plans/2026-07-01-001-juso-search-plan.md` — product structure for search and options entrypoints.

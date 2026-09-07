@@ -295,6 +295,7 @@ function handleSelectionChange() {
 
 ## Related Issues
 
+- [演示页复用真实样式的三层模式：全局引入 / 真实类名 / shadow root 注入](../design-patterns/shadow-root-style-reuse-in-demos.md) — 把本文的 `selection-search-styles.ts` 样式字符串在引导页演示的自建 shadow root 里复用（`host.shadowRoot ?? attachShadow` StrictMode 守卫 + `createPortal` + `data-theme`），演示与生产渲染同源、零拷贝 CSS。
 - [selection-popup-click-to-pin-shadow-dom-adaptation](../design-patterns/selection-popup-click-to-pin-shadow-dom-adaptation.md) — 本文落地后，把快切栏 click-to-pin 模式适配进该弹窗的完整决策索引（含 §5 子浮层从 CSS `:hover` 驱动改为 React `.open` class 的原因）。
 - [selection-popup-inside-click-selectionchange-dismissal](selection-popup-inside-click-selectionchange-dismissal.md) — 本文"选区折叠关闭弹窗"路径的后续修复：弹窗内 mousedown 引起的选区塌陷被误杀，补 inside-pointer 守卫。
 - [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md) — 本次 Bug 3（hover 穿缝）复用其文档化的 hover-intent 两段式模式（无 margin 缝隙贴合 + 延迟关闭/取消关闭定时器）；本次的 `scheduleClose`/`cancelClose` 与其 `pinnedGroupId` 状态机共享同一"指针热区 + 定时器"结构。
