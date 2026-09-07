@@ -6,11 +6,11 @@ import * as storage from '@/lib/storage';
  *
  * 拆分前单文件 lib/storage.ts 的导出面共 92 项：88 个运行时值 + 4 个纯类型
  * （ThemePref / LocalePref / StylePref / BarPositionPref）。类型不出现在运行时命名空间，
- * 由 typecheck 覆盖；本快照锁定 88 个运行时导出，防止未来模块用 `export *` 静默泄漏
+ * 由 typecheck 覆盖；本快照锁定 91 个运行时导出，防止未来模块用 `export *` 静默泄漏
  * 内部实现（max-results-store 的 readMaxResultsMapFrom 即靠精确命名列表排除）。
  */
 describe('storage barrel export surface', () => {
-  it('exposes exactly the 88 runtime exports (alphabetical snapshot)', () => {
+  it('exposes exactly the 91 runtime exports (alphabetical snapshot)', () => {
     expect(Object.keys(storage).sort()).toEqual([
       // keys（20 常量）+ max-results 常量（2）
       'ACTIVE_KEY',
@@ -27,6 +27,7 @@ describe('storage barrel export surface', () => {
       'MAX_RESULTS_KEY',
       'MAX_RESULTS_MAX',
       'MAX_RESULTS_MIN',
+      'ONBOARDING_COMPLETED_KEY',
       'PROVIDER_INSTANCES_KEY',
       'SELECTION_SEARCH_ENABLED_KEY',
       'SELECTION_SEARCH_SOURCE_KEY',
@@ -63,6 +64,7 @@ describe('storage barrel export surface', () => {
       'getGroupConfig',
       'getKey',
       'getLocalePref',
+      'getOnboardingCompleted',
       'getProviderConfigSnapshot',
       'getProviderInstances',
       'getProviderMaxResults',
@@ -87,6 +89,7 @@ describe('storage barrel export surface', () => {
       'setGroupConfig',
       'setKey',
       'setLocalePref',
+      'setOnboardingCompleted',
       'setProviderInstances',
       'setProviderMaxResults',
       'setSelectionSearchEnabled',
@@ -103,6 +106,6 @@ describe('storage barrel export surface', () => {
       'withProviderMaxResultsMutation',
       'withSourceMutation',
     ]);
-    expect(Object.keys(storage)).toHaveLength(88);
+    expect(Object.keys(storage)).toHaveLength(91);
   });
 });

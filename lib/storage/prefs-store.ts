@@ -1,4 +1,4 @@
-import { AGENT_BRIDGE_ENABLED_KEY, AI_AUTO_ENTER_KEY, BAR_POSITION_KEY, ENGINE_SEARCH_ENABLED_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, LOCALE_KEY, SELECTION_SEARCH_ENABLED_KEY, SELECTION_SEARCH_SOURCE_KEY, STYLE_KEY, THEME_KEY } from './keys';
+import { AGENT_BRIDGE_ENABLED_KEY, AI_AUTO_ENTER_KEY, BAR_POSITION_KEY, ENGINE_SEARCH_ENABLED_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, LOCALE_KEY, ONBOARDING_COMPLETED_KEY, SELECTION_SEARCH_ENABLED_KEY, SELECTION_SEARCH_SOURCE_KEY, STYLE_KEY, THEME_KEY } from './keys';
 import type { BarPositionPref, LocalePref, StylePref, ThemePref } from './keys';
 
 /** 主题偏好：auto（跟随系统，默认）/ light / dark。
@@ -114,4 +114,15 @@ export async function getEngineSearchEnabled(): Promise<boolean> {
 
 export async function setEngineSearchEnabled(v: boolean): Promise<void> {
   await browser.storage.local.set({ [ENGINE_SEARCH_ENABLED_KEY]: v });
+}
+
+/** 首装引导完成标记：默认 false（未完成），stored === true 才 true。
+ *  完成与跳过均置 true——语义是「用户已处理过引导」，install 触发前据此决定是否弹页。 */
+export async function getOnboardingCompleted(): Promise<boolean> {
+  const got = await browser.storage.local.get(ONBOARDING_COMPLETED_KEY);
+  return got[ONBOARDING_COMPLETED_KEY] === true;
+}
+
+export async function setOnboardingCompleted(v: boolean): Promise<void> {
+  await browser.storage.local.set({ [ONBOARDING_COMPLETED_KEY]: v });
 }

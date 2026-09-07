@@ -1,0 +1,1378 @@
+/* 首装引导页：单卡向导布局。取值全部来自 tokens.css，暗色/彩色随 data 属性自动生效。
+   全局样式（body 文字色、.layout-* 编辑器类、.key-row）由 main.tsx 引入的
+   options/styles.css 提供；搜索页真实类（.search-box / .switcher-track /
+   .group-flyout / .answer-card / .result-card / .loading-skeleton 等）由
+   main.tsx 引入的 search/styles.css 提供。四个功能示意（wb/kd/qb/sel）直接建在
+   这些真实类名上，本文件只保留：页面骨架、演示容器框、纯 CSS 相位动画补充。
+   尺寸自适应：内距/字号用 clamp 随视口缩放，卡片宽度填满可用空间并设上限。 */
+
+.onboarding {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding:
+    clamp(var(--space-5), 4vh, var(--space-8))
+    clamp(var(--space-3), 4vw, var(--space-7))
+    clamp(var(--space-6), 6vh, var(--space-9));
+  box-sizing: border-box;
+}
+
+.onboarding-header {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: clamp(var(--space-5), 4vh, var(--space-7));
+}
+
+.onboarding-header-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 720px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding:
+    clamp(var(--space-6), 4vh, var(--space-8))
+    clamp(var(--space-4), 4vw, var(--space-7))
+    var(--space-6);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.onboarding-step {
+  flex: 1;
+}
+
+.onboarding-title {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: clamp(var(--text-xl), 1.25rem + 1vw, var(--text-2xl));
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.onboarding-lead {
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+
+/* ── Step 0：来源盘点 ─────────────────────────────── */
+
+.onboarding-sources {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.onboarding-sources li {
+  position: relative;
+  padding-left: var(--space-4);
+  font-size: var(--text-md);
+  color: var(--fg);
+}
+
+.onboarding-sources li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+}
+
+/* ── Step 1：key 配置状态 ─────────────────────────── */
+
+.onboarding-keys-status {
+  margin: 0 0 var(--space-4);
+}
+
+.onboarding-keys-status__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.onboarding-keys-status__badge--ok {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.onboarding-actions-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* ── Step 2：功能速览 ─────────────────────────────── */
+
+.onboarding-features {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.onboarding-features li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+}
+
+/* 功能项内的设置按钮：描边实体按钮（比 link 式更醒目），不撑满整行 */
+.onboarding-features__settings-btn {
+  margin-top: var(--space-2);
+  align-self: flex-start;
+}
+
+.onboarding-features strong {
+  font-size: var(--text-md);
+  color: var(--fg);
+}
+
+.onboarding-features span {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.onboarding-sub {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-soft);
+}
+
+.onboarding-sub h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+  color: var(--fg);
+}
+
+.onboarding-sub p {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* 来源布局示意：结构/样式类来自 options/styles.css（SourceLayoutDemo 组件），
+   与设置页所见一致。此处仅做演示层约定：容器定位、新行浮现/退场、鼠标指针与涟漪。 */
+.onboarding-layout-demo {
+  position: relative;
+  margin: var(--space-3) 0 var(--space-4);
+  pointer-events: none;
+}
+
+/* 浮现行入场（置顶平铺行 / 新建分组行）；成员芯片不参与，让位给 FLIP 位移 */
+.onboarding-layout-demo .layout-row--source,
+.onboarding-layout-demo .layout-row--group[data-demo-enter] {
+  animation: demo-enter 280ms var(--ease-out);
+}
+
+@keyframes demo-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+
+/* 鼠标指针：绝对定位在演示区坐标系，transform 由组件按相位设置（含过渡时长）。
+   z-index 须压过下拉面板（6）：选分组时光标必须悬浮在菜单之上。 */
+.onboarding-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  will-change: transform;
+}
+
+.onboarding-cursor--on {
+  opacity: 1;
+}
+
+.onboarding-cursor svg {
+  display: block;
+  /* 按压压缩要读成瞬时触感（press-release-spring：press 用线性，不软） */
+  transition: transform 90ms linear;
+}
+
+.onboarding-cursor--pressed svg {
+  transform: scale(0.82);
+}
+
+/* 点击目标按压反馈（cursor-click-ripple：光标与目标同时压缩） */
+.onboarding-el-pressed {
+  transform: scale(0.94);
+}
+
+.onboarding-select-menu .onboarding-el-pressed {
+  transform: scale(0.97);
+}
+
+/* 按下涟漪：双环错峰扩散（cursor-click-ripple：1–3 圈放大点击反馈） */
+.onboarding-ripple {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-full);
+  opacity: 0;
+  animation: demo-ripple 450ms var(--ease-out) forwards;
+}
+
+.onboarding-ripple--lag {
+  width: 34px;
+  height: 34px;
+  left: -13px;
+  top: -13px;
+  animation-delay: 110ms;
+}
+
+@keyframes demo-ripple {
+  from {
+    opacity: 0.8;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+
+/* 新建输入框镜像：视觉复刻 .layout-new-input，内部可承载闪烁插入符 */
+.onboarding-input-mirror {
+  display: flex;
+  align-items: center;
+  min-height: 35px;
+  box-sizing: border-box;
+}
+
+.onboarding-input-placeholder {
+  color: var(--muted);
+}
+
+/* 打字插入符：方块波闪烁（context-sensitive-cursor） */
+.onboarding-caret {
+  width: 1.5px;
+  height: 1.1em;
+  margin-left: 1px;
+  background: var(--fg);
+  animation: demo-caret-blink 530ms linear infinite;
+}
+
+@keyframes demo-caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* 收入分组的下拉模拟：select 展开后的选项面板（向上弹出）。
+   当前项（置顶）按原生 select 选中态用品牌实色高亮；悬停项用 brand 浅底。 */
+.onboarding-select-menu {
+  position: absolute;
+  z-index: 6;
+  min-width: 128px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  box-shadow: var(--shadow-2);
+  animation: demo-enter 160ms var(--ease-out);
+}
+
+.onboarding-select-menu__item {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.onboarding-select-menu__item--current {
+  background: var(--brand);
+  color: var(--brand-on);
+}
+
+.onboarding-select-menu__item--hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+/* 新建输入框的演示聚焦态：镜像编辑器 .layout-new-input:focus 的真实样式 */
+.onboarding-layout-demo .layout-new-input--focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: var(--focus-ring);
+}
+
+/* ── 页级样式表共存（options + search 都进引导页）的冲突消解 ──
+   search 表的 .wordmark-text 带 font-size: var(--text-xl)（搜索页顶栏尺寸），
+   会改变引导页头部 wordmark 的原有字号——在头部作用域恢复继承尺寸，
+   保持引入 search 表前后观感不变。其余 .wordmark* 声明两表同值；
+   @keyframes juso-fade-in 两表重名，但引导页 markup 不使用（见 main.tsx 注释）。 */
+.onboarding-header .wordmark-text {
+  font-size: inherit;
+}
+
+/* ── 欢迎页示意（WelcomeDemo）：真实搜索页类 + 纯 CSS 12s 循环 ──
+    结构与样式直接建在 search/styles.css 的真实类上（main.tsx 引入）：
+    .search-box 胶囊输入框 + 品牌按钮、.source-switcher/.switcher-track 胶囊轨道
+    （bg-soft 底 + 描边 + 全圆角）+ 真实 pill / 分组 trigger（▾ 箭头来自真实
+    ::after）、.loading-skeleton 骨架（brand shimmer 由真实 juso-shimmer 承担，
+    此处不再复制）、.answer-card（brand 左条 + eyebrow + 引用）与
+    .result-list/.result-card（brand 标题 + URL + 摘要）。
+    激活源 pill 走 button.active 真实 fallback（brand 实色 + brand-on 文字）：
+    真实页由 .switcher-indicator 承载实色（依赖 JS 测量注入 CSS 变量），演示无
+    JS 测量，恰好落在 search/styles.css 自带的 no-indicator fallback 分支，
+    观感等价（见该文件 fallback 注释）。
+    时间轴：0–14% 逐字输入 → 16–19% 芯片就位 → 20–31% 鼠标移到「搜索」钮、点击
+    → 31–38% 骨架 → 41–49% 回答卡/结果卡错峰 rise → 84–96% 淡出循环。
+    本节所有规则以 .onboarding-wb-demo 前缀作用域限定，只补动画与演示层，
+    绝不裸写 .search-box 之类全局覆盖。 */
+.onboarding-wb-demo {
+  margin-top: var(--space-5);
+  pointer-events: none;
+}
+
+/* 示意容器：静态描边框（同划词示意 .onboarding-sel-page），把演示圈成一块迷你页面 */
+.onboarding-wb-page {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* 内容子树 12s 循环：首尾都在 opacity 0，循环边界（配合 TSX 侧的 remount）
+   双侧同为 0 → 无缝衔接；静态框 .onboarding-wb-page 不参与淡出 */
+.onboarding-wb-cycle {
+  animation: wb2-fade 12s linear infinite;
+}
+
+@keyframes wb2-fade {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  84% { opacity: 1; }
+  94%, 100% { opacity: 0; }
+}
+
+.onboarding-wb-stage {
+  position: relative;
+}
+
+/* 搜索框入场（真实 .search-box：input + 按钮结构、间距 margin-bottom 全部来自
+   search 表；此处只挂相位动画） */
+.onboarding-wb-demo .search-box {
+  animation: wb2-bar 12s var(--ease-out) infinite;
+}
+
+@keyframes wb2-bar {
+  0% { opacity: 0; transform: translateY(4px); }
+  4%, 100% { opacity: 1; transform: none; }
+}
+
+/* 打字层锚点 + 覆盖层：input 是 void 元素装不进子节点，套一层定位 span，
+   逐字 span + 插入符由覆盖层承载；字号/内距取 .search-box input 同值，
+   与真实输入文字同位同形 */
+.onboarding-wb-demo .search-box .wb-inputwrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-wb-demo .search-box .wb-type {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  font-size: var(--text-lg);
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.onboarding-wb-char {
+  opacity: 0;
+  animation: wb2-char 1ms linear both;
+}
+
+@keyframes wb2-char {
+  to { opacity: 1; }
+}
+
+.onboarding-wb-caret {
+  width: 1.5px;
+  height: 1.1em;
+  background: var(--brand);
+  flex-shrink: 0;
+  animation: wb2-caret 12s linear infinite;
+}
+
+@keyframes wb2-caret {
+  0%, 4% { opacity: 0; }
+  5%, 8% { opacity: 1; }
+  9%, 12% { opacity: 0; }
+  13%, 16% { opacity: 1; }
+  17%, 20% { opacity: 0; }
+  21%, 24% { opacity: 1; }
+  25%, 100% { opacity: 0; }
+}
+
+/* 「搜索」按钮点击压缩（真实 .search-box button；press-release-spring：瞬时线性） */
+.onboarding-wb-demo .search-box button {
+  animation: wb2-btn 12s linear infinite;
+}
+
+@keyframes wb2-btn {
+  0%, 30% { transform: none; }
+  32% { transform: scale(0.94); }
+  36%, 100% { transform: none; }
+}
+
+/* 快切栏 pill 错峰 pop（one-shot，靠 cycle remount 重播；真实 pill 底色/内距/
+   ▾ 箭头全部来自 search 表的 button / .group-trigger 规则） */
+.onboarding-wb-demo .switcher-track > * {
+  opacity: 0;
+  animation: wb2-chip 420ms var(--ease-out) both;
+}
+
+@keyframes wb2-chip {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 结果区：骨架 → 回答卡 + 结果卡（两张）。
+   高度跟随时间轴收展：打字/芯片阶段收拢为 0，点击搜索后展开（骨架高 → 内容高），
+   结尾随内容淡出平滑收拢回 0 —— 循环边界两侧盒高一致，重播无跳动；
+   overflow hidden 让内容随盒体生长逐渐显现。
+   停档值较旧版 +20px：真实类的 answer margin-bottom（space-6）与 result-list
+   gap（space-3）比旧复刻值略大，内容整体变高（估算微调，构建后可再校）。 */
+.onboarding-wb-body {
+  position: relative;
+  margin-top: var(--space-4);
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  animation: wb2-body 12s var(--ease-out) infinite;
+}
+
+@keyframes wb2-body {
+  0%, 32% { max-height: 0; }
+  36%, 43% { max-height: 380px; }
+  53% { max-height: 480px; }
+  /* 解除钳制：窄视口内容换行变高时取真实高度，不裁切
+     （none → 580px 换挡在内容 ≤580 时视觉无感） */
+  57%, 80% { max-height: none; }
+  /* 收拢段用线性：与 84→94% 内容淡出同节奏，避免 ease-out 前冲把卡片"吞"掉 */
+  84% { max-height: 580px; animation-timing-function: linear; }
+  96%, 100% { max-height: 0; }
+}
+
+/* 骨架相位：真实 .loading-skeleton / .skel-answer / .skel-result / .skel-line
+   （brand 调 shimmer 来自 search 表的 juso-shimmer，无需复制）；演示只补
+   overlay 叠放（叠在内容区上）与整层淡入淡出相位 */
+.onboarding-wb-demo .loading-skeleton {
+  position: absolute;
+  inset: 0;
+  animation: wb2-skeleton 12s linear infinite;
+}
+
+@keyframes wb2-skeleton {
+  0%, 32% { opacity: 0; }
+  34%, 37% { opacity: 1; }
+  40%, 100% { opacity: 0; }
+}
+
+/* AI 回答卡相位（真实 .answer-card：brand 左条 + eyebrow + 引用全部来自 search 表） */
+.onboarding-wb-demo .answer-card {
+  animation: wb2-answer 12s var(--ease-out) infinite;
+}
+
+@keyframes wb2-answer {
+  0%, 43% { opacity: 0; transform: translateY(6px); }
+  48%, 84% { opacity: 1; transform: none; }
+  94%, 100% { opacity: 0; }
+}
+
+/* 结果卡相位（真实 .result-card；两张错峰，wb-r1/wb-r2 为演示相位钩子） */
+.onboarding-wb-demo .result-card.wb-r1 {
+  animation: wb2-result-1 12s var(--ease-out) infinite;
+}
+
+.onboarding-wb-demo .result-card.wb-r2 {
+  animation: wb2-result-2 12s var(--ease-out) infinite;
+}
+
+@keyframes wb2-result-1 {
+  0%, 47% { opacity: 0; transform: translateY(6px); }
+  53%, 84% { opacity: 1; transform: none; }
+  94%, 100% { opacity: 0; }
+}
+
+@keyframes wb2-result-2 {
+  0%, 50% { opacity: 0; transform: translateY(6px); }
+  56%, 84% { opacity: 1; transform: none; }
+  94%, 100% { opacity: 0; }
+}
+
+/* 鼠标：20% 现身于输入框中段 → 31% 移到「搜索」按钮中心。
+   按钮中心 x 按真实按钮估算（真实 SearchIcon 16px 比旧复刻 14px 宽 ~4px，
+   中心右移 ~2px）——坐标待实测校正（tip 偏移 (5, 2.3)） */
+.onboarding-wb-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  animation: wb2-cursor 12s var(--ease-in-out) infinite;
+}
+
+@keyframes wb2-cursor {
+  0%, 19% { opacity: 0; transform: translate(210px, 12px); }
+  22% { opacity: 1; transform: translate(210px, 12px); }
+  30% { opacity: 1; transform: translate(570px, 20.7px); }
+  38%, 84% { opacity: 1; transform: translate(570px, 20.7px); }
+  90%, 100% { opacity: 0; transform: translate(570px, 20.7px); }
+}
+
+/* 点击涟漪：双环错峰（与 SourceLayoutDemo 同款） */
+.onboarding-wb-ripple {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-full);
+  opacity: 0;
+  animation: wb2-ripple 12s var(--ease-out) infinite;
+}
+
+.onboarding-wb-ripple--lag {
+  width: 34px;
+  height: 34px;
+  left: -13px;
+  top: -13px;
+  animation-name: wb2-ripple;
+  animation-delay: 120ms;
+}
+
+@keyframes wb2-ripple {
+  0%, 31% { opacity: 0; transform: scale(0.4); }
+  33% { opacity: 0.8; }
+  39% { opacity: 0; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+
+/* ── 划词搜索示意（SelectionDemo）：真实弹窗注入 shadow root，纯 CSS 8s 循环 ──
+    弹窗结构与样式 = 真实样式源：组件把 shared/selection-search-styles.ts 原样
+    注入演示自建的 shadow root（与 content script 的 createShadowRootUi 同机制），
+    .juso-sel-* 在隔离根内生效（含自带的亮/暗 :host 令牌与 data-theme 约定）；
+    按压/浮层开合/悬停高亮的动画补充也注入 shadow 内（见 SelectionDemo.tsx），
+    keyframes 隔离不与页面重名冲突。本节只剩页面侧：选区高亮扫过 + 弹窗定位浮现。 */
+.onboarding-sel-demo {
+  margin-top: var(--space-2);
+  pointer-events: none;
+}
+
+/* 循环包裹层只做定位上下文：完整 8s 相位由子元素动画覆盖（高亮扫过 sel-sweep
+   进/出、弹窗 sel-pop 进/出），无需整层淡入——曾引用的 wb-cycle keyframes
+   并不存在（死引用），移除后行为不变 */
+.onboarding-sel-cycle {
+  position: relative;
+}
+
+.onboarding-sel-page {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  /* 遮挡修复：为划词弹窗 + flyout 的绝对定位栈预留落地空间（getBoundingClientRect
+     思路目测：弹窗条 top 38 + 条高 34 − 条底内距 3 + flyout 高 ~98（4+6+3×28+2边框，
+     真实 flyout min-width 180 只影响宽度不影响高度）→ flyout 底缘 ≈ 167；
+     min-height 184 = 167 + 17 呼吸（含阴影 0 4px 16px 余量），保证任何相位下
+     弹窗栈都在演示框内，不覆盖后续功能 li 的像素；
+     文字行高度的正常渲染偏差只影响框内留白，不影响弹窗锚点（top 为定值）） */
+  min-height: 184px;
+  box-sizing: border-box;
+}
+
+.onboarding-sel-line {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  line-height: 1.6;
+}
+
+.onboarding-sel-line--dim {
+  margin-bottom: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+/* 选区高亮：背景从左向右扫过（背景尺寸动画），复刻 ::selection 观感 */
+.onboarding-sel-hl {
+  padding: 1px 3px;
+  border-radius: 2px;
+  color: var(--fg);
+  background: linear-gradient(var(--brand-soft), var(--brand-soft)) no-repeat;
+  background-size: 0 100%;
+  animation: sel-sweep 8s var(--ease-out) infinite;
+}
+
+@keyframes sel-sweep {
+  0%, 12% { background-size: 0 100%; }
+  30%, 78% { background-size: 100% 100%; }
+  86%, 100% { background-size: 0 100%; }
+}
+
+/* 弹窗定位锚：出现在选区下方（mark 底缘 ≈ 12+23 = 35，top 38 留 3px 间隙；
+   下沉 4px 的原始 top 42 会让 flyout 底缘多压出框，收紧到 38）；
+   浮现/退场走 sel-pop，shadow 内的真实弹窗随本层整体动 */
+.onboarding-sel-popupwrap {
+  position: absolute;
+  left: 18%;
+  top: 38px;
+  z-index: 2;
+  animation: sel-pop 8s var(--ease-out) infinite;
+}
+
+@keyframes sel-pop {
+  0%, 30% { opacity: 0; transform: translateY(4px) scale(0.96); }
+  42%, 78% { opacity: 1; transform: none; }
+  86%, 100% { opacity: 0; }
+}
+
+/* ── 配置密钥示意（KeyDemo）：真实 .key-row（options/styles.css），纯 CSS 10s 循环 ──
+    DOM 镜像 KeyInput.tsx 的行结构：label + .configured 徽章、password 输入框、
+    保存/测试按钮、行下 .status（两态）。视觉（grid、label 字重、input 聚焦环、
+    按钮描边、status 颜色）全部来自 options 表；本节只补四类内容（逐条注释）：
+    框宽简化、status 两态同格叠放、input 打字覆盖层（input 是 void 元素）、
+    聚焦/按压/解禁/状态的相位动画（演示无法真交互，相位化表达）。
+    时间轴（% × 0.1 = 秒）：4-6% 光标现身输入框 → 7% 点按（涟漪 + 聚焦环）
+    → 9-23% 掩码点打字 → 26-31.5% 光标移到「保存」→ 32% 按压 + 涟漪
+    → 35-41% 保存中… → 42-44% 输入清空 → 44% 已保存 + 「已配置」徽章 pop
+    → 45% 「测试」解禁 → 84-94% 淡出 → 96-100% 边界空、干净重播 */
+.onboarding-kd-demo {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.onboarding-kd-page {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+.onboarding-kd-heading {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.onboarding-kd-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.onboarding-kd-cycle {
+  animation: kd-fade 10s linear infinite;
+}
+
+@keyframes kd-fade {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  84% { opacity: 1; }
+  94%, 100% { opacity: 0; }
+}
+
+.onboarding-kd-stage {
+  position: relative;
+}
+
+/* 覆盖①（唯一布局覆盖）：真实 .key-row 是 160px 1fr auto auto auto 五列（含
+   删除钮列），示意无删除钮且 620px 内容宽下 160px 标签列过宽 → 收窄为四列 */
+.onboarding-kd-demo .key-row {
+  grid-template-columns: 90px 1fr auto auto;
+}
+
+/* 覆盖②：真实 .status { grid-column: 2 / -1 } 按内容自增行；演示两态
+   （保存中/已保存）需同格叠放交叉切换（颜色仍走真实 .status/.status.ok） */
+.onboarding-kd-demo .key-row .status {
+  grid-area: 2 / 2 / 3 / -1;
+  min-height: 1.4em;
+}
+
+/* 已配置徽章 pop（真实 .key-row .configured = brand 色，options 表提供；
+   徽章常驻 DOM，靠相位控制出现时机） */
+.onboarding-kd-demo .key-row .configured {
+  transform-origin: left center;
+  animation: kd-badge 10s var(--ease-out) infinite;
+}
+
+@keyframes kd-badge {
+  0%, 43% { opacity: 0; transform: scale(0.6); }
+  46%, 84% { opacity: 1; transform: scale(1); }
+  94%, 100% { opacity: 0; }
+}
+
+/* 聚焦环相位：取真实 .key-row input:focus 的样式值（brand 描边 + 18% 光环），
+   演示无法真聚焦，按时间轴相位化。flex 撑满：真实页 input 是 grid 直接子项
+   自动拉伸满 1fr 列，演示套了打字覆盖层的定位 wrapper，input 需 flex 填满
+   wrapper 才与真实等宽（作用域限定，不影响 options 页本身） */
+.onboarding-kd-demo .key-row input {
+  flex: 1;
+  min-width: 0;
+  animation: kd-focus 10s linear infinite;
+}
+
+@keyframes kd-focus {
+  0%, 6% { border-color: var(--border); box-shadow: none; }
+  8%, 31% {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+  33%, 100% { border-color: var(--border); box-shadow: none; }
+}
+
+/* 打字覆盖层：input 为 void 元素，placeholder → 掩码点 → 插入符的分层由覆盖层
+   承载；字号/内距取 .key-row input 同值，与真实输入内容同位。
+   掩码点用 • + letter-spacing 近似系统 password 掩码（演示层取舍） */
+.onboarding-kd-demo .key-row .onboarding-kd-inputwrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.onboarding-kd-demo .key-row .onboarding-kd-type {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  font-size: var(--text-md);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.onboarding-kd-placeholder {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--muted);
+  animation: kd-placeholder 10s linear infinite;
+}
+
+@keyframes kd-placeholder {
+  0%, 7% { opacity: 0.65; }
+  9%, 100% { opacity: 0; }
+}
+
+.onboarding-kd-dots {
+  display: flex;
+  letter-spacing: 2px;
+  animation: kd-dots 10s linear infinite;
+}
+
+@keyframes kd-dots {
+  0%, 42% { opacity: 1; }
+  44%, 100% { opacity: 0; }
+}
+
+/* one-shot 点入（同 wb2-char 约定：1ms 显形 + fill both，靠重挂重播） */
+.onboarding-kd-dot {
+  opacity: 0;
+  animation: kd-dot-in 1ms linear both;
+}
+
+@keyframes kd-dot-in {
+  to { opacity: 1; }
+}
+
+.onboarding-kd-caretwin {
+  animation: kd-caretwin 10s linear infinite;
+}
+
+@keyframes kd-caretwin {
+  0%, 6% { opacity: 0; }
+  8%, 41% { opacity: 1; }
+  43%, 100% { opacity: 0; }
+}
+
+.onboarding-kd-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.1em;
+  margin-left: 1px;
+  background: var(--brand);
+  animation: kd-blink 1s steps(1) infinite;
+}
+
+@keyframes kd-blink {
+  50% { opacity: 0; }
+}
+
+/* 「保存」按压（峰值 32%，同 wb2-btn 约定；真实 .key-row button 样式来自
+   options 表，onboarding-kd-save 为演示相位钩子） */
+.onboarding-kd-demo .key-row .onboarding-kd-save {
+  transform-origin: center;
+  animation: kd-press 10s linear infinite;
+}
+
+@keyframes kd-press {
+  0%, 30% { transform: none; }
+  32% { transform: scale(0.95); }
+  34%, 100% { transform: none; }
+}
+
+/* 「测试」初始禁用观感，保存成功后解禁（真实 button:disabled = opacity .5 的
+   相位化示意） */
+.onboarding-kd-demo .key-row .onboarding-kd-test {
+  animation: kd-test 10s linear infinite;
+}
+
+@keyframes kd-test {
+  0%, 43% { opacity: 0.45; }
+  46%, 84% { opacity: 1; }
+  94%, 100% { opacity: 0.45; }
+}
+
+/* 行下状态两态相位（颜色走真实 .status / .status.ok，叠加演示钩子控相位） */
+.onboarding-kd-demo .key-row .onboarding-kd-status__saving {
+  animation: kd-saving 10s linear infinite;
+}
+
+@keyframes kd-saving {
+  0%, 34% { opacity: 0; transform: translateY(3px); }
+  36%, 40% { opacity: 1; transform: none; }
+  42%, 100% { opacity: 0; transform: translateY(3px); }
+}
+
+.onboarding-kd-demo .key-row .onboarding-kd-status__ok {
+  transform-origin: left center;
+  animation: kd-saved 10s var(--ease-out) infinite;
+}
+
+@keyframes kd-saved {
+  0%, 43% { opacity: 0; transform: scale(0.9); }
+  46%, 84% { opacity: 1; transform: scale(1); }
+  94%, 100% { opacity: 0; }
+}
+
+/* 鼠标：4% 现身输入框中段 → 31.5% 移到「保存」中心。
+   真实行内距（space-3 + border-top）比旧复刻（space-2/1、无边框）更高，
+   y 按新几何重估（+~6px）——坐标待实测校正（tip 偏移 (5, 2.3)） */
+.onboarding-kd-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  animation: kd-cursor 10s var(--ease-in-out) infinite;
+}
+
+@keyframes kd-cursor {
+  0%, 3% { opacity: 0; transform: translate(294px, 28.7px); }
+  6% { opacity: 1; transform: translate(294px, 28.7px); }
+  26% { opacity: 1; transform: translate(294px, 28.7px); }
+  31.5%, 84% { opacity: 1; transform: translate(529px, 28.7px); }
+  90%, 100% { opacity: 0; transform: translate(529px, 28.7px); }
+}
+
+/* 点击涟漪：双击双环（输入框 7% + 保存 32%，错峰同 wb2-ripple） */
+.onboarding-kd-ripple {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-full);
+  opacity: 0;
+  animation: kd-ripple 10s var(--ease-out) infinite;
+}
+
+.onboarding-kd-ripple--lag {
+  width: 34px;
+  height: 34px;
+  left: -13px;
+  top: -13px;
+  animation-name: kd-ripple;
+  animation-delay: 120ms;
+}
+
+@keyframes kd-ripple {
+  0%, 6% { opacity: 0; transform: scale(0.4); }
+  8% { opacity: 0.8; }
+  14% { opacity: 0; transform: scale(1.2); }
+  30% { opacity: 0; transform: scale(0.4); }
+  32.5% { opacity: 0.8; }
+  38% { opacity: 0; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+
+/* ── 快切栏切换示意（QuickbarDemo）：真实 SourceSwitcher 类，纯 CSS 10s 循环 ──
+    结构与样式直接建在 search/styles.css 的真实类上：.source-switcher >
+    .switcher-track（胶囊轨道：bg-soft 底 + 描边 + 全圆角）+ 真实 pill（button /
+    .switcher-group > .group-trigger，▾ 箭头来自真实 ::after）；成员浮层用真实
+    .group-flyout（含 min-width: max-content，宽度随内容）。
+    激活源 pill 走 button.active 真实 fallback（brand 实色）：真实页由
+    .switcher-indicator 承载（JS 测量注入 CSS 变量），演示无测量，恰好落在
+    search 表自带的 no-indicator fallback 分支，观感等价。
+    交互镜像：hover 分组 trigger 高亮（真实 .switcher-group.open 观感 = brand 字 +
+    brand-soft 底，相位化）→ 成员浮层 pop 展开（真实 .group-flyout）→ 光标移入
+    浮层点选 Google（hover 高亮 + 按压 + 涟漪）→ 浮层收起、trigger 复位 →
+    置顶激活源 pill 原地换内容（Tavily → Google，favicon + 标签同步换）→
+    结果行闪骨架 → 换 Google 结果（「切源即换结果，免重输」）。
+    时间轴（% × 0.1 = 秒）：2.2–9.3% 芯片错峰 pop 就位（one-shot，靠 qb-fade 的
+    animationiteration 重挂子树重播）→ 11–14% Tavily 结果行浮现 → 14–17% 光标淡入
+    → 17–23% 移到「搜索引擎」trigger → 23–24.5% trigger 高亮 → 24.5–30% hover 停留
+    节拍（真实 hover 展开的延迟感）→ 30–32.5% 成员浮层 pop 展开 → 34–40% 光标
+    下移进浮层 → 36.5–41% Google 项 hover 高亮 → 41% 点选（按压 0.95 + 涟漪双环）
+    → 43–45.5% 浮层收起 / 43.5–44.5% trigger 复位 → 45–49% 激活 pill 换内容
+    （Tavily 层淡出、Google 层 pop 入 + pill 弹 1.06）→ 50–53% 旧结果行淡出
+    → 51–63.5% 骨架灰条 shimmer 闪过 → 61–65% Google 结果行升起 → 84–94% 整体
+    淡出 → 94–100% 边界干净复位（浮层收起、激活 pill 回 Tavily）。 */
+.onboarding-qb-demo {
+  margin-top: var(--space-2);
+  pointer-events: none;
+}
+
+/* 示意容器：静态描边框（同 .onboarding-wb-page / .onboarding-sel-page），跨循环常驻不淡出 */
+.onboarding-qb-page {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  padding: var(--space-3) var(--space-4);
+}
+
+/* 内容子树 10s 循环：首尾都在 opacity 0，循环边界（配合 TSX 侧的 remount）
+   双侧同为 0 → 无缝衔接；静态框 .onboarding-qb-page 不参与淡出 */
+.onboarding-qb-cycle {
+  animation: qb-fade 10s linear infinite;
+}
+
+@keyframes qb-fade {
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  84% { opacity: 1; }
+  94%, 100% { opacity: 0; }
+}
+
+.onboarding-qb-stage {
+  position: relative;
+}
+
+/* 芯片错峰 pop：轨道直接子级 one-shot（360ms both；trigger 高亮 / 浮层 / 内容
+   换层的动画在内层元素上，transform 互不冲突） */
+.onboarding-qb-demo .switcher-track > * {
+  opacity: 0;
+  animation: qb-chip-in 360ms var(--ease-out) both;
+}
+
+@keyframes qb-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 覆盖①：真实 .switcher-group 无 z-index（浮层 z-20 直接参与 stage 层叠会盖过
+   光标 z-5）。抬分组到 2 级自成 stacking context：浮层收进组内、光标移入浮层
+   点选时仍在最上层 */
+.onboarding-qb-demo .switcher-group {
+  z-index: 2;
+}
+
+/* 覆盖②：激活 pill 内两层换内容（Tavily/Google 交叉淡换）需同格叠放，
+   真实 inline-flex 改 inline-grid；brand 实色底 + brand-on 文字由真实
+   button.active fallback 提供，点选后 qb-pill-pop 给一次小弹。
+   入场用独立的 qb-active-in（与上方 > * 的 qb-chip-in 分开）：本规则特异性更高，
+   会整体取代 > * 的 animation 声明，须在此自带入场；delay 写进 shorthand——
+   不能用内联 animationDelay（会同时推迟 qb-pill-pop，错位 10s 相位）；
+   入场动画用独立 scale 属性而非 transform，避免与 qb-pill-pop 的 transform 域
+   互相覆盖（两个动画各自成域、可组合） */
+.onboarding-qb-demo .switcher-track button.active {
+  display: inline-grid;
+  animation:
+    qb-active-in 360ms var(--ease-out) 0.22s both,
+    qb-pill-pop 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-active-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes qb-pill-pop {
+  0%, 45% { transform: none; }
+  46.5% { transform: scale(1.06); }
+  48.5%, 100% { transform: none; }
+}
+
+/* 激活 pill 内容换层：Tavily / Google 两层同格叠放，点选成员后交叉淡换
+   （favicon + 标签同步换） */
+.onboarding-qb-demo .qb-swap {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.onboarding-qb-demo .qb-swap--a {
+  animation: qb-swap-out 10s var(--ease-out) infinite;
+}
+
+.onboarding-qb-demo .qb-swap--b {
+  animation: qb-swap-in 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-swap-out {
+  0%, 45% { opacity: 1; transform: none; }
+  47.5%, 100% { opacity: 0; transform: scale(0.85); }
+}
+
+@keyframes qb-swap-in {
+  0%, 45.5% { opacity: 0; transform: scale(0.7); }
+  47.5% { opacity: 1; transform: scale(1.06); }
+  49.5%, 100% { opacity: 1; transform: none; }
+}
+
+/* 「搜索引擎」trigger：hover / 展开期高亮（真实 .switcher-group.open >
+   .group-trigger = brand 字 + brand-soft 底，边框保持透明），点选后复位 */
+.onboarding-qb-demo .switcher-group .group-trigger {
+  animation: qb-trigger 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-trigger {
+  0%, 22.5% { background: transparent; color: var(--muted); }
+  24.5%, 42% { background: var(--brand-soft); color: var(--brand); }
+  44.5%, 100% { background: transparent; color: var(--muted); }
+}
+
+/* 成员浮层相位：真实 .group-flyout（结构 + 阴影 + min-width: max-content 来自
+   search 表，真实 juso-rise 一次性入场被此处的 10s 相位开合替换——特异性
+   (0,3,0) > (0,2,0)） */
+.onboarding-qb-demo .switcher-group .group-flyout {
+  opacity: 0;
+  animation: qb-menu 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-menu {
+  0%, 30% { opacity: 0; transform: translateY(6px) scale(0.97); }
+  32.5%, 43% { opacity: 1; transform: none; }
+  45.5%, 100% { opacity: 0; transform: translateY(-2px) scale(0.98); }
+}
+
+/* Google 项：光标抵达后 hover 高亮（真实 :hover = brand 字 + brand-soft 底）
+   → 点选按压 scale(0.95) → 随浮层一起收起复位；真实浮层内按钮样式
+   （.source-switcher button + .group-flyout button）来自 search 表 */
+.onboarding-qb-demo .group-flyout .qb-pick {
+  animation: qb-pick 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-pick {
+  0%, 36% { background: transparent; color: var(--muted); transform: none; }
+  38%, 41% { background: var(--brand-soft); color: var(--brand); transform: none; }
+  42% { background: var(--brand-soft); color: var(--brand); transform: scale(0.95); }
+  43.5%, 100% { background: transparent; color: var(--muted); transform: none; }
+}
+
+/* 迷你结果区：三层（Tavily 结果 / 骨架 / Google 结果）同格叠放，各自动画切相位。
+   真实 .result-card 撑起演示框高度：浮层（trigger 下 ~33px 起、约 98px 高）
+   展开后完全落在框内，不压下方「划词搜索」栏目；被浮层短暂盖住的瞬间即
+   真实下拉行为 */
+.onboarding-qb-result {
+  display: grid;
+  margin-top: var(--space-3);
+}
+
+.onboarding-qb-demo .onboarding-qb-result > * {
+  grid-area: 1 / 1;
+}
+
+/* 迷你卡尺寸预算（演示取舍：真实卡标题/摘要不截断，此处为三层叠放的高度预算）：
+   标题单行省略、URL 单行省略、摘要两行截断 */
+.onboarding-qb-demo .result-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-qb-demo .result-url {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.onboarding-qb-demo .result-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Tavily 结果行：随芯片就位浮现，点选成员后淡出让位给骨架 */
+.onboarding-qb-demo .result-card.qb-row--a {
+  animation: qb-row-a 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-row-a {
+  0%, 11% { opacity: 0; transform: translateY(4px); }
+  14%, 50% { opacity: 1; transform: none; }
+  53%, 100% { opacity: 0; transform: none; }
+}
+
+/* 骨架闪换层：真实 .skel-line（brand 调 shimmer 来自 search 表的 juso-shimmer；
+   行数压缩为迷你卡同构——真实 .loading-skeleton 为整页骨架结构），
+   与旧结果卡 50–53% 淡出交叉淡入 */
+.onboarding-qb-demo .qb-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  animation: qb-skel 10s linear infinite;
+}
+
+@keyframes qb-skel {
+  0%, 51% { opacity: 0; }
+  53%, 61% { opacity: 1; }
+  63.5%, 100% { opacity: 0; }
+}
+
+/* favicon 占位方块：真实 .skel-line 的高度/渐变之上改方块尺寸（同盒内距对齐
+   结果卡的 16px favicon 位） */
+.onboarding-qb-demo .qb-skel-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+}
+
+/* Google 结果行：骨架闪过后升起（切源即换结果，免重输） */
+.onboarding-qb-demo .result-card.qb-row--b {
+  animation: qb-row-b 10s var(--ease-out) infinite;
+}
+
+@keyframes qb-row-b {
+  0%, 61% { opacity: 0; transform: translateY(4px); }
+  65%, 84% { opacity: 1; transform: none; }
+  94%, 100% { opacity: 0; transform: none; }
+}
+
+/* 鼠标：14% 现身于芯片行右侧 → 23% 移到「搜索引擎」trigger 中心（hover 停留，
+    看浮层展开）→ 34–40% 下移进浮层到 Google 项（点选后驻留至淡出）。
+    真实 pill 内距（space-1/space-3）+ 轨道内距（space-1 + 边框）与旧复刻不同，
+    两目标坐标均按新几何重估——坐标待实测校正（tip 偏移 (5, 2.3)）：
+    trigger 中心 ≈ (129, 19)，Google 项中心 ≈ (132, 53) */
+.onboarding-qb-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  animation: qb-cursor 10s var(--ease-in-out) infinite;
+}
+
+@keyframes qb-cursor {
+  0%, 14% { opacity: 0; transform: translate(330px, 22px); }
+  17% { opacity: 1; transform: translate(330px, 22px); }
+  23%, 34% { opacity: 1; transform: translate(140.6px, 15.7px); }
+  40%, 86% { opacity: 1; transform: translate(144.8px, 48.7px); }
+  90%, 100% { opacity: 0; transform: translate(144.8px, 48.7px); }
+}
+
+/* 点选涟漪：双环错峰（同 wb2-ripple / kd-ripple 约定，峰值 41% + 120ms） */
+.onboarding-qb-ripple {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--brand);
+  border-radius: var(--radius-full);
+  opacity: 0;
+  animation: qb-ripple 10s var(--ease-out) infinite;
+}
+
+.onboarding-qb-ripple--lag {
+  width: 34px;
+  height: 34px;
+  left: -13px;
+  top: -13px;
+  animation-name: qb-ripple;
+  animation-delay: 120ms;
+}
+
+@keyframes qb-ripple {
+  0%, 41% { opacity: 0; transform: scale(0.4); }
+  42.5% { opacity: 0.8; }
+  48% { opacity: 0; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-layout-demo .layout-row--source,
+  .onboarding-layout-demo .layout-row--group[data-demo-enter],
+  .onboarding-select-menu,
+  .onboarding-ripple,
+  .onboarding-caret {
+    animation: none;
+  }
+
+  /* 四个纯动画演示整体退场（kd 此前缺席 reduced-motion 处理，补齐一致性）；
+     划词弹窗在 shadow 内由注入的补充样式表自行降级 */
+  .onboarding-wb-demo,
+  .onboarding-sel-demo,
+  .onboarding-kd-demo,
+  .onboarding-qb-demo {
+    display: none;
+  }
+
+  .onboarding-cursor {
+    display: none;
+  }
+}
+
+/* ── 底部导航 ─────────────────────────────────────── */
+
+.onboarding-footer {
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.onboarding-dots {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 auto;
+}
+
+.onboarding-dots__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--border);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.onboarding-dots__dot--active {
+  background: var(--brand);
+}
+
+.onboarding-footer-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── 按钮 ─────────────────────────────────────────── */
+
+.onboarding-btn {
+  font: inherit;
+  font-size: var(--text-md);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.onboarding-btn:hover {
+  background: var(--bg-soft);
+}
+
+.onboarding-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.onboarding-btn--primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-on);
+}
+
+.onboarding-btn--primary:hover {
+  background: var(--brand);
+  filter: brightness(1.08);
+}
+
+.onboarding-btn--link {
+  border: none;
+  background: none;
+  color: var(--muted);
+}
+
+.onboarding-btn--link:hover {
+  background: none;
+  color: var(--fg);
+  text-decoration: underline;
+}

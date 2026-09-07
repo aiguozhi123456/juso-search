@@ -71,6 +71,10 @@ describe('CONFIG_KEYS whitelist', () => {
   it('includes selectionSearchSource in the config whitelist', () => {
     expect(CONFIG_KEYS).toContain('selectionSearchSource');
   });
+
+  it('includes onboardingCompleted in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('onboardingCompleted');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

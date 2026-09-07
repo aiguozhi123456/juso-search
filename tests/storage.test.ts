@@ -39,6 +39,8 @@ import {
   setAgentBridgeEnabled,
   getEngineSearchEnabled,
   setEngineSearchEnabled,
+  getOnboardingCompleted,
+  setOnboardingCompleted,
   getSiteEngineDefinitions,
   createSiteEngineDefinition,
   updateSiteEngineDefinition,
@@ -454,6 +456,24 @@ describe('storage: engineSearchEnabled', () => {
   it('rejects truthy-but-not-true stored values', async () => {
     await browser.storage.local.set({ engineSearchEnabled: 1 });
     expect(await getEngineSearchEnabled()).toBe(false);
+  });
+});
+
+describe('storage: onboardingCompleted', () => {
+  it('defaults to false when unset', async () => {
+    expect(await getOnboardingCompleted()).toBe(false);
+  });
+
+  it('round-trips true and false', async () => {
+    await setOnboardingCompleted(true);
+    expect(await getOnboardingCompleted()).toBe(true);
+    await setOnboardingCompleted(false);
+    expect(await getOnboardingCompleted()).toBe(false);
+  });
+
+  it('rejects truthy-but-not-true stored values', async () => {
+    await browser.storage.local.set({ onboardingCompleted: 1 });
+    expect(await getOnboardingCompleted()).toBe(false);
   });
 });
 

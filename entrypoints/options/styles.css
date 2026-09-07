@@ -1020,11 +1020,14 @@ body {
 }
 
 /* 收入分组 select：复用全局 select 的 chevron，仅压缩尺寸对齐按钮。
-   注意用 background-color（非 shorthand background）以免清掉全局箭头。 */
+   注意用 background-color（非 shorthand background）以免清掉全局箭头。
+   color 显式声明：UA 对 select 用 color: fieldtext（UA 声明优先于继承），
+   不补则暗色下当前值「置顶」会按浅色方案解析成黑字。 */
 .layout-fold select {
   min-height: 30px; padding: 0 var(--space-8) 0 var(--space-2);
   font-size: var(--text-sm); border-radius: var(--radius-sm);
   background-color: var(--bg);
+  color: var(--fg);
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 .layout-fold select:hover:not(:disabled) { border-color: var(--muted); }
@@ -1539,6 +1542,27 @@ body {
   color: var(--fg);
   line-height: 1.65;
   opacity: 0.85;
+}
+.about-onboarding-row {
+  margin-top: var(--space-4);
+}
+.about-onboarding-btn {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--brand);
+  background: var(--bg);
+  color: var(--brand);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.about-onboarding-btn:hover {
+  background: var(--brand-soft);
+}
+.about-onboarding-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* ── 链接区 ── */

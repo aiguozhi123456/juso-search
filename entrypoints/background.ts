@@ -43,7 +43,7 @@ import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 import { engineInnerBudgetMs, isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
 import { runEngineSearch } from '@/lib/engine-search';
-import { getAgentBridgeEnabled, getEngineSearchEnabled } from '@/lib/storage';
+import { getAgentBridgeEnabled, getEngineSearchEnabled, getOnboardingCompleted } from '@/lib/storage';
 import { sanitizeOpenNewTabUrl } from '@/lib/custom-engines';
 import { contextMenuNeedsRebuild, handleContextMenuClick, setupContextMenu } from '@/lib/context-menu';
 import {
@@ -65,7 +65,19 @@ export default defineBackground(() => {
 
   // 右键菜单搜索：worker 启动即构建；安装/更新时重建；storage 配置键变化时重建。
   void setupContextMenu();
-  browser.runtime.onInstalled.addListener(() => void setupContextMenu());
+  browser.runtime.onInstalled.addListener((details) => {
+    void setupContextMenu();
+    // 首装引导：仅 install 且未处理过引导时打开引导页。完成与跳过均写 onboardingCompleted，
+    // 标记守卫同时避免 dev 模式重载 unpacked 扩展（每次都触发 install）时反复弹页。
+    if (details.reason === 'install') {
+      void getOnboardingCompleted().then((completed) => {
+        if (completed) return;
+        void browser.tabs
+          .create({ url: browser.runtime.getURL('/onboarding.html') })
+          .catch((e) => console.warn('[onInstalled] open onboarding failed', e));
+      });
+    }
+  });
   browser.contextMenus.onClicked.addListener((info) => void handleContextMenuClick(info));
 
   // API 网关：key 仅在此 worker 内读取并发往 provider（R7）

@@ -16,6 +16,11 @@
      · 品牌图形      —— --mark-glyph（data URL，用于伪元素装饰） */
 
 :root {
+  /* 告知 UA 当前配色方案：现代 Chrome 的表单控件 UA 样式（select 的 color: fieldtext、
+     原生下拉弹层、滚动条）按 used color-scheme 解析，缺失时表单控件强制按浅色渲染——
+     暗色模式下会出现黑字黑控件。暗色取值见下方两处 color-scheme: dark。 */
+  color-scheme: light;
+
   /* ── 品牌 ─────────────────────────────────────────── */
   --brand: #c8372d;            /* 朱砂 / cinnabar — 签名色 */
   --brand-on: #ffffff;         /* brand 之上的文字 / 图标 */
@@ -97,6 +102,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    color-scheme: dark;
+
     --brand: #ff6b5b;
     --brand-on: #1a0a08;
     --brand-soft: #2a1816;
@@ -126,6 +133,8 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   --brand: #ff6b5b;
   --brand-on: #1a0a08;
   --brand-soft: #2a1816;

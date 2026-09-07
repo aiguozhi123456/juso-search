@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
@@ -1038,5 +1038,43 @@ describe('options page', () => {
     });
     expect(screen.getByText('已开始下载')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载 Agent Skill' })).not.toBeDisabled();
+  });
+});
+
+describe('options page: deep link & onboarding re-entry', () => {
+  afterEach(() => {
+    window.history.pushState({}, '', '/');
+    vi.unstubAllGlobals();
+  });
+
+  it('?group=keys opens the keys tab directly', async () => {
+    window.history.pushState({}, '', '/?group=keys');
+    render(<App />);
+    // 密钥页签直达，无需点侧栏；默认搜索页签的激活源下拉不存在。
+    expect(await screen.findByRole('heading', { name: /API Key/ })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+
+  it('unknown ?group= values fall back to the search tab', async () => {
+    window.history.pushState({}, '', '/?group=hax');
+    render(<App />);
+    expect(await screen.findByRole('combobox')).toBeInTheDocument();
+  });
+
+  it('the about section reopens the onboarding page via tabs.create', async () => {
+    const tabsCreate = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('browser', {
+      runtime: {
+        getURL: (path: string) => `chrome-extension://testid${path}`,
+        getManifest: () => ({ version: '2.0.0' }),
+      },
+      tabs: { create: tabsCreate },
+    });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '关于' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看使用引导' }));
+    await waitFor(() =>
+      expect(tabsCreate).toHaveBeenCalledWith({ url: 'chrome-extension://testid/onboarding.html' }),
+    );
   });
 });

@@ -27,6 +27,7 @@ export const AI_AUTO_ENTER_KEY = 'aiAutoEnter'; // AI engine 自动回车开关�
 export const FLAT_LAYOUT_FEW_SOURCES_KEY = 'flatLayoutFewSources'; // 少量来源自动平铺开关（默认 true，stored !== false 才 true）
 export const SELECTION_SEARCH_ENABLED_KEY = 'selectionSearchEnabled'; // 划词搜索开关（默认 true，stored !== false 才 true）
 export const SELECTION_SEARCH_SOURCE_KEY = 'selectionSearchSource'; // 划词搜索固定源（SourceId | null，null = 跟随激活源）
+export const ONBOARDING_COMPLETED_KEY = 'onboardingCompleted'; // 首装引导完成标记（默认 false，stored === true 才 true；完成或跳过均置 true）
 
 export type ThemePref = 'auto' | 'light' | 'dark';
 export type LocalePref = 'auto' | 'zh_CN' | 'en';

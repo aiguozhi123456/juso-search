@@ -14,6 +14,7 @@ import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
 import { Loading, ErrorState } from '@/components/States';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
+import { useLocale } from '@/lib/useLocale';
 import type { SearchCacheEntry } from '@/lib/search-cache';
 import { allSources, isProviderId } from '@/lib/sources';
 import type { SearchSource, SourceId } from '@/lib/sources';
@@ -38,6 +39,8 @@ function isLinkSourceConfigured(provider: ProviderId | ProviderInstanceId, confi
 }
 
 export default function App() {
+  // 根级订阅 locale：切语言时整树重渲染（t() 随动），否则只有 header 开关自身刷新。
+  useLocale();
   const providers = allProviders();
   const [query, setQuery] = useState('');
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);

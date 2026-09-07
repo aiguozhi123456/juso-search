@@ -28,6 +28,7 @@ import { ProviderInstanceManager } from '@/components/ProviderInstanceManager';
 import { Wordmark } from '@/components/Wordmark';
 import { SearchIcon, SettingsIcon, InfoIcon, ExternalLinkIcon, BrandMark } from '@/components/icons';
 import { t, MSG, getCurrentLocale, type Locale } from '@/lib/i18n';
+import { useLocale } from '@/lib/useLocale';
 
 function KeyIcon({ size = 16 }: { size?: number }) {
   return (
@@ -55,6 +56,13 @@ function KeyIcon({ size = 16 }: { size?: number }) {
 function getAppVersion(): string {
   if (typeof browser === 'undefined') return '';
   return browser?.runtime?.getManifest?.()?.version ?? '';
+}
+
+/** 重看首装引导：新标签页打开引导页（完成/跳过重复写标记无副作用）。 */
+function reopenOnboarding() {
+  void browser.tabs.create({ url: browser.runtime.getURL('/onboarding.html') }).catch((e) =>
+    console.warn('[options] open onboarding failed', e),
+  );
 }
 
 /** 关于页外链常量。 */
@@ -110,6 +118,8 @@ function renderAckLinks(text: string, tokenUrls: Record<string, string>): ReactN
 }
 
 export default function App() {
+  // 根级订阅 locale：切语言时整树重渲染（t() 随动），否则只有 header 开关自身刷新。
+  useLocale();
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
@@ -132,7 +142,11 @@ export default function App() {
   // 与 sourceOrder/sourceHidden 同构的乐观修订守卫：SourceGroupEditor.persist 乐观推进本地 groupConfig，
   // 在此期间返回的 getProviderConfig 不应再用旧 groupConfig 覆盖。
   const groupConfigRevision = useRef(0);
-  const [activeGroup, setActiveGroup] = useState('search');
+  // 深链支持：?group= 直达指定导航组（onboarding 页等入口用），白名单校验防注入未知值。
+  const [activeGroup, setActiveGroup] = useState(() => {
+    const group = new URLSearchParams(window.location.search).get('group');
+    return group === 'search' || group === 'keys' || group === 'general' || group === 'about' ? group : 'search';
+  });
 
    const navGroups = [
      { id: 'search', label: t(MSG.opts_nav_search), icon: <SearchIcon size={16} /> },
@@ -526,6 +540,11 @@ export default function App() {
               </div>
               <p className="about-brand-tagline">{t(MSG.opts_about_tagline)}</p>
               <p className="about-brand-description">{t(MSG.opts_about_description)}</p>
+              <div className="about-onboarding-row">
+                <button type="button" className="about-onboarding-btn" onClick={reopenOnboarding}>
+                  {t(MSG.opts_show_onboarding)}
+                </button>
+              </div>
             </div>
           </section>
 
