@@ -1,7 +1,7 @@
 ---
 title: "Minimize Google and Bing SERP Scope Without Breaking SPA Injection"
 date: 2026-07-14
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: "SERP scope / content-script lifecycle"
 problem_type: architecture_pattern
@@ -35,7 +35,7 @@ tags:
 
 ## Context
 
-The SERP Switch Bar runs inside conventional Search Engine result pages, so adding regional domains changes the extension's static site-access surface as well as runtime URL recognition. 产品当前批准 15 个主机：5 个 Google 区域域名（`www.google.com`, `www.google.com.hk`, `www.google.com.tw`, `www.google.co.jp`, `www.google.co.uk`）+ 2 个 Bing（`www.bing.com`, `cn.bing.com`）+ `www.baidu.com` + `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com` + `yandex.com`/`yandex.ru` + `duckduckgo.com` + `weixin.sogou.com`。这是基于当前中英受众和最小权限策略的产品特定白名单，并非 Google/Bing 域名的通用列表。
+The SERP Switch Bar runs inside conventional Search Engine result pages, so adding regional domains changes the extension's static site-access surface as well as runtime URL recognition. 产品当前批准 16 个主机：5 个 Google 区域域名（`www.google.com`, `www.google.com.hk`, `www.google.com.tw`, `www.google.co.jp`, `www.google.co.uk`）+ 2 个 Bing（`www.bing.com`, `cn.bing.com`）+ `www.baidu.com` + `zhannei.baidu.com`（baidu 站内搜索合成 surface，随 Site Instance zhannei 模式加入）+ `www.douyin.com` + `www.xiaohongshu.com` + `search.bilibili.com` + `yandex.com`/`yandex.ru` + `duckduckgo.com` + `weixin.sogou.com`。这是基于当前中英受众和最小权限策略的产品特定白名单，并非 Google/Bing 域名的通用列表。
 
 Google announced in 2025 that country-code Search domains would gradually redirect to `google.com`. There was therefore no product evidence for retaining all 187 historical Google domains. Doing so enlarged the injection and Chrome Web Store disclosure surface and produced a roughly 12 KB manifest, while Chrome match patterns cannot express arbitrary TLDs such as `google.*` safely.
 
@@ -45,11 +45,11 @@ Static matching is also broader than the runtime requirement. Chrome's `/search*
 
 1. Keep the approved Search Engine hosts in one scope module. Derive engine recognition, content-script patterns, and favicon `web_accessible_resources` patterns from the same allowlist so those surfaces cannot drift independently.
 2. Model injection, resource visibility, and privileged host access separately. Search hosts belong in static content-script and web-accessible-resource matches, but not in `host_permissions`; only the eight `host_permissions` entries need privileged host access: Tavily, Exa, Brave (api.search.brave.com), Stepfun, Jina (s.jina.ai), Doubao (open.feedcoopapi.com), Parallel (api.parallel.ai), plus the loopback `http://127.0.0.1/*` for the Agent Bridge.
-3. Treat the static content-script pattern as an injection boundary, not the final business predicate. Runtime recognition must require HTTPS, the default port, the engine's canonical pathname (Google/Bing/Yandex: `/search`, Baidu: `/s`, Douyin: `/search/<q>`, Xiaohongshu: `/search_result`, Bilibili: `/all`, DuckDuckGo: `/`, Weixin: `/weixin`), and exact membership in the approved hostname set. Do not use suffix matching, `endsWith`, arbitrary subdomain wildcards, or hostname-only checks.
+3. Treat the static content-script pattern as an injection boundary, not the final business predicate. Runtime recognition must require HTTPS, the default port, the engine's canonical pathname (Google/Bing/Yandex: `/search`, Baidu: `/s`, zhannei surface: `/cse/site`, Douyin: `/search/<q>`, Xiaohongshu: `/search_result`, Bilibili: `/all`, DuckDuckGo: `/`, Weixin: `/weixin`), and exact membership in the approved hostname set. Do not use suffix matching, `endsWith`, arbitrary subdomain wildcards, or hostname-only checks.
 4. Drive SPA state from the `newUrl` carried by `wxt:locationchange`, not from a possibly stale `window.location`. Remove the UI after leaving a canonical SERP and remount it when a supported SERP returns.
 5. Wait for the engine-specific anchor before remounting. Give each navigation a revision, disconnect any prior `MutationObserver`, and allow only the latest revision to mount. Disconnect the observer after a successful mount, a newer navigation, or content-script invalidation.
 6. Do not restore WXT `autoMount()` for Google/Bing anchor disappearance. Both engines may remove the old result subtree and insert a replacement with the same selector in one synchronous task; by the observer callback, only the replacement exists and disappearance detection can stall.
-7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm 15 content-script matches per injected script, two `web_accessible_resources` match sets (the 15 SERP hosts plus the `<all_urls>` entry serving selection-search favicons), and eight `host_permissions` entries.
+7. Test both source contracts and built artifacts. Source tests should lock the exact host allowlist, prove every configured host reaches the registry, reject forged and unapproved hosts, reject HTTP/non-default-port/non-SERP paths, and verify pattern uniqueness. A build-level check should confirm 16 content-script matches per injected script, two `web_accessible_resources` match sets (the 16 SERP hosts plus the `<all_urls>` entry serving selection-search favicons), and eight `host_permissions` entries. One approved host is registry-absent: the synthetic zhannei surface (`zhannei.baidu.com`, `ZHANNEI_SERP_HOSTS`) is recognized only by `matchEngineByUrl`'s post-registry check against `baiduZhanneiSurface` — it is not in the registry/`allEngines()` and is non-navigable (`buildSerpUrl`/`buildHomeUrl` throw) — so the allowlist derivation rule now covers a host that is not a registered engine.
 
 ## Why This Matters
 
@@ -66,16 +66,29 @@ Explicit SPA lifecycle handling keeps the smaller scope reliable. Event-provided
 - Enforcing an exact route when browser match patterns can express only a broader prefix.
 - Mounting an extension UI into a third-party SPA that rebuilds its result DOM after history navigation.
 - Reviewing extension site access, Chrome Web Store disclosure, or manifest size.
-- Do not reuse this fifteen-host set as a global default; other products should choose hosts from their own audience, usage evidence, and permission policy.
+- Do not reuse this sixteen-host set as a global default; other products should choose hosts from their own audience, usage evidence, and permission policy.
 
 ## Examples
 
 Derive the two static match surfaces from one host list:
 
 ```ts
-export const SERP_HOSTS = [...GOOGLE_SERP_HOSTS, ...BING_SERP_HOSTS]; // …plus the other engines' <ID>_SERP_HOSTS spread in (nine engines total)
+export const SERP_HOSTS = [...GOOGLE_SERP_HOSTS, ...BING_SERP_HOSTS]; // …plus the other engines' <ID>_SERP_HOSTS spreads (ten groups total: nine registered engines + the synthetic ZHANNEI_SERP_HOSTS surface = 16 hosts)
 export const SERP_HOST_MATCH_PATTERNS = SERP_HOSTS.map((host) => `https://${host}/*`);
-export const SERP_CONTENT_MATCH_PATTERNS = SERP_HOSTS.map((host) => `https://${host}/search*`);
+// Content matches use each engine's canonical pathname, not a blanket /search*;
+// the synthetic zhannei surface contributes /cse/site.
+export const SERP_CONTENT_MATCH_PATTERNS = [
+  ...GOOGLE_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
+  ...BING_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
+  ...BAIDU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/s')),
+  ...ZHANNEI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/cse/site')),
+  ...DOUYIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
+  ...XIAOHONGSHU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search_result')),
+  ...BILIBILI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/all')),
+  ...YANDEX_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
+  ...DUCKDUCKGO_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/')),
+  ...WEIXIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/weixin')),
+];
 ```
 
 Apply the stricter runtime predicate after static matching:

@@ -2,7 +2,7 @@
 title: Redefining a preference value's semantics requires a value-rewrite schema migration
 module: lib/schema, lib/storage
 date: 2026-08-04
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -38,7 +38,7 @@ The trigger case: `serpBarPosition` had values `'auto' | 'top' | 'bottom'`, wher
 
 ## Guidance
 
-**When you redefine a preference value's semantics, treat it as a value-rewrite migration: bump the schema version and add a migration that rewrites the stored value to preserve each user's original behavior.** This is a different operation from the usual "add a new value" (no bump) or "add a new key" (bump to enter the whitelist).
+**When you redefine a preference value's semantics, treat it as a value-rewrite migration: bump the schema version and add a migration that rewrites the stored value to preserve each user's original behavior.** This is a different operation from the usual "add a new value" (no bump) or "add a new key" (bump to enter the whitelist). There is a third sibling case — a **stored-key rename** (key name changes, values carried over): it also needs a version bump plus a migration, but unlike a value rewrite it needs the `readKeys` mechanism, because after the rename the `CONFIG_KEYS` whitelist no longer contains the old key (see "A stored-key rename is the third case" below).
 
 The migration must be:
 
@@ -48,7 +48,7 @@ The migration must be:
 
 ```typescript
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 9; // was 8 when the v7→v8 entry below landed; later bumps (v8→v9, weixin default-hidden) appended after it
+export const CURRENT_SCHEMA_VERSION = 10; // was 8 when the v7→v8 entry below landed; later bumps (v8→v9 weixin default-hidden, v9→v10 siteEngines→siteInstances key rename) appended after it
 
 export const migrations: Migration[] = [
   // …earlier migrations…
@@ -56,6 +56,19 @@ export const migrations: Migration[] = [
   // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
   { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ];
+```
+
+### A stored-key rename is the third case — and it needs `readKeys`
+
+The v9→v10 migration introduced the sibling case to value redefinition: a **stored-key rename**, where the key's name changes but its values carry over unchanged (`siteEngines` → `siteInstances`). Like a value rewrite, this needs a version bump + a migration; unlike a value rewrite, the migration reads a key that is no longer in the `CONFIG_KEYS` whitelist — so it must declare the legacy key via the `Migration` type's optional `readKeys` field, which `ensureSchema` unions into its upgrade-time read (`lib/schema.ts:31`, `lib/schema.ts:127`). Without `readKeys`, a rename migration would read nothing and silently wipe the collection; `diffKeys` then removes the old key after the migration commits.
+
+```typescript
+// lib/schema.ts — v9→v10: storage key rename, values carried over
+{ version: 9, readKeys: ['siteEngines'], migrate: (config) => {
+    const { siteEngines, ...rest } = config;
+    const legacy = Array.isArray(siteEngines) ? siteEngines : undefined;
+    return { ...rest, siteInstances: legacy ?? (Array.isArray(rest.siteInstances) ? rest.siteInstances : []) };
+} },
 ```
 
 ### Default-by-getter users need no migration
@@ -136,7 +149,7 @@ export function resolveBarPosition(pref: BarPositionPref, viewportWidth: number)
 After — `'top'` = fixed overlay, `'inline'` = old inline, v7→v8 rewrites stored `'top'`→`'inline'`:
 
 ```typescript
-// lib/schema.ts — CURRENT_SCHEMA_VERSION = 9 (8 at the time of this migration)
+// lib/schema.ts — CURRENT_SCHEMA_VERSION = 10 (8 at the time of this migration)
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 
 // lib/serp-bar-mount.ts

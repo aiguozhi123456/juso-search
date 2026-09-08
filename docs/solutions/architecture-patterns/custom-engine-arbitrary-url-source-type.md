@@ -1,7 +1,7 @@
 ---
 title: "Custom Engine as Fourth Search Source: Arbitrary-URL Template with New-Tab SERP Handoff"
 date: 2026-08-02
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: "custom-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -23,7 +23,7 @@ Juso（Chrome MV3，WXT + React + TypeScript）此前已有三类 Search Source�
 
 1. **BYOK AI provider**（tavily / exa / brave / stepfun / stepfun-plan / jina / doubao / doubao-global / parallel）——worker 内调用 API，归一化为统一结果模型；
 2. **常规引擎**（Google / Bing / Baidu / Douyin / Xiaohongshu / Bilibili / Yandex / DuckDuckGo / 微信公众号（weixin））——engine registry 提供 `buildSerpUrl` / SERP 抽取器；
-3. **Site Engine**（`site:<uuid>`）——在固定的底层引擎上注入 `site:` 作用域。
+3. **Site Instance**（`site:<uuid>`，id 前缀仍是 `site:` 未变）——在固定的底层引擎上注入 `site:` 作用域。
 
 逐个适配每个搜索引擎既不现实，也有一些目标（ChatGPT、GitHub、StackOverflow……）根本不符合「engine registry + SERP 抽取」模型——它们没有可匹配/可抽取的标准 SERP URL。Custom Engine 因此引入**第四类** Source：用户定义的「名称 + URL 模板」，模板用 `%s` 作为查询占位符——与浏览器内置的「管理搜索引擎」完全同构。
 
@@ -69,23 +69,23 @@ const canonical = url.href.replace(SENTINEL, '%s');
 | **Juso 搜索页**（`entrypoints/search/App.tsx`） | 同 tab `location.assign(url)` | 已在扩展页上，与内置引擎一致 |
 | **SERP 快切栏**（`entrypoints/serp-bar.content.ts`，第三方 SERP 上的 content script） | **新 tab**：`sendMessage('openNewTab', url)` → worker `browser.tabs.create` | 不能丢掉用户当前的 Google/Bing SERP |
 
-两个界面共同点：**空查询不导航**。搜索页空查询仍 `setActiveSource` 持久化（与内置/站点引擎一致），只是不跳转；SERP 栏对「仍有效但空查询」的 chip 直接 `return`，连快照往返与重渲染都省掉。
+两个界面共同点：**空查询不导航**。搜索页空查询仍 `setActiveSource` 持久化（与内置引擎/Site Instance 一致），只是不跳转；SERP 栏对「仍有效但空查询」的 chip 直接 `return`，连快照往返与重渲染都省掉。
 
 SERP 栏**不为 Custom Engine 持久化 active source**（`serp-bar.content.ts:761-768` 显式注释：与内置引擎一致，不调用 `setActiveSource`）。
 
 worker 侧 `openNewTab` 用 `sanitizeOpenNewTabUrl` 净化：仅 http/https、拒绝凭据、导航到解析后的 `url.href`（`entrypoints/background.ts:94-106`）。
 
-### 4. 与 Site Engine 的对照
+### 4. 与 Site Instance 的对照
 
-| 维度 | Site Engine | Custom Engine |
+| 维度 | Site Instance | Custom Engine |
 |------|-------------|---------------|
-| 本质 | 固定底层引擎上的 `site:` 作用域 | 任意 URL 模板 |
+| 本质 | site 作用域 + 每实例构造模式（`site:` 前缀 / bing `q1` / baidu zhannei）；底层引擎仍在创建时固定 | 任意 URL 模板 |
 | 底层引擎 | 有（google / bing / baidu） | **无** |
 | SERP 抽取器 | 有 | **无** |
 | 是否进 SERP Scope | 是 | **否**（快切栏从不注入到 custom-engine 页面） |
 | SERP 栏导航 | 当前 tab `location.assign` | **新 tab** `openNewTab` |
 
-**与 Site Engine 共享**（详见姊妹文档，不在此重复）：动态 id、安全持久化不变量（trusted-read 不因 oversize 清空、untrusted import 有界、拒绝超限写入）、写后重解析导航、配置导出/导入。
+**与 Site Instance 共享**（详见姊妹文档，不在此重复）：动态 id、安全持久化不变量（trusted-read 不因 oversize 清空、untrusted import 有界、拒绝超限写入）、写后重解析导航、配置导出/导入。
 
 ### 5. 存储与分组
 
@@ -101,7 +101,7 @@ worker 侧 `openNewTab` 用 `sanitizeOpenNewTabUrl` 净化：仅 http/https、�
 ### 7. 配置导出/导入与 i18n
 
 - 导出含 `customEngines`；导入用 `isBoundedCustomEngineCollection` 严格有界检查（`lib/config-io.ts`）。
-- active-source 保留对 custom engine 独立于 site engine（`preserveCustom`）。
+- active-source 保留对 custom engine 独立于 Site Instance（`preserveSite` / `preserveCustom`）。
 - i18n：约 24 个 `opts_custom_engines_*` 键 + `group_custom`。
 
 ## Why This Matters
@@ -150,6 +150,7 @@ void sendMessage('openNewTab', handoff.url); // → worker browser.tabs.create
 ## Related
 
 - [./site-engine-third-source-and-safe-persistence.md](./site-engine-third-source-and-safe-persistence.md) — 最接近的姊妹文档；共享的安全持久化不变量在此（trusted-read 不 oversize 清空、写后重解析、schema v4）。
+- [./site-instance-construction-modes-and-zhannei-surface.md](./site-instance-construction-modes-and-zhannei-surface.md) — 前一条的后继文档：Site Engine 已更名 **Site Instance**，每实例构造模式（`site:` 前缀 / bing `q1` / baidu zhannei）、zhannei surface、存储键 siteEngines→siteInstances（schema v9→v10）。
 - [./serp-switch-bar-and-unified-source-model.md](./serp-switch-bar-and-unified-source-model.md) — 统一 Search Source 模型与 SERP 快切栏。
 - [./persistent-source-order-and-visible-projection.md](./persistent-source-order-and-visible-projection.md) — normalizeSourceOrder/normalizeSourceHidden 不变量。
 - [./source-group-layout-layer.md](./source-group-layout-layer.md) — groupConfig 布局层与内置分组。

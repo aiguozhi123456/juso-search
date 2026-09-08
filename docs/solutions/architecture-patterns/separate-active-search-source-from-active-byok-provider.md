@@ -1,7 +1,7 @@
 ---
 title: "Separate active search source from active BYOK provider"
 date: 2026-07-09
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: search-source-configuration
 problem_type: architecture_pattern
@@ -34,9 +34,11 @@ The extension has two kinds of search choices with different runtime contracts:
 
 Delete-key support exposed the architecture gap. After removing provider keys, the extension was still legitimately usable through Google or Bing, but the options page selector labeled “激活的搜索引擎” listed only configured BYOK providers. Treating engines as providers would make the selector look right while allowing engine IDs to leak into provider-only code paths such as `resolveSearchProvider()`, `getAdapter()`, key lookup, and cache refresh.
 
-The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as a `SourceId` union (initially `ProviderId | EngineId | SiteEngineId`). The composition point belongs at the UI/default-source layer, not in the worker provider path.
+The fix is to keep `activeProvider` provider-only and introduce a separate persisted `activeSource`, typed as a `SourceId` union (initially `ProviderId | EngineId | SiteInstanceId`). The composition point belongs at the UI/default-source layer, not in the worker provider path.
 
-> **Note (updated 2026-08-07):** the `SourceId` union has since grown to six members — `ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId` (`lib/sources.ts`) — as Custom Engines, Provider Instances, and AI Engines each became selectable source kinds. `selectActiveSourceId` resolves a `ProviderInstanceId` by dual-writing its base provider to `activeProvider` so worker search fallback still works. See [provider-instance-multi-config-model](./provider-instance-multi-config-model.md) for the instance dimension and [ai-engine-conversation-navigation-source-type](./ai-engine-conversation-navigation-source-type.md) for AI engines.
+> **Note (updated 2026-08-07):** the `SourceId` union has since grown to six members — `ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId` (`lib/sources.ts`) — as Custom Engines, Provider Instances, and AI Engines each became selectable source kinds. `selectActiveSourceId` resolves a `ProviderInstanceId` by dual-writing its base provider to `activeProvider` so worker search fallback still works. See [provider-instance-multi-config-model](./provider-instance-multi-config-model.md) for the instance dimension and [ai-engine-conversation-navigation-source-type](./ai-engine-conversation-navigation-source-type.md) for AI engines.
+
+> **Note (updated 2026-09-09):** the site-engine source kind was renamed to site instance — `SiteEngineId` → `SiteInstanceId`, `SourceKind` `'site-engine'` → `'site-instance'`, storage `SITE_ENGINES_KEY` → `SITE_INSTANCES_KEY` (`'siteInstances'`, schema v9→v10). Identifiers above reflect the current names. See [site-instance-construction-modes-and-zhannei-surface](./site-instance-construction-modes-and-zhannei-surface.md).
 
 ## Guidance
 
@@ -54,8 +56,8 @@ The storage layer owns the fallback rule:
 // Effective source fallback:
 // valid stored activeSource -> activeProvider with key -> first configured provider -> google
 export async function getActiveSourceId(): Promise<SourceId> {
-  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-  // ...validate stored source/provider against known IDs, provider keys, and site-engine definitions
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+  // ...validate stored source/provider against known IDs, provider keys, and site-instance definitions
 }
 ```
 

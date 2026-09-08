@@ -1,6 +1,7 @@
 ---
 title: "Accept a Contiguous Schema-Version Range on Config Import, Not a Hardcoded Version List"
 date: 2026-08-02
+last_updated: 2026-09-09
 category: conventions
 module: "config-io / schema"
 problem_type: convention
@@ -31,7 +32,9 @@ typeof schemaVersion !== 'number'
   || schemaVersion > CURRENT_SCHEMA_VERSION
 ```
 
-保持这道门控**仅仅作为入口检查**——字段处理是基于存在性（`hasOwnProperty`）的，所以接受一个更旧的版本**并不会**绕过逐字段的规范化/校验；`isLegacyV3` 特例（豁免 v3 对 `siteEngines` 的强制要求）依旧适用。
+保持这道门控**仅仅作为入口检查**——字段处理是基于存在性（`hasOwnProperty`）的，所以接受一个更旧的版本**并不会**绕过逐字段的规范化/校验；`isLegacyV3` 特例（豁免 v3 对 `siteInstances` 的强制要求）依旧适用。
+
+第二个**持久特例**（v10 起）：导入路径对旧导出字段**永久双认**——`obj.siteInstances ?? obj.siteEngines`。v9→v10 把存储键（连带导出字段）`siteEngines` 改名为 `siteInstances`，存量备份文件不做迁移，因此解析器就地接受两个名字；两字段同时出现时新字段优先。与 `isLegacyV3` 一样，这个双认**穿越未来所有版本 bump** 永久保留——schemaVersion ≤ 9 的旧备份（带 `siteEngines` 字段）永远能干净导入，校验失败码为 `invalid_site_instances`。
 
 不要为此 bump schema 版本——这纯粹是导入门控的调整，与持久化格式无关。
 
@@ -72,7 +75,7 @@ if (
 }
 ```
 
-入口检查之后，字段处理仍按存在性逐项校验（`siteEngines` / `customEngines` / `sourceOrder` / `groupConfig` 等），`isLegacyV3` 继续豁免 v3 对 `siteEngines` 的要求——接受更旧版本不等于放松校验。
+入口检查之后，字段处理仍按存在性逐项校验（`siteInstances` / `customEngines` / `sourceOrder` / `groupConfig` 等），`isLegacyV3` 继续豁免 v3 对 `siteInstances` 的要求——接受更旧版本不等于放松校验。旧备份（schemaVersion ≤ 9）的 `siteEngines` 字段经 `obj.siteInstances ?? obj.siteEngines` 双认读取，同样走完整校验。
 
 ## Related
 

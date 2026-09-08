@@ -1,7 +1,7 @@
 ---
 title: "Engine capability is layered per registry, but the shared EngineId union hides the layers"
 date: 2026-07-23
-last_updated: 2026-08-15
+last_updated: 2026-09-09
 category: architecture-patterns
 module: engines
 problem_type: architecture_pattern
@@ -64,6 +64,8 @@ const engines: Record<EngineId, SearchEngine> = {
 
 Every engine in this registry supports: `buildSerpUrl`, `buildHomeUrl`, `matches`, `extractQuery`, SERP bar mounting via `anchors`. This is the human-facing navigation layer.
 
+**One deliberate exception (a mount-surface shim, not a counterexample):** the synthetic zhannei surface engine (`lib/engines/baidu-zhannei.ts`, id `'baidu'`) mounts the SERP bar on `zhannei.baidu.com/cse/site` result pages but is absent from the registry and from `allEngines()`; `matchEngineByUrl` checks it only after the main registry. It is non-navigable — `buildSerpUrl`/`buildHomeUrl` throw. This is not a capability claim and not an engine-registration counterexample to Layer 1's "every registered engine navigates" rule; it is a mount-surface shim that never enters the engine lists. See [Site instance construction modes and the zhannei surface](./site-instance-construction-modes-and-zhannei-surface.md).
+
 ### Layer 2 — Agent extraction (per-engine extractor registry)
 
 Source of truth: `lib/engines/extractors/registry.ts`
@@ -122,7 +124,7 @@ const DEFAULT_HIDDEN_ENGINE_IDS_V4: readonly string[] = ['yandex', 'duckduckgo']
 const DEFAULT_HIDDEN_ENGINE_IDS_V5: readonly string[] = ['weixin'];
 ```
 
-Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 9`（v8→v9 迁移把 weixin 默认隐藏进 `sourceHidden`，见 `DEFAULT_HIDDEN_ENGINE_IDS_V5`）；本层只覆盖传统引擎，v6→v7 迁移把 AI 对话引擎（DeepSeek/ChatGPT/Gemini/豆包/Grok）默认隐藏进 `sourceHidden`（见 `DEFAULT_HIDDEN_AI_ENGINE_IDS`，AI 引擎有独立的注册表与能力分层，不在 `EngineId` union 内）。
+Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在 UI 快切栏中（通过 schema 迁移 v1→v2 / v2→v3 / v5→v6 合并到 `sourceHidden`）。用户可在设置中取消隐藏。当前 `CURRENT_SCHEMA_VERSION = 10`（v8→v9 迁移把 weixin 默认隐藏进 `sourceHidden`，见 `DEFAULT_HIDDEN_ENGINE_IDS_V5`；v9→v10 把存储键 `siteEngines` 改名为 `siteInstances`）；本层只覆盖传统引擎，v6→v7 迁移把 AI 对话引擎（DeepSeek/ChatGPT/Gemini/豆包/Grok）默认隐藏进 `sourceHidden`（见 `DEFAULT_HIDDEN_AI_ENGINE_IDS`，AI 引擎有独立的注册表与能力分层，不在 `EngineId` union 内）。
 
 ### The rule
 

@@ -1,7 +1,7 @@
 ---
 title: "Source switching should serialize active-source writes and search the current input"
 date: 2026-07-07
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: ui-bugs
 module: "search provider switching UI"
 problem_type: ui_bug
@@ -43,7 +43,7 @@ The first implementation fixed the single-click behavior by auto-searching after
 
 Make the search box controlled by the search page, route active-source writes through the background worker, and serialize source switching while search or switch work is pending.
 
-> Simplified illustration — current impl handles all source kinds (`provider` / `provider-instance` / `site-engine` / `custom-engine` / `engine` / `ai-engine`) via `lib/serp-handoff.ts` resolvers (`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`); instance chips route through the same serialized switch + `handleSearch({ providerId: instanceId })` path as bare provider chips; see `entrypoints/search/App.tsx` for the full per-kind source-selection logic. The `handleSearch` signature is now `handleSearch(rawQuery, opts: { ... selectedSource? ... })`.
+> Simplified illustration — current impl handles all source kinds (`provider` / `provider-instance` / `site-instance` / `custom-engine` / `engine` / `ai-engine`) via `lib/serp-handoff.ts` resolvers (`resolveCurrentSiteInstanceHandoff` / `resolveCurrentCustomEngineHandoff`); instance chips route through the same serialized switch + `handleSearch({ providerId: instanceId })` path as bare provider chips; see `entrypoints/search/App.tsx` for the full per-kind source-selection logic. The `handleSearch` signature is now `handleSearch(rawQuery, opts: { ... selectedSource? ... })`.
 
 ```tsx
 // entrypoints/search/App.tsx
@@ -77,11 +77,11 @@ async function handleSelectSource(source: SearchSource) {
   const switchReqId = ++switchReqIdRef.current;
   setSwitching(true);
   try {
-    await sendMessage('setActiveSource', source.id); // 统一来源模型：provider/engine/site-engine 均经此消息
+    await sendMessage('setActiveSource', source.id); // 统一来源模型：provider/engine/site-instance 均经此消息
     if (switchReqId !== switchReqIdRef.current) return;
     setActive(source.id);
-    if (source.kind === 'site-engine' || source.kind === 'engine') {
-      // 引擎/站外搜索：当前页导航（URL 经 resolveSerpHandoff 解析，含 site-engine 作用域改写）
+    if (source.kind === 'site-instance' || source.kind === 'engine') {
+      // 引擎/站外搜索：当前页导航（URL 经 resolveSerpHandoff 解析，含 site-instance 作用域改写）
       const handoff = resolveSerpHandoff(source, query.trim());
       if (handoff?.kind === 'navigate') location.assign(handoff.url);
       return;
@@ -126,7 +126,7 @@ function handleInterrupt() {
 }
 ```
 
-Active-source writes go through the background worker so page code does not directly own source storage mutations. Selection speaks **source ids** via `setActiveSource`（provider/engine/site-engine 统一）；`setActiveProvider` 仍在协议与 worker 中（`gateway.ts` 的 `handleSetActiveProvider` 路由到 `setActiveProviderAndSourceId`），但**已无任何 UI 调用方——仅作为 legacy/compat 消息保留**（协议与测试仍引用）。activeSource 与 activeProvider 的模型拆分见 `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`：
+Active-source writes go through the background worker so page code does not directly own source storage mutations. Selection speaks **source ids** via `setActiveSource`（provider/engine/site-instance 统一）；`setActiveProvider` 仍在协议与 worker 中（`gateway.ts` 的 `handleSetActiveProvider` 路由到 `setActiveProviderAndSourceId`），但**已无任何 UI 调用方——仅作为 legacy/compat 消息保留**（协议与测试仍引用）。activeSource 与 activeProvider 的模型拆分见 `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`：
 
 ```ts
 // lib/messaging.ts

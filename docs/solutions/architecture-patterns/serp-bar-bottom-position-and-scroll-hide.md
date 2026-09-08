@@ -1,7 +1,7 @@
 ---
 title: "SERP Switch Bar bottom-position model: fixed overlay, groups coexistence, and CSS/interaction traps"
 date: 2026-07-29
-last_updated: 2026-08-01
+last_updated: 2026-09-09
 category: docs/solutions/architecture-patterns/
 module: SERP Switch Bar
 problem_type: architecture_pattern
@@ -606,20 +606,20 @@ The generalizable lesson: **a `position:fixed` overlay's containing block is det
 But when the `'top'` value was **redefined** in v8 (fixed overlay top, replacing the old inline behavior), legacy stored `'top'` data *did* need transforming — old `'top'` users must keep their inline experience, so their stored value is rewritten to `'inline'`. That value redefinition is exactly the "legacy data must transform" case, so `CURRENT_SCHEMA_VERSION` was bumped 7→8 and a value-rewrite migration entry was added:
 
 ```typescript
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
 // serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource'] as const;
 
 // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
 // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ```
 
-> 2026-08-15 refresh: 版本现戳为 9（v8→v9 为 weixin 默认隐藏）；此后的 `aiAutoEnter` / `flatLayoutFewSources` / `selectionSearchEnabled` / `selectionSearchSource` 均由 getter 兜底加入白名单、未 bump——正是本节规则的后续印证。
+> 2026-09-09 refresh: 版本现戳为 10（v9→v10 为 siteEngines→siteInstances 键改名）；此后的 `aiAutoEnter` / `flatLayoutFewSources` / `selectionSearchEnabled` / `selectionSearchSource` 均由 getter 兜底加入白名单、未 bump——正是本节规则的后续印证。
 
 The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` (and later `aiAutoEnter` / `flatLayoutFewSources`) joined the whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
 

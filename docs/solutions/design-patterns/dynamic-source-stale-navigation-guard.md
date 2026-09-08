@@ -1,6 +1,7 @@
 ---
 title: "Re-Resolve Dynamic (User-Defined) Sources From Fresh Config Before Navigating"
 date: 2026-08-02
+last_updated: 2026-09-09
 category: design-patterns
 module: "serp / sources / search"
 problem_type: design_pattern
@@ -11,7 +12,7 @@ applies_when:
   - "A render-time source snapshot may be stale by the time the user triggers navigation"
   - "A navigation resolver returns the same null for an empty query and for a deleted definition"
 related_components: [lib/serp-handoff.ts, entrypoints/search/App.tsx, entrypoints/serp-bar.content.ts]
-tags: [dynamic-source, stale-navigation, post-write-re-resolve, race-guard, serp, custom-engine, site-engine]
+tags: [dynamic-source, stale-navigation, post-write-re-resolve, race-guard, serp, custom-engine, site-instance]
 ---
 
 # Re-Resolve Dynamic (User-Defined) Sources From Fresh Config Before Navigating
@@ -22,7 +23,7 @@ tags: [dynamic-source, stale-navigation, post-write-re-resolve, race-guard, serp
 
 ## Guidance
 
-导航到一个动态源之前，做一次全新的 `getProviderConfig` 读取，并用 `resolveCurrent<Type>Handoff(id, query, freshDefinitions)` 重新解析（`resolveCurrentSiteEngineHandoff` / `resolveCurrentCustomEngineHandoff`，`lib/serp-handoff.ts:149`、`lib/serp-handoff.ts:166`）：
+导航到一个动态源之前，做一次全新的 `getProviderConfig` 读取，并用 `resolveCurrent<Type>Handoff(id, query, freshDefinitions)` 重新解析（`resolveCurrentSiteInstanceHandoff` / `resolveCurrentCustomEngineHandoff`，`lib/serp-handoff.ts:150`、`lib/serp-handoff.ts:167`）：
 
 - **未解析（定义已消失）** → 丢弃过期 chip（应用 config 快照），**不**导航，也**不**替用户持久化新的 active source。
 - **已解析** → 用 fresh / post-write 的 URL 导航。
@@ -79,7 +80,7 @@ if (!handoff || handoff.kind !== 'navigate') {
 void sendMessage('openNewTab', handoff.url); // SERP 栏 custom engine：新标签页
 ```
 
-`resolveCurrentCustomEngineHandoff` 的签名（`lib/serp-handoff.ts:166`）：
+`resolveCurrentCustomEngineHandoff` 的签名（`lib/serp-handoff.ts:167`）：
 
 ```ts
 export function resolveCurrentCustomEngineHandoff(
@@ -91,7 +92,7 @@ export function resolveCurrentCustomEngineHandoff(
 
 ## Related
 
-- `../architecture-patterns/site-engine-third-source-and-safe-persistence.md` — 其「Post-write navigation」一节是本模式的首个实例。
+- `../architecture-patterns/site-engine-third-source-and-safe-persistence.md` — 其「Post-write navigation」一节是本模式的首个实例（vocabulary now Site Instance; see site-instance-construction-modes-and-zhannei-surface）。
 - `../architecture-patterns/custom-engine-arbitrary-url-source-type.md` — Custom Engine 源类型。
 - `../runtime-errors/serp-to-extension-page-blocked-by-client.md` — worker 导航 / `openSearchPage` 路径。
 - `../ui-bugs/provider-switch-current-query-and-async-state.md` — 序列化 switch 写入的先例。

@@ -1,7 +1,7 @@
 ---
 title: "Persist Complete Source Order and Project Only Visible Sources"
 date: 2026-07-14
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: search-source-ordering
 problem_type: architecture_pattern
@@ -98,11 +98,11 @@ normalizeSourceOrder(['bing', 'ghost', 'tavily', 'bing']);
 
 页面不直接读写 `sourceOrder`。它作为 `ProviderConfigReply` 脱敏配置快照的一部分返回，`setSourceOrder` 消息由 background 路由到 gateway，再由 storage helper 规范化并持久化。这延续了 BYOK worker-only 边界，不会让页面接触 `providerKeys` 或已存明文 key；主题、语言等非敏感 UI 偏好仍可通过各自 helper 精确读写。
 
-`getSourceOrder` 精确读取自身键与 site-engine / custom-engine / provider-instance 定义（规范化补尾需要完整定义集）：
+`getSourceOrder` 精确读取自身键与 site-instance / custom-engine / provider-instance 定义（规范化补尾需要完整定义集）：
 
 ```ts
-const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
+const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
 ```
 
 不要用 `get(null)` 读取一个偏好；那会把敏感 key 和缓存池等无关数据读入同一个 record。`sourceOrder` 同时属于 config storage domain 白名单。
@@ -120,7 +120,7 @@ return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinition
 
 因此只有“仍是最新请求，且请求期间顺序 revision 未变化”的响应才能更新 `sourceOrder`。响应中的 active source 和 configured providers 仍可同步，陈旧顺序快照则被丢弃。
 
-worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteEngines、customEngines、providerInstances、activeSource 和 groupConfig）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
+worker 写入侧则让配置导入 `mergeImport` 与直接移动 `setSourceOrder` 共用 `withSourceMutation` 队列（统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteInstances、customEngines、providerInstances、activeSource 和 groupConfig）。队列按调用顺序执行，且前一个 mutation 失败后仍继续服务后续 mutation。只给直接移动加队列、让导入绕过队列，仍会发生丢失更新。
 
 ### 区分字段缺失与字段值
 

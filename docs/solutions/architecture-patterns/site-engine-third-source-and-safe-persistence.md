@@ -1,7 +1,7 @@
 ---
 title: "Site Engine as third Search Source with safe persistence invariants"
 date: 2026-07-26
-last_updated: 2026-08-14
+last_updated: 2026-09-09
 category: architecture-patterns
 module: "site-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -25,6 +25,8 @@ tags:
 ---
 
 # Site Engine as third Search Source with safe persistence invariants
+
+> **2026-09-09 update**: Vocabulary superseded — Site Engine was renamed **Site Instance** (`lib/site-instances.ts`, `components/SiteInstanceManager.tsx`; the `site:<uuid>` id prefix is unchanged). Site Instances now support per-instance construction modes (`site:` prefix, bing `q1`, baidu zhannei) plus a synthetic zhannei surface engine — search is no longer "always `site:` scoping". See [Site Instances: per-instance construction modes, migration-free options bag, and zhannei SERP surface](./site-instance-construction-modes-and-zhannei-surface.md) for construction modes, the zhannei surface, and current recognition rules. This record's persistence invariants (trusted-read normalize, byte budget, post-write re-resolve) are inherited unchanged. The storage key value has since been migrated to `siteInstances` (schema v9→v10; import permanently dual-accepts the legacy `siteEngines` field), so in-body statements naming `siteEngines` / schema v4 and "always `site:`" scoping describe the state at the time of writing.
 
 ## Context
 

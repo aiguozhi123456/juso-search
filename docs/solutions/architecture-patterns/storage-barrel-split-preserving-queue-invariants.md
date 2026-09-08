@@ -1,6 +1,7 @@
 ---
 title: "Splitting lib/storage into a domain directory while preserving queue identity and lock order"
 date: 2026-08-14
+last_updated: 2026-09-09
 category: architecture-patterns
 module: lib/storage
 problem_type: architecture_pattern
@@ -28,7 +29,7 @@ tags: [module-split, barrel-exports, esm-single-instance, mutation-queues, lock-
 
 `lib/storage.ts` 是这个 WXT + React + TypeScript Chrome MV3 扩展里最大的单文件：898 行、92 个导出（88 个运行时值 + 4 个纯类型）。它长期承载两类本质不同的东西：
 
-- **6 个存储域的领域逻辑**：provider keys（BYOK 密钥）、prefs（theme/locale/style/barPosition 等 20 个只读偏好）、source graph（`sourceOrder` / `sourceHidden` / `groupConfig` / `activeSource`）、site-engines、custom-engines、provider-instances，外加 search-cache 的包装函数；
+- **6 个存储域的领域逻辑**：provider keys（BYOK 密钥）、prefs（theme/locale/style/barPosition 等 20 个只读偏好）、source graph（`sourceOrder` / `sourceHidden` / `groupConfig` / `activeSource`）、site-instances、custom-engines、provider-instances，外加 search-cache 的包装函数；
 - **5 个模块级并发原语**：providerKeys / source graph / providerMaxResults / providerInstances / searchCache 各自的 promise 链读改写串行队列（`withSourceMutation`、`withProviderKeysMutation` 等），以及一条跨队列的文档化锁序——同时触碰 source graph 与 keys/instances 的操作必须先取 source 队列再取内层队列。
 
 摩擦是具体的：任何一个域的小改动都要在一个近千行文件里定位；5 条队列散落在文件各处，锁序约束靠注释和约定维系，改错一处就是静默 lost update；92 个导出的公共面没有任何锁，`export` 关键字一加就永久公共。
@@ -61,7 +62,7 @@ lib/storage/
 ├── provider-keys-store.ts   # providerKeys 域 + providerKeysMutationQueue
 ├── max-results-store.ts     # providerMaxResults 域 + 队列（内部函数 readMaxResultsMapFrom 不进 barrel）
 ├── source-graph-store.ts    # sourceOrder/hidden/group/active + sourceMutationQueue
-├── site-engine-store.ts     # siteEngines 域 CRUD
+├── site-instance-store.ts   # siteInstances 域 CRUD
 ├── custom-engine-store.ts   # customEngines 域 CRUD
 ├── provider-instance-store.ts # providerInstances 域 CRUD + providerInstancesMutationQueue
 ├── search-cache-store.ts    # searchCache 包装 + 缓存队列
@@ -96,7 +97,7 @@ export {
 } from './max-results-store';
 export * from './source-graph-store';
 export * from './prefs-store';
-export * from './site-engine-store';
+export * from './site-instance-store';
 export * from './custom-engine-store';
 export * from './provider-instance-store';
 export * from './search-cache-store';
@@ -276,7 +277,7 @@ rules: {
 },
 ```
 
-注意 pattern 的收敛性已验证零误报：`lib/storage/` 内部的 `./keys`、`./source-graph-store` 不匹配 `./storage/*`（它们不叫 `storage/...`），目录外对 `../site-engines` 这类相邻模块的导入同样不匹配——规则只打击真正绕 barrel 的路径形态，`npm run lint` 保持全绿。
+注意 pattern 的收敛性已验证零误报：`lib/storage/` 内部的 `./keys`、`./source-graph-store` 不匹配 `./storage/*`（它们不叫 `storage/...`），目录外对 `../site-instances` 这类相邻模块的导入同样不匹配——规则只打击真正绕 barrel 的路径形态，`npm run lint` 保持全绿。
 
 ## Prevention
 

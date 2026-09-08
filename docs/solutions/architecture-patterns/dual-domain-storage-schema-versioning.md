@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -49,12 +49,12 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on nineteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteEngines`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`, `selectionSearchEnabled`, `selectionSearchSource`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on nineteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteInstances`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`, `selectionSearchEnabled`, `selectionSearchSource`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
 - **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 export const migrations: Migration[] = [
   // each entry: { version: N, migrate: (config) => config }
@@ -93,7 +93,10 @@ export async function ensureSchema(): Promise<void> {
   // Layer 2: first install — no version yet, just stamp.
   // Layer 3: upgrade — read, migrate, write, stamp.
   if (stored > CURRENT_SCHEMA_VERSION) return; // downgrade tolerance
-  const configGot = await browser.storage.local.get([...CONFIG_KEYS]);
+  const configGot = await browser.storage.local.get([
+    ...CONFIG_KEYS,
+    ...migrations.flatMap((m) => m.readKeys ?? []), // legacy keys declared by rename migrations
+  ]);
   const migrated = migrateConfig(configGot, stored, CURRENT_SCHEMA_VERSION);
   const { set, remove } = diffKeys(before, after); // symmetric diff
   if (remove.length > 0) await browser.storage.local.remove(remove);
@@ -157,7 +160,25 @@ A version bump does not always mean a data transformation. When a new config key
 
 Not every bump is a no-op: the v5→v6 migration writes real data — yandex and duckduckgo register in the engine registry but are merged into `sourceHidden` by default so the quick-switch bar does not grow out of the box (`mergeHiddenFactory(config, ['yandex', 'duckduckgo'])`). The getter-fallback shortcut applies only when the getter can synthesize the default; a default that must *hide* newly registered engines from the switcher needs a migration to materialize it, because a read-side merge into an explicit user preference list would not be idempotent.
 
-Reserve this pattern for the case where the migration would otherwise be writing a default the getter already produces. If the new key needs a *materialized* value (e.g. the v3→v4 entry that backfills an explicit empty `siteEngines` array so old installs opt into persisted Site Engines), write it in the migration as before. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the full lazy-default + no-migration decision.
+Reserve this pattern for the case where the migration would otherwise be writing a default the getter already produces. If the new key needs a *materialized* value (e.g. the v3→v4 entry that backfills an explicit empty `siteEngines` array — the key name of that era, later renamed to `siteInstances` at v9→v10 — so old installs opt into persisted Site Engines), write it in the migration as before. See [Source Groups: A Layout Layer Over the Source Projection](./source-group-layout-layer.md) for the full lazy-default + no-migration decision.
+
+### Key-rename migrations must declare their legacy key via `readKeys`
+
+`CONFIG_KEYS` is a whitelist of the *current* config keys — `ensureSchema` reads exactly `[...CONFIG_KEYS, ...]` during an upgrade. That creates a trap for **stored-key renames** (key name changes, values carried over): once the whitelist contains only the new name, the old key is no longer read, so a rename migration would see nothing to migrate and **silently wipe the collection** (the old key's data would then be dropped by `diffKeys` as an orphan).
+
+The `Migration` type therefore has an optional `readKeys` field (`lib/schema.ts:31`): a rename migration declares its legacy key, and `ensureSchema` unions all declared legacy keys into its upgrade-time read — `browser.storage.local.get([...CONFIG_KEYS, ...migrations.flatMap((m) => m.readKeys ?? [])])` (`lib/schema.ts:127`). Only the upgrade window pays the extra read; the steady-state layer still reads just the version stamp.
+
+```ts
+// lib/schema.ts — v9→v10: storage key renamed 'siteEngines' → 'siteInstances', values carried over.
+// The whitelist now holds 'siteInstances' only, so the migration must declare the legacy key itself.
+{ version: 9, readKeys: ['siteEngines'], migrate: (config) => {
+    const { siteEngines, ...rest } = config;
+    const legacy = Array.isArray(siteEngines) ? siteEngines : undefined;
+    return { ...rest, siteInstances: legacy ?? (Array.isArray(rest.siteInstances) ? rest.siteInstances : []) };
+} },
+```
+
+After the migration runs, `diffKeys` sees the old key present in the read snapshot but absent from the migrated result and emits it in `remove` — the legacy key is deleted as part of the same committed migration. (Historical migrations keep their era's key name: the v3→v4 entry still writes `siteEngines`, which was correct for that version and must not be "modernized".)
 
 ### Gate every storage-touching handler behind a lazy memoized readiness check
 
@@ -198,7 +219,7 @@ Merge semantics are deliberately conservative on both axes:
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
 - **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`, `sourceOrder`). Older export files without `sourceOrder` preserve the current quick-switch order.
 
-For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances, groupConfig, activeSource), so an older import cannot overwrite a later quick-switch move.
+For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, groupConfig, activeSource), so an older import cannot overwrite a later quick-switch move.
 
 ### Never use `get(null)` when you know the keys you need
 
@@ -280,7 +301,7 @@ export async function getActiveProviderId() {
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 export async function ensureSchema(): Promise<void> {
   const v = await readSchemaVersion();                     // missing stamp reads as 0

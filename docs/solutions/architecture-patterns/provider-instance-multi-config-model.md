@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -42,7 +42,7 @@ The "provider instances" feature closes that gap: a `ProviderInstance` is a user
 
 ### Model the instance as a config entity that projects into `SearchSource`, not as a reuse of `SearchSource`
 
-`SearchSource` is a view-layer projection: it is what the quick-switch bar renders. A `ProviderInstance` is a config entity: it is what the user edits in settings and what the worker reads to inject options. The two are related by projection, not by identity. This mirrors the existing `SiteEngineDefinition` / `CustomEngineDefinition` → `SearchSource` relationship, and it is the decision that keeps the feature composable with the four orthogonal source axes (`sourceOrder`, `sourceHidden`, `groupConfig`, `activeSource`).
+`SearchSource` is a view-layer projection: it is what the quick-switch bar renders. A `ProviderInstance` is a config entity: it is what the user edits in settings and what the worker reads to inject options. The two are related by projection, not by identity. This mirrors the existing `SiteInstanceDefinition` / `CustomEngineDefinition` → `SearchSource` relationship, and it is the decision that keeps the feature composable with the four orthogonal source axes (`sourceOrder`, `sourceHidden`, `groupConfig`, `activeSource`).
 
 ```ts
 // lib/provider-instances.ts:4
@@ -57,7 +57,7 @@ export interface ProviderInstance {
 }
 ```
 
-The id format is load-bearing. The `inst:` prefix makes an instance id structurally distinguishable from a bare `ProviderId` at every call site via a single `isProviderInstanceId` guard (mirroring `isSiteEngineId` / `isCustomEngineId`). The base provider is embedded in the id (`inst:exa:<uuid>`) so the guard can validate that the id and the `baseProviderId` field agree — a defense against corrupted or hand-edited storage:
+The id format is load-bearing. The `inst:` prefix makes an instance id structurally distinguishable from a bare `ProviderId` at every call site via a single `isProviderInstanceId` guard (mirroring `isSiteInstanceId` / `isCustomEngineId`). The base provider is embedded in the id (`inst:exa:<uuid>`) so the guard can validate that the id and the `baseProviderId` field agree — a defense against corrupted or hand-edited storage:
 
 ```ts
 // lib/provider-instances.ts:46-52
@@ -70,7 +70,7 @@ export function isProviderInstanceId(id: string): id is ProviderInstanceId {
 }
 ```
 
-The normalizer goes further and rejects records where the embedded base provider disagrees with the declared one (`lib/provider-instances.ts:62`), where `options` is not a plain object (`:64`), or where the name is empty or over length (`:66`). Trusted storage reads use `normalizeProviderInstances` (first-seen-wins dedup, cap at 50); untrusted import payloads additionally pass `isBoundedProviderInstanceCollection` (byte budget) before normalization. This split mirrors `site-engines.ts` exactly and is the reason the two modules read like twins.
+The normalizer goes further and rejects records where the embedded base provider disagrees with the declared one (`lib/provider-instances.ts:62`), where `options` is not a plain object (`:64`), or where the name is empty or over length (`:66`). Trusted storage reads use `normalizeProviderInstances` (first-seen-wins dedup, cap at 50); untrusted import payloads additionally pass `isBoundedProviderInstanceCollection` (byte budget) before normalization. This split mirrors `site-instances.ts` exactly and is the reason the two modules read like twins.
 
 ### Keep `ProviderId` closed; let instance ids enter `SourceId` but never `ProviderId`
 
@@ -87,8 +87,8 @@ It is the BYOK boundary type. Every worker-side function that touches a key or a
 
 ```ts
 // lib/sources.ts:20-21
-export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance' | 'ai-engine';
-export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId;
+export type SourceKind = 'provider' | 'engine' | 'site-instance' | 'custom-engine' | 'provider-instance' | 'ai-engine';
+export type SourceId = ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId;
 ```
 
 The rule, enforced by audit and by the `isProviderInstanceId` parallel guard, is: **instance ids flow freely through `SourceId`-typed holes (UI state, `sourceOrder`, `sourceHidden`, `groupConfig`, `activeSource`, agent `search-instance`), but the moment code needs a key or an adapter, it must pass through the gateway boundary that resolves `ProviderInstanceId → { providerId, options }`.** After that boundary, only `ProviderId` flows.
@@ -342,15 +342,15 @@ const PROVIDER_IDS: ReadonlySet<ProviderId> = new Set(allProviders().map((p) => 
 
 `PROVIDER_IDS` backs the local `isProviderId` guard, which in turn backs `isProviderInstanceId`. If it drifts (missing a newly-added provider), `isProviderInstanceId('inst:<newprovider>:<uuid>')` returns `false` and `normalizeProviderInstance` silently drops the instance record — corrupting storage normalization across `sourceOrder`, `sourceHidden`, `groupConfig`, config import, and agent-bridge request handling. Deriving it from the registry eliminates the copy that can drift; see `derive-provider-id-set-from-registry.md` for the full pattern. The distinction: `PROVIDER_IDS` must *equal* the union (derive); `PROVIDERS_WITH_INSTANCE_OPTIONS` *selects from* the union (hand-maintain with a documented contract).
 
-### Mirror site-engine / custom-engine patterns for storage, projection, and config IO
+### Mirror site-instance / custom-engine patterns for storage, projection, and config IO
 
-The instance feature is the fourth instance of a recurring pattern in this codebase (after providers, site-engines, custom-engines). Every layer that already handled site-engines was extended with a parallel instance branch:
+The instance feature is the fourth instance of a recurring pattern in this codebase (after providers, site-instances, custom-engines). Every layer that already handled site-instances was extended with a parallel instance branch:
 
 - **Storage CRUD** (`lib/storage/provider-instance-store.ts`): `getProviderInstances` / `setProviderInstances` / `createProviderInstance` / `updateProviderInstance` / `deleteProviderInstance`, plus a fourth serialization queue `withProviderInstancesMutation`. Every instance CRUD that reads or rewrites the instance collection (`createProviderInstance` / `updateProviderInstance` / `ensureDefaultInstance` / `deleteProviderInstance`) acquires the source queue before the instance queue (the same order `clearKey` uses) so it serializes against `mergeImport`, which holds the source queue while whole-array-overwriting the instance collection — the instance queue alone would still permit a lost-update against that whole-array write.
 - **`selectActiveSourceId` dual-write** (`lib/storage/source-graph-store.ts`): selecting an instance id writes both `activeSource = instanceId` and `activeProvider = instance.baseProviderId`, so provider-only fallback paths (`getActiveProviderId`) still resolve. This mirrors the existing `isKnownProvider` branch.
 - **`allSources` projection** (`lib/sources.ts:157-256`): a provider with instances projects one pill per instance (sharing the base adapter's `favicon` / `supportsAnswer`, using the instance name as a literal label) and **does not** project a bare provider pill. A provider with zero instances projects the bare pill as before. Same-provider instances are kept adjacent in the flyout by a sort heuristic over `sourceOrder`.
 - **`normalizeSourceOrder` / `normalizeSourceHidden` / `allKnownSourceIds`** (`lib/sources.ts:56-135`): each gained a `providerInstances` parameter. Instance ids are kept iff they appear in the provided definitions; unknown ids are stripped.
-- **Config IO** (`lib/config-io.ts`): `ConfigExport.providerInstances?` is a pref with whole-array overwrite semantics, identical to `siteEngines` and `customEngines`. Import validation rejects bad ids, unknown base providers, non-plain-object options, and oversized collections.
+- **Config IO** (`lib/config-io.ts`): `ConfigExport.providerInstances?` is a pref with whole-array overwrite semantics, identical to `siteInstances` and `customEngines` (the site field was renamed `siteEngines` → `siteInstances` in schema v10; `parseImportPayload` permanently dual-accepts the legacy `siteEngines` key). Import validation rejects bad ids, unknown base providers, non-plain-object options, and oversized collections.
 
 The lesson here is meta: when a codebase has a recurring entity pattern, the fastest and safest way to add a new entity type is to mechanically mirror every existing branch, not to invent a new abstraction. The abstraction (a generic "source definition" interface) was explicitly deferred to Phase 2 in the plan; Phase 1 ships the fourth copy because four copies are cheaper to validate than a premature abstraction that gets two of the four wrong.
 
@@ -406,7 +406,7 @@ Apply this pattern when:
 - **You are extending a versioned wire protocol** and the new capability is not a generalization of an existing action. Add new actions; do not widen existing action parameters. Negotiate by version per-request.
 - **You are keying a cache by a new dimension** that coexists with the old keying. Fold the new dimension into the key and bump the schema; accept the one-time invalidation. Choose the key so that semantically-identical work (v1 default-route and v2 explicit-default-instance) hits the same entry.
 - **You are adding a per-entity config bag** that will grow to more entity types. Use a generic channel (`Record<string, unknown>`) with adapter-owned schemas, not a typed field per entity type. Gate which entities expose config via an explicit set, and document the three-step extension contract.
-- **A codebase already has a recurring entity pattern** (site-engines, custom-engines, …). Mechanically mirror every existing branch for the new entity type; defer the abstraction until the pattern's variations are understood.
+- **A codebase already has a recurring entity pattern** (site-instances, custom-engines, …). Mechanically mirror every existing branch for the new entity type; defer the abstraction until the pattern's variations are understood.
 
 Do not apply the "generic channel" pattern when the config field is universal across all adapters (like `maxResults`) — that deserves a first-class `SearchOptions` field. The generic channel is for fields that are **per-adapter-schema**, where each adapter decides what its options mean.
 
@@ -549,7 +549,7 @@ buildRequest(query, opts, apiKey) {
 - **`docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`** — the `SourceId` vs `ProviderId` boundary this feature extends. Instances add a second inhabited `SourceId` variant (after engines) that must obey the same "never enter `ProviderId`" rule.
 - **`docs/solutions/architecture-patterns/derive-provider-id-set-from-registry.md`** — the `PROVIDER_IDS` derivation pattern. `provider-instances.ts` derives its `PROVIDER_IDS` set from `allProviders()` rather than hand-maintaining a copy of the `ProviderId` union; this doc records why and distinguishes it from `PROVIDERS_WITH_INSTANCE_OPTIONS` (which is deliberately hand-maintained).
 - **`docs/solutions/architecture-patterns/per-provider-config-worker-injection.md`** — the worker-injection pattern (`maxResults` precedent) that `providerSettings` follows. The cache-invalidation pitfall recorded there is the direct ancestor of the cache-key seam bug recorded here; the `clearSearchCache()` on `handleUpdateProviderInstance` / `handleDeleteProviderInstance` (`lib/gateway.ts:245`, `:255`) follows the same "clear on write when the key doesn't include the setting" rule.
-- **`lib/site-engines.ts` / `lib/custom-engines.ts`** — the entity pattern that `provider-instances.ts` mirrors (type + id guard + normalizer + byte-budget + bounded-collection guard). The storage CRUD and config-IO branches are the fourth copy of this pattern.
+- **`lib/site-instances.ts` / `lib/custom-engines.ts`** — the entity pattern that `provider-instances.ts` mirrors (type + id guard + normalizer + byte-budget + bounded-collection guard). The storage CRUD and config-IO branches are the fourth copy of this pattern.
 - **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — the cache-domain schema migration chain that the v1→v2 migration exercises for the first time. The `recoverCacheSchemaByClear` fallback is what makes "drop all entries" a safe migration.
 - **`docs/solutions/logic-errors/source-graph-new-type-threading-data-loss.md`** — the threading-data-loss bug class that the `storage.ts` instance-id stripping bug (cautionary lesson 2) is a direct instance of. The "enumerate every normalizer caller" prevention checklist applies to any new `SourceId` variant.
 - **Refresh candidates surfaced by this learning:**

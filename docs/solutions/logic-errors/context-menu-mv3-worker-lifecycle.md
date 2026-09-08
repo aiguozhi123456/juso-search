@@ -1,7 +1,7 @@
 ---
 title: "Right-click context menu search and MV3 worker lifecycle defects"
 date: 2026-08-12
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: logic-errors
 module: "lib/context-menu / entrypoints/background / lib/storage / lib/sources / lib/source-groups / lib/serp-handoff / lib/i18n / wxt.config"
 problem_type: logic_error
@@ -84,7 +84,7 @@ tags: [context-menu, chrome-mv3, service-worker, worker-lifecycle, contextmenus,
        snapshot.configuredProviderIds,
        snapshot.sourceOrder,
        snapshot.sourceHidden,
-       snapshot.siteEngines,
+       snapshot.siteInstances,
        snapshot.customEngines,
        snapshot.providerInstances,
      ).find((s) => s.id === sourceId);
@@ -174,7 +174,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 });
 ```
 
-- **重建触发判定集中一处**：`contextMenuNeedsRebuild(changes)` 用 `REBUILD_KEYS` Set 判断，key 集合 = 影响菜单结构与可用源的配置键：`sourceOrder` / `sourceHidden` / `siteEngines` / `customEngines` / `providerInstances` / `groupConfig` / `providerKeys` / `localePref` / `flatLayoutFewSources`。**新增一个影响菜单的 storage 键时，必须同步加入 REBUILD_KEYS**——这是 M1（`localePref`）与 M2（`flatLayoutFewSources`）漏掉的共同根因。
+- **重建触发判定集中一处**：`contextMenuNeedsRebuild(changes)` 用 `REBUILD_KEYS` Set 判断，key 集合 = 影响菜单结构与可用源的配置键：`sourceOrder` / `sourceHidden` / `siteInstances` / `customEngines` / `providerInstances` / `groupConfig` / `providerKeys` / `localePref` / `flatLayoutFewSources`。**新增一个影响菜单的 storage 键时，必须同步加入 REBUILD_KEYS**——这是 M1（`localePref`）与 M2（`flatLayoutFewSources`）漏掉的共同根因。（不变量本身未变：v9→v10 仅把集合内的 `siteEngines` 键名换成了改名后的 `siteInstances`。）
 - storage 监听器**独立注册**（与 UI pref 广播的 onChanged 分开），职责单一。
 
 ### 4. i18n 参与菜单语言

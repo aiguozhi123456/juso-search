@@ -11,7 +11,7 @@ applies_when:
   - Designing a colorful operational UI where color should communicate stable source and action identity
   - Applying one persisted UI preference across extension pages, tabs, and a shadow-DOM content script
   - Rendering viewport atmosphere from inside a width-constrained application root
-last_updated: 2026-08-14
+last_updated: 2026-09-09
 related_components:
   - entrypoints/shared/tokens.css
   - entrypoints/shared/page-bg.css
@@ -279,12 +279,12 @@ Functional selectors express ownership directly rather than relying on a global 
 }
 ```
 
-The options page applies the same idea at section scale. Search-source settings are blue, site-engines are cyan, the quickbar is teal, API-key state is gold, locale is orange, and configuration import/export is violet (agent-bridge sections fall back to the default violet):
+The options page applies the same idea at section scale. Search-source settings are blue, site-instances are cyan, the quickbar is teal, API-key state is gold, locale is orange, and configuration import/export is violet (agent-bridge sections fall back to the default violet):
 
 ```css
 /* 未显式配色的 section（如 agent-bridge）沿用下方默认 violet。 */
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
-[data-style="colorful"] .options section[data-section="site-engines"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
+[data-style="colorful"] .options section[data-section="site-instances"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }

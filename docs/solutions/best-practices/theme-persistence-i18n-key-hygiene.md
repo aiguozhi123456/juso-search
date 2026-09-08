@@ -99,7 +99,7 @@ export type ProtocolMap = {
 };
 ```
 
-Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has grown well beyond the five fields shown (later additions include `siteEngines`, `customEngines`, `providerMaxResults`, `groupConfig`, `providerInstances`, `aiAutoEnter`, and `flatLayoutFewSources`); see `lib/messaging.ts` for the current shape.
+Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has grown well beyond the five fields shown (later additions include `siteInstances` (renamed from `siteEngines` in schema v10), `customEngines`, `providerMaxResults`, `groupConfig`, `providerInstances`, `aiAutoEnter`, and `flatLayoutFewSources`); see `lib/messaging.ts` for the current shape.
 
 Then implement the storage reads and writes only in the background gateway:
 

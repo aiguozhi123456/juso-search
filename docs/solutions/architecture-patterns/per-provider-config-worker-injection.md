@@ -1,7 +1,7 @@
 ---
 title: "Per-provider config via worker injection (BYOK pattern extended to non-secret prefs)"
 date: 2026-07-27
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: architecture-patterns
 module: lib/gateway
 problem_type: architecture_pattern
@@ -69,7 +69,7 @@ When adding `providerMaxResults`, the change to `lib/schema.ts` is just a whitel
 ```ts
 export const CONFIG_KEYS = [
   'providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref',
-  'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances',
+  'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances',
   'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', // <- additive
   'groupConfig', 'serpBarPosition',
 ] as const;

@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -130,7 +130,7 @@ Pins-once is the key invariant: once a source appears as a pinned `{kind:'source
 
 ### 5. Schema bump without migration — lazy getter defaults
 
-Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 9`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
+Adding a persisted config key normally means writing a migration. Here it did not. `lib/schema.ts` now sets `CURRENT_SCHEMA_VERSION = 10`; the v4→v5 entry below is the no-op for `groupConfig`, and a later v5→v6 migration hides the newly registered yandex/duckduckgo engines by default (merged into `sourceHidden`):
 
 ```ts
 // v4→v5: 引入来源分组布局（groupConfig）。开箱即分组：缺失键由 getter 回退默认配置，
@@ -352,7 +352,7 @@ This is the kind of detail that only matters once data has been persisted and pa
 
 ### The v4→v5 no-migration decision
 
-The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v9 — v5→v6 hides yandex/duckduckgo, v6→v7 hides AI engines, v7→v8 rewrites `serpBarPosition: 'top'`→`'inline'`, v8→v9 hides weixin — but the no-op lesson here still holds):
+The migration registry shows the contrast clearly. The earlier bumps (v1→v2, v2→v3, v3→v4) each write real data — merging default-hidden engine ids, or materializing an explicit empty `siteEngines` array for old installs. The v4→v5 entry writes nothing (the schema has since moved to v10 — v5→v6 hides yandex/duckduckgo, v6→v7 hides AI engines, v7→v8 rewrites `serpBarPosition: 'top'`→`'inline'`, v8→v9 hides weixin, v9→v10 renames `siteEngines`→`siteInstances` — but the no-op lesson here still holds):
 
 ```ts
 // v3→v4: persisted Site Engines are opt-in; old installs get an explicit empty collection.
@@ -393,6 +393,6 @@ Dragstart on a member's pin button must not produce any reorder; the quick-bar m
 - [config-preference-pipeline.md](./config-preference-pipeline.md) — the end-to-end source-bar preference pipeline; `groupConfig` is the third pref carried through it (worker message, export/import round-trip, normalization, i18n parity, multi-host consumption).
 - [dual-domain-storage-schema-versioning.md](./dual-domain-storage-schema-versioning.md) — the config-domain schema; the v4→v5 no-op migration here is a concrete application of its "getter-fallback keys don't need a migration" rule.
 - [serp-switch-bar-and-unified-source-model.md](./serp-switch-bar-and-unified-source-model.md) — the unified switcher contract; `projectLayout`'s `PinnedItem | GroupItem` is the new seam the switcher consumes instead of a flat `SearchSource[]`.
-- [separate-active-search-source-from-active-byok-provider.md](./separate-active-search-source-from-active-byok-provider.md) — the `SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId` union that `defaultGroupForSourceId` dispatches over.
+- [separate-active-search-source-from-active-byok-provider.md](./separate-active-search-source-from-active-byok-provider.md) — the `SourceId = ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId` union that `defaultGroupForSourceId` dispatches over.
 - [context-menu-mv3-worker-lifecycle.md](../logic-errors/context-menu-mv3-worker-lifecycle.md) — the right-click context-menu search tree mirrors this same layout projection (`projectLayout` / `resolveEffectiveLayout`, gated by the same `flatLayoutFewSources` preference) as a third consumer surface, so pinned/grouped choices stay consistent between the quick-switch bar and the menu.
 - [hidden-source-still-active-across-hosts.md](../ui-bugs/hidden-source-still-active-across-hosts.md) — the editor's in-group view keeps hidden sources (`groupOrderOf` retains them; `projectLayout` skips them), the layout-layer extension of cross-host hidden-source projection consistency.

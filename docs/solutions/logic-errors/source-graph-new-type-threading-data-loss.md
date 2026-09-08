@@ -1,62 +1,62 @@
 ---
 title: "Adding a New Source Type Silently Drops Its Order/Visibility Unless Threaded Through Every Source-Graph Mutation Path"
 date: 2026-08-02
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: logic-errors
 module: "sources / storage / source-groups"
 problem_type: logic_error
 component: tooling
 severity: high
 symptoms:
-  - "With one or more custom engines saved, creating/updating/deleting ANY site engine silently resets the custom engines' quick-switch order (they jump to the tail)"
-  - "Hidden custom engines become visible again after an unrelated site-engine mutation"
+  - "With one or more custom engines saved, creating/updating/deleting ANY site instance silently resets the custom engines' quick-switch order (they jump to the tail)"
+  - "Hidden custom engines become visible again after an unrelated site-instance mutation"
   - "No error is thrown; the loss is written to chrome.storage.local immediately and persists"
 root_cause: logic_error
 resolution_type: code_fix
 related_components: [lib/storage/, lib/sources.ts, lib/source-groups.ts, lib/schema.ts]
-tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-engine, site-engine, config-keys]
+tags: [source-graph, normalize, source-order, source-hidden, data-loss, custom-engine, site-instance, config-keys]
 ---
 
 # Adding a New Source Type Silently Drops Its Order/Visibility Unless Threaded Through Every Source-Graph Mutation Path
 
 ## Problem
 
-引入 Custom Engine 这一新来源类型时，`customDefinitions` 被正确地穿过了**新增的** custom-engine CRUD（`createCustomEngineDefinition` / `updateCustomEngineDefinition` / `deleteCustomEngineDefinition`）以及大多数 source-graph 函数，却漏掉了**早已存在**的 site-engine CRUD 三件套：`createSiteEngineDefinition` / `updateSiteEngineDefinition` / `deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）。
+引入 Custom Engine 这一新来源类型时，`customDefinitions` 被正确地穿过了**新增的** custom-engine CRUD（`createCustomEngineDefinition` / `updateCustomEngineDefinition` / `deleteCustomEngineDefinition`）以及大多数 source-graph 函数，却漏掉了**早已存在**的 site-instance CRUD 三件套：`createSiteInstanceDefinition` / `updateSiteInstanceDefinition` / `deleteSiteInstanceDefinition`（`lib/storage/site-instance-store.ts`）。
 
-这三个函数在写入时会调用 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`（`lib/sources.ts` 与 `lib/storage/` 各 store 模块），但当时只传入了 site 定义，`customDefinitions` 走了默认值 `[]`。而这些 normalizer 的契约是「丢弃任何它不认识的 id」——于是每一次 site-engine 变更都会把所有 `custom:*` id 从持久化的 `sourceOrder` 中剥掉（顺序丢失 → 下次读取时被 `normalizeSourceOrder` 的补尾逻辑追加到末尾），并从 `sourceHidden` 中剥掉（被隐藏的 custom engine 重新可见）。
+这三个函数在写入时会调用 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`（`lib/sources.ts` 与 `lib/storage/` 各 store 模块），但当时只传入了 site 定义，`customDefinitions` 走了默认值 `[]`。而这些 normalizer 的契约是「丢弃任何它不认识的 id」——于是每一次 site-instance 变更都会把所有 `custom:*` id 从持久化的 `sourceOrder` 中剥掉（顺序丢失 → 下次读取时被 `normalizeSourceOrder` 的补尾逻辑追加到末尾），并从 `sourceHidden` 中剥掉（被隐藏的 custom engine 重新可见）。
 
-触发条件：只要存在 ≥1 个 custom engine，**任意一次** site-engine 增删改都会触发。整个过程不抛异常、立即写入 `chrome.storage.local` 并持久化——是一次静默的数据丢失。
+触发条件：只要存在 ≥1 个 custom engine，**任意一次** site-instance 增删改都会触发。整个过程不抛异常、立即写入 `chrome.storage.local` 并持久化——是一次静默的数据丢失。
 
 ## Symptoms
 
-- 已保存一个或多个 custom engine 时，创建/更新/删除**任意**一个 site engine 后，custom engine 的快切顺序被静默重置（它们跳到栏尾）。
-- 被隐藏的 custom engine 在一次与之无关的 site-engine 变更后重新显示出来。
+- 已保存一个或多个 custom engine 时，创建/更新/删除**任意**一个 site instance 后，custom engine 的快切顺序被静默重置（它们跳到栏尾）。
+- 被隐藏的 custom engine 在一次与之无关的 site-instance 变更后重新显示出来。
 - 全程无报错；丢失结果立刻写入 `chrome.storage.local` 并持久存在。
 
 ## What Didn't Work
 
-这个 bug 之所以能存活，是测试盲区造成的：storage 层**没有任何**让 site engine 与 custom engine 共存的测试。site CRUD 的测试从未 seed 过 custom engine；custom CRUD 则只有 mock 掉 gateway 的测试和纯函数测试。新写的代码路径本身是正确的，所以「单类型」测试全部通过——只有当两种类型同时存在于 storage、且变更的是 site 一侧时，丢失才会显现，而这恰好没有被任何测试覆盖。
+这个 bug 之所以能存活，是测试盲区造成的：storage 层**没有任何**让 site instance 与 custom engine 共存的测试。site-instance CRUD 的测试从未 seed 过 custom engine；custom CRUD 则只有 mock 掉 gateway 的测试和纯函数测试。新写的代码路径本身是正确的，所以「单类型」测试全部通过——只有当两种类型同时存在于 storage、且变更的是 site 一侧时，丢失才会显现，而这恰好没有被任何测试覆盖。
 
 换言之：新增的代码路径正确 ≠ 整张 source graph 正确。漏掉的是**旧路径对新类型的感知**。
 
 ## Solution
 
-在三个 site-engine CRUD 函数里，与 `clearKey` 和 custom-engine CRUD 已有的做法对齐：
+在三个 site-instance CRUD 函数里，与 `clearKey` 和 custom-engine CRUD 已有的做法对齐：
 
 1. 在同一次 `browser.storage.local.get([...])` 调用中一并读取 `CUSTOM_ENGINES_KEY`；
 2. 用 `normalizeCustomEngineDefinitions` 规范化得到 `customDefinitions`；
 3. 把它作为第三个实参传给 `normalizeSourceOrder` / `normalizeSourceHidden` / `ensureVisibleUsable` / `visibleUsableSource`。
 
-修复后 `createSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）的读取与写入：
+修复后 `createSiteInstanceDefinition`（`lib/storage/site-instance-store.ts`）的读取与写入：
 
 ```ts
-const got = await browser.storage.local.get([SITE_ENGINES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+const got = await browser.storage.local.get([SITE_INSTANCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
 const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
 const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
 // ...
 await browser.storage.local.set({
-  [SITE_ENGINES_KEY]: next,
+  [SITE_INSTANCES_KEY]: next,
   [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], next, customDefinitions, instances),
   [SOURCE_HIDDEN_KEY]: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], next, customDefinitions, instances),
 });
@@ -64,7 +64,7 @@ await browser.storage.local.set({
 
 （后续 Provider Instance 成为新来源类型时，同一清单又被执行了一遍——第四个实参 `instances` 即那次补穿；本文的教训随 registry 演进持续适用。）
 
-`updateSiteEngineDefinition`（`lib/storage/site-engine-store.ts`）同理；`deleteSiteEngineDefinition`（`lib/storage/site-engine-store.ts`） additionally 把 `customDefinitions` 与 `instances` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site engine 后挑选 fallback 激活源时也不会误判 custom engine / provider instance 的可用性。
+`updateSiteInstanceDefinition`（`lib/storage/site-instance-store.ts`）同理；`deleteSiteInstanceDefinition`（`lib/storage/site-instance-store.ts`） additionally 把 `customDefinitions` 与 `instances` 传进 `ensureVisibleUsable` 与 `visibleUsableSource`，保证删除 site instance 后挑选 fallback 激活源时也不会误判 custom engine / provider instance 的可用性。
 
 ### 同类实例 L4：`normalizeGroupConfig` 漏补新内置组到非空 layout
 

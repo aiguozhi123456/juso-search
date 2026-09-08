@@ -1,7 +1,7 @@
 ---
 title: Adding a conventional search engine to Juso — the full twelve-touchpoint registration pattern
 date: 2026-08-13
-last_updated: 2026-08-17
+last_updated: 2026-09-09
 category: docs/solutions/architecture-patterns/
 module: lib/engines
 problem_type: architecture_pattern
@@ -391,7 +391,7 @@ yandex/duckduckgo migration (v5→v6):
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // v8→v9: Sogou WeChat engine added — default-hidden (appears in management
 // UI but not the quick-switch bar; user shows it manually).
@@ -668,7 +668,7 @@ will get Sogou's redirect HTML, not the article content.
 
 ```ts
 // lib/schema.ts
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // v8→v9: 搜狗微信公众号引擎加入快切栏——默认隐藏（中文二线引擎，开箱不膨胀快切栏）。
 const DEFAULT_HIDDEN_ENGINE_IDS_V5: readonly string[] = ['weixin'];
