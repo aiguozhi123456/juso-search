@@ -15,6 +15,13 @@ export default defineConfig({
     define: {
       __SKILL_VARIANT__: JSON.stringify(env.mode === 'development' ? 'dev' : 'prod'),
     },
+    build: {
+      // 不生成 <link rel="modulepreload">：Chrome 拒绝复用预取的 chrome-extension://
+      // 模块——预取请求与后续 import 落在不同 world（"cross-world extension resource
+      // mismatch"，crbug.com/540906914），每个预取 chunk 白抓一次并各报一条告警。
+      // 扩展页的 chunk 是本地磁盘上的静态 import，preload 提示毫无收益。
+      modulePreload: false,
+    },
   }),
   manifest: ({ browser, mode }) => ({
     // Chrome dev 构建注入 key 以稳定扩展 ID；Firefox 忽略 key 且 web-ext lint 标记未知字段。
