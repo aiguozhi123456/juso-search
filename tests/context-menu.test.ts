@@ -39,7 +39,7 @@ const baseSnapshot: Snapshot = {
   activeSourceId: 'google',
   sourceOrder: [],
   sourceHidden: [],
-  siteEngines: [],
+  siteInstances: [],
   customEngines: [],
   providerInstances: [],
   providerMaxResults: {},
@@ -90,7 +90,7 @@ describe('contextMenuNeedsRebuild', () => {
   it('REBUILD_KEYS 内的 key 触发重建', () => {
     expect(contextMenuNeedsRebuild({ sourceOrder: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ sourceHidden: {} })).toBe(true);
-    expect(contextMenuNeedsRebuild({ siteEngines: {} })).toBe(true);
+    expect(contextMenuNeedsRebuild({ siteInstances: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ customEngines: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ providerInstances: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ groupConfig: {} })).toBe(true);

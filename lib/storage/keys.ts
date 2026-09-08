@@ -13,7 +13,9 @@ export const LOCALE_KEY = 'localePref'; // LocalePref
 export const STYLE_KEY = 'stylePref'; // StylePref (UI 风格维度：经典 / 彩色)
 export const SOURCE_ORDER_KEY = 'sourceOrder'; // SourceId[]
 export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
-export const SITE_ENGINES_KEY = 'siteEngines'; // SiteEngineDefinition[]
+// 键值经 schema v9→v10 迁移自 'siteEngines'（Site→Instance 词汇落地到存储）；
+// 导入端对旧备份的 siteEngines 导出字段永久双认（config-io parseImportPayload）。
+export const SITE_INSTANCES_KEY = 'siteInstances'; // SiteInstanceDefinition[]
 export const CUSTOM_ENGINES_KEY = 'customEngines'; // CustomEngineDefinition[]
 export const PROVIDER_INSTANCES_KEY = 'providerInstances'; // ProviderInstance[]
 export const GROUP_CONFIG_KEY = 'groupConfig'; // GroupConfig（分组定义 + 顶层混合 layout + 赋值）

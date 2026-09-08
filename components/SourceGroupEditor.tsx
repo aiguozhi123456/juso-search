@@ -385,16 +385,18 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
                 <div className="layout-actions">
                   <label className="layout-fold">
                     <span className="sr-only">{t(MSG.opts_group_unpin_into)}</span>
-                    <select
-                      value="__pinned__"
-                      disabled={saving}
-                      onChange={(e) => foldIntoGroup(item.sourceId, e.target.value)}
-                    >
-                      <option value="__pinned__">{t(MSG.opts_group_pin_source)}</option>
-                      {cfg.groups.map((g) => (
-                        <option key={g.id} value={g.id}>{groupDisplayLabel(g.id)}</option>
-                      ))}
-                    </select>
+                    <span className="select-wrap">
+                      <select
+                        value="__pinned__"
+                        disabled={saving}
+                        onChange={(e) => foldIntoGroup(item.sourceId, e.target.value)}
+                      >
+                        <option value="__pinned__">{t(MSG.opts_group_pin_source)}</option>
+                        {cfg.groups.map((g) => (
+                          <option key={g.id} value={g.id}>{groupDisplayLabel(g.id)}</option>
+                        ))}
+                      </select>
+                    </span>
                   </label>
                   <div className="layout-move">
                     <button

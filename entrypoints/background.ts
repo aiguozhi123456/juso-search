@@ -4,8 +4,8 @@ import {
   handleClearSearchCache,
   handleDeleteCachedSearch,
   handleDeleteProviderKey,
-  handleDeleteSiteEngine,
-  handleCreateSiteEngine,
+  handleDeleteSiteInstance,
+  handleCreateSiteInstance,
   handleCreateCustomEngine,
   handleUpdateCustomEngine,
   handleDeleteCustomEngine,
@@ -35,7 +35,7 @@ import {
   handleSetAiAutoEnter,
   handleSetFlatLayoutFewSources,
   handleTestKey,
-  handleUpdateSiteEngine,
+  handleUpdateSiteInstance,
   installDownloadFilenameGuard,
 } from '@/lib/gateway';
 import { isBarPositionPref, isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
@@ -94,9 +94,9 @@ export default defineBackground(() => {
   onMessage('setSelectionSearchEnabled', ({ data }) => handleSetSelectionSearchEnabled(data));
   onMessage('setSelectionSearchSource', ({ data }) => handleSetSelectionSearchSource(data));
   onMessage('setGroupConfig', ({ data }) => handleSetGroupConfig(data));
-  onMessage('createSiteEngine', ({ data }) => handleCreateSiteEngine(data));
-  onMessage('updateSiteEngine', ({ data }) => handleUpdateSiteEngine(data));
-  onMessage('deleteSiteEngine', ({ data }) => handleDeleteSiteEngine(data));
+  onMessage('createSiteInstance', ({ data }) => handleCreateSiteInstance(data));
+  onMessage('updateSiteInstance', ({ data }) => handleUpdateSiteInstance(data));
+  onMessage('deleteSiteInstance', ({ data }) => handleDeleteSiteInstance(data));
   onMessage('createCustomEngine', ({ data }) => handleCreateCustomEngine(data));
   onMessage('updateCustomEngine', ({ data }) => handleUpdateCustomEngine(data));
   onMessage('deleteCustomEngine', ({ data }) => handleDeleteCustomEngine(data));

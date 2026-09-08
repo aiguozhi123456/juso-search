@@ -144,7 +144,7 @@ export default defineContentScript({
           config.configuredProviderIds,
           config.sourceOrder,
           config.sourceHidden,
-          config.siteEngines ?? [],
+          config.siteInstances ?? [],
           config.customEngines ?? [],
           config.providerInstances ?? [],
         );

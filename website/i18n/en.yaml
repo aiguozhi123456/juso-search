@@ -166,7 +166,7 @@ os_body:
 cta_human_h2:
   other: "Search and switch from one entry"
 cta_human_p:
-  other: "Conventional engines like Google, Bing, and Baidu, plus site engines, custom engines, AI chat engines, and configured AI search services — all in one entry."
+  other: "Conventional engines like Google, Bing, and Baidu, plus site instances, custom engines, AI chat engines, and configured AI search services — all in one entry."
 cta_agents_h2:
   other: "Let local agents start searching"
 cta_agents_p:
@@ -405,7 +405,7 @@ human_doc_instances_body:
 human_doc_customize_title:
   other: "Turn sites, tools, and AI Engines into sources"
 human_doc_customize_body:
-  other: "Site Engines scope a public site with site: queries; Custom Engines use a URL template with one %s placeholder; AI Engines add the AI chat websites you are already signed into as sources."
+  other: "Site Instances scope searches to a public site (Baidu can search it in-site, Bing offers a q1 parameter, all support site: prefixes); Custom Engines use a URL template with one %s placeholder; AI Engines add the AI chat websites you are already signed into as sources."
 human_doc_ai_engine_title:
   other: "AI Engine · no API key"
 human_doc_ai_engine_card:

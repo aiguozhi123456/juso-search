@@ -1,6 +1,6 @@
 import type { ProviderId } from '../providers/types';
 import { normalizeSourceHidden, normalizeSourceOrder, visibleUsableSource } from '../sources';
-import { normalizeSiteEngineDefinitions } from '../site-engines';
+import { normalizeSiteInstanceDefinitions } from '../site-instances';
 import { normalizeCustomEngineDefinitions } from '../custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from '../provider-instances';
 import {
@@ -11,7 +11,7 @@ import {
   normalizeProviderInstances,
   providerInstancesSerializedBytes,
 } from '../provider-instances';
-import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, CUSTOM_ENGINES_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY, SITE_ENGINES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
+import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, CUSTOM_ENGINES_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
 import { DEFAULT_ENGINE_ID, ensureVisibleUsable, isKnownProvider } from './shared';
 import { withSourceMutation } from './source-graph-store';
 
@@ -44,7 +44,7 @@ export async function createProviderInstance(baseProviderId: ProviderId, name: s
   // 同时改写实例集合与 sourceOrder：按 deleteProviderInstance/clearKey 的既定次序
   // 先取 source 队列、再取实例队列，避免与 mergeImport（持 source 队列整写实例数组）并发覆盖。
   return withSourceMutation(() => withProviderInstancesMutation(async () => {
-    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY]);
+    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const instance = normalizeProviderInstance({ id: `inst:${baseProviderId}:${crypto.randomUUID()}` as ProviderInstanceId, baseProviderId, name, options });
     if (!instance || instances.length >= MAX_PROVIDER_INSTANCES || instances.some((item) => item.id === instance.id)) throw new Error('invalid_provider_instance');
@@ -52,9 +52,9 @@ export async function createProviderInstance(baseProviderId: ProviderId, name: s
     // Reject writes that would exceed the persisted collection byte budget without
     // wiping an existing oversized payload still held in chrome.storage.local.
     if (providerInstancesSerializedBytes(next) > MAX_INSTANCES_SERIALIZED_BYTES) throw new Error('invalid_provider_instance');
-    // 镜像 site-engine/custom-engine 的 create：把新实例 id 追加到 sourceOrder 尾部，
+    // 镜像 site-instance/custom-engine 的 create：把新实例 id 追加到 sourceOrder 尾部，
     // 否则新实例不在 sourceOrder 中，无法被排序/隐藏（IU7 实例是一等 source）。
-    const siteDefinitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const siteDefinitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: next, [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteDefinitions, customDefinitions, next) });
     return instance;
@@ -68,7 +68,7 @@ export async function createProviderInstance(baseProviderId: ProviderId, name: s
  *  避免与 mergeImport（持 source 队列整写实例数组）并发覆盖。 */
 export async function ensureDefaultInstance(baseProviderId: ProviderId, name: string): Promise<void> {
   await withSourceMutation(() => withProviderInstancesMutation(async () => {
-    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY]);
+    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     if (instances.some((instance) => instance.baseProviderId === baseProviderId)) return;
     const instance = normalizeProviderInstance({ id: `inst:${baseProviderId}:${crypto.randomUUID()}` as ProviderInstanceId, baseProviderId, name, options: {} });
@@ -78,7 +78,7 @@ export async function ensureDefaultInstance(baseProviderId: ProviderId, name: st
     // wiping an existing oversized payload still held in chrome.storage.local.
     if (providerInstancesSerializedBytes(next) > MAX_INSTANCES_SERIALIZED_BYTES) throw new Error('invalid_provider_instance');
     // 镜像 createProviderInstance：把新实例 id 追加到 sourceOrder 尾部。
-    const siteDefinitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const siteDefinitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: next, [SOURCE_ORDER_KEY]: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteDefinitions, customDefinitions, next) });
   }));
@@ -112,7 +112,7 @@ export async function deleteProviderInstance(id: ProviderInstanceId): Promise<vo
   // 删除同时改写源图（order/hidden/activeSource）与实例集合：按 clearKey 的既定次序
   // 先取 source 队列、再取实例队列，避免与其他源图写入（select/站点引擎 CRUD）并发覆盖。
   await withSourceMutation(() => withProviderInstancesMutation(async () => {
-    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY]);
+    const got = await browser.storage.local.get([PROVIDER_INSTANCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY]);
     const before = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const instance = before.find((item) => item.id === id);
     if (!instance) return; // already gone
@@ -120,7 +120,7 @@ export async function deleteProviderInstance(id: ProviderInstanceId): Promise<vo
     const sameProviderCount = before.filter((item) => item.baseProviderId === instance.baseProviderId).length;
     if (sameProviderCount <= 1) throw new Error('cannot_delete_sole_instance');
     const instances = before.filter((item) => item.id !== id);
-    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances);
     const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;

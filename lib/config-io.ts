@@ -18,7 +18,7 @@ import {
   MAX_RESULTS_KEY,
   SOURCE_HIDDEN_KEY,
   SOURCE_ORDER_KEY,
-  SITE_ENGINES_KEY,
+  SITE_INSTANCES_KEY,
   CUSTOM_ENGINES_KEY,
   THEME_KEY,
   GROUP_CONFIG_KEY,
@@ -32,12 +32,12 @@ import {
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { allKnownSourceIds, isEngineId, isKnownSiteEngineId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource, type SourceId } from './sources';
+import { allKnownSourceIds, isEngineId, isKnownSiteInstanceId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
-import type { SiteEngineDefinition } from './site-engines';
-import { isBoundedSiteEngineCollection, isSiteEngineId, normalizeSiteEngineDefinitions } from './site-engines';
+import type { SiteInstanceDefinition } from './site-instances';
+import { constructionFor, isBoundedSiteInstanceCollection, isSiteInstanceId, normalizeSiteInstanceDefinitions, zhanneiFingerprintFor } from './site-instances';
 import type { ProviderInstance } from './provider-instances';
 import { isBoundedProviderInstanceCollection, isProviderInstanceId, normalizeProviderInstances } from './provider-instances';
 import type { CustomEngineDefinition } from './custom-engines';
@@ -50,7 +50,7 @@ const LOCALE_VALUES = new Set<LocalePref>(['auto', 'zh_CN', 'en']);
 const BAR_POSITION_VALUES = new Set<BarPositionPref>(['auto', 'top', 'inline', 'bottom']);
 const DEFAULT_ENGINE_ID: EngineId = 'google';
 const MAX_IMPORT_BYTES = 256 * 1024;
-/** 导入可接受的最旧 schema 版本（v3 遗留，无 siteEngines/groupConfig）。与 CURRENT_SCHEMA_VERSION 构成连续支持区间。 */
+/** 导入可接受的最旧 schema 版本（v3 遗留，无 siteInstances/groupConfig）。与 CURRENT_SCHEMA_VERSION 构成连续支持区间。 */
 const MIN_SUPPORTED_SCHEMA_VERSION = 3;
 
 /** 导出文件结构。schemaVersion 用 number（非字面量），避免版本升级后类型过度约束。 */
@@ -71,7 +71,7 @@ export interface ConfigExport {
   sourceOrder?: SourceId[];
   sourceHidden?: SourceId[];
   /** Absent in legacy v3 exports; absence preserves local Site Engines. */
-  siteEngines?: SiteEngineDefinition[];
+  siteInstances?: SiteInstanceDefinition[];
   /** Absent in legacy exports; absence preserves local Custom Engines. */
   customEngines?: CustomEngineDefinition[];
   /** Absent in legacy exports; absence preserves local Provider Instances. */
@@ -84,8 +84,8 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
-  const siteEngines = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const siteInstances = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const providerInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
@@ -95,14 +95,14 @@ export async function buildExportPayload(): Promise<ConfigExport> {
   const activeSource = resolveEffectiveActiveSource(
     (typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null) ?? active,
     providerKeys,
-    siteEngines,
+    siteInstances,
     customEngines,
     providerInstances,
   ) ?? DEFAULT_ENGINE_ID;
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   const barPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
-  const knownSourceIds = allKnownSourceIds(siteEngines, customEngines, providerInstances);
+  const knownSourceIds = allKnownSourceIds(siteInstances, customEngines, providerInstances);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
@@ -115,9 +115,9 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     serpBarPosition: barPosition,
     aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false,
     flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false,
-    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteEngines, customEngines, providerInstances),
-    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteEngines, customEngines, providerInstances),
-    siteEngines,
+    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteInstances, customEngines, providerInstances),
+    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteInstances, customEngines, providerInstances),
+    siteInstances,
     customEngines,
     providerInstances,
     providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
@@ -150,7 +150,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
   const obj = raw as Record<string, unknown>;
   if (serializedSize(raw) > MAX_IMPORT_BYTES) return { ok: false, error: 'import_too_large' };
   // 接受连续支持区间 [MIN_SUPPORTED_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION]：下限 3 是最旧的遗留版本
-  // （无 siteEngines/groupConfig），上限随 CURRENT_SCHEMA_VERSION 演进。用区间而非硬编码版本列表，
+  // （无 siteInstances/groupConfig），上限随 CURRENT_SCHEMA_VERSION 演进。用区间而非硬编码版本列表，
   // 避免下次 bump 后静默拒绝当前版本的备份（如 v6→v7 时拒绝仍有效的 v6 备份）。
   const schemaVersion = obj.schemaVersion;
   if (typeof schemaVersion !== 'number' || schemaVersion < MIN_SUPPORTED_SCHEMA_VERSION || schemaVersion > CURRENT_SCHEMA_VERSION) {
@@ -174,9 +174,12 @@ export function parseImportPayload(raw: unknown): ParseResult {
     return { ok: false, error: 'invalid_active_provider' };
   }
   const isLegacyV3 = obj.schemaVersion === 3;
-  if (!isLegacyV3 && !isBoundedSiteEngineCollection(obj.siteEngines)) return { ok: false, error: 'invalid_site_engines' };
-  const siteEngines = isLegacyV3 ? undefined : normalizeSiteEngineDefinitions(obj.siteEngines);
-  if (!isLegacyV3 && (!siteEngines || !Array.isArray(obj.siteEngines) || siteEngines.length !== obj.siteEngines.length)) return { ok: false, error: 'invalid_site_engines' };
+  // 导出字段 v10 起为 siteInstances；旧备份（v10 前导出）用 siteEngines——永久双认，
+  // 存量备份文件不做迁移。两字段同时出现时新字段优先。
+  const siteRaw = obj.siteInstances !== undefined ? obj.siteInstances : obj.siteEngines;
+  if (!isLegacyV3 && !isBoundedSiteInstanceCollection(siteRaw)) return { ok: false, error: 'invalid_site_instances' };
+  const siteInstances = isLegacyV3 ? undefined : normalizeSiteInstanceDefinitions(siteRaw);
+  if (!isLegacyV3 && (!siteInstances || !Array.isArray(siteRaw) || siteInstances.length !== siteRaw.length)) return { ok: false, error: 'invalid_site_instances' };
   const hasCustomEngines = Object.prototype.hasOwnProperty.call(obj, 'customEngines');
   let customEngines: CustomEngineDefinition[] | undefined;
   if (hasCustomEngines) {
@@ -193,7 +196,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(obj.providerInstances) || providerInstances.length !== obj.providerInstances.length) return { ok: false, error: 'invalid_provider_instances' };
   }
   const activeSource = obj.activeSource;
-  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteEngines, customEngines, providerInstances, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
+  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteInstances, customEngines, providerInstances, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
   const theme = obj.themePref;
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
@@ -213,7 +216,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceOrder)) return { ok: false, error: 'invalid_source_order' };
     const seen = new Set<SourceId>();
     for (const sourceId of sourceOrder) {
-      if (!isKnownSource(sourceId, siteEngines, customEngines, providerInstances, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
+      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
       seen.add(sourceId);
     }
   }
@@ -223,7 +226,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceHidden)) return { ok: false, error: 'invalid_source_hidden' };
     const seenHidden = new Set<SourceId>();
     for (const sourceId of sourceHidden) {
-      if (!isKnownSource(sourceId, siteEngines, customEngines, providerInstances, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
+      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
       seenHidden.add(sourceId);
     }
   }
@@ -233,7 +236,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
   let groupConfig: GroupConfig | undefined;
   if (hasGroupConfig) {
     // normalizeGroupConfig 容错：非法结构会被规整为默认配置，不阻断导入。
-    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteEngines ?? [], customEngines ?? [], providerInstances ?? []));
+    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteInstances ?? [], customEngines ?? [], providerInstances ?? []));
   }
   return {
     ok: true,
@@ -249,9 +252,9 @@ export function parseImportPayload(raw: unknown): ParseResult {
       serpBarPosition: hasBarPosition ? barPosition as BarPositionPref : undefined,
       aiAutoEnter: hasAiAutoEnter ? aiAutoEnter as boolean : undefined,
       flatLayoutFewSources: hasFlatLayoutFewSources ? flatLayoutFewSources as boolean : undefined,
-      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteEngines, customEngines, providerInstances) : undefined,
-      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteEngines, customEngines, providerInstances) : undefined,
-      siteEngines,
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteInstances, customEngines, providerInstances) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteInstances, customEngines, providerInstances) : undefined,
+      siteInstances,
       customEngines,
       providerInstances,
       providerMaxResults,
@@ -286,7 +289,7 @@ export interface ImportReport {
   /** 是否覆盖了 sourceHidden。 */
   sourceHiddenOverridden: boolean;
   /** 是否覆盖了 Site Engine definitions。 */
-  siteEnginesOverridden: boolean;
+  siteInstancesOverridden: boolean;
   /** 是否覆盖了 Custom Engine definitions。 */
   customEnginesOverridden: boolean;
   /** 是否覆盖了 Provider Instance definitions。 */
@@ -299,7 +302,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'flatLayoutFewSources' | 'sourceOrder' | 'sourceHidden' | 'siteEngines' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'flatLayoutFewSources' | 'sourceOrder' | 'sourceHidden' | 'siteInstances' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -320,7 +323,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -337,11 +340,11 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (curActive !== newActive) {
     prefDiffs.push({ key: 'activeProvider', from: curActive, to: newActive });
   }
-  const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  const currentSites = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const currentCustoms = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
-  if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, payload.siteEngines)) {
-    prefDiffs.push({ key: 'siteEngines', from: siteEnginesSummary(currentSites), to: siteEnginesSummary(payload.siteEngines) });
+  if (payload.siteInstances !== undefined && !sameSiteInstances(currentSites, payload.siteInstances)) {
+    prefDiffs.push({ key: 'siteInstances', from: siteInstancesSummary(currentSites), to: siteInstancesSummary(payload.siteInstances) });
   }
   if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, payload.customEngines)) {
     prefDiffs.push({ key: 'customEngines', from: customEnginesSummary(currentCustoms), to: customEnginesSummary(payload.customEngines) });
@@ -432,7 +435,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -466,22 +469,22 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
     let flatLayoutFewSourcesOverridden = false;
     let sourceOrderOverridden = false;
     let sourceHiddenOverridden = false;
-    let siteEnginesOverridden = false;
+    let siteInstancesOverridden = false;
     let customEnginesOverridden = false;
     let providerInstancesOverridden = false;
     let providerMaxResultsOverridden = false;
     let groupConfigOverridden = false;
     if (applyPrefs) {
-      const currentSites = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+      const currentSites = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
       const currentCustoms = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
       const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
       const importedInstances = payload.providerInstances ?? currentInstances;
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
       const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, normalizeProviderKeys(current), mergedKeys, curActive);
       const { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden } = sourcePreferences;
-      if (payload.siteEngines !== undefined && !sameSiteEngines(currentSites, importedSites)) { setObj[SITE_ENGINES_KEY] = importedSites; siteEnginesOverridden = true; }
+      if (payload.siteInstances !== undefined && !sameSiteInstances(currentSites, importedSites)) { setObj[SITE_INSTANCES_KEY] = importedSites; siteInstancesOverridden = true; }
       if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, importedCustoms)) { setObj[CUSTOM_ENGINES_KEY] = importedCustoms; customEnginesOverridden = true; }
-      // 整数组覆盖（pref 语义，同 siteEngines）：导入文件显式包含 providerInstances 时整体替换。
+      // 整数组覆盖（pref 语义，同 siteInstances）：导入文件显式包含 providerInstances 时整体替换。
       if (payload.providerInstances !== undefined && !sameProviderInstances(currentInstances, payload.providerInstances)) { setObj[PROVIDER_INSTANCES_KEY] = payload.providerInstances; providerInstancesOverridden = true; }
       if (curActive !== payload.activeProvider) {
         setObj[ACTIVE_KEY] = payload.activeProvider;
@@ -561,7 +564,7 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       flatLayoutFewSourcesOverridden,
       sourceOrderOverridden,
       sourceHiddenOverridden,
-      siteEnginesOverridden,
+      siteInstancesOverridden,
       customEnginesOverridden,
       providerInstancesOverridden,
       providerMaxResultsOverridden,
@@ -604,7 +607,7 @@ function mergeProviderKeys(current: Record<string, string>, imported: Record<str
 function resolveImportedSourcePreferences(
   payload: ConfigExport,
   got: Record<string, unknown>,
-  currentSites: SiteEngineDefinition[],
+  currentSites: SiteInstanceDefinition[],
   currentCustoms: CustomEngineDefinition[],
   currentKeys: Record<string, string>,
   mergedKeys: Record<string, string>,
@@ -612,7 +615,7 @@ function resolveImportedSourcePreferences(
 ) {
   // A missing collection is the v3 sentinel; unlike v4's explicit [], it
   // preserves local Site Engines and all dependent preferences.
-  const importedSites = payload.siteEngines ?? currentSites;
+  const importedSites = payload.siteInstances ?? currentSites;
   const importedCustoms = payload.customEngines ?? currentCustoms;
   const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const importedInstances = payload.providerInstances ?? currentInstances;
@@ -625,9 +628,10 @@ function resolveImportedSourcePreferences(
   ) ?? DEFAULT_ENGINE_ID;
   // Preserve the current active source when it is a dynamic id whose collection
   // is absent from the import (i.e. preserved from current storage). Each dynamic
-  // type is checked independently so an older backup with siteEngines but no
-  // customEngines still preserves a custom-engine active source.
-  const preserveSite = payload.siteEngines === undefined && isKnownSiteEngineId(curActiveSource, currentSites);
+  // type is checked independently so an older backup with a site collection
+  // (siteInstances, or siteEngines in pre-v10 exports) but no customEngines
+  // still preserves a custom-engine active source.
+  const preserveSite = payload.siteInstances === undefined && isKnownSiteInstanceId(curActiveSource, currentSites);
   const preserveCustom = payload.customEngines === undefined && isKnownCustomEngineId(curActiveSource, currentCustoms);
   const preferredActiveSource = (preserveSite || preserveCustom) ? curActiveSource : payload.activeSource;
   const newActiveSource = resolveEffectiveActiveSource(
@@ -641,19 +645,19 @@ function resolveImportedSourcePreferences(
   const newSourceOrder = normalizeSourceOrder(payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder, importedSites, importedCustoms, importedInstances);
   const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms, currentInstances);
   const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
-  const hiddenInput = payload.siteEngines === undefined && payload.customEngines === undefined
-    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteEngineId(id) || isCustomEngineId(id))]
+  const hiddenInput = payload.siteInstances === undefined && payload.customEngines === undefined
+    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteInstanceId(id) || isCustomEngineId(id))]
     : importedHidden;
   const newSourceHidden = ensureVisibleUsable(normalizeSourceHidden(hiddenInput, importedSites, importedCustoms, importedInstances), newSourceOrder, mergedKeys, importedSites, importedCustoms, importedInstances);
   return { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden };
 }
 
-function isKnownSource(value: unknown, siteEngines: readonly SiteEngineDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false): value is SourceId {
+function isKnownSource(value: unknown, siteInstances: readonly SiteInstanceDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false): value is SourceId {
   return typeof value === 'string'
-    && (isProviderId(value) || isEngineId(value) || isRegisteredAiEngineId(value) || isKnownSiteEngineId(value, siteEngines) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteEngineId(value) || isCustomEngineId(value))));
+    && (isProviderId(value) || isEngineId(value) || isRegisteredAiEngineId(value) || isKnownSiteInstanceId(value, siteInstances) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteInstanceId(value) || isCustomEngineId(value))));
 }
 
-function sameSiteEngines(left: readonly SiteEngineDefinition[], right: readonly SiteEngineDefinition[]): boolean {
+function sameSiteInstances(left: readonly SiteInstanceDefinition[], right: readonly SiteInstanceDefinition[]): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -682,9 +686,10 @@ function maxResultsSummary(map: Partial<Record<ProviderId, number>>): string {
   return Object.entries(map).map(([id, n]) => `${id}=${n}`).join(' | ') || '—';
 }
 
-/** Deterministic compact diff value; preserves enough detail to distinguish same-sized lists. */
-function siteEnginesSummary(definitions: readonly SiteEngineDefinition[]): string {
-  return definitions.map((definition) => `${definition.id}:${definition.engineId}:${definition.target}:${definition.name}`).join(' | ');
+/** Deterministic compact diff value; preserves enough detail to distinguish same-sized lists
+ *  （含构造模式与 zhannei 筛选指纹——仅 mode/筛选不同的导入也能显示为 diff）。 */
+function siteInstancesSummary(definitions: readonly SiteInstanceDefinition[]): string {
+  return definitions.map((definition) => `${definition.id}:${definition.engineId}:${constructionFor(definition)}:${zhanneiFingerprintFor(definition)}:${definition.target}:${definition.name}`).join(' | ');
 }
 
 /** Deterministic compact diff value for custom engines. */
@@ -697,7 +702,7 @@ function providerInstancesSummary(instances: readonly ProviderInstance[]): strin
   return instances.map((instance) => `${instance.id}:${instance.baseProviderId}:${instance.name}:${JSON.stringify(instance.options)}`).join(' | ');
 }
 
-function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteEngineDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {
+function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteInstanceDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {
   if (visibleUsableSource(order, hidden, providerKeys, sites, customs, instances)) return hidden;
   const fallback = visibleUsableSource(order, [], providerKeys, sites, customs, instances);
   return fallback ? hidden.filter((id) => id !== fallback) : hidden;

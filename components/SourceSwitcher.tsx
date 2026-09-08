@@ -267,8 +267,8 @@ function SourceButton({
 }) {
   const tooltip = source.kind === 'ai-engine'
     ? t(MSG.tooltip_ai_engine)
-    : source.kind === 'site-engine'
-      ? t(MSG.tooltip_site_engine)
+    : source.kind === 'site-instance'
+      ? t(MSG.tooltip_site_instance)
       : source.supportsAnswer
         ? t(MSG.tooltip_supports_answer)
         : t(MSG.tooltip_no_answer);

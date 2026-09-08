@@ -27,7 +27,7 @@ type Status = { kind: 'idle' | 'saving' | 'ok' | 'fail'; message: string };
 /**
  * Exa 参数草稿：把「中间字符串态」（域名的 textarea、可选数值的留空=null）
  * 与普通字段（searchType/category）统一放在编辑器 state 里，
- * 由受控表单直接读写 —— 与 SiteEngineManager 的编辑器 state 同构。
+ * 由受控表单直接读写 —— 与 SiteInstanceManager 的编辑器 state 同构。
  */
 type ExaDraft = {
   searchType: ExaSearchType;
@@ -161,26 +161,30 @@ function ExaOptionsForm({ draft, onChange }: { draft: ExaDraft; onChange: (patch
       <div className="exa-settings-grid">
         <label className="exa-field">
           <span className="exa-field-label">{t(MSG.opts_exa_search_type)}</span>
-          <select
-            value={draft.searchType}
-            onChange={(e) => onChange({ searchType: e.target.value as ExaSearchType })}
-          >
-            {EXA_SEARCH_TYPES.map((st) => (
-              <option key={st} value={st}>{t(MSG[`opts_exa_type_${st.replace(/-/g, '_')}` as keyof typeof MSG])}</option>
-            ))}
-          </select>
+          <span className="select-wrap">
+            <select
+              value={draft.searchType}
+              onChange={(e) => onChange({ searchType: e.target.value as ExaSearchType })}
+            >
+              {EXA_SEARCH_TYPES.map((st) => (
+                <option key={st} value={st}>{t(MSG[`opts_exa_type_${st.replace(/-/g, '_')}` as keyof typeof MSG])}</option>
+              ))}
+            </select>
+          </span>
         </label>
 
         <label className="exa-field">
           <span className="exa-field-label">{t(MSG.opts_exa_category)}</span>
-          <select
-            value={draft.category}
-            onChange={(e) => onChange({ category: e.target.value as ExaCategory })}
-          >
-            {EXA_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c === '' ? t(MSG.opts_exa_category_none) : t(MSG[`opts_exa_cat_${c.replace(/\s+/g, '_')}` as keyof typeof MSG])}</option>
-            ))}
-          </select>
+          <span className="select-wrap">
+            <select
+              value={draft.category}
+              onChange={(e) => onChange({ category: e.target.value as ExaCategory })}
+            >
+              {EXA_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c === '' ? t(MSG.opts_exa_category_none) : t(MSG[`opts_exa_cat_${c.replace(/\s+/g, '_')}` as keyof typeof MSG])}</option>
+              ))}
+            </select>
+          </span>
         </label>
 
         <label className="exa-field">
@@ -238,16 +242,18 @@ function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: 
       <div className="exa-settings-grid">
         <label className="exa-field">
           <span className="exa-field-label">{t(MSG.opts_doubao_time_range)}</span>
-          <select
-            value={draft.timeRange}
-            onChange={(e) => onChange({ timeRange: e.target.value })}
-          >
-            <option value="">{t(MSG.opts_doubao_time_unlimited)}</option>
-            {DOUBAO_TIME_RANGES.map((r) => (
-              <option key={r} value={r}>{t(MSG[`opts_doubao_time_${r.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}` as keyof typeof MSG])}</option>
-            ))}
-            <option value="custom">{t(MSG.opts_doubao_time_custom)}</option>
-          </select>
+          <span className="select-wrap">
+            <select
+              value={draft.timeRange}
+              onChange={(e) => onChange({ timeRange: e.target.value })}
+            >
+              <option value="">{t(MSG.opts_doubao_time_unlimited)}</option>
+              {DOUBAO_TIME_RANGES.map((r) => (
+                <option key={r} value={r}>{t(MSG[`opts_doubao_time_${r.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase()}` as keyof typeof MSG])}</option>
+              ))}
+              <option value="custom">{t(MSG.opts_doubao_time_custom)}</option>
+            </select>
+          </span>
         </label>
 
         {draft.timeRange === 'custom' && (
@@ -274,26 +280,30 @@ function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: 
 
         <label className="exa-field">
           <span className="exa-field-label">{t(MSG.opts_doubao_content_format)}</span>
-          <select
-            value={draft.contentFormat}
-            onChange={(e) => onChange({ contentFormat: e.target.value as 'text' | 'markdown' })}
-          >
-            <option value="text">{t(MSG.opts_doubao_format_text)}</option>
-            <option value="markdown">{t(MSG.opts_doubao_format_markdown)}</option>
-          </select>
+          <span className="select-wrap">
+            <select
+              value={draft.contentFormat}
+              onChange={(e) => onChange({ contentFormat: e.target.value as 'text' | 'markdown' })}
+            >
+              <option value="text">{t(MSG.opts_doubao_format_text)}</option>
+              <option value="markdown">{t(MSG.opts_doubao_format_markdown)}</option>
+            </select>
+          </span>
         </label>
 
         <label className="exa-field">
           <span className="exa-field-label">{t(MSG.opts_doubao_industry)}</span>
-          <select
-            value={draft.industry}
-            onChange={(e) => onChange({ industry: e.target.value as '' | DoubaoIndustry })}
-          >
-            <option value="">{t(MSG.opts_doubao_industry_none)}</option>
-            {DOUBAO_INDUSTRIES.map((ind) => (
-              <option key={ind} value={ind}>{t(MSG[`opts_doubao_industry_${ind}` as keyof typeof MSG])}</option>
-            ))}
-          </select>
+          <span className="select-wrap">
+            <select
+              value={draft.industry}
+              onChange={(e) => onChange({ industry: e.target.value as '' | DoubaoIndustry })}
+            >
+              <option value="">{t(MSG.opts_doubao_industry_none)}</option>
+              {DOUBAO_INDUSTRIES.map((ind) => (
+                <option key={ind} value={ind}>{t(MSG[`opts_doubao_industry_${ind}` as keyof typeof MSG])}</option>
+              ))}
+            </select>
+          </span>
         </label>
       </div>
 
@@ -529,18 +539,20 @@ export function ProviderInstanceManager() {
 
           <div className="provider-instance-form-row">
             <label htmlFor="provider-instance-base">{t(MSG.opts_instance_base_provider)}</label>
-            <select
-              id="provider-instance-base"
-              value={editor.baseProviderId}
-              onChange={(e) => patchEditor({ baseProviderId: e.target.value as ProviderId })}
-              // base provider 由实例 id 编码、存储层不可变更（lib/storage updateProviderInstance）；
-              // 编辑模式禁用下拉，防止切 base 后 submit 按新 base 组装 options，静默清空原设置。
-              disabled={editor.mode === 'edit'}
-            >
-              {instanceableProviders.map((p) => (
-                <option key={p.id} value={p.id}>{t(p.label)}</option>
-              ))}
-            </select>
+            <span className="select-wrap">
+              <select
+                id="provider-instance-base"
+                value={editor.baseProviderId}
+                onChange={(e) => patchEditor({ baseProviderId: e.target.value as ProviderId })}
+                // base provider 由实例 id 编码、存储层不可变更（lib/storage updateProviderInstance）；
+                // 编辑模式禁用下拉，防止切 base 后 submit 按新 base 组装 options，静默清空原设置。
+                disabled={editor.mode === 'edit'}
+              >
+                {instanceableProviders.map((p) => (
+                  <option key={p.id} value={p.id}>{t(p.label)}</option>
+                ))}
+              </select>
+            </span>
           </div>
 
           {editor.baseProviderId === 'exa' && (

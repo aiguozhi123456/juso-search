@@ -40,11 +40,11 @@ npm run lint     # eslint .
 ![双面搜架构](assets/architecture.svg)
 
 - `entrypoints/search/`：独立人类搜索页、搜索来源切换、缓存与历史。
-- `entrypoints/options/`：本地密钥、来源偏好、Site Engine / Custom Engine / Provider Instance 管理。
+- `entrypoints/options/`：本地密钥、来源偏好、Site Instance / Custom Engine / Provider Instance 管理。
 - `entrypoints/background.ts`、`lib/gateway.ts`：后台服务、消息网关与 Agent Bridge 的受限执行入口。
 - `lib/providers/`：Tavily、Exa、Brave、Stepfun 按量与 Step Plan、Jina、Doubao（Custom/Global）的适配器及统一响应模型。
 - `lib/provider-instances.ts`：同一 provider 的多实例（调好参数的变体），实例是快切栏一等目标，不持有密钥；gateway 在边界解析 `ProviderInstanceId → { providerId, options }`。
-- `lib/engines/`、`lib/ai-engines/`、`lib/site-engines.ts`、`lib/custom-engines.ts`：传统搜索引擎、AI 对话引擎（Grok/ChatGPT/DeepSeek/豆包/Gemini，注入或 URL 预填）、站外搜索（`site:`）、自定义引擎（`%s` URL 模板）。
+- `lib/engines/`、`lib/ai-engines/`、`lib/site-instances.ts`、`lib/custom-engines.ts`：传统搜索引擎、AI 对话引擎（Grok/ChatGPT/DeepSeek/豆包/Gemini，注入或 URL 预填）、站外搜索（site instance：per-instance 构造模式 baidu zhannei / bing q1 / `site:` 前缀）、自定义引擎（`%s` URL 模板）。
 - SERP Switch Bar 与 `lib/engine-search.ts`：结果页切换栏注入、普通结果提取；其执行契约不同于 API 服务。
 - `lib/storage/`、`lib/config-io.ts`、`lib/schema.ts`：本地配置、来源偏好、缓存、配置导入导出与 schema 迁移。
 - `mcp-server/`：独立 pip 包 `juso-search`，把 Agent Bridge 的 5 个 action 暴露为 MCP 工具（stdio），供 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）调用；与 CLI skill 共享 `juso_bridge` 单源模块（drift 锁守卫）。

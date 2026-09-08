@@ -15,7 +15,7 @@ The extension **does not collect, transmit, or sell** any analytics, telemetry, 
 The only data the extension stores is:
 
 - **Your own API keys** for the AI search providers you configure (Tavily, Exa, Brave, Stepfun (REST + MCP), Jina, Doubao (web + global)).
-- **Your preferences** — the active search source, source ordering and visibility, source groups (grouping, collapse, and pinned layout), per-provider result counts (maxResults), provider instances (multiple named configs per provider, each with its own options), the SERP switch-bar position (top/inline/bottom/auto), UI language, UI theme (light/dark/auto), visual style, any user-saved Site Engines (site-scoped searches with no API key required), and any user-saved custom search engines (URL templates with a `%s` placeholder, no API key required).
+- **Your preferences** — the active search source, source ordering and visibility, source groups (grouping, collapse, and pinned layout), per-provider result counts (maxResults), provider instances (multiple named configs per provider, each with its own options), the SERP switch-bar position (top/inline/bottom/auto), UI language, UI theme (light/dark/auto), visual style, any user-saved Site Instances (site-scoped searches with no API key required), and any user-saved custom search engines (URL templates with a `%s` placeholder, no API key required).
 - **A local search-result cache** — recent successful search results stored per-device to avoid billing you twice for the same query.
 
 ### 2. How data is stored
@@ -94,7 +94,7 @@ For privacy questions, open an issue in the extension's source repository.
 扩展存储的唯一数据是:
 
 - **您自备的 AI 搜索 provider API 密钥**(Tavily、Exa、Brave、Stepfun（REST + MCP）、Jina、Doubao（web + global）)。
-- **您的偏好**——激活来源、来源排序与显隐、来源分组(分组、折叠与置顶布局)、每来源结果数量(maxResults)、provider 实例(同一 provider 的多套命名配置,各自带独立选项)、快切栏栏位(顶部/内联/底部/自动)、界面语言、主题(浅色/深色/自动)、视觉样式,以及您保存的站外搜索（Site Engine，无需 API 密钥的站点范围搜索）与自定义搜索引擎（带 `%s` 占位符的网址模板，无需 API 密钥）。
+- **您的偏好**——激活来源、来源排序与显隐、来源分组(分组、折叠与置顶布局)、每来源结果数量(maxResults)、provider 实例(同一 provider 的多套命名配置,各自带独立选项)、快切栏栏位(顶部/内联/底部/自动)、界面语言、主题(浅色/深色/自动)、视觉样式,以及您保存的站外搜索（Site Instance，无需 API 密钥的站点范围搜索）与自定义搜索引擎（带 `%s` 占位符的网址模板，无需 API 密钥）。
 - **本地搜索结果缓存**——近期成功的搜索结果按设备缓存,避免对同一查询重复向您计费。
 
 ### 2. 数据的存储方式

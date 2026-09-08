@@ -3,7 +3,7 @@ import { ProviderError } from './providers/types';
 import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
 import { isProviderId, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
-import { isSiteEngineId, type SiteEngineDefinition, type SiteEngineEngineId, type SiteEngineId } from './site-engines';
+import { isSiteInstanceId, type SiteInstanceDefinition, type SiteInstanceEngineId, type SiteInstanceId, type SiteInstanceOptions } from './site-instances';
 import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { getAdapter } from './providers/registry';
@@ -37,9 +37,9 @@ import {
   setFlatLayoutFewSources,
   setSelectionSearchEnabled,
   setSelectionSearchSource,
-  createSiteEngineDefinition,
-  updateSiteEngineDefinition,
-  deleteSiteEngineDefinition,
+  createSiteInstanceDefinition,
+  updateSiteInstanceDefinition,
+  deleteSiteInstanceDefinition,
   createCustomEngineDefinition,
   updateCustomEngineDefinition,
   deleteCustomEngineDefinition,
@@ -249,20 +249,22 @@ export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
   await selectActiveSourceId(sourceId);
 }
 
-export async function handleCreateSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition> {
+// options 经 store 侧 normalizeSiteInstanceDefinition 白名单兜底（KTD5）；
+// UI 建侧总是写显式 mode（KTD4），worker 不再补默认。
+export async function handleCreateSiteInstance(data: { name: string; target: string; engineId: SiteInstanceEngineId; options?: SiteInstanceOptions }): Promise<SiteInstanceDefinition> {
   await getSchemaReady();
-  return createSiteEngineDefinition({ ...data, id: `site:${crypto.randomUUID()}` });
+  return createSiteInstanceDefinition({ ...data, id: `site:${crypto.randomUUID()}` });
 }
 
-export async function handleUpdateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition> {
+export async function handleUpdateSiteInstance(data: { id: SiteInstanceId; name: string; target: string; engineId: SiteInstanceEngineId; options?: SiteInstanceOptions }): Promise<SiteInstanceDefinition> {
   await getSchemaReady();
-  return updateSiteEngineDefinition(data.id, data);
+  return updateSiteInstanceDefinition(data.id, data);
 }
 
-export async function handleDeleteSiteEngine(siteId: SiteEngineId): Promise<void> {
+export async function handleDeleteSiteInstance(siteId: SiteInstanceId): Promise<void> {
   await getSchemaReady();
-  if (!isSiteEngineId(siteId)) throw new Error('invalid_site_engine');
-  await deleteSiteEngineDefinition(siteId);
+  if (!isSiteInstanceId(siteId)) throw new Error('invalid_site_instance');
+  await deleteSiteInstanceDefinition(siteId);
 }
 
 export async function handleCreateCustomEngine(data: { name: string; urlTemplate: string }): Promise<CustomEngineDefinition> {

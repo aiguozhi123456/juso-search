@@ -4,7 +4,7 @@ import type { SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
 import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
-import type { SiteEngineDefinition, SiteEngineEngineId, SiteEngineId } from './site-engines';
+import type { SiteInstanceDefinition, SiteInstanceEngineId, SiteInstanceId, SiteInstanceOptions } from './site-instances';
 import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
 
@@ -41,7 +41,7 @@ export type ProviderConfigReply = {
   activeSourceId: SourceId;
   sourceOrder: SourceId[];
   sourceHidden: SourceId[];
-  siteEngines: SiteEngineDefinition[];
+  siteInstances: SiteInstanceDefinition[];
   customEngines: CustomEngineDefinition[];
   /** 每个 provider 的搜索结果条数设置（已显式配置过的 id 才出现；缺省由适配器默认）。 */
   providerMaxResults: Partial<Record<ProviderId, number>>;
@@ -96,9 +96,9 @@ export type ProtocolMap = {
   setSelectionSearchEnabled(value: boolean): Promise<void>;
   /** 设置划词搜索固定源（null = 跟随激活源）。 */
   setSelectionSearchSource(sourceId: string | null): Promise<void>;
-  createSiteEngine(data: { name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
-  updateSiteEngine(data: { id: SiteEngineId; name: string; target: string; engineId: SiteEngineEngineId }): Promise<SiteEngineDefinition>;
-  deleteSiteEngine(siteId: SiteEngineId): Promise<void>;
+  createSiteInstance(data: { name: string; target: string; engineId: SiteInstanceEngineId; options?: SiteInstanceOptions }): Promise<SiteInstanceDefinition>;
+  updateSiteInstance(data: { id: SiteInstanceId; name: string; target: string; engineId: SiteInstanceEngineId; options?: SiteInstanceOptions }): Promise<SiteInstanceDefinition>;
+  deleteSiteInstance(siteId: SiteInstanceId): Promise<void>;
   createCustomEngine(data: { name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
   updateCustomEngine(data: { id: CustomEngineId; name: string; urlTemplate: string }): Promise<CustomEngineDefinition>;
   deleteCustomEngine(id: CustomEngineId): Promise<void>;

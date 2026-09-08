@@ -1,7 +1,7 @@
 // 自定义引擎（Custom Engine）：用户定义的任意搜索引擎，URL 模板含 %s 占位符。
 //
-// 与 site-engines.ts 同构：纯函数、无浏览器 API、防御式规范化。
-// 区别：site-engine 把 site: 前缀注入已有引擎，custom-engine 直接导航到用户指定的 URL。
+// 与 site-instances.ts 同构：纯函数、无浏览器 API、防御式规范化。
+// 区别：site-instance 把 site: 前缀注入已有引擎，custom-engine 直接导航到用户指定的 URL。
 
 /** IDs for user-defined custom search engines. */
 export type CustomEngineId = `custom:${string}`;
@@ -31,14 +31,14 @@ export function isCustomEngineId(id: string): id is CustomEngineId {
 /**
  * Validates and canonicalizes a URL template string.
  * Must be a valid http(s) URL containing exactly one lowercase `%s` placeholder.
- * Rejects credentials and internal whitespace (mirrors site-engines normalizeSiteTarget).
+ * Rejects credentials and internal whitespace (mirrors site-instances normalizeSiteTarget).
  * Returns the canonical form (scheme+host lowercased) or null.
  */
 export function normalizeCustomEngineUrlTemplate(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const input = value.trim();
   if (!input || input.length > MAX_CUSTOM_ENGINE_URL_LENGTH) return null;
-  // Reject internal whitespace (same as site-engines).
+  // Reject internal whitespace (same as site-instances).
   if (/\s/.test(input)) return null;
 
   // Must contain exactly one lowercase %s
@@ -54,7 +54,7 @@ export function normalizeCustomEngineUrlTemplate(value: unknown): string | null 
     return null;
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-  // Reject credentials (mirrors site-engines.ts:77).
+  // Reject credentials (mirrors site-instances.ts:77).
   if (url.username || url.password) return null;
 
   // Canonicalize: url.href has scheme+host lowercased by the URL serializer.

@@ -3,6 +3,7 @@ import { DEFAULT_ANCHORS } from './types';
 import { googleEngine } from './google';
 import { bingEngine } from './bing';
 import { baiduEngine } from './baidu';
+import { baiduZhanneiSurface } from './baidu-zhannei';
 import { douyinEngine } from './douyin';
 import { xiaohongshuEngine } from './xiaohongshu';
 import { bilibiliEngine } from './bilibili';
@@ -33,9 +34,11 @@ export function allEngines(): SearchEngine[] {
   return Object.values(engines);
 }
 
-/** 根据 URL 识别当前所在 engine（content script 注入栏高亮当前用）；不匹配返回 null。 */
+/** 根据 URL 识别当前所在 engine（content script 注入栏高亮当前用）；不匹配返回 null。
+ *  主 registry 之后追加 zhannei surface 检查（KTD3）：zhannei.baidu.com/cse/site 结果页
+ *  也识别为 baidu backing engine（host 与主 registry 无冲突，顺序无实际影响）。 */
 export function matchEngineByUrl(url: string): SearchEngine | null {
-  return allEngines().find((e) => e.matches(url)) ?? null;
+  return allEngines().find((e) => e.matches(url)) ?? (baiduZhanneiSurface.matches(url) ? baiduZhanneiSurface : null);
 }
 
 /** 从当前 SERP URL 提取查询词；非已知 engine 或无查询参数返回 null。 */

@@ -21,13 +21,13 @@ import type { SearchSource, SourceId } from '@/lib/sources';
 import type { GroupConfig } from '@/lib/source-groups';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import { parseSearchDeepLink } from '@/lib/deep-link';
-import { isSiteEngineId } from '@/lib/site-engines';
-import type { SiteEngineDefinition } from '@/lib/site-engines';
+import { isSiteInstanceId } from '@/lib/site-instances';
+import type { SiteInstanceDefinition } from '@/lib/site-instances';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import { isCustomEngineId } from '@/lib/custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
 import { isProviderInstanceId } from '@/lib/provider-instances';
-import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteEngineHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
+import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteInstanceHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
 
@@ -46,7 +46,7 @@ export default function App() {
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [sourceOrder, setSourceOrder] = useState<SourceId[]>([]);
   const [sourceHidden, setSourceHidden] = useState<SourceId[]>([]);
-  const [siteEngines, setSiteEngines] = useState<SiteEngineDefinition[]>([]);
+  const [siteInstances, setSiteInstances] = useState<SiteInstanceDefinition[]>([]);
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
   const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
@@ -73,7 +73,7 @@ export default function App() {
       setConfiguredProviderIds(config.configuredProviderIds);
       setSourceOrder(config.sourceOrder ?? []);
       setSourceHidden(config.sourceHidden ?? []);
-      setSiteEngines(config.siteEngines ?? []);
+      setSiteInstances(config.siteInstances ?? []);
       setCustomEngines(config.customEngines ?? []);
       setProviderInstances(config.providerInstances ?? []);
       setGroupConfig(config.groupConfig);
@@ -91,7 +91,7 @@ export default function App() {
         config.configuredProviderIds,
         config.sourceOrder ?? [],
         config.sourceHidden ?? [],
-        config.siteEngines ?? [],
+        config.siteInstances ?? [],
         config.customEngines ?? [],
         config.providerInstances ?? [],
       );
@@ -134,24 +134,24 @@ export default function App() {
     // this page rendered. Do this inline rather than re-entering handleSearch, so
     // there is precisely one fresh read and a deleted source can execute its fresh
     // visible fallback.
-    const isManualSiteEngineSubmit = !opts.forceRefresh
+    const isManualSiteInstanceSubmit = !opts.forceRefresh
       && !opts.providerId
       && !opts.sourceId
       && !opts.selectedSource
-      && Boolean(source && (selectedSource?.kind === 'site-engine' || isSiteEngineId(source)));
+      && Boolean(source && (selectedSource?.kind === 'site-instance' || isSiteInstanceId(source)));
     const isManualCustomEngineSubmit = !opts.forceRefresh
       && !opts.providerId
       && !opts.sourceId
       && !opts.selectedSource
       && Boolean(source && (selectedSource?.kind === 'custom-engine' || isCustomEngineId(source)));
-    if (isManualSiteEngineSubmit || isManualCustomEngineSubmit) {
+    if (isManualSiteInstanceSubmit || isManualCustomEngineSubmit) {
       try {
         const refreshed = await loadSourceSnapshot();
         const refreshedSources = allSources(
           refreshed.configuredProviderIds,
           refreshed.sourceOrder ?? [],
           refreshed.sourceHidden ?? [],
-          refreshed.siteEngines ?? [],
+          refreshed.siteInstances ?? [],
           refreshed.customEngines ?? [],
           refreshed.providerInstances ?? [],
         );
@@ -174,7 +174,7 @@ export default function App() {
         refreshed.configuredProviderIds,
         refreshed.sourceOrder ?? [],
         refreshed.sourceHidden ?? [],
-        refreshed.siteEngines ?? [],
+        refreshed.siteInstances ?? [],
         refreshed.customEngines ?? [],
         refreshed.providerInstances ?? [],
       );
@@ -225,7 +225,7 @@ export default function App() {
 
   /** 统一快切：选 provider → 序列化写 + 重搜（沿用 v1）；选 engine → 当前 tab 跳转 SERP。 */
   async function handleSelectSource(source: SearchSource) {
-    if (source.kind === 'site-engine') {
+    if (source.kind === 'site-instance') {
       // Mirror provider path: serialize concurrent source switches so a late
       // applySourceSnapshot cannot overwrite a newer selection.
       if (loading || switching) return;
@@ -242,7 +242,7 @@ export default function App() {
         if (switchReqId !== switchReqIdRef.current) return;
         // Resolve the clicked id from the fresh snapshot. The chip's embedded
         // definition may have been edited or deleted in Options.
-        const handoff = resolveCurrentSiteEngineHandoff(source.id, nextQuery, config.siteEngines ?? []);
+        const handoff = resolveCurrentSiteInstanceHandoff(source.id, nextQuery, config.siteInstances ?? []);
         if (!handoff || handoff.kind !== 'navigate') {
           // Drop the stale chip from local UI. Execution-only fallback: do not
           // persist a new active source on the user's behalf.
@@ -252,7 +252,7 @@ export default function App() {
             config.configuredProviderIds,
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
-            config.siteEngines ?? [],
+            config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
           );
@@ -294,10 +294,10 @@ export default function App() {
         if (switchReqId !== switchReqIdRef.current) return;
         // Re-resolve from the post-write snapshot: Options may have edited the
         // same Site Engine between the pre-write and post-write reads.
-        const postWriteHandoff = resolveCurrentSiteEngineHandoff(
+        const postWriteHandoff = resolveCurrentSiteInstanceHandoff(
           source.id,
           nextQuery,
-          config.siteEngines ?? [],
+          config.siteInstances ?? [],
         );
         if (!postWriteHandoff || postWriteHandoff.kind !== 'navigate') {
           // Deleted between write and re-read: apply snapshot + execution-only fallback.
@@ -307,7 +307,7 @@ export default function App() {
             config.configuredProviderIds,
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
-            config.siteEngines ?? [],
+            config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
           );
@@ -339,7 +339,7 @@ export default function App() {
       }
     }
     if (source.kind === 'custom-engine') {
-      // Mirror the site-engine path: a chip carries a render-time snapshot, so
+      // Mirror the site-instance path: a chip carries a render-time snapshot, so
       // re-read config and re-resolve before navigating; Options may have edited
       // or deleted the engine since this page rendered.
       if (loading || switching) return;
@@ -371,7 +371,7 @@ export default function App() {
             config.configuredProviderIds,
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
-            config.siteEngines ?? [],
+            config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
           );
@@ -427,7 +427,7 @@ export default function App() {
             config.configuredProviderIds,
             config.sourceOrder ?? [],
             config.sourceHidden ?? [],
-            config.siteEngines ?? [],
+            config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
           );
@@ -459,7 +459,7 @@ export default function App() {
       }
     }
     if (source.kind === 'engine' || source.kind === 'ai-engine') {
-      // Same generation guard as provider/site-engine so concurrent switches
+      // Same generation guard as provider/site-instance so concurrent switches
       // cannot race navigations; write failures still select optimistically.
       if (loading || switching) return;
       const switchReqId = ++switchReqIdRef.current;
@@ -542,7 +542,7 @@ export default function App() {
     setConfiguredProviderIds(config.configuredProviderIds);
     setSourceOrder(config.sourceOrder ?? []);
     setSourceHidden(config.sourceHidden ?? []);
-    setSiteEngines(config.siteEngines ?? []);
+    setSiteInstances(config.siteInstances ?? []);
     setCustomEngines(config.customEngines ?? []);
     setProviderInstances(config.providerInstances ?? []);
     setGroupConfig(config.groupConfig);
@@ -556,7 +556,7 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteEngines, customEngines, providerInstances);
+  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances);
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，

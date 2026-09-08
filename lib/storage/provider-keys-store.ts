@@ -1,10 +1,10 @@
 import type { ProviderId } from '../providers/types';
 import { allProviders } from '../providers/registry';
 import { normalizeSourceHidden, normalizeSourceOrder } from '../sources';
-import { normalizeSiteEngineDefinitions } from '../site-engines';
+import { normalizeSiteInstanceDefinitions } from '../site-instances';
 import { normalizeCustomEngineDefinitions } from '../custom-engines';
 import { normalizeProviderInstances } from '../provider-instances';
-import { KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, SITE_ENGINES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY, CUSTOM_ENGINES_KEY } from './keys';
+import { KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY, CUSTOM_ENGINES_KEY } from './keys';
 import { ensureVisibleUsable } from './shared';
 import { withSourceMutation } from './source-graph-store';
 
@@ -46,10 +46,10 @@ export async function clearKey(id: ProviderId): Promise<void> {
   // Always acquire source before provider keys when an operation touches both;
   // mergeImport follows this same order.
   await withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY]);
     const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
     delete keys[id];
-    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances);

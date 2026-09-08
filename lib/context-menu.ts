@@ -33,7 +33,7 @@ let sourceById = new Map<string, SearchSource>();
 const REBUILD_KEYS = new Set([
   'sourceOrder',
   'sourceHidden',
-  'siteEngines',
+  'siteInstances',
   'customEngines',
   'providerInstances',
   'groupConfig',
@@ -93,7 +93,7 @@ async function rebuildMenuOnce(): Promise<void> {
       snapshot.configuredProviderIds,
       snapshot.sourceOrder,
       snapshot.sourceHidden,
-      snapshot.siteEngines,
+      snapshot.siteInstances,
       snapshot.customEngines,
       snapshot.providerInstances,
     );
@@ -199,7 +199,7 @@ function resolveSourceFromSnapshot(
     snapshot.configuredProviderIds,
     snapshot.sourceOrder,
     snapshot.sourceHidden,
-    snapshot.siteEngines,
+    snapshot.siteInstances,
     snapshot.customEngines,
     snapshot.providerInstances,
   ).find((s) => s.id === sourceId);

@@ -134,7 +134,7 @@ describe('ConfigExportImport', () => {
           ok: true,
           preview: {
             written: [], skipped: [],
-            prefDiffs: [{ key: 'siteEngines', from: '(none)', to: 'Docs, Guide' }],
+            prefDiffs: [{ key: 'siteInstances', from: '(none)', to: 'Docs, Guide' }],
           },
         });
       }
@@ -144,7 +144,7 @@ describe('ConfigExportImport', () => {
           report: {
             written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
             themePrefOverridden: false, localePrefOverridden: false, serpBarPositionOverridden: false, sourceOrderOverridden: false,
-            sourceHiddenOverridden: false, siteEnginesOverridden: true,
+            sourceHiddenOverridden: false, siteInstancesOverridden: true,
           },
         });
       }
@@ -153,7 +153,7 @@ describe('ConfigExportImport', () => {
     render(<ConfigExportImport onImported={onImported} />);
     const input = screen.getByDisplayValue('') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
-    // Confirmation dialog appears with the siteEngines diff.
+    // Confirmation dialog appears with the siteInstances diff.
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
     expect(screen.getByText(/站外搜索/, { selector: '.pref-diffs li' })).toBeInTheDocument();
     // Confirm with prefs.

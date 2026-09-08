@@ -3,13 +3,13 @@ import { allProviders } from '../providers/registry';
 import type { SourceId } from '../sources';
 import { allKnownSourceIds, isEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource } from '../sources';
 import { isRegisteredAiEngineId } from '../ai-engines/registry';
-import { normalizeSiteEngineDefinitions } from '../site-engines';
+import { normalizeSiteInstanceDefinitions } from '../site-instances';
 import { normalizeCustomEngineDefinitions } from '../custom-engines';
 import type { ProviderInstanceId } from '../provider-instances';
 import { isProviderInstanceId, normalizeProviderInstances } from '../provider-instances';
 import type { GroupConfig } from '../source-groups';
 import { normalizeGroupConfig, defaultGroupConfig } from '../source-groups';
-import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, CUSTOM_ENGINES_KEY, GROUP_CONFIG_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY, SITE_ENGINES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
+import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, CUSTOM_ENGINES_KEY, GROUP_CONFIG_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
 import { DEFAULT_ENGINE_ID, ensureVisibleUsable, isKnownProvider } from './shared';
 
 // sourceOrder 的读改写串行队列：setSourceOrder/mergeImport 共用，避免导入覆盖较新的移动。
@@ -49,9 +49,9 @@ export async function setActiveProviderAndSourceId(id: ProviderId): Promise<void
 type EffectiveSourceId = SourceId | ProviderInstanceId;
 
 export async function getActiveSourceId(): Promise<EffectiveSourceId> {
-  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
-  const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const stored = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
@@ -66,9 +66,9 @@ export async function setActiveSourceId(id: SourceId | null): Promise<void> {
 /** Validates and commits a source selection against one queued storage snapshot. */
 export async function selectActiveSourceId(id: EffectiveSourceId): Promise<void> {
   await withSourceMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+    const got = await browser.storage.local.get([KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
     const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
-    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     if (isKnownProvider(id)) {
@@ -91,27 +91,27 @@ export async function selectActiveSourceId(id: EffectiveSourceId): Promise<void>
 
 /** 快切来源完整顺序；仅读自身键，非法值回退到完整默认顺序。 */
 export async function getSourceOrder(): Promise<SourceId[]> {
-  const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-  return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
+  const got = await browser.storage.local.get([SOURCE_ORDER_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+  return normalizeSourceOrder(got[SOURCE_ORDER_KEY], normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
 }
 
 export async function setSourceOrder(order: SourceId[]): Promise<void> {
   await withSourceMutation(async () => {
-    const got = await browser.storage.local.get([SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-    await browser.storage.local.set({ [SOURCE_ORDER_KEY]: normalizeSourceOrder(order, normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY])) });
+    const got = await browser.storage.local.get([SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+    await browser.storage.local.set({ [SOURCE_ORDER_KEY]: normalizeSourceOrder(order, normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY])) });
   });
 }
 
 /** 快切栏隐藏来源清单；仅读自身键，非法值回退到空数组。 */
 export async function getSourceHidden(): Promise<SourceId[]> {
-  const got = await browser.storage.local.get([SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-  return normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
+  const got = await browser.storage.local.get([SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+  return normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]), normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]), normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]));
 }
 
 export async function setSourceHidden(ids: SourceId[]): Promise<void> {
   await withSourceMutation(async () => {
-    const got = await browser.storage.local.get([SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, SOURCE_ORDER_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY]);
-    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const got = await browser.storage.local.get([SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, SOURCE_ORDER_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY]);
+    const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const hidden = ensureVisibleUsable(normalizeSourceHidden(ids, definitions, customDefinitions, instances), normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances), (got[KEYS_KEY] ?? {}) as Record<string, string>, definitions, customDefinitions, instances);
@@ -122,12 +122,12 @@ export async function setSourceHidden(ids: SourceId[]): Promise<void> {
 // === 来源分组与顶层布局 ===
 // 分组只是布局层：不改变 source 的显隐与底层顺序（sourceOrder/sourceHidden 仍各自负责），
 // 仅在其之上叠加「哪些 source 置顶平铺 / 哪些收进分组」的布局信息。
-// 已知 source id 集合由 lib/sources.ts 的 allKnownSourceIds 统一计算（provider + engine + site-engine），
+// 已知 source id 集合由 lib/sources.ts 的 allKnownSourceIds 统一计算（provider + engine + site-instance），
 // 避免各调用方各自硬编码 engine 列表导致漂移。
 
 export async function getGroupConfig(): Promise<GroupConfig> {
-  const got = await browser.storage.local.get([GROUP_CONFIG_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-  const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+  const got = await browser.storage.local.get([GROUP_CONFIG_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+  const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const raw = got[GROUP_CONFIG_KEY];
@@ -138,8 +138,8 @@ export async function getGroupConfig(): Promise<GroupConfig> {
 
 export async function setGroupConfig(config: GroupConfig): Promise<void> {
   await withSourceMutation(async () => {
-    const got = await browser.storage.local.get([SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-    const definitions = normalizeSiteEngineDefinitions(got[SITE_ENGINES_KEY]);
+    const got = await browser.storage.local.get([SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
+    const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
     const normalized = normalizeGroupConfig(config, allKnownSourceIds(definitions, customDefinitions, instances));

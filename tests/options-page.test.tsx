@@ -4,7 +4,7 @@ import App from '@/entrypoints/options/App';
 import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
 import { DEFAULT_DOUBAO_SETTINGS } from '@/lib/providers/doubao';
-import type { SiteEngineDefinition } from '@/lib/site-engines';
+import type { SiteInstanceDefinition } from '@/lib/site-instances';
 
 vi.mock('@/lib/messaging', () => ({ sendMessage: vi.fn() }));
 // 主题/locale/style 逻辑由各自单测覆盖；页面测试隔离掉，避免依赖 matchMedia/storage.onChanged
@@ -366,7 +366,7 @@ describe('options page', () => {
   });
 
   it('renders a site engine in its pinyin-sorted position in the quickbar list', async () => {
-    const siteEngine: SiteEngineDefinition = {
+    const siteInstance: SiteInstanceDefinition = {
       id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google',
     };
     mockedSend.mockImplementation(((type: string) => {
@@ -374,7 +374,7 @@ describe('options page', () => {
         return Promise.resolve({
           configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           sourceOrder: ['exa', 'site:docs', 'google', 'bing', 'baidu'],
-          siteEngines: [siteEngine],
+          siteInstances: [siteInstance],
         });
       }
       return Promise.resolve(undefined);
@@ -389,7 +389,7 @@ describe('options page', () => {
     expect(within(quickbar).queryByRole('button', { name: /上移|下移/ })).toBeNull();
   });
 
-  it('ignores a stale config response for siteEngines, active, and configured providers', async () => {
+  it('ignores a stale config response for siteInstances, active, and configured providers', async () => {
     const slowConfig = deferred<Record<string, unknown>>();
     let configCalls = 0;
     mockedSend.mockImplementation(((type: string) => {
@@ -399,7 +399,7 @@ describe('options page', () => {
         // Second call (triggered by saving a key) resolves immediately with current data.
         return Promise.resolve({
           configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
-          siteEngines: [],
+          siteInstances: [],
         });
       }
       return Promise.resolve(undefined);
@@ -415,7 +415,7 @@ describe('options page', () => {
     // The slow first config resolves late with stale data — it must be ignored.
     slowConfig.resolve({
       configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
-      siteEngines: [{ id: 'site:stale', name: 'Stale', target: 'https://stale.example.com', engineId: 'google' }],
+      siteInstances: [{ id: 'site:stale', name: 'Stale', target: 'https://stale.example.com', engineId: 'google' }],
       sourceOrder: ['tavily', 'google'],
     });
     await new Promise((r) => setTimeout(r, 50));
@@ -452,7 +452,7 @@ describe('options page', () => {
         configCalls += 1;
         return Promise.resolve({
           configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
-          siteEngines: [],
+          siteInstances: [],
         });
       }
       if (type === 'previewImport') {
@@ -460,7 +460,7 @@ describe('options page', () => {
           ok: true,
           preview: {
             written: [], skipped: [],
-            prefDiffs: [{ key: 'siteEngines' as const, from: '', to: 'Imported Site' }],
+            prefDiffs: [{ key: 'siteInstances' as const, from: '', to: 'Imported Site' }],
           },
         });
       }
@@ -470,7 +470,7 @@ describe('options page', () => {
           report: {
             written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
             themePrefOverridden: false, localePrefOverridden: false, serpBarPositionOverridden: false, sourceOrderOverridden: false,
-            sourceHiddenOverridden: false, siteEnginesOverridden: true, providerMaxResultsOverridden: false,
+            sourceHiddenOverridden: false, siteInstancesOverridden: true, providerMaxResultsOverridden: false,
           },
         });
       }
@@ -483,13 +483,13 @@ describe('options page', () => {
     const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(fileInput).toBeTruthy();
     fireEvent.change(fileInput, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
-    // The confirming dialog appears with the siteEngines diff.
+    // The confirming dialog appears with the siteInstances diff.
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '导入（含偏好）' }));
     // After import, onImported → syncConfig → getProviderConfig is called again,
     // proving the options page refreshes its config snapshot post-import.
     await waitFor(() => expect(configCalls).toBeGreaterThan(initialCalls));
-    // The import success banner (with siteEngines override report) confirms the round-trip.
+    // The import success banner (with siteInstances override report) confirms the round-trip.
     expect(await screen.findByText(/已覆盖：站外搜索/)).toBeInTheDocument();
   });
 

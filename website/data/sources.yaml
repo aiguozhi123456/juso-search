@@ -31,5 +31,5 @@ groups:
       - { icon: ai-gemini,      name_zh: Gemini,    name_en: Gemini }
   - key: custom
     items:
-      - { icon: site,          name_zh: 站外搜索,    name_en: Site Engine }
+      - { icon: site,          name_zh: 站外搜索,    name_en: Site Instance }
       - { icon: custom-engine, name_zh: 自定义引擎,  name_en: Custom Engine }

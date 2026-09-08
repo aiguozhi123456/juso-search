@@ -185,7 +185,11 @@ body {
   border-radius: var(--radius-sm);
 }
 
-/* ── 原生控件定制 ─────────────────────────────────── */
+/* ── 原生控件定制 ───────────────────────────────────
+   select 的箭头不画在元素自身 background 上——否则任何局部 background 覆盖都会
+   打死它，而深色主题规则特异性更高会把图加回来，以 initial position/repeat 平铺
+   成多箭头（踩过两次的坑）。箭头由 .select-wrap 包装层的 ::after 以
+   mask + var(--muted) 绘制：一套 SVG 通吃明暗主题，颜色随变量走。 */
 .options select {
   appearance: none;
   -webkit-appearance: none;
@@ -193,9 +197,6 @@ body {
   font-size: var(--text-md); font-family: inherit;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background-color: var(--bg);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--space-3) center;
   color: var(--fg);
   cursor: pointer;
   transition: border-color var(--duration-fast) var(--ease-out),
@@ -203,14 +204,20 @@ body {
 }
 .options select:hover { border-color: var(--muted); }
 .options select:focus { border-color: var(--brand); }
-.options select::-ms-expand { display: none; }
-:root[data-theme="dark"] .options select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+.options .select-wrap {
+  position: relative;
+  display: inline-flex; max-width: 100%;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .options select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa0a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  }
+.options .select-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%; right: var(--space-3);
+  width: 16px; height: 16px;
+  transform: translateY(-50%);
+  background-color: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
 }
 
 .hint { font-size: var(--text-xs); color: var(--muted); margin: 0 0 var(--space-3); line-height: 1.5; }
@@ -223,11 +230,11 @@ body {
 }
 
 /* ── Site Engines 管理 ──────────────────────────────── */
-.site-engines { display: flex; flex-direction: column; gap: var(--space-2); }
-.site-engines > .hint { margin: 0; }
-.site-engines .site-engines-quickbar-note { margin-top: var(--space-1); }
+.site-instances { display: flex; flex-direction: column; gap: var(--space-2); }
+.site-instances > .hint { margin: 0; }
+.site-instances .site-instances-quickbar-note { margin-top: var(--space-1); }
 
-.site-engine-add-btn {
+.site-instance-add-btn {
   align-self: flex-start;
   display: inline-flex; align-items: center; gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
@@ -239,19 +246,19 @@ body {
               border-color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
-.site-engine-add-btn:hover:not(:disabled) {
+.site-instance-add-btn:hover:not(:disabled) {
   color: var(--brand); border-color: var(--brand); background: var(--brand-soft);
 }
 
-.site-engines-list {
+.site-instances-list {
   display: flex; flex-direction: column;
   border-top: 1px solid var(--border-soft);
 }
-.site-engines-empty {
+.site-instances-empty {
   margin: 0; padding: var(--space-3) 0;
   color: var(--muted); font-size: var(--text-sm);
 }
-.site-engine-row {
+.site-instance-row {
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-3); min-height: 38px;
   border-bottom: 1px solid var(--border-soft);
@@ -259,20 +266,20 @@ body {
   font-size: var(--text-md);
   transition: background var(--duration-fast) var(--ease-out);
 }
-.site-engine-row:hover { background: var(--bg); }
-.site-engine-row--editing { background: var(--brand-soft); }
-.site-engine-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.site-engine-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.site-engine-scope {
+.site-instance-row:hover { background: var(--bg); }
+.site-instance-row--editing { background: var(--brand-soft); }
+.site-instance-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.site-instance-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-instance-scope {
   font-size: var(--text-xs); color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.site-engine-scope code {
+.site-instance-scope code {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: var(--text-xs);
 }
-.site-engine-row-actions { display: flex; gap: var(--space-2); align-items: center; }
-.site-engine-row-actions button {
+.site-instance-row-actions { display: flex; gap: var(--space-2); align-items: center; }
+.site-instance-row-actions button {
   display: inline-flex; align-items: center; justify-content: center;
   padding: var(--space-1) var(--space-2);
   min-height: 28px;
@@ -283,40 +290,40 @@ body {
               border-color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
-.site-engine-row-actions button:hover:not(:disabled) {
+.site-instance-row-actions button:hover:not(:disabled) {
   color: var(--brand); border-color: var(--brand);
 }
-.site-engine-row-actions button.danger:hover:not(:disabled) {
+.site-instance-row-actions button.danger:hover:not(:disabled) {
   color: var(--error); border-color: var(--error);
 }
-.site-engine-row-actions button:disabled { opacity: 0.5; cursor: default; }
-.site-engine-confirm-text {
+.site-instance-row-actions button:disabled { opacity: 0.5; cursor: default; }
+.site-instance-confirm-text {
   font-size: var(--text-xs); color: var(--error);
 }
 
 /* 表单 */
-.site-engine-form {
+.site-instance-form {
   display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-3);
   border: 1px solid var(--border); border-left: 3px solid var(--brand);
   border-radius: var(--radius-sm);
   background: var(--bg-soft);
 }
-.site-engine-form-row {
+.site-instance-form-row {
   display: grid; grid-template-columns: 96px 1fr auto;
   gap: var(--space-2); align-items: center;
 }
-.site-engine-form-row label,
-.site-engine-form-row .site-engine-form-label {
+.site-instance-form-row label,
+.site-instance-form-row .site-instance-form-label {
   font-size: var(--text-sm); color: var(--muted); font-weight: 500;
 }
-.site-engine-field-count {
+.site-instance-field-count {
   font-size: var(--text-xs); color: var(--muted);
   font-variant-numeric: tabular-nums;
   min-width: 64px; text-align: right;
 }
-.site-engine-form input[type="text"],
-.site-engine-form input[type="url"] {
+.site-instance-form input[type="text"],
+.site-instance-form input[type="url"] {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-md); font-family: inherit;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -324,11 +331,28 @@ body {
   transition: border-color var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out);
 }
-.site-engine-form input:hover:not(:disabled) { border-color: var(--muted); }
-.site-engine-form input:focus {
+.site-instance-form input:hover:not(:disabled) { border-color: var(--muted); }
+.site-instance-form input:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
   outline: none;
+}
+/* 构造模式筛选组（zhannei 实例）：紧凑行内布局。箭头由 .select-wrap 绘制，
+   select 自身只压字号与纵向内边距（左右内边距沿用全局值，右侧留出箭头位）。 */
+.site-instance-filters {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.site-instance-filter-select {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+}
+.site-instance-filter-select select {
+  padding-top: var(--space-1); padding-bottom: var(--space-1);
+  font-size: var(--text-sm);
+}
+.site-instance-filter-check {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font-size: var(--text-sm); color: var(--fg);
 }
 
 .engine-segmented {
@@ -350,17 +374,17 @@ body {
   background: var(--brand); color: var(--brand-on); font-weight: 600;
 }
 
-.site-engine-preview {
+.site-instance-preview {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   background: var(--bg);
   font-size: var(--text-xs);
 }
-.site-engine-preview .preview-label {
+.site-instance-preview .preview-label {
   color: var(--muted); font-size: var(--text-xs);
 }
-.site-engine-preview .preview-prefix {
+.site-instance-preview .preview-prefix {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: var(--text-sm);
   color: var(--fg);
@@ -368,18 +392,18 @@ body {
   padding: 1px var(--space-2);
   border-radius: var(--radius-sm);
 }
-.site-engine-preview .preview-note {
+.site-instance-preview .preview-note {
   color: var(--warning); font-size: var(--text-xs);
   flex-basis: 100%;
 }
 
-.site-engine-field-error {
+.site-instance-field-error {
   margin: 0; padding-left: calc(96px + var(--space-2));
   font-size: var(--text-xs); color: var(--error);
 }
 
-.site-engine-form-actions { display: flex; gap: var(--space-2); }
-.site-engine-form-actions button {
+.site-instance-form-actions { display: flex; gap: var(--space-2); }
+.site-instance-form-actions button {
   display: inline-flex; align-items: center; gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm); font-family: inherit; font-weight: 500;
@@ -389,18 +413,18 @@ body {
               border-color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
-.site-engine-form-actions button:hover:not(:disabled) {
+.site-instance-form-actions button:hover:not(:disabled) {
   color: var(--brand); border-color: var(--brand);
 }
-.site-engine-form-actions button.primary {
+.site-instance-form-actions button.primary {
   background: var(--brand); color: var(--brand-on); border-color: var(--brand);
 }
-.site-engine-form-actions button.primary:hover:not(:disabled) {
+.site-instance-form-actions button.primary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--brand) 88%, black);
   border-color: color-mix(in srgb, var(--brand) 88%, black);
   color: var(--brand-on);
 }
-.site-engine-form-actions button:disabled { opacity: 0.5; cursor: default; }
+.site-instance-form-actions button:disabled { opacity: 0.5; cursor: default; }
 
 /* Custom Engines — parallel to Site Engines */
 .custom-engines { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -1678,7 +1702,7 @@ body {
 
 [data-style="colorful"] .options section { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
-[data-style="colorful"] .options section[data-section="site-engines"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
+[data-style="colorful"] .options section[data-section="site-instances"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
 [data-style="colorful"] .options section[data-section="custom-engines"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }

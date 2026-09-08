@@ -12,10 +12,10 @@ import { SourceSwitcher } from '@/components/SourceSwitcher';
 import { matchEngineByUrl, anchorsFor } from '@/lib/engines/registry';
 import type { AnchorStrategy } from '@/lib/engines/types';
 import {
-  decidePostWriteSiteEngineNavigation,
+  decidePostWriteSiteInstanceNavigation,
   nextQueryAfterSerpContext,
   resolveCurrentCustomEngineHandoff,
-  resolveCurrentSiteEngineHandoff,
+  resolveCurrentSiteInstanceHandoff,
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
@@ -147,15 +147,15 @@ export default defineContentScript({
         config.configuredProviderIds,
         config.sourceOrder,
         config.sourceHidden,
-        config.siteEngines ?? [],
+        config.siteInstances ?? [],
         config.customEngines ?? [],
         config.providerInstances ?? [],
       );
       const rawQuery = readQuery(state.engine, window.location.href);
       const context = resolveSerpContext(
-        state.engine.id,
-        rawQuery,
-        config.siteEngines ?? [],
+        state.engine,
+        window.location.href,
+        config.siteInstances ?? [],
         config.activeSourceId,
         config.sourceOrder,
         config.sourceHidden,
@@ -590,12 +590,11 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
   // browser.i18n.getUILanguage()（浏览器语言），若不显式应用扩展设置，会出现
   // 浏览器为英语、扩展设为中文时快切栏仍显示英语。在首次 render 前应用以避免闪烁。
   applyLocalePref(localePref);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteEngines ?? [], config.customEngines ?? [], config.providerInstances ?? []);
-  const rawQuery = readQuery(engine, url);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteInstances ?? [], config.customEngines ?? [], config.providerInstances ?? []);
   const context = resolveSerpContext(
-    engine.id,
-    rawQuery,
-    config.siteEngines ?? [],
+    engine,
+    url,
+    config.siteInstances ?? [],
     config.activeSourceId,
     config.sourceOrder,
     config.sourceHidden,
@@ -686,7 +685,7 @@ async function onSelect(
   isCurrent: () => boolean = () => true,
   aiAutoEnter: boolean = true,
 ): Promise<void> {
-  if (source.kind === 'site-engine') {
+  if (source.kind === 'site-instance') {
     let config: ProviderConfigReply;
     try {
       // A Site Engine chip contains a render-time snapshot. Re-resolve it so
@@ -696,7 +695,7 @@ async function onSelect(
       return;
     }
     if (!isCurrent()) return;
-    const handoff = resolveCurrentSiteEngineHandoff(source.id, query, config.siteEngines ?? []);
+    const handoff = resolveCurrentSiteInstanceHandoff(source.id, query, config.siteInstances ?? []);
     if (!handoff || handoff.kind !== 'navigate') {
       // Deleted / unresolved: drop the stale chip from local bar state; no navigation.
       onUnresolvedSource?.(config);
@@ -721,10 +720,10 @@ async function onSelect(
       return;
     }
     if (!isCurrent()) return;
-    const decision = decidePostWriteSiteEngineNavigation(
+    const decision = decidePostWriteSiteInstanceNavigation(
       source.id,
       query,
-      config.siteEngines ?? [],
+      config.siteInstances ?? [],
       handoff.url,
     );
     if (decision.kind === 'navigate') {

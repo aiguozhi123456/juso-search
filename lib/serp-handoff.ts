@@ -12,11 +12,11 @@ import type { SearchSource } from './sources';
 import type { SourceId } from './sources';
 import { isEngineId, isProviderId } from './sources';
 import { isProviderInstanceId } from './provider-instances';
+import type { SearchEngine } from './engines/types';
 import { getEngine } from './engines/registry';
 import { buildSearchDeepLink } from './deep-link';
-import type { EngineId } from './engines/types';
-import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
-import { buildSiteEngineQuery, isSiteEngineEngineId, matchSiteEngineQuery } from './site-engines';
+import type { SiteInstanceDefinition, SiteInstanceId } from './site-instances';
+import { buildSiteInstanceUrl, matchSiteInstanceFromUrl } from './site-instances';
 import type { CustomEngineDefinition } from './custom-engines';
 import { buildCustomEngineUrl } from './custom-engines';
 import { getAiEngine, isRegisteredAiEngineId } from './ai-engines/registry';
@@ -27,35 +27,36 @@ export type SerpHandoff =
 
 /** The source state represented by a currently displayed conventional-engine SERP. */
 export interface SerpContext {
-  /** Query for subsequent handoffs, with a recognized Site Engine scope removed. */
+  /** Query for subsequent handoffs, with a recognized Site Instance scope removed. */
   baseQuery: string;
-  /** The chip to activate: a visible matching Site Engine, or its backing engine. */
+  /** The chip to activate: a visible matching Site Instance, or its backing engine. */
   activeId: SourceId;
-  /** A matching Site Engine only when it remains visible in the switcher. */
-  matchingSiteId: SiteEngineId | null;
+  /** A matching Site Instance only when it remains visible in the switcher. */
+  matchingSiteId: SiteInstanceId | null;
 }
 
 /**
- * Recovers Site Engine context from a SERP query without depending on DOM or
- * storage. A hidden matching Site Engine still has its generated scope stripped
- * so switching sources preserves the user's original base query, but it cannot
- * be selected as the active chip.
+ * Recovers Site Instance context from a SERP URL without depending on DOM or
+ * storage. Recognition is mode-agnostic (KTD2): a zhannei `cc`, a bing `q1`
+ * `site:` operand, or a raw `site:`-prefixed query all resolve to `(engineId,
+ * scope)` and strip to the clean base query. A hidden matching Site Instance
+ * still has its scope stripped so switching sources preserves the user's
+ * original base query, but it cannot be selected as the active chip.
  */
 export function resolveSerpContext(
-  backingEngineId: EngineId,
-  rawQuery: string,
-  siteDefinitions: readonly SiteEngineDefinition[],
+  engine: SearchEngine,
+  url: string,
+  siteDefinitions: readonly SiteInstanceDefinition[],
   activeSourceId?: SourceId | null,
   sourceOrder?: readonly SourceId[],
   hiddenSourceIds?: readonly SourceId[],
 ): SerpContext {
-  const match = isSiteEngineEngineId(backingEngineId)
-    ? matchSiteEngineQuery(backingEngineId, rawQuery, siteDefinitions, activeSourceId, sourceOrder)
-    : null;
+  const rawQuery = engine.extractQuery(url) ?? '';
+  const match = matchSiteInstanceFromUrl(engine, url, siteDefinitions, activeSourceId, sourceOrder);
   const matchingSiteId = match && !hiddenSourceIds?.includes(match.siteId) ? match.siteId : null;
   return {
     baseQuery: match?.baseQuery ?? rawQuery,
-    activeId: matchingSiteId ?? backingEngineId,
+    activeId: matchingSiteId ?? engine.id,
     matchingSiteId,
   };
 }
@@ -63,10 +64,11 @@ export function resolveSerpContext(
 /**
  * Chooses the in-memory SERP bar query after a config snapshot.
  *
- * When a Site Engine still matches, always adopt the stripped base query.
+ * When a Site Instance still matches, always adopt the stripped base query.
  * When it no longer matches (deleted / hidden / edited) and the live SERP URL
  * still carries a raw `site:…` query, keep any non-empty stripped query already
  * held in bar state so subsequent handoffs are not polluted by the scope prefix.
+ * (zhannei/q1 页的 raw query 本就干净，该兜底分支天然不受影响。)
  */
 export function nextQueryAfterSerpContext(
   context: Pick<SerpContext, 'matchingSiteId' | 'baseQuery'>,
@@ -106,11 +108,10 @@ export function resolveSerpHandoff(
     if (!url) return null;
     return { kind: 'navigate', url };
   }
-  if (source.kind === 'site-engine' && source.siteEngine) {
-    const scopedQuery = buildSiteEngineQuery(source.siteEngine, trimmed);
-    if (!scopedQuery) return null;
-    const engine = getEngine(source.siteEngine.engineId);
-    return { kind: 'navigate', url: engine.buildSerpUrl(scopedQuery) };
+  if (source.kind === 'site-instance' && source.siteInstance) {
+    const url = buildSiteInstanceUrl(source.siteInstance, trimmed);
+    if (!url) return null;
+    return { kind: 'navigate', url };
   }
   if (source.kind === 'engine' && isEngineId(source.id)) {
     const engine = getEngine(source.id);
@@ -145,20 +146,20 @@ export function resolveSerpHandoff(
   return null;
 }
 
-/** Resolves a Site Engine handoff from a freshly read definition. */
-export function resolveCurrentSiteEngineHandoff(
+/** Resolves a Site Instance handoff from a freshly read definition. */
+export function resolveCurrentSiteInstanceHandoff(
   siteId: SourceId,
   query: string,
-  siteDefinitions: readonly SiteEngineDefinition[],
+  siteDefinitions: readonly SiteInstanceDefinition[],
 ): SerpHandoff | null {
-  const siteEngine = siteDefinitions.find((definition) => definition.id === siteId);
-  if (!siteEngine) return null;
+  const siteInstance = siteDefinitions.find((definition) => definition.id === siteId);
+  if (!siteInstance) return null;
   return resolveSerpHandoff({
-    id: siteEngine.id,
-    kind: 'site-engine',
-    label: siteEngine.name,
+    id: siteInstance.id,
+    kind: 'site-instance',
+    label: siteInstance.name,
     supportsAnswer: false,
-    siteEngine,
+    siteInstance,
   }, query);
 }
 
@@ -180,23 +181,23 @@ export function resolveCurrentCustomEngineHandoff(
 }
 
 /**
- * Post-write navigation decision after setActiveSource for a Site Engine chip.
+ * Post-write navigation decision after setActiveSource for a Site Instance chip.
  *
- * - `postWriteSiteEngines === null` → post-write config read failed; keep the
+ * - `postWriteSiteInstances === null` → post-write config read failed; keep the
  *   pre-write navigate URL (write already succeeded).
  * - post-write handoff is navigate → use the refreshed URL.
  * - otherwise (deleted/invalid) → unresolved; caller applies snapshot, no nav.
  */
-export function decidePostWriteSiteEngineNavigation(
+export function decidePostWriteSiteInstanceNavigation(
   siteId: SourceId,
   query: string,
-  postWriteSiteEngines: readonly SiteEngineDefinition[] | null,
+  postWriteSiteInstances: readonly SiteInstanceDefinition[] | null,
   preWriteNavigateUrl: string,
 ): { kind: 'navigate'; url: string } | { kind: 'unresolved' } {
-  if (postWriteSiteEngines == null) {
+  if (postWriteSiteInstances == null) {
     return { kind: 'navigate', url: preWriteNavigateUrl };
   }
-  const handoff = resolveCurrentSiteEngineHandoff(siteId, query, postWriteSiteEngines);
+  const handoff = resolveCurrentSiteInstanceHandoff(siteId, query, postWriteSiteInstances);
   if (handoff?.kind === 'navigate') return handoff;
   return { kind: 'unresolved' };
 }

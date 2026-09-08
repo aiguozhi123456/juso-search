@@ -51,9 +51,9 @@ const AI_ENGINE_IDS = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:
 describe('CONFIG_KEYS whitelist', () => {
   // 回归（L1）：Custom Engine 功能新增 customEngines 存储键，须纳入 CONFIG_KEYS 白名单，
   // 否则未来迁移读写 config 域时会静默漏掉它（getter 仍兜底 []，故无需 bump 版本/迁移）。
-  it('includes customEngines alongside siteEngines', () => {
+  it('includes customEngines alongside siteInstances', () => {
     expect(CONFIG_KEYS).toContain('customEngines');
-    expect(CONFIG_KEYS).toContain('siteEngines');
+    expect(CONFIG_KEYS).toContain('siteInstances');
   });
 
   it('includes aiAutoEnter in the config whitelist', () => {
@@ -123,7 +123,7 @@ describe('ensureSchema: downgrade tolerance', () => {
 describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
-      expect(mod.migrations).toHaveLength(8);
+      expect(mod.migrations).toHaveLength(9);
       expect(mod.migrations[0].version).toBe(1);
       expect(mod.migrations[1].version).toBe(2);
       expect(mod.migrations[2].version).toBe(3);
@@ -132,7 +132,8 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
       expect(mod.migrations[5].version).toBe(6);
       expect(mod.migrations[6].version).toBe(7);
       expect(mod.migrations[7].version).toBe(8);
-      expect(mod.CURRENT_SCHEMA_VERSION).toBe(9);
+      expect(mod.migrations[8].version).toBe(9);
+      expect(mod.CURRENT_SCHEMA_VERSION).toBe(10);
     });
   });
 
@@ -231,6 +232,35 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     expect(migrateConfig({}, 3, 4, migrations).siteEngines).toEqual([]);
   });
 
+  it('v9->v10 renames the siteEngines storage key to siteInstances (idempotent)', () => {
+    const def = { id: 'site:x', name: 'X', target: 'https://x.example.com/', engineId: 'google' };
+    const once = migrateConfig({ siteEngines: [def] }, 9, 10, migrations);
+    expect(once.siteInstances).toEqual([def]);
+    expect(once).not.toHaveProperty('siteEngines');
+    const twice = migrateConfig(once, 9, 10, migrations);
+    expect(twice).toEqual(once);
+  });
+
+  it('v9->v10 keeps an existing siteInstances value when the legacy key is absent', () => {
+    const def = { id: 'site:y', name: 'Y', target: 'https://y.example.com/', engineId: 'bing' };
+    const out = migrateConfig({ siteInstances: [def] }, 9, 10, migrations);
+    expect(out.siteInstances).toEqual([def]);
+  });
+
+  it('v9->v10 initializes an explicit empty siteInstances collection when neither key exists', () => {
+    const out = migrateConfig({ themePref: 'dark' }, 9, 10, migrations);
+    expect(out.siteInstances).toEqual([]);
+  });
+
+  it('ensureSchema migrates stored siteEngines data to siteInstances and removes the legacy key', async () => {
+    const def = { id: 'site:z', name: 'Z', target: 'https://z.example.com/', engineId: 'baidu' };
+    const { store } = installStorage({ [SCHEMA_VERSION_KEY]: 9, siteEngines: [def] });
+    await ensureSchema();
+    expect(await readSchemaVersion()).toBe(CURRENT_SCHEMA_VERSION);
+    expect(store.get('siteInstances')).toEqual([def]);
+    expect(store.has('siteEngines')).toBe(false);
+  });
+
   it('v4->v5 is a no-op pass-through (groupConfig defaults lazily via getter)', () => {
     // groupConfig 缺省由 getter 回退默认配置，迁移无需填充数据——仅 bump 版本戳。
     const before = { providerKeys: {}, sourceHidden: ['baidu'] };
@@ -249,7 +279,7 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     expect(removeSpy).not.toHaveBeenCalled();
   });
 
-  it('does not stamp v4 when the final commit fails and safely retries migrated data', async () => {
+  it('does not stamp when the final commit fails and safely retries migrated data', async () => {
     let failFinalStamp = true;
     const { store } = installStorage({ [SCHEMA_VERSION_KEY]: 3 }, {
       beforeSet: (items) => {
@@ -261,11 +291,11 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
     });
     await expect(ensureSchema()).rejects.toThrow('final stamp failed');
     expect(store.get(SCHEMA_VERSION_KEY)).toBe(3);
-    expect(store.get('siteEngines')).toEqual([]);
+    expect(store.get('siteInstances')).toEqual([]);
 
     await ensureSchema();
     expect(store.get(SCHEMA_VERSION_KEY)).toBe(CURRENT_SCHEMA_VERSION);
-    expect(store.get('siteEngines')).toEqual([]);
+    expect(store.get('siteInstances')).toEqual([]);
   });
 });
 

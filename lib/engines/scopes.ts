@@ -11,6 +11,8 @@ export const GOOGLE_SERP_HOSTS = [
 
 export const BING_SERP_HOSTS = ['www.bing.com', 'cn.bing.com'] as const;
 export const BAIDU_SERP_HOSTS = ['www.baidu.com'] as const;
+/** zhannei.baidu.com 是 baidu 站内搜索的独立 host（合成 surface，不注册裸 EngineId）。 */
+export const ZHANNEI_SERP_HOSTS = ['zhannei.baidu.com'] as const;
 export const DOUYIN_SERP_HOSTS = ['www.douyin.com'] as const;
 export const XIAOHONGSHU_SERP_HOSTS = ['www.xiaohongshu.com'] as const;
 export const BILIBILI_SERP_HOSTS = ['search.bilibili.com'] as const;
@@ -21,6 +23,7 @@ export const SERP_HOSTS = [
   ...GOOGLE_SERP_HOSTS,
   ...BING_SERP_HOSTS,
   ...BAIDU_SERP_HOSTS,
+  ...ZHANNEI_SERP_HOSTS,
   ...DOUYIN_SERP_HOSTS,
   ...XIAOHONGSHU_SERP_HOSTS,
   ...BILIBILI_SERP_HOSTS,
@@ -34,6 +37,7 @@ export const SERP_CONTENT_MATCH_PATTERNS = [
   ...GOOGLE_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BING_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BAIDU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/s')),
+  ...ZHANNEI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/cse/site')),
   ...DOUYIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...XIAOHONGSHU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search_result')),
   ...BILIBILI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/all')),
@@ -48,6 +52,7 @@ export const ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS = SERP_HOST_MATCH_PATTERNS;
 const googleSerpHosts = new Set<string>(GOOGLE_SERP_HOSTS);
 const bingSerpHosts = new Set<string>(BING_SERP_HOSTS);
 const baiduSerpHosts = new Set<string>(BAIDU_SERP_HOSTS);
+const zhanneiSerpHosts = new Set<string>(ZHANNEI_SERP_HOSTS);
 const douyinSerpHosts = new Set<string>(DOUYIN_SERP_HOSTS);
 const xiaohongshuSerpHosts = new Set<string>(XIAOHONGSHU_SERP_HOSTS);
 const bilibiliSerpHosts = new Set<string>(BILIBILI_SERP_HOSTS);
@@ -65,6 +70,10 @@ export function isBingSerpHostname(hostname: string): boolean {
 
 export function isBaiduSerpHostname(hostname: string): boolean {
   return baiduSerpHosts.has(hostname);
+}
+
+export function isZhanneiSerpHostname(hostname: string): boolean {
+  return zhanneiSerpHosts.has(hostname);
 }
 
 export function isDouyinSerpHostname(hostname: string): boolean {

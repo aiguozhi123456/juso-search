@@ -6,16 +6,18 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  decidePostWriteSiteEngineNavigation,
+  decidePostWriteSiteInstanceNavigation,
   nextQueryAfterSerpContext,
   resolveCurrentCustomEngineHandoff,
-  resolveCurrentSiteEngineHandoff,
+  resolveCurrentSiteInstanceHandoff,
   resolveSerpContext,
   resolveSerpHandoff,
 } from '@/lib/serp-handoff';
 import type { SearchSource, SourceId } from '@/lib/sources';
-import type { SiteEngineDefinition } from '@/lib/site-engines';
+import type { SiteInstanceDefinition } from '@/lib/site-instances';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
+import { getEngine } from '@/lib/engines/registry';
+import { baiduZhanneiSurface } from '@/lib/engines/baidu-zhannei';
 
 const tavily: SearchSource = {
   id: 'tavily',
@@ -38,11 +40,11 @@ const baidu: SearchSource = {
   favicon: '/icons/baidu.svg',
 };
 const docs: SearchSource = {
-  id: 'site:docs', kind: 'site-engine', label: 'Docs', supportsAnswer: false,
-  siteEngine: { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' },
+  id: 'site:docs', kind: 'site-instance', label: 'Docs', supportsAnswer: false,
+  siteInstance: { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' },
 };
 
-const siteDefinitions: SiteEngineDefinition[] = [
+const siteDefinitions: SiteInstanceDefinition[] = [
   { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' },
 ];
 
@@ -213,9 +215,9 @@ describe('resolveSerpHandoff — Custom Engine chip', () => {
   });
 });
 
-describe('resolveCurrentSiteEngineHandoff', () => {
+describe('resolveCurrentSiteInstanceHandoff', () => {
   it('uses the fresh definition instead of a stale Site Engine projection', () => {
-    expect(resolveCurrentSiteEngineHandoff('site:docs', 'install', [{
+    expect(resolveCurrentSiteInstanceHandoff('site:docs', 'install', [{
       id: 'site:docs', name: 'Updated Docs', target: 'https://new-docs.example.com', engineId: 'bing',
     }])).toEqual({
       kind: 'navigate',
@@ -224,7 +226,7 @@ describe('resolveCurrentSiteEngineHandoff', () => {
   });
 
   it('does not hand off a deleted Site Engine', () => {
-    expect(resolveCurrentSiteEngineHandoff('site:docs', 'install', [])).toBeNull();
+    expect(resolveCurrentSiteInstanceHandoff('site:docs', 'install', [])).toBeNull();
   });
 });
 
@@ -263,18 +265,18 @@ describe('resolveCurrentCustomEngineHandoff (M1 regression — stale navigation)
   });
 });
 
-describe('decidePostWriteSiteEngineNavigation', () => {
+describe('decidePostWriteSiteInstanceNavigation', () => {
   const preWriteUrl = 'https://www.google.com/search?q=site%3Aold.example.com%20install';
 
   it('falls back to the pre-write URL when the post-write config read fails', () => {
-    expect(decidePostWriteSiteEngineNavigation('site:docs', 'install', null, preWriteUrl)).toEqual({
+    expect(decidePostWriteSiteInstanceNavigation('site:docs', 'install', null, preWriteUrl)).toEqual({
       kind: 'navigate',
       url: preWriteUrl,
     });
   });
 
   it('navigates the post-write handoff URL when the definition was edited', () => {
-    expect(decidePostWriteSiteEngineNavigation('site:docs', 'install', [{
+    expect(decidePostWriteSiteInstanceNavigation('site:docs', 'install', [{
       id: 'site:docs', name: 'Docs', target: 'https://new.example.com/guide', engineId: 'google',
     }], preWriteUrl)).toEqual({
       kind: 'navigate',
@@ -283,42 +285,75 @@ describe('decidePostWriteSiteEngineNavigation', () => {
   });
 
   it('returns unresolved when the Site Engine was deleted between reads', () => {
-    expect(decidePostWriteSiteEngineNavigation('site:docs', 'install', [], preWriteUrl)).toEqual({
+    expect(decidePostWriteSiteInstanceNavigation('site:docs', 'install', [], preWriteUrl)).toEqual({
       kind: 'unresolved',
     });
   });
 });
 
-describe('resolveSerpContext', () => {
-  it('recovers an exact Site Engine query and strips it to the empty base query', () => {
-    expect(resolveSerpContext('google', 'site:docs.example.com/guide', siteDefinitions, 'site:docs'))
+describe('resolveSerpContext (engine + url 签名，KTD8)', () => {
+  const googleSerp = (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+  const baiduSerp = (wd: string) => `https://www.baidu.com/s?wd=${encodeURIComponent(wd)}`;
+
+  it('recovers an exact Site Instance query and strips it to the empty base query', () => {
+    expect(resolveSerpContext(getEngine('google'), googleSerp('site:docs.example.com/guide'), siteDefinitions, 'site:docs'))
       .toEqual({ baseQuery: '', activeId: 'site:docs', matchingSiteId: 'site:docs' });
   });
 
   it('uses active source before source order to resolve duplicate matching scopes', () => {
-    const duplicates: SiteEngineDefinition[] = [
+    const duplicates: SiteInstanceDefinition[] = [
       { id: 'site:first', name: 'First', target: 'example.com/one', engineId: 'baidu' },
       { id: 'site:second', name: 'Second', target: 'example.com/two', engineId: 'baidu' },
     ];
-    expect(resolveSerpContext('baidu', 'site:example.com term', duplicates, 'site:first', ['site:second', 'site:first']))
+    expect(resolveSerpContext(getEngine('baidu'), baiduSerp('site:example.com term'), duplicates, 'site:first', ['site:second', 'site:first']))
       .toEqual({ baseQuery: 'term', activeId: 'site:first', matchingSiteId: 'site:first' });
-    expect(resolveSerpContext('baidu', 'site:example.com term', duplicates, null, ['site:second', 'site:first']))
+    expect(resolveSerpContext(getEngine('baidu'), baiduSerp('site:example.com term'), duplicates, null, ['site:second', 'site:first']))
       .toEqual({ baseQuery: 'term', activeId: 'site:second', matchingSiteId: 'site:second' });
   });
 
-  it('keeps a hidden matching Site Engine unselected while still stripping its base query', () => {
-    expect(resolveSerpContext('google', 'site:docs.example.com/guide install', siteDefinitions, 'site:docs', [], ['site:docs']))
+  it('keeps a hidden matching Site Instance unselected while still stripping its base query', () => {
+    expect(resolveSerpContext(getEngine('google'), googleSerp('site:docs.example.com/guide install'), siteDefinitions, 'site:docs', [], ['site:docs']))
       .toEqual({ baseQuery: 'install', activeId: 'google', matchingSiteId: null });
   });
 
-  it('activates a visible matching Site Engine even if its backing engine is hidden', () => {
-    expect(resolveSerpContext('google', 'site:docs.example.com/guide install', siteDefinitions, 'google', [], ['google']))
+  it('activates a visible matching Site Instance even if its backing engine is hidden', () => {
+    expect(resolveSerpContext(getEngine('google'), googleSerp('site:docs.example.com/guide install'), siteDefinitions, 'google', [], ['google']))
       .toEqual({ baseQuery: 'install', activeId: 'site:docs', matchingSiteId: 'site:docs' });
   });
 
   it('leaves a nonmatching manual site query raw and keeps the backing engine active', () => {
-    expect(resolveSerpContext('google', 'site:manual.example.com install', siteDefinitions, 'site:docs'))
+    expect(resolveSerpContext(getEngine('google'), googleSerp('site:manual.example.com install'), siteDefinitions, 'site:docs'))
       .toEqual({ baseQuery: 'site:manual.example.com install', activeId: 'google', matchingSiteId: null });
+  });
+
+  it('resolves a zhannei SERP via cc and returns the clean q as baseQuery (AE1/AE2)', () => {
+    const defs: SiteInstanceDefinition[] = [
+      { id: 'site:z', name: '吾爱破解', target: 'https://52pojie.cn', engineId: 'baidu', options: { mode: 'zhannei', zhannei: { timeRange: 10080 } } },
+    ];
+    expect(resolveSerpContext(baiduZhanneiSurface, 'https://zhannei.baidu.com/cse/site?q=python&cc=52pojie.cn&sti=10080', defs, 'site:z'))
+      .toEqual({ baseQuery: 'python', activeId: 'site:z', matchingSiteId: 'site:z' });
+    // 无匹配实例（cc 未知）→ raw query 干净保留、backing engine 激活。
+    expect(resolveSerpContext(baiduZhanneiSurface, 'https://zhannei.baidu.com/cse/site?q=python&cc=unknown.cn', defs))
+      .toEqual({ baseQuery: 'python', activeId: 'baidu', matchingSiteId: null });
+  });
+
+  it('resolves a bing q1 SERP and returns the clean q as baseQuery (AE3)', () => {
+    const defs: SiteInstanceDefinition[] = [
+      { id: 'site:b', name: 'Bing q1', target: 'https://52pojie.cn', engineId: 'bing', options: { mode: 'q1' } },
+    ];
+    expect(resolveSerpContext(getEngine('bing'), 'https://www.bing.com/search?q=hello+world&q1=site%3A52pojie.cn', defs, 'site:b'))
+      .toEqual({ baseQuery: 'hello world', activeId: 'site:b', matchingSiteId: 'site:b' });
+    // 跨模式：手输 site: 前缀在 bing 上同样高亮（R6，旧 site: 书签自愈）。
+    expect(resolveSerpContext(getEngine('bing'), 'https://www.bing.com/search?q=site%3A52pojie.cn+hello', defs))
+      .toEqual({ baseQuery: 'hello', activeId: 'site:b', matchingSiteId: 'site:b' });
+  });
+
+  it('keeps a hidden matching instance on a zhannei SERP unselected but strips baseQuery', () => {
+    const defs: SiteInstanceDefinition[] = [
+      { id: 'site:z', name: '吾爱破解', target: 'https://52pojie.cn', engineId: 'baidu', options: { mode: 'zhannei' } },
+    ];
+    expect(resolveSerpContext(baiduZhanneiSurface, 'https://zhannei.baidu.com/cse/site?q=python&cc=52pojie.cn', defs, 'site:z', [], ['site:z']))
+      .toEqual({ baseQuery: 'python', activeId: 'baidu', matchingSiteId: null });
   });
 });
 

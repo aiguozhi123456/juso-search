@@ -96,7 +96,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     if (report.serpBarPositionOverridden) labels.push(prefLabel('serpBarPosition'));
     if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
     if (report.sourceHiddenOverridden) labels.push(prefLabel('sourceHidden'));
-    if (report.siteEnginesOverridden) labels.push(prefLabel('siteEngines'));
+    if (report.siteInstancesOverridden) labels.push(prefLabel('siteInstances'));
     if (report.providerMaxResultsOverridden) labels.push(prefLabel('providerMaxResults'));
     if (report.groupConfigOverridden) labels.push(prefLabel('groupConfig'));
     return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';

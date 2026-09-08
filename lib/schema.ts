@@ -1,4 +1,4 @@
-// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteEngines / agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig）。
+// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteInstances / agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig）。
 //
 // 双版本体系：config 域用 `schemaVersion`（本文件），缓存池用 `cacheSchemaVersion`
 // （见 search-cache.ts 的 ensureCacheSchema + cacheMigrations）。两域独立演进——
@@ -15,18 +15,20 @@
 import { DEFAULT_HIDDEN_AI_ENGINE_IDS } from './ai-engines/registry';
 
 export const SCHEMA_VERSION_KEY = 'schemaVersion';
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
 // serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteEngines', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {
   version: number;
   migrate: (config: Record<string, unknown>) => Record<string, unknown>;
+  /** 键改名迁移所需的白名单外遗留键：ensureSchema 读取时并入。仅升级窗口多读，稳态早退不读 config。 */
+  readKeys?: readonly string[];
 };
 
 // 把给定默认隐藏 engine id 并入既有 sourceHidden（去重、保留首现顺序）。
@@ -71,6 +73,14 @@ export const migrations: Migration[] = [
   { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
   // v8→v9: 搜狗微信公众号引擎加入——默认隐藏（出现在管理 UI 但不进快切栏，用户手动显示）。
   { version: 8, migrate: mergeHiddenFactory(DEFAULT_HIDDEN_ENGINE_IDS_V5) },
+  // v9→v10: Site Engine→Site Instance 词汇落地为存储键改名：siteEngines → siteInstances。
+  // 历史迁移（v3→v4）保持旧键名——那是那个时代的键名，不可改；旧键由本步迁走后经 diffKeys remove。
+  // 导入端对旧备份的 siteEngines 导出字段永久双认（见 config-io parseImportPayload）。
+  { version: 9, readKeys: ['siteEngines'], migrate: (config) => {
+    const { siteEngines, ...rest } = config;
+    const legacy = Array.isArray(siteEngines) ? siteEngines : undefined;
+    return { ...rest, siteInstances: legacy ?? (Array.isArray(rest.siteInstances) ? rest.siteInstances : []) };
+  } },
 ];
 
 /**
@@ -114,7 +124,7 @@ export async function ensureSchema(): Promise<void> {
   const stored = await readSchemaVersion();
   if (stored === CURRENT_SCHEMA_VERSION) return;
   if (stored > CURRENT_SCHEMA_VERSION) return; // 降级：向前兼容，不破坏
-  const configGot = await browser.storage.local.get([...CONFIG_KEYS]);
+  const configGot = await browser.storage.local.get([...CONFIG_KEYS, ...migrations.flatMap((m) => m.readKeys ?? [])]);
   const migrated = migrateConfig(configGot, stored, CURRENT_SCHEMA_VERSION);
   const { set: setDiff, remove: removeKeys } = diffKeys(configGot, migrated);
   // Schema version is the commit point: all migrated values and removals must

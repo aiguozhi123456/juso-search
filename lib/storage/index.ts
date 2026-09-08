@@ -12,7 +12,7 @@ export {
 } from './max-results-store';
 export * from './source-graph-store';
 export * from './prefs-store';
-export * from './site-engine-store';
+export * from './site-instance-store';
 export * from './custom-engine-store';
 export * from './provider-instance-store';
 export * from './search-cache-store';

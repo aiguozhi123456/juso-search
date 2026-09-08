@@ -11,6 +11,7 @@ import { setSourceOrder } from '@/lib/storage';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import type { SourceId } from '@/lib/sources';
 import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
+import type { SiteInstanceDefinition } from '@/lib/site-instances';
 
 // 5 个预置 AI engine（registry 顺序固定），sourceOrder 归一化补尾追加在 duckduckgo 之后。
 const AI_ENGINE_IDS = ['ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] as const;
@@ -59,7 +60,7 @@ function validPayload(overrides: Partial<ConfigExport> = {}): ConfigExport {
     themePref: 'auto',
     localePref: 'auto',
     serpBarPosition: 'auto',
-    siteEngines: [],
+    siteInstances: [],
     ...overrides,
   };
 }
@@ -218,9 +219,9 @@ describe('buildExportPayload', () => {
 
   it('exports populated canonical Site Engine definitions and their dependent sources', async () => {
     const site = { id: 'site:docs', name: ' Docs ', target: 'docs.example.com/guide?ignored=1', engineId: 'google' as const };
-    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    installStorage({ siteInstances: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
     await expect(buildExportPayload()).resolves.toMatchObject({
-      siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
+      siteInstances: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
       activeSource: site.id,
       sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_IDS],
       sourceHidden: [site.id],
@@ -280,22 +281,22 @@ describe('parseImportPayload', () => {
   });
 
   it('requires valid unique Site Engines before validating dependent source ids', () => {
-    expect(parseImportPayload(validPayload({ siteEngines: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }], activeSource: 'site:one', sourceOrder: ['site:one'] }))).toMatchObject({ ok: true });
-    expect(parseImportPayload(validPayload({ siteEngines: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }, { id: 'site:two', name: 'Two', target: 'example.com', engineId: 'google' }] }))).toEqual({ ok: false, error: 'invalid_site_engines' });
+    expect(parseImportPayload(validPayload({ siteInstances: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }], activeSource: 'site:one', sourceOrder: ['site:one'] }))).toMatchObject({ ok: true });
+    expect(parseImportPayload(validPayload({ siteInstances: [{ id: 'site:one', name: 'One', target: 'example.com', engineId: 'google' }, { id: 'site:two', name: 'Two', target: 'example.com', engineId: 'google' }] }))).toEqual({ ok: false, error: 'invalid_site_instances' });
   });
 
   it('requires the v4 Site Engine collection', () => {
     const payload = validPayload() as unknown as Record<string, unknown>;
-    delete payload.siteEngines;
-    expect(parseImportPayload(payload)).toEqual({ ok: false, error: 'invalid_site_engines' });
+    delete payload.siteInstances;
+    expect(parseImportPayload(payload)).toEqual({ ok: false, error: 'invalid_site_instances' });
   });
 
   it('accepts a v3 export without Site Engines', () => {
     const payload = validPayload({ schemaVersion: 3 }) as unknown as Record<string, unknown>;
-    delete payload.siteEngines;
+    delete payload.siteInstances;
     const parsed = parseImportPayload(payload);
     expect(parsed).toMatchObject({ ok: true });
-    if (parsed.ok) expect(parsed.value.siteEngines).toBeUndefined();
+    if (parsed.ok) expect(parsed.value.siteInstances).toBeUndefined();
   });
 
   it('accepts a v4 export (immediately previous schema; structurally a v5 without groupConfig)', () => {
@@ -621,6 +622,23 @@ describe('parseImportPayload', () => {
   });
 });
 
+describe('parseImportPayload: legacy siteEngines field dual-accept', () => {
+  it('accepts the legacy siteEngines export field (pre-v10 backups) as the site collection', () => {
+    const def = { id: 'site:legacy', name: 'L', target: 'https://legacy.example.com/', engineId: 'baidu' };
+    const legacy: Record<string, unknown> = { ...validPayload({ siteInstances: undefined }), siteEngines: [def] };
+    const parsed = parseImportPayload(legacy);
+    expect(parsed).toMatchObject({ ok: true, value: { siteInstances: [def] } });
+  });
+
+  it('prefers siteInstances when both export field spellings are present', () => {
+    const newer: SiteInstanceDefinition = { id: 'site:new', name: 'N', target: 'https://new.example.com/', engineId: 'bing' };
+    const older: SiteInstanceDefinition = { id: 'site:old', name: 'O', target: 'https://old.example.com/', engineId: 'google' };
+    const raw: Record<string, unknown> = { ...validPayload({ siteInstances: [newer] }), siteEngines: [older] };
+    const parsed = parseImportPayload(raw);
+    expect(parsed).toMatchObject({ ok: true, value: { siteInstances: [newer] } });
+  });
+});
+
 describe('mergeImport', () => {
   it('fills empty slots only (does not overwrite existing keys)', async () => {
     installStorage({ providerKeys: { tavily: 'existing' } });
@@ -777,16 +795,16 @@ describe('mergeImport', () => {
 
   it('treats Site Engines and dependent source graph as apply-preferences data', async () => {
     const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
-    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
-    const payload = validPayload({ siteEngines: [], activeSource: 'google', sourceOrder: [], sourceHidden: [] });
+    installStorage({ siteInstances: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    const payload = validPayload({ siteInstances: [], activeSource: 'google', sourceOrder: [], sourceHidden: [] });
     const skipped = await mergeImport(payload, { applyPrefs: false });
-    expect(skipped.siteEnginesOverridden).toBe(false);
-    expect((await browser.storage.local.get('siteEngines')).siteEngines).toEqual([site]);
+    expect(skipped.siteInstancesOverridden).toBe(false);
+    expect((await browser.storage.local.get('siteInstances')).siteInstances).toEqual([site]);
 
     const report = await mergeImport(payload, { applyPrefs: true });
-    expect(report).toMatchObject({ siteEnginesOverridden: true, sourceOrderOverridden: true, sourceHiddenOverridden: true });
-    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
-    expect(got.siteEngines).toEqual([]);
+    expect(report).toMatchObject({ siteInstancesOverridden: true, sourceOrderOverridden: true, sourceHiddenOverridden: true });
+    const got = await browser.storage.local.get(['siteInstances', 'sourceOrder', 'sourceHidden']);
+    expect(got.siteInstances).toEqual([]);
     expect(got.sourceHidden).toEqual([]); // explicit [] clears hidden preferences
     expect(got.sourceOrder).not.toContain(site.id);
   });
@@ -812,15 +830,15 @@ describe('mergeImport', () => {
 
   it('preserves Site Engine definitions and their graph references for a v3 preference restore', async () => {
     const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
-    installStorage({ siteEngines: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
+    installStorage({ siteInstances: [site], activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
     const raw = validPayload({ schemaVersion: 3, activeSource: 'google', sourceOrder: ['bing'], sourceHidden: ['baidu'] }) as unknown as Record<string, unknown>;
-    delete raw.siteEngines;
+    delete raw.siteInstances;
     const parsed = parseImportPayload(raw);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     await mergeImport(parsed.value, { applyPrefs: true });
-    const got = await browser.storage.local.get(['siteEngines', 'activeSource', 'sourceOrder', 'sourceHidden']);
-    expect(got.siteEngines).toEqual([site]);
+    const got = await browser.storage.local.get(['siteInstances', 'activeSource', 'sourceOrder', 'sourceHidden']);
+    expect(got.siteInstances).toEqual([site]);
     expect(got.activeSource).toBe(site.id);
     expect(got.sourceOrder).toContain(site.id);
     expect(got.sourceHidden).toContain(site.id);
@@ -828,9 +846,9 @@ describe('mergeImport', () => {
 
   it('does not preview v3 changes that would replace an active or hidden local Site Engine', async () => {
     const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
-    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: site.id, siteEngines: [site], sourceOrder: [site.id], sourceHidden: [site.id] });
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: site.id, siteInstances: [site], sourceOrder: [site.id], sourceHidden: [site.id] });
     const raw = validPayload({ schemaVersion: 3, activeSource: 'google' }) as unknown as Record<string, unknown>;
-    delete raw.siteEngines;
+    delete raw.siteInstances;
     delete raw.sourceOrder;
     delete raw.sourceHidden;
     const parsed = parseImportPayload(raw);
@@ -991,10 +1009,10 @@ describe('previewImport (dry-run)', () => {
 
   it('includes Site Engine-only changes in the same preference confirmation diff', async () => {
     const site = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/', engineId: 'google' as const };
-    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', siteEngines: [site] });
+    installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', siteInstances: [site] });
     const preview = await previewImport(validPayload());
     expect(preview.prefDiffs).toEqual(expect.arrayContaining([{
-      key: 'siteEngines', from: 'site:docs:google:https://docs.example.com/:Docs', to: '',
+      key: 'siteInstances', from: 'site:docs:google:query::https://docs.example.com/:Docs', to: '',
     }, {
       key: 'sourceOrder',
       from: 'tavily > exa > brave > stepfun > stepfun-plan > jina > doubao > doubao-global > parallel > google > bing > baidu > douyin > xiaohongshu > bilibili > yandex > duckduckgo > weixin > ai:grok > ai:chatgpt > ai:deepseek > ai:doubao > ai:gemini > site:docs',
@@ -1080,5 +1098,45 @@ describe('previewImport (dry-run)', () => {
     installStorage({ providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: 'tavily', providerInstances: [instance] });
     const preview = await previewImport(validPayload());
     expect(preview.prefDiffs.find((d) => d.key === 'providerInstances')).toBeUndefined();
+  });
+});
+
+describe('Site Instance options（IU5：导出/导入/预览含 options）', () => {
+  const zhanneiDef: SiteInstanceDefinition = {
+    id: 'site:z', name: '52pojie', target: 'https://52pojie.cn', engineId: 'baidu',
+    options: { mode: 'zhannei', zhannei: { timeRange: 10080 } },
+  };
+
+  it('export keeps options; import round-trips them unchanged', async () => {
+    installStorage({ siteInstances: [zhanneiDef] });
+    const payload = await buildExportPayload();
+    expect(payload.siteInstances).toEqual([{ ...zhanneiDef, target: 'https://52pojie.cn/' }]);
+
+    const parsed = parseImportPayload(validPayload({ siteInstances: [{ ...zhanneiDef, target: 'https://52pojie.cn/' }] }));
+    expect(parsed).toMatchObject({ ok: true });
+    if (!parsed.ok) return;
+    expect(parsed.value.siteInstances).toEqual([{ ...zhanneiDef, target: 'https://52pojie.cn/' }]);
+  });
+
+  it('imports a legacy backup without options (read-side defaults apply)', () => {
+    const legacy = { id: 'site:old', name: 'Old', target: 'https://old.example.com', engineId: 'baidu' } as const;
+    const parsed = parseImportPayload(validPayload({ siteInstances: [legacy] }));
+    expect(parsed).toMatchObject({ ok: true, value: { siteInstances: [{ ...legacy, target: 'https://old.example.com/' }] } });
+  });
+
+  it('degrades illegal options on import rather than rejecting the record', () => {
+    const junk = { id: 'site:j', name: 'J', target: 'https://j.example.com', engineId: 'bing', options: { mode: 'zhannei', zhannei: { timeRange: 9999 } } } as unknown as SiteInstanceDefinition;
+    const parsed = parseImportPayload(validPayload({ siteInstances: [junk] }));
+    expect(parsed).toMatchObject({ ok: true, value: { siteInstances: [{ id: 'site:j', name: 'J', target: 'https://j.example.com/', engineId: 'bing' }] } });
+  });
+
+  it('preview diff reflects a mode change on the same scope', async () => {
+    const queryMode: SiteInstanceDefinition = { id: 'site:z', name: '52pojie', target: 'https://52pojie.cn/', engineId: 'baidu', options: { mode: 'query' } };
+    installStorage({ siteInstances: [queryMode as never] });
+    const preview = await previewImport(validPayload({ siteInstances: [{ ...zhanneiDef, target: 'https://52pojie.cn/' }] }));
+    const diff = preview.prefDiffs.find((d) => d.key === 'siteInstances');
+    expect(diff).toBeDefined();
+    expect(diff?.from).toContain(':query:');
+    expect(diff?.to).toContain(':zhannei:');
   });
 });

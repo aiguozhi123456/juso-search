@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BAIDU_SERP_HOSTS,
   BILIBILI_SERP_HOSTS,
+  ZHANNEI_SERP_HOSTS,
   BING_SERP_HOSTS,
   DOUYIN_SERP_HOSTS,
   DUCKDUCKGO_SERP_HOSTS,
@@ -23,6 +24,7 @@ describe('SERP scopes', () => {
       ...GOOGLE_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...BING_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...BAIDU_SERP_HOSTS.map((host) => `https://${host}/s*`),
+      ...ZHANNEI_SERP_HOSTS.map((host) => `https://${host}/cse/site*`),
       ...DOUYIN_SERP_HOSTS.map((host) => `https://${host}/search*`),
       ...XIAOHONGSHU_SERP_HOSTS.map((host) => `https://${host}/search_result*`),
       ...BILIBILI_SERP_HOSTS.map((host) => `https://${host}/all*`),

@@ -8,8 +8,8 @@ import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
-import type { SiteEngineDefinition, SiteEngineId } from './site-engines';
-import { isSiteEngineId } from './site-engines';
+import type { SiteInstanceDefinition, SiteInstanceId } from './site-instances';
+import { isSiteInstanceId } from './site-instances';
 import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import { isCustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
@@ -17,8 +17,8 @@ import { isProviderInstanceId } from './provider-instances';
 import type { AiEngineId } from './ai-engines/types';
 import { allAiEngines, allAiEngineIds, isRegisteredAiEngineId } from './ai-engines/registry';
 
-export type SourceKind = 'provider' | 'engine' | 'site-engine' | 'custom-engine' | 'provider-instance' | 'ai-engine';
-export type SourceId = ProviderId | EngineId | SiteEngineId | CustomEngineId | ProviderInstanceId | AiEngineId;
+export type SourceKind = 'provider' | 'engine' | 'site-instance' | 'custom-engine' | 'provider-instance' | 'ai-engine';
+export type SourceId = ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId;
 
 /** A label which is either an i18n message key or a user-supplied literal. */
 export type SourceLabel =
@@ -37,7 +37,7 @@ export interface SearchSource {
   /** 来源品牌图标：扩展内相对路径（engine 与 provider 均提供），渲染处用 resolveIconUrl 解析。 */
   favicon?: string;
   /** Execution descriptor for a dynamic site-scoped engine. */
-  siteEngine?: SiteEngineDefinition;
+  siteInstance?: SiteInstanceDefinition;
   /** Execution descriptor for a user-defined custom engine. */
   customEngine?: CustomEngineDefinition;
   /** Execution descriptor for a user-defined per-provider instance. */
@@ -52,12 +52,12 @@ const DEFAULT_SOURCE_ORDER: SourceId[] = [
 ];
 
 /**
- * 当前已知的全部 source id（provider + engine + 给定 site-engine 定义 + 给定 custom-engine 定义
+ * 当前已知的全部 source id（provider + engine + 给定 site-instance 定义 + 给定 custom-engine 定义
  * + 给定 provider-instance 定义），供 normalizeGroupConfig 等校验逻辑使用。单一定义点，避免各调用方
  * 各自硬编码 engine 列表导致漂移。
  */
 export function allKnownSourceIds(
-  siteDefinitions: readonly SiteEngineDefinition[] = [],
+  siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
 ): SourceId[] {
@@ -92,7 +92,7 @@ export function isProviderId(id: string): id is ProviderId {
  */
 export function normalizeSourceOrder(
   order: unknown,
-  siteDefinitions: readonly SiteEngineDefinition[] = [],
+  siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
 ): SourceId[] {
@@ -103,7 +103,7 @@ export function normalizeSourceOrder(
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -123,7 +123,7 @@ export function normalizeSourceOrder(
 }
 
 /** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。 */
-export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteEngineDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = []): SourceId[] {
+export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = []): SourceId[] {
   const siteIds = new Set(siteDefinitions.map((site) => site.id));
   const customIds = new Set(customDefinitions.map((c) => c.id));
   const instanceIds = new Set(providerInstances.map((instance) => instance.id));
@@ -131,7 +131,7 @@ export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly Si
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteEngineId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -139,8 +139,8 @@ export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly Si
 }
 
 /** A dynamic Site Engine ID is known only when there is a saved definition for it. */
-export function isKnownSiteEngineId(id: string, siteDefinitions: readonly SiteEngineDefinition[]): id is SiteEngineId {
-  return isSiteEngineId(id) && new Set(siteDefinitions.map((site) => site.id)).has(id);
+export function isKnownSiteInstanceId(id: string, siteDefinitions: readonly SiteInstanceDefinition[]): id is SiteInstanceId {
+  return isSiteInstanceId(id) && new Set(siteDefinitions.map((site) => site.id)).has(id);
 }
 
 /** A dynamic Custom Engine ID is known only when there is a saved definition for it. */
@@ -154,7 +154,7 @@ export function isKnownCustomEngineId(id: string, customDefinitions: readonly Cu
  * `hiddenSourceIds` 中列出的 source（provider 或 engine）会被进一步从投影中剔除，
  * 仅作用于快切栏本身——设置页管理列表不应传入此参数，以便用户对隐藏项进行管理。
  *
- * 实例投影（镜像 site-engine/custom-engine 分支）：有实例的 provider 不再投影裸 provider pill，
+ * 实例投影（镜像 site-instance/custom-engine 分支）：有实例的 provider 不再投影裸 provider pill，
  * 而是每个实例投影一个 pill（共享 base adapter 的 favicon/supportsAnswer，label 用实例名字面量）；
  * 同 base provider 的实例在投影中相邻（组内按 sourceOrder 相对位置排列）。
  */
@@ -162,7 +162,7 @@ export function allSources(
   configuredProviderIds: ProviderId[],
   sourceOrder?: readonly SourceId[],
   hiddenSourceIds?: readonly SourceId[],
-  siteDefinitions: readonly SiteEngineDefinition[] = [],
+  siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
 ): SearchSource[] {
@@ -239,11 +239,11 @@ export function allSources(
       id: aiEngine.id, kind: 'ai-engine', label: aiEngine.label,
       labelDescriptor: { kind: 'i18n', key: aiEngine.label }, supportsAnswer: false, favicon: aiEngine.favicon,
     }];
-    const site = sitesById.get(id as SiteEngineId);
+    const site = sitesById.get(id as SiteInstanceId);
     if (site) return [{
-      id: site.id, kind: 'site-engine', label: site.name,
+      id: site.id, kind: 'site-instance', label: site.name,
       labelDescriptor: { kind: 'literal', value: site.name }, supportsAnswer: false, favicon: '/icons/site.svg',
-      siteEngine: site,
+      siteInstance: site,
     }];
     const custom = customsById.get(id as CustomEngineId);
     if (custom) return [{
@@ -276,14 +276,14 @@ export function allSources(
 export function resolveEffectiveActiveSource(
   storedSource: SourceId | null | undefined,
   keys: Record<string, string>,
-  siteDefinitions: readonly SiteEngineDefinition[],
+  siteDefinitions: readonly SiteInstanceDefinition[],
   customDefinitions: readonly CustomEngineDefinition[],
   instances: readonly ProviderInstance[],
 ): SourceId | undefined {
   if (storedSource) {
     if (isEngineId(storedSource)) return storedSource;
     if (isRegisteredAiEngineId(storedSource)) return storedSource;
-    if (isKnownSiteEngineId(storedSource, siteDefinitions)) return storedSource;
+    if (isKnownSiteInstanceId(storedSource, siteDefinitions)) return storedSource;
     if (isKnownCustomEngineId(storedSource, customDefinitions)) return storedSource;
     if (isProviderInstanceId(storedSource) && instances.some((instance) => instance.id === storedSource && keys[instance.baseProviderId])) return storedSource;
     if (isProviderId(storedSource) && keys[storedSource]) {
@@ -301,7 +301,7 @@ export function resolveEffectiveActiveSource(
 
 /**
  * 找出 order 中第一个「可见且可用」的 source：常规 engine / 已注册 AI engine 恒可用，
- * 动态 site-engine / custom-engine 仅在存在对应定义时可用，provider / provider-instance
+ * 动态 site-instance / custom-engine 仅在存在对应定义时可用，provider / provider-instance
  * 仅在已配置 key（对应 base provider）时可用。storage 的 delete* 回退与 config-io 的
  * 导入预览共用（单一定义点，避免两处拷贝漂移）。
  */
@@ -309,7 +309,7 @@ export function visibleUsableSource(
   order: readonly SourceId[],
   hidden: readonly SourceId[],
   keys: Record<string, string>,
-  siteDefinitions: readonly SiteEngineDefinition[],
+  siteDefinitions: readonly SiteInstanceDefinition[],
   customDefinitions: readonly CustomEngineDefinition[],
   instances: readonly ProviderInstance[],
 ): SourceId | undefined {
@@ -317,7 +317,7 @@ export function visibleUsableSource(
   return order.find((id) => !hiddenSet.has(id) && (
     isEngineId(id) ||
     isRegisteredAiEngineId(id) ||
-    isKnownSiteEngineId(id, siteDefinitions) ||
+    isKnownSiteInstanceId(id, siteDefinitions) ||
     isKnownCustomEngineId(id, customDefinitions) ||
     (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId])) ||
     (isProviderId(id) && !!keys[id])

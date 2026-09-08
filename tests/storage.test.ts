@@ -41,11 +41,11 @@ import {
   setEngineSearchEnabled,
   getOnboardingCompleted,
   setOnboardingCompleted,
-  getSiteEngineDefinitions,
-  createSiteEngineDefinition,
-  updateSiteEngineDefinition,
+  getSiteInstanceDefinitions,
+  createSiteInstanceDefinition,
+  updateSiteInstanceDefinition,
   getProviderConfigSnapshot,
-  deleteSiteEngineDefinition,
+  deleteSiteInstanceDefinition,
   getGroupConfig,
   setGroupConfig,
   getProviderInstances,
@@ -586,29 +586,43 @@ describe('storage: Site Engines', () => {
   const site = { id: 'site:123e4567-e89b-12d3-a456-426614174000' as const, name: ' Docs ', target: 'docs.example.com/guide?x=1', engineId: 'google' as const };
 
   it('defensively drops malformed, duplicate-id, and duplicate-scope persisted definitions', async () => {
-    await browser.storage.local.set({ siteEngines: [site, { ...site, name: 'duplicate' }, { id: 'site:other', name: 'same scope', target: 'https://docs.example.com/guide', engineId: 'google' }, { id: 'site:bad id', name: 'bad', target: 'x.com', engineId: 'google' }] });
-    await expect(getSiteEngineDefinitions()).resolves.toEqual([{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }]);
+    await browser.storage.local.set({ siteInstances: [site, { ...site, name: 'duplicate' }, { id: 'site:other', name: 'same scope', target: 'https://docs.example.com/guide', engineId: 'google' }, { id: 'site:bad id', name: 'bad', target: 'x.com', engineId: 'google' }] });
+    await expect(getSiteInstanceDefinitions()).resolves.toEqual([{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }]);
   });
 
   it('canonicalizes creates, preserves update ids, and rejects duplicate or unknown updates', async () => {
-    const created = await createSiteEngineDefinition(site);
+    const created = await createSiteInstanceDefinition(site);
     expect(created).toEqual({ ...site, name: 'Docs', target: 'https://docs.example.com/guide' });
-    await expect(updateSiteEngineDefinition(created.id, { ...created, name: ' Updated ' })).resolves.toEqual({ ...created, name: 'Updated' });
-    await expect(createSiteEngineDefinition({ ...site, id: 'site:other', name: 'same scope' })).rejects.toThrow('invalid_site_engine');
-    await expect(updateSiteEngineDefinition('site:unknown', created)).rejects.toThrow('invalid_site_engine');
+    await expect(updateSiteInstanceDefinition(created.id, { ...created, name: ' Updated ' })).resolves.toEqual({ ...created, name: 'Updated' });
+    await expect(createSiteInstanceDefinition({ ...site, id: 'site:other', name: 'same scope' })).rejects.toThrow('invalid_site_instance');
+    await expect(updateSiteInstanceDefinition('site:unknown', created)).rejects.toThrow('invalid_site_instance');
+  });
+
+  it('allows same-scope creates in a different construction mode or zhannei filter (KTD6)', async () => {
+    const baiduBase = { id: 'site:b1', name: 'B1', target: 'https://52pojie.cn/', engineId: 'baidu' as const };
+    const zhannei = await createSiteInstanceDefinition({ ...baiduBase, options: { mode: 'zhannei' } });
+    expect(zhannei.options).toEqual({ mode: 'zhannei' });
+    // 同 scope 不同模式（query）→ 合法。
+    await expect(createSiteInstanceDefinition({ ...baiduBase, id: 'site:b2', name: 'B2', options: { mode: 'query' } })).resolves.toMatchObject({ options: { mode: 'query' } });
+    // 同模式不同筛选指纹（一周）→ 合法。
+    await expect(createSiteInstanceDefinition({ ...baiduBase, id: 'site:b3', name: 'B3', options: { mode: 'zhannei', zhannei: { timeRange: 10080 } } })).resolves.toBeTruthy();
+    // 完全同键（zhannei 无筛选 = legacy 读侧默认键）→ 拒绝。
+    await expect(createSiteInstanceDefinition({ ...baiduBase, id: 'site:b4', name: 'B4', engineId: 'baidu' })).rejects.toThrow('invalid_site_instance');
+    // 显式非法 mode 落读侧默认后同键 → 拒绝。
+    await expect(createSiteInstanceDefinition({ ...baiduBase, id: 'site:b5', name: 'B5', options: { mode: 'q1' } })).rejects.toThrow('invalid_site_instance');
   });
 
   it('enforces Site Engine collection and field limits', async () => {
-    await expect(createSiteEngineDefinition({ ...site, name: 'x'.repeat(41) })).rejects.toThrow('invalid_site_engine');
-    await expect(createSiteEngineDefinition({ ...site, target: `https://example.com/${'x'.repeat(2048)}` })).rejects.toThrow('invalid_site_engine');
+    await expect(createSiteInstanceDefinition({ ...site, name: 'x'.repeat(41) })).rejects.toThrow('invalid_site_instance');
+    await expect(createSiteInstanceDefinition({ ...site, target: `https://example.com/${'x'.repeat(2048)}` })).rejects.toThrow('invalid_site_instance');
     for (let index = 0; index < 50; index += 1) {
-      await createSiteEngineDefinition({ ...site, id: `site:${index}`, name: `Site ${index}`, target: `https://example${index}.com/` });
+      await createSiteInstanceDefinition({ ...site, id: `site:${index}`, name: `Site ${index}`, target: `https://example${index}.com/` });
     }
-    await expect(createSiteEngineDefinition({ ...site, id: 'site:overflow', name: 'Overflow', target: 'https://overflow.example/' })).rejects.toThrow('invalid_site_engine');
+    await expect(createSiteInstanceDefinition({ ...site, id: 'site:overflow', name: 'Overflow', target: 'https://overflow.example/' })).rejects.toThrow('invalid_site_instance');
   });
 
   it('rejects creates that would exceed the serialized byte budget without wiping storage', async () => {
-    const siteEnginesMod = await import('@/lib/site-engines');
+    const siteInstancesMod = await import('@/lib/site-instances');
     const pad = 'x'.repeat(40);
     const seeded = Array.from({ length: 5 }, (_, i) => ({
       id: `site:seed${i}`,
@@ -616,56 +630,56 @@ describe('storage: Site Engines', () => {
       target: `https://seed${i}.example.com/`,
       engineId: 'google' as const,
     }));
-    await browser.storage.local.set({ siteEngines: seeded });
+    await browser.storage.local.set({ siteInstances: seeded });
     // Pure valid collections under the count cap stay below the real byte budget;
     // force the write-path guard so we still assert reject-without-wipe.
-    const spy = vi.spyOn(siteEnginesMod, 'siteEnginesSerializedBytes').mockReturnValue(
-      siteEnginesMod.MAX_SITE_ENGINES_SERIALIZED_BYTES + 1,
+    const spy = vi.spyOn(siteInstancesMod, 'siteInstancesSerializedBytes').mockReturnValue(
+      siteInstancesMod.MAX_INSTANCES_SERIALIZED_BYTES + 1,
     );
     try {
-      const before = await browser.storage.local.get('siteEngines');
-      await expect(createSiteEngineDefinition({
+      const before = await browser.storage.local.get('siteInstances');
+      await expect(createSiteInstanceDefinition({
         id: 'site:overflow-bytes',
         name: pad,
         target: 'https://overflow-bytes.example.com/',
         engineId: 'google',
-      })).rejects.toThrow('invalid_site_engine');
-      const after = await browser.storage.local.get('siteEngines');
-      expect(after.siteEngines).toEqual(before.siteEngines);
-      expect(await getSiteEngineDefinitions()).toHaveLength(seeded.length);
+      })).rejects.toThrow('invalid_site_instance');
+      const after = await browser.storage.local.get('siteInstances');
+      expect(after.siteInstances).toEqual(before.siteInstances);
+      expect(await getSiteInstanceDefinitions()).toHaveLength(seeded.length);
     } finally {
       spy.mockRestore();
     }
   });
 
   it('reads a non-empty subset when storage already holds an oversize-by-bytes collection', async () => {
-    const { MAX_SITE_ENGINES, MAX_SITE_ENGINES_SERIALIZED_BYTES, siteEnginesSerializedBytes } = await import('@/lib/site-engines');
+    const { MAX_SITE_INSTANCES, MAX_INSTANCES_SERIALIZED_BYTES, siteInstancesSerializedBytes } = await import('@/lib/site-instances');
     const pad = 'x'.repeat(40);
     // Bloated raw payload (extra fields) exceeds the byte budget; valid fields remain normalizable.
-    const oversized = Array.from({ length: MAX_SITE_ENGINES }, (_, i) => ({
+    const oversized = Array.from({ length: MAX_SITE_INSTANCES }, (_, i) => ({
       id: `site:over${i}`,
       name: pad,
       target: `https://over${i}.example.com/${'p'.repeat(1800)}`,
       engineId: 'google' as const,
       junk: 'J'.repeat(2000),
     }));
-    expect(siteEnginesSerializedBytes(oversized)).toBeGreaterThan(MAX_SITE_ENGINES_SERIALIZED_BYTES);
-    await browser.storage.local.set({ siteEngines: oversized });
-    const defs = await getSiteEngineDefinitions();
+    expect(siteInstancesSerializedBytes(oversized)).toBeGreaterThan(MAX_INSTANCES_SERIALIZED_BYTES);
+    await browser.storage.local.set({ siteInstances: oversized });
+    const defs = await getSiteInstanceDefinitions();
     expect(defs.length).toBeGreaterThan(0);
     expect(defs[0]?.id).toBe('site:over0');
     // Create must not wipe prior engines via empty-normalize → write tiny array.
-    await expect(createSiteEngineDefinition({
+    await expect(createSiteInstanceDefinition({
       id: 'site:after-oversize',
       name: 'After',
       target: 'https://after-oversize.example.com/',
       engineId: 'google',
-    })).rejects.toThrow('invalid_site_engine');
-    const still = await browser.storage.local.get('siteEngines');
-    expect((still.siteEngines as unknown[]).length).toBe(oversized.length);
+    })).rejects.toThrow('invalid_site_instance');
+    const still = await browser.storage.local.get('siteInstances');
+    expect((still.siteInstances as unknown[]).length).toBe(oversized.length);
     // Delete can shrink; must not replace with empty-derived wipe of all prior engines.
-    await deleteSiteEngineDefinition('site:over0');
-    const afterDelete = await getSiteEngineDefinitions();
+    await deleteSiteInstanceDefinition('site:over0');
+    const afterDelete = await getSiteInstanceDefinitions();
     expect(afterDelete.some((d) => d.id === 'site:over0')).toBe(false);
     expect(afterDelete.length).toBeGreaterThan(0);
   });
@@ -673,37 +687,37 @@ describe('storage: Site Engines', () => {
   it('returns one coherent normalized snapshot with a Site Engine active source', async () => {
     await browser.storage.local.set({
       providerKeys: { tavily: 'key' }, activeProvider: 'tavily', activeSource: site.id,
-      siteEngines: [site], sourceOrder: [site.id, 'bing'], sourceHidden: [site.id, 'ghost'],
+      siteInstances: [site], sourceOrder: [site.id, 'bing'], sourceHidden: [site.id, 'ghost'],
     });
     await expect(getProviderConfigSnapshot()).resolves.toMatchObject({
       activeSourceId: site.id,
-      siteEngines: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
+      siteInstances: [{ ...site, name: 'Docs', target: 'https://docs.example.com/guide' }],
       sourceOrder: [site.id, 'bing', 'tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', ...AI_ENGINE_IDS],
       sourceHidden: [site.id],
     });
   });
 
   it('deleting an active Site Engine removes graph references and selects a valid fallback', async () => {
-    await createSiteEngineDefinition(site);
+    await createSiteInstanceDefinition(site);
     await browser.storage.local.set({ activeSource: site.id, sourceOrder: [site.id, 'bing'], sourceHidden: [site.id] });
-    await deleteSiteEngineDefinition(site.id);
-    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden', 'activeSource']);
-    expect(got.siteEngines).toEqual([]);
+    await deleteSiteInstanceDefinition(site.id);
+    const got = await browser.storage.local.get(['siteInstances', 'sourceOrder', 'sourceHidden', 'activeSource']);
+    expect(got.siteInstances).toEqual([]);
     expect(got.sourceOrder).not.toContain(site.id);
     expect(got.sourceHidden).not.toContain(site.id);
     expect(got.activeSource).toBe('bing');
   });
 
   it('deleting an active Site Engine skips hidden fallback sources', async () => {
-    await createSiteEngineDefinition(site);
+    await createSiteInstanceDefinition(site);
     await browser.storage.local.set({ activeSource: site.id, sourceOrder: [site.id, 'bing', 'google'], sourceHidden: ['bing'] });
-    await deleteSiteEngineDefinition(site.id);
+    await deleteSiteInstanceDefinition(site.id);
     expect((await browser.storage.local.get('activeSource')).activeSource).toBe('google');
   });
 
   it('serializes selection with deletion so a removed Site Engine cannot become active', async () => {
-    await createSiteEngineDefinition(site);
-    const deletion = deleteSiteEngineDefinition(site.id);
+    await createSiteInstanceDefinition(site);
+    const deletion = deleteSiteInstanceDefinition(site.id);
     const selection = selectActiveSourceId(site.id);
     await deletion;
     await expect(selection).rejects.toThrow('invalid_source');
@@ -725,12 +739,12 @@ describe('storage: site engine CRUD preserves custom-engine source graph (H1 reg
     });
   }
 
-  it('createSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+  it('createSiteInstanceDefinition keeps custom-engine ordering and hidden state', async () => {
     await seed();
-    await createSiteEngineDefinition(site);
-    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    await createSiteInstanceDefinition(site);
+    const got = await browser.storage.local.get(['siteInstances', 'sourceOrder', 'sourceHidden']);
     // sanity: the site engine was actually created
-    expect((got.siteEngines as { id: string }[]).some((s) => s.id === site.id)).toBe(true);
+    expect((got.siteInstances as { id: string }[]).some((s) => s.id === site.id)).toBe(true);
     // H1: custom id still present, still in its non-tail position (not dropped, not jumped to tail)
     expect(got.sourceOrder).toContain('custom:alpha');
     expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);
@@ -739,26 +753,26 @@ describe('storage: site engine CRUD preserves custom-engine source graph (H1 reg
     expect(got.sourceHidden).toContain('custom:alpha');
   });
 
-  it('updateSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+  it('updateSiteInstanceDefinition keeps custom-engine ordering and hidden state', async () => {
     await seed();
-    await createSiteEngineDefinition(site);
-    await updateSiteEngineDefinition(site.id, { ...site, name: 'Renamed' });
-    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    await createSiteInstanceDefinition(site);
+    await updateSiteInstanceDefinition(site.id, { ...site, name: 'Renamed' });
+    const got = await browser.storage.local.get(['siteInstances', 'sourceOrder', 'sourceHidden']);
     // sanity: the update actually applied
-    expect((got.siteEngines as { name: string }[]).some((s) => s.name === 'Renamed')).toBe(true);
+    expect((got.siteInstances as { name: string }[]).some((s) => s.name === 'Renamed')).toBe(true);
     // H1: custom id survives the update in position and hidden state
     expect(got.sourceOrder).toContain('custom:alpha');
     expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);
     expect(got.sourceHidden).toContain('custom:alpha');
   });
 
-  it('deleteSiteEngineDefinition keeps custom-engine ordering and hidden state', async () => {
+  it('deleteSiteInstanceDefinition keeps custom-engine ordering and hidden state', async () => {
     await seed();
-    await createSiteEngineDefinition(site);
-    await deleteSiteEngineDefinition(site.id);
-    const got = await browser.storage.local.get(['siteEngines', 'sourceOrder', 'sourceHidden']);
+    await createSiteInstanceDefinition(site);
+    await deleteSiteInstanceDefinition(site.id);
+    const got = await browser.storage.local.get(['siteInstances', 'sourceOrder', 'sourceHidden']);
     // sanity: the site engine was actually removed
-    expect((got.siteEngines as { id: string }[]).some((s) => s.id === site.id)).toBe(false);
+    expect((got.siteInstances as { id: string }[]).some((s) => s.id === site.id)).toBe(false);
     // H1: custom id survives the delete (not dropped from order/hidden)
     expect(got.sourceOrder).toContain('custom:alpha');
     expect((got.sourceOrder as string[]).indexOf('custom:alpha')).toBe(0);

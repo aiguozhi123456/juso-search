@@ -351,7 +351,7 @@ export function projectLayout(
   for (const layoutItem of safeConfig.layout) {
     if (layoutItem.kind === 'source') {
       const source = sourceById.get(layoutItem.sourceId);
-      if (!source) continue; // 已隐藏 / 未配置 / 已删除 site-engine
+      if (!source) continue; // 已隐藏 / 未配置 / 已删除 site-instance
       items.push({ kind: 'source', source });
       continue;
     }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { allSources, allKnownSourceIds, isEngineId, isProviderId, isKnownCustomEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, sourceLabel } from '@/lib/sources';
-import type { SiteEngineDefinition } from '@/lib/site-engines';
+import type { SiteInstanceDefinition } from '@/lib/site-instances';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
 
@@ -106,7 +106,7 @@ describe('normalizeSourceHidden', () => {
 });
 
 describe('Site Engine source projection', () => {
-  const sites: SiteEngineDefinition[] = [
+  const sites: SiteInstanceDefinition[] = [
     { id: 'site:zeta', name: 'Literal Name', target: 'https://z.example/', engineId: 'google' },
     { id: 'site:alpha', name: 'engine_google', target: 'https://a.example/', engineId: 'bing' },
   ];
@@ -120,7 +120,7 @@ describe('Site Engine source projection', () => {
 
   it('projects known sites in saved order and omits unknown dynamic ids', () => {
     const sources = allSources([], ['site:zeta', 'site:unknown', 'site:alpha'], ['site:alpha'], sites);
-    expect(sources.filter((source) => source.kind === 'site-engine').map((source) => source.id)).toEqual(['site:zeta']);
+    expect(sources.filter((source) => source.kind === 'site-instance').map((source) => source.id)).toEqual(['site:zeta']);
     expect(sources.find((source) => source.id === 'site:zeta')).toMatchObject({
       label: 'Literal Name', favicon: '/icons/site.svg', supportsAnswer: false,
       labelDescriptor: { kind: 'literal', value: 'Literal Name' },
@@ -365,7 +365,7 @@ describe('resolveEffectiveActiveSource', () => {
   });
 
   it('returns engine / site / custom sources as-is', () => {
-    const site: SiteEngineDefinition = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' };
+    const site: SiteInstanceDefinition = { id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' };
     const custom: CustomEngineDefinition = { id: 'custom:alpha', name: 'Alpha', urlTemplate: 'https://alpha.com/%s' };
     expect(resolveEffectiveActiveSource('google', {}, [], [], [])).toBe('google');
     expect(resolveEffectiveActiveSource('site:docs', {}, [site], [], [])).toBe('site:docs');

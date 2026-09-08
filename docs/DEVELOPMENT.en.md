@@ -40,11 +40,11 @@ The development build (`build:dev`) uses a built-in public key to keep the exten
 ![Juso Architecture](assets/architecture-en.svg)
 
 - `entrypoints/search/`: independent human search page, source switching, cache, and history.
-- `entrypoints/options/`: local credentials, Search Source preferences, and Site Engine / Custom Engine / Provider Instance management.
+- `entrypoints/options/`: local credentials, Search Source preferences, and Site Instance / Custom Engine / Provider Instance management.
 - `entrypoints/background.ts` and `lib/gateway.ts`: background service, message gateway, and bounded Agent Bridge actions.
 - `lib/providers/`: adapters and normalized response model for Tavily, Exa, Brave, Stepfun pay-as-you-go, Step Plan, Jina, and Doubao (Custom/Global).
 - `lib/provider-instances.ts`: multiple instances per provider (tuned-option variants); each instance is a first-class quick-switch target and holds no credentials. The gateway resolves `ProviderInstanceId → { providerId, options }` at the boundary.
-- `lib/engines/`, `lib/ai-engines/`, `lib/site-engines.ts`, `lib/custom-engines.ts`: conventional search engines, AI chat engines (Grok/ChatGPT/DeepSeek/Doubao/Gemini, via injection or URL prefill), Site Engines (`site:`), and Custom Engines (`%s` URL templates).
+- `lib/engines/`, `lib/ai-engines/`, `lib/site-instances.ts`, `lib/custom-engines.ts`: conventional search engines, AI chat engines (Grok/ChatGPT/DeepSeek/Doubao/Gemini, via injection or URL prefill), Site Instances (per-instance construction modes: Baidu zhannei, Bing q1, `site:` prefix), and Custom Engines (`%s` URL templates).
 - SERP Switch Bar and `lib/engine-search.ts`: result-page switch-bar injection and ordinary-result extraction, on an execution path distinct from API services.
 - `lib/storage/`, `lib/config-io.ts`, `lib/schema.ts`: local configuration, source preferences, cache, config import/export, and schema migrations.
 - `mcp-server/`: standalone pip package `juso-search` that exposes the Agent Bridge's 6 actions as MCP tools (stdio) for MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code); shares the `juso_bridge` single-source module with the CLI skill (drift-locked).

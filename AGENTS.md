@@ -27,7 +27,7 @@ WXT + React + TypeScript，Chrome/Firefox MV3（`wxt.config.ts` 按 browser 分�
 - `lib/provider-instances.ts` — 同一 provider 的多实例（调好参数的变体），实例是快切栏一等目标，不持有密钥；gateway 在边界解析 `ProviderInstanceId → { providerId, options }`
 - `lib/engines/` — 传统搜索引擎（google/bing/baidu/douyin/xiaohongshu/bilibili/yandex/duckduckgo/weixin）
 - `lib/ai-engines/` — AI 对话引擎（grok/chatgpt/deepseek/doubao/gemini），注入或 URL 预填
-- `lib/site-engines.ts`、`lib/custom-engines.ts` — 站外搜索（`site:`）、自定义引擎（`%s` URL 模板）
+- `lib/site-instances.ts`、`lib/custom-engines.ts` — 站点实例（site instance：同站多实例，per-instance 构造模式 baidu zhannei / bing q1 / `site:` 前缀 + zhannei 筛选；存储键经 schema 迁移为 `siteInstances`，导入兼容旧字段名）、自定义引擎（`%s` URL 模板）
 - `lib/gateway.ts` — worker 处理器（key 仅 worker 读）；`lib/messaging.ts`（@webext-core/messaging，ok/error 判别联合）
 - `lib/storage/`（域子模块 + barrel）、`lib/config-io.ts`、`lib/schema.ts` — `chrome.storage.local` BYOK（key 读函数按约定仅 worker 调用）、配置导入导出、schema 迁移
 - `entrypoints/search` + `entrypoints/options` — 两个 UI；`components/` 复用组件

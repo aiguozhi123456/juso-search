@@ -20,7 +20,7 @@ vi.mock('@/lib/storage', () => ({
   getSourceHidden: vi.fn(),
   getSourceOrder: vi.fn(),
   getProviderConfigSnapshot: vi.fn(),
-  getSiteEngineDefinitions: vi.fn(),
+  getSiteInstanceDefinitions: vi.fn(),
   saveCachedSearch: vi.fn(),
   setActiveProviderId: vi.fn(),
   setActiveProviderAndSourceId: vi.fn(),
@@ -33,9 +33,9 @@ vi.mock('@/lib/storage', () => ({
   setGroupConfig: vi.fn().mockResolvedValue(undefined),
   setAiAutoEnter: vi.fn().mockResolvedValue(undefined),
   setFlatLayoutFewSources: vi.fn().mockResolvedValue(undefined),
-  createSiteEngineDefinition: vi.fn(),
-  updateSiteEngineDefinition: vi.fn(),
-  deleteSiteEngineDefinition: vi.fn(),
+  createSiteInstanceDefinition: vi.fn(),
+  updateSiteInstanceDefinition: vi.fn(),
+  deleteSiteInstanceDefinition: vi.fn(),
   createCustomEngineDefinition: vi.fn(),
   updateCustomEngineDefinition: vi.fn(),
   deleteCustomEngineDefinition: vi.fn(),
@@ -88,9 +88,9 @@ vi.mock('@/lib/skill-variant', () => ({
 import {
   handleClearSearchCache,
   handleClearProviderMaxResults,
-  handleCreateSiteEngine,
+  handleCreateSiteInstance,
   handleCreateCustomEngine,
-  handleDeleteSiteEngine,
+  handleDeleteSiteInstance,
   handleDeleteCustomEngine,
   handleDeleteCachedSearch,
   handleDeleteProviderKey,
@@ -111,7 +111,7 @@ import {
   handleSetAiAutoEnter,
   handleSetFlatLayoutFewSources,
   handleTestKey,
-  handleUpdateSiteEngine,
+  handleUpdateSiteInstance,
   handleUpdateCustomEngine,
   resolveInstance,
   handleSearchInstance,
@@ -149,9 +149,9 @@ import {
   setGroupConfig,
   setAiAutoEnter,
   setFlatLayoutFewSources,
-  createSiteEngineDefinition,
-  updateSiteEngineDefinition,
-  deleteSiteEngineDefinition,
+  createSiteInstanceDefinition,
+  updateSiteInstanceDefinition,
+  deleteSiteInstanceDefinition,
   createCustomEngineDefinition,
   updateCustomEngineDefinition,
   deleteCustomEngineDefinition,
@@ -191,9 +191,9 @@ const mockedSetAiAutoEnter = vi.mocked(setAiAutoEnter);
 const mockedSetFlatLayoutFewSources = vi.mocked(setFlatLayoutFewSources);
 const mockedClearKey = vi.mocked(clearKey);
 const mockedClearProviderMaxResults = vi.mocked(clearProviderMaxResults);
-const mockedCreateSiteEngineDefinition = vi.mocked(createSiteEngineDefinition);
-const mockedUpdateSiteEngineDefinition = vi.mocked(updateSiteEngineDefinition);
-const mockedDeleteSiteEngineDefinition = vi.mocked(deleteSiteEngineDefinition);
+const mockedCreateSiteInstanceDefinition = vi.mocked(createSiteInstanceDefinition);
+const mockedUpdateSiteInstanceDefinition = vi.mocked(updateSiteInstanceDefinition);
+const mockedDeleteSiteInstanceDefinition = vi.mocked(deleteSiteInstanceDefinition);
 const mockedCreateCustomEngineDefinition = vi.mocked(createCustomEngineDefinition);
 const mockedUpdateCustomEngineDefinition = vi.mocked(updateCustomEngineDefinition);
 const mockedDeleteCustomEngineDefinition = vi.mocked(deleteCustomEngineDefinition);
@@ -499,7 +499,7 @@ describe('handleGetProviderConfig', () => {
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],
       sourceHidden: [],
-      siteEngines: [],
+      siteInstances: [],
       customEngines: [],
       providerInstances: [],
       providerMaxResults: {},
@@ -803,18 +803,29 @@ describe('Site Engine gateway handlers', () => {
 
   it('creates a worker-generated id and delegates canonicalization to storage', async () => {
     vi.stubGlobal('crypto', { randomUUID: () => 'worker-id' });
-    mockedCreateSiteEngineDefinition.mockResolvedValue(created);
-    await expect(handleCreateSiteEngine({ name: ' Docs ', target: 'docs.example.com', engineId: 'google' })).resolves.toEqual(created);
-    expect(mockedCreateSiteEngineDefinition).toHaveBeenCalledWith({ ...created, name: ' Docs ', target: 'docs.example.com' });
+    mockedCreateSiteInstanceDefinition.mockResolvedValue(created);
+    await expect(handleCreateSiteInstance({ name: ' Docs ', target: 'docs.example.com', engineId: 'google' })).resolves.toEqual(created);
+    expect(mockedCreateSiteInstanceDefinition).toHaveBeenCalledWith({ ...created, name: ' Docs ', target: 'docs.example.com' });
   });
 
   it('updates using the existing id and deletes only valid Site Engine ids', async () => {
-    mockedUpdateSiteEngineDefinition.mockResolvedValue(created);
-    await handleUpdateSiteEngine({ ...created, name: 'Changed' });
-    expect(mockedUpdateSiteEngineDefinition).toHaveBeenCalledWith(created.id, { ...created, name: 'Changed' });
-    await expect(handleDeleteSiteEngine('not-a-site' as never)).rejects.toThrow('invalid_site_engine');
-    await handleDeleteSiteEngine(created.id);
-    expect(mockedDeleteSiteEngineDefinition).toHaveBeenCalledWith(created.id);
+    mockedUpdateSiteInstanceDefinition.mockResolvedValue(created);
+    await handleUpdateSiteInstance({ ...created, name: 'Changed' });
+    expect(mockedUpdateSiteInstanceDefinition).toHaveBeenCalledWith(created.id, { ...created, name: 'Changed' });
+    await expect(handleDeleteSiteInstance('not-a-site' as never)).rejects.toThrow('invalid_site_instance');
+    await handleDeleteSiteInstance(created.id);
+    expect(mockedDeleteSiteInstanceDefinition).toHaveBeenCalledWith(created.id);
+  });
+
+  it('passes per-instance options through create/update (whitelist lives in storage)', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'worker-id' });
+    const options = { mode: 'zhannei' as const, zhannei: { timeRange: 10080 as const } };
+    mockedCreateSiteInstanceDefinition.mockResolvedValue(created);
+    await handleCreateSiteInstance({ name: '52pojie', target: '52pojie.cn', engineId: 'baidu', options });
+    expect(mockedCreateSiteInstanceDefinition).toHaveBeenCalledWith({ id: 'site:worker-id', name: '52pojie', target: '52pojie.cn', engineId: 'baidu', options });
+    mockedUpdateSiteInstanceDefinition.mockResolvedValue(created);
+    await handleUpdateSiteInstance({ id: created.id, name: '52pojie', target: '52pojie.cn', engineId: 'baidu', options: { mode: 'q1' } });
+    expect(mockedUpdateSiteInstanceDefinition).toHaveBeenCalledWith(created.id, { id: created.id, name: '52pojie', target: '52pojie.cn', engineId: 'baidu', options: { mode: 'q1' } });
   });
 });
 
@@ -1104,7 +1115,7 @@ describe('handleExportConfig', () => {
       activeSource: 'tavily',
       themePref: 'dark',
       localePref: 'en',
-      siteEngines: [],
+      siteInstances: [],
     });
     const onDownload = vi.fn().mockResolvedValue(undefined);
 
@@ -1126,7 +1137,7 @@ describe('handleExportConfig', () => {
     mockedBuildExportPayload.mockResolvedValue({
       schemaVersion: 1, exportedAt: 0, appVersion: '1.0.0',
       providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto',
-      siteEngines: [],
+      siteInstances: [],
     });
     const onDownload = vi.fn().mockRejectedValue(new Error('blocked'));
     const reply = await handleExportConfig(onDownload);
@@ -1164,13 +1175,13 @@ describe('handlePackageAgentSkill', () => {
 
 describe('handleImportConfig', () => {
   it('parses then merges and returns the report', async () => {
-    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto', siteEngines: [] };
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto', siteInstances: [] };
     mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
     mockedMergeImport.mockResolvedValue({
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
       serpBarPositionOverridden: false, aiAutoEnterOverridden: false, flatLayoutFewSourcesOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
@@ -1183,13 +1194,13 @@ describe('handleImportConfig', () => {
   });
 
   it('passes applyPrefs=false through to mergeImport', async () => {
-    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto', siteEngines: [] };
+    const payload: ConfigExport = { schemaVersion: 1, exportedAt: 0, appVersion: 'x', providerKeys: {}, activeProvider: null, activeSource: 'google', themePref: 'auto', localePref: 'auto', siteInstances: [] };
     mockedParseImportPayload.mockReturnValue({ ok: true, value: payload });
     mockedMergeImport.mockResolvedValue({
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
       serpBarPositionOverridden: false, aiAutoEnterOverridden: false, flatLayoutFewSourcesOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteEnginesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });
@@ -1228,7 +1239,7 @@ describe('installDownloadFilenameGuard', () => {
     mockedBuildExportPayload.mockResolvedValue({
       schemaVersion: 1, exportedAt: 0, appVersion: '1.0.0',
       providerKeys: {}, activeProvider: null, activeSource: 'google',
-      themePref: 'auto', localePref: 'auto', siteEngines: [],
+      themePref: 'auto', localePref: 'auto', siteInstances: [],
     });
     const suggestSpy = vi.fn();
     vi.mocked(browser.downloads.download).mockImplementation(() => {

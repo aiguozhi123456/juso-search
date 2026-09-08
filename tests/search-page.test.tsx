@@ -9,11 +9,11 @@ import { sendMessage } from '@/lib/messaging';
  *  需要测试分组行为时，显式传入 groupConfig 覆盖。 */
 function configReply(partial: Record<string, unknown>): Record<string, unknown> {
   const configuredProviderIds = (partial.configuredProviderIds as string[] | undefined) ?? [];
-  // 可见 source = 已配置 provider + 全部 engine（engine 恒显示）；site-engine 由 siteEngines 决定。
+  // 可见 source = 已配置 provider + 全部 engine（engine 恒显示）；site-instance 由 siteInstances 决定。
   const allSourceIds = [
     ...configuredProviderIds,
     'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin',
-    ...((partial.siteEngines as { id: string }[] | undefined) ?? []).map((s) => s.id),
+    ...((partial.siteInstances as { id: string }[] | undefined) ?? []).map((s) => s.id),
   ];
   const groupConfig = partial.groupConfig ?? pinnedGroupConfig(allSourceIds);
   return {
@@ -22,7 +22,7 @@ function configReply(partial: Record<string, unknown>): Record<string, unknown> 
     activeSourceId: 'google',
     sourceOrder: [],
     sourceHidden: [],
-    siteEngines: [],
+    siteInstances: [],
     providerMaxResults: {},
     ...partial,
     groupConfig,
@@ -596,7 +596,7 @@ describe('search page', () => {
       if (type === 'getProviderConfig') {
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
-          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
+          siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
         }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
@@ -623,7 +623,7 @@ describe('search page', () => {
         configReads += 1;
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
-          siteEngines: [{
+          siteInstances: [{
             id: 'site:docs', name: 'Docs',
             target: configReads === 1 ? 'https://stale.example.com' : 'https://fresh.example.com',
             engineId: 'google',
@@ -657,9 +657,9 @@ describe('search page', () => {
         return Promise.resolve(configReads === 1
           ? configReply({
               configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
-              siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://stale.example.com', engineId: 'google' }],
+              siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://stale.example.com', engineId: 'google' }],
             })
-          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs', siteEngines: [] }));
+          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs', siteInstances: [] }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'install', provider: 'tavily', results: [] }, cache: { hit: false } });
@@ -692,7 +692,7 @@ describe('search page', () => {
           configuredProviderIds: ['tavily'],
           activeProviderId: 'tavily',
           activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
-          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
+          siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com/guide', engineId: 'google' }],
         }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
@@ -938,7 +938,7 @@ describe('search page', () => {
         configReads += 1;
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs',
-          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+          siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
         }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
@@ -1003,7 +1003,7 @@ describe('search page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') return Promise.resolve({
         configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'site:docs', sourceHidden: ['site:docs'],
-        siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+        siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
       });
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'hidden site', provider: 'tavily', results: [] }, cache: { hit: false } });
@@ -1031,7 +1031,7 @@ describe('search page', () => {
           activeProviderId: 'tavily',
           // Post-write (3rd read) applies the newly active site source.
           activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
-          siteEngines: [{
+          siteInstances: [{
             id: 'site:docs',
             name: 'Docs',
             target: configReads === 1 ? 'https://old.example.com' : 'https://new.example.com',
@@ -1069,7 +1069,7 @@ describe('search page', () => {
           configuredProviderIds: ['tavily'],
           activeProviderId: 'tavily',
           activeSourceId: configReads >= 3 ? 'site:docs' : 'tavily',
-          siteEngines: [{
+          siteInstances: [{
             id: 'site:docs',
             name: configReads <= 2 ? 'Docs' : 'Docs (edited)',
             target,
@@ -1109,14 +1109,14 @@ describe('search page', () => {
             configuredProviderIds: ['tavily'],
             activeProviderId: 'tavily',
             activeSourceId: 'tavily',
-            siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+            siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
           }));
         }
         return Promise.resolve(configReply({
           configuredProviderIds: ['tavily'],
           activeProviderId: 'tavily',
           activeSourceId: 'site:docs',
-          siteEngines: [],
+          siteInstances: [],
         }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
@@ -1144,8 +1144,8 @@ describe('search page', () => {
       if (type === 'getProviderConfig') {
         configReads += 1;
         return Promise.resolve(configReads === 1
-          ? configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] })
-          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [] }));
+          ? configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] })
+          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteInstances: [] }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve({ ok: true, response: { query: 'install', provider: 'tavily', results: [] }, cache: { hit: false } });
@@ -1174,8 +1174,8 @@ describe('search page', () => {
       if (type === 'getProviderConfig') {
         configReads += 1;
         return Promise.resolve(configReads === 1
-          ? configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] })
-          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteEngines: [] }));
+          ? configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }] })
+          : configReply({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily', siteInstances: [] }));
       }
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
       return Promise.resolve(undefined);
@@ -1198,7 +1198,7 @@ describe('search page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') return Promise.resolve(configReply({
         configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
-        siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+        siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
       }));
       if (type === 'setActiveSource') return Promise.reject(new Error('write failed'));
       if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
@@ -1224,7 +1224,7 @@ describe('search page', () => {
           configuredProviderIds: ['tavily', 'exa'],
           activeProviderId: 'tavily',
           activeSourceId: 'tavily',
-          siteEngines: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+          siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
         }));
       }
       if (type === 'setActiveSource' && data === 'site:docs') return siteWrite.promise;

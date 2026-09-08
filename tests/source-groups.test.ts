@@ -32,11 +32,11 @@ const SOURCES: SearchSource[] = [
   makeSource('google', 'engine', false),
   makeSource('bing', 'engine', false),
   makeSource('baidu', 'engine', false),
-  // site-engine
-  makeSource('site:docs', 'site-engine', false),
+  // site-instance
+  makeSource('site:docs', 'site-instance', false),
 ];
 
-function makeSource(id: string, kind: 'provider' | 'engine' | 'site-engine', supportsAnswer: boolean): SearchSource {
+function makeSource(id: string, kind: 'provider' | 'engine' | 'site-instance', supportsAnswer: boolean): SearchSource {
   return { id, kind, label: `msg_${id}`, supportsAnswer, favicon: `/icons/${id}.svg` } as SearchSource;
 }
 
@@ -417,14 +417,14 @@ describe('projectLayout', () => {
   });
 
   it('empty group is skipped (no matching sources)', () => {
-    // layout 只有 SITES_GROUP，但 sources 里没有 site-engine → 该组空，应被跳过。
+    // layout 只有 SITES_GROUP，但 sources 里没有 site-instance → 该组空，应被跳过。
     const cfg: GroupConfig = {
       groups: DEFAULT_GROUPS,
       layout: [{ kind: 'group', groupId: SITES_GROUP }],
       assignments: {},
       groupOrders: {},
     };
-    const noSites = SOURCES.filter((s) => s.kind !== 'site-engine');
+    const noSites = SOURCES.filter((s) => s.kind !== 'site-instance');
     const layout = projectLayout(noSites, cfg, null);
     // SITES_GROUP 是空的被跳过；fallback 会把 providers/engines 补进各自默认组。
     expect(layout.items.find((i) => i.kind === 'group' && i.group.id === SITES_GROUP)).toBeUndefined();
@@ -600,7 +600,7 @@ describe('groupOrderOf vs projectLayout — 对拍一致性', () => {
 });
 
 describe('resolveEffectiveLayout', () => {
-  const s = (id: string, kind: 'provider' | 'engine' | 'site-engine' = 'engine'): SearchSource =>
+  const s = (id: string, kind: 'provider' | 'engine' | 'site-instance' = 'engine'): SearchSource =>
     makeSource(id, kind, kind === 'provider');
 
   /** 所有源显式归入单个组（layout 只含该组）的配置。 */
@@ -631,7 +631,7 @@ describe('resolveEffectiveLayout', () => {
 
   it('flattens 3 sources regardless of structure (≤ FEW_SOURCES_FLAT_THRESHOLD)', () => {
     // 默认类型分组会渲染 ≥2 组（ai-search / engines / sites），但源总数 ≤4 → 仍平铺。
-    const sources = [s('a', 'provider'), s('b', 'engine'), s('c', 'site-engine')];
+    const sources = [s('a', 'provider'), s('b', 'engine'), s('c', 'site-instance')];
     const layout = resolveEffectiveLayout(sources, defaultGroupConfig(sources.map((x) => x.id)), null);
     expect(layout.items.every((it) => it.kind === 'source')).toBe(true);
     expect(layout.items.filter(isPinnedItem).map((it) => it.source.id)).toEqual(sources.map((x) => x.id));
