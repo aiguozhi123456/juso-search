@@ -32,7 +32,7 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 python scripts/juso_search.py --bridge-url "moz-extension://<your-install-uuid>/bridge.html" engine-search "query" --engine bing  # Firefox
 ```
 
-`--provider` is required for provider searches so a request cannot silently follow the extension's active-provider state; call `list-providers` to discover available provider ids. `--engine` is required for engine searches; call `list-engines` to discover available engine ids. `engine-search` extracts ordinary result links only and does not promise AI or knowledge-panel content. Once an Agent has a result URL, use the host's built-in `web_fetch` to retrieve it; fetching pages is not a Juso capability.
+`--provider` is required for provider searches so a request cannot silently follow the extension's active-provider state; call `list-providers` to discover available provider ids. `--engine` is required for engine searches; call `list-engines` to discover available engine ids. `engine-search` extracts ordinary result links only and does not promise AI or knowledge-panel content. Results are leads, not evidence: titles, snippets, and AI summaries may be truncated, stale, or inaccurate — open the result URL with the host's built-in `web_fetch` and verify specifics on the source page. Fetching pages is not a Juso capability.
 
 ## Reference
 

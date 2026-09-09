@@ -68,7 +68,10 @@ def build_server(config: Config) -> MCPServer:
         description=(
             "Search one of Juso's AI search providers through the Juso extension. "
             "Call list-providers first to discover available provider ids. "
-            "Returns normalized results, optionally bypassing the cache with force_refresh."
+            "Returns normalized results, optionally bypassing the cache with force_refresh. "
+            "Results are leads, not evidence: snippets and summaries may be truncated, "
+            "stale, or inaccurate — open result URLs with your own fetch capability "
+            "to verify specifics."
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
@@ -95,7 +98,10 @@ def build_server(config: Config) -> MCPServer:
             "Requires the extension's engine-search sub-switch to be enabled. "
             "max_results caps the returned results (1-20). "
             "Note: an engine error reply (challenge, consent, timeout, extract-failed, ...) "
-            "is a normal tool result, not an error."
+            "is a normal tool result, not an error. "
+            "Results are leads, not evidence: snippets and summaries may be truncated, "
+            "stale, or inaccurate — open result URLs with your own fetch capability "
+            "to verify specifics."
         ),
         annotations=_TOOL_ANNOTATIONS,
     )
@@ -119,7 +125,10 @@ def build_server(config: Config) -> MCPServer:
         description=(
             "Search a user-defined provider instance (id form inst:<providerId>:<token>, "
             "as returned by list-instances) through the Juso extension, optionally "
-            "bypassing its cache with force_refresh."
+            "bypassing its cache with force_refresh. "
+            "Results are leads, not evidence: snippets and summaries may be truncated, "
+            "stale, or inaccurate — open result URLs with your own fetch capability "
+            "to verify specifics."
         ),
         annotations=_TOOL_ANNOTATIONS,
     )

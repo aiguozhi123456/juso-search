@@ -161,6 +161,11 @@ All tools are annotated `readOnlyHint` + `openWorldHint`. Tool results carry
 an `error` field — only genuine bridge failures (e.g. Chrome not found,
 bridge not enabled) come back as `isError`.
 
+The search tools return leads, not evidence: titles, snippets, and AI
+summaries may be truncated, stale, or inaccurate. Agents should open result
+URLs with their own page-fetch capability and verify specifics on the source
+page.
+
 ## Prerequisites (in the extension)
 
 1. Find your extension id: open `chrome://extensions` (enable *Developer
