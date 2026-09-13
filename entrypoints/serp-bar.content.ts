@@ -609,7 +609,8 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
     groupConfig: config.groupConfig,
     activeSiteId: context.matchingSiteId,
     activeId: context.activeId,
-    resolvedTheme: resolveTheme(themePref),
+    // engine 声明固定配色（抖音恒黑）时优先于用户主题偏好，避免浅色栏贴在黑色 SERP 上。
+    resolvedTheme: engine.serpTheme ?? resolveTheme(themePref),
     stylePref,
     barPositionPref,
     resolvedPosition: resolveBarPosition(barPositionPref, window.innerWidth),

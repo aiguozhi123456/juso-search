@@ -54,6 +54,12 @@ export interface SearchEngine {
    * 用于在栏会与宿主元素重叠时腾出空间。可选。
    */
   readonly pageStyles?: string;
+  /**
+   * 宿主 SERP 页的固定配色：站点配色恒定（如抖音 SERP 恒为黑色）时声明，
+   * SERP 栏忽略用户主题偏好（light/dark/auto），始终以该主题渲染，
+   * 避免浅色栏贴在黑色页面上。可选；缺省时跟随用户主题偏好。
+   */
+  readonly serpTheme?: 'light' | 'dark';
 }
 
 /**

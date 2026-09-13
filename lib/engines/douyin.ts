@@ -57,4 +57,6 @@ export const douyinEngine: SearchEngine = {
   },
   anchors: ANCHORS,
   pageStyles: PAGE_STYLES,
+  // 抖音 SERP 恒为黑色：栏忽略用户主题偏好，始终按暗色令牌渲染。
+  serpTheme: 'dark',
 };

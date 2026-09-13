@@ -338,3 +338,15 @@ describe('anchor strategy', () => {
     }
   });
 });
+
+describe('serpTheme', () => {
+  it('douyin declares a fixed dark SERP theme (host page is always black)', () => {
+    expect(getEngine('douyin').serpTheme).toBe('dark');
+  });
+  it('no other engine declares a fixed SERP theme', () => {
+    for (const engine of allEngines()) {
+      if (engine.id === 'douyin') continue;
+      expect(engine.serpTheme).toBeUndefined();
+    }
+  });
+});
