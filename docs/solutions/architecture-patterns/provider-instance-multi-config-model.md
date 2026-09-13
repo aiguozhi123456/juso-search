@@ -1,7 +1,7 @@
 ---
 title: "Provider instances: multi-variant provider configs behind a closed-union boundary"
 date: 2026-08-02
-last_updated: 2026-09-09
+last_updated: 2026-09-14
 category: architecture-patterns
 module: lib/provider-instances
 problem_type: architecture_pattern
@@ -485,6 +485,8 @@ if (value.action === 'search-instance') {
 }
 ```
 
+*Update 2026-09-14: the snippet above records the original parse; the list-* branches have since been relaxed to also accept the optional transport-level `timeoutMs` (`hasOnlyKeys(value, ['action', 'timeoutMs'])` + clamp validation), and `search-instance` gained the `timeoutMs` field the same way — see [list-* claims rejected timeoutMs](../integration-issues/agent-bridge-list-claims-reject-timeoutms.md).*
+
 The v1 `search` action follows and still rejects instance ids in the `providerId` slot (`lib/agent-bridge.ts:257`: `!isProviderId(value.providerId)`). `handleListAgentInstances` returns the desensitized shape:
 
 ```ts
@@ -556,4 +558,4 @@ buildRequest(query, opts, apiKey) {
   - `per-provider-config-worker-injection` should cross-reference the `cacheKeyId` threading as the general form of "the cache read and write must agree on the key" — the `maxResults` case was simple (key unchanged, clear on write); the instance case is the general form (key changes, no clear needed because the key itself disambiguates).
   - `separate-active-search-source-from-active-byok-provider` should note that `SourceId` now has multiple inhabited non-provider variants (engines, instances, and AI engines), all of which require the parallel `is*Id` guard at every boundary.
   - `local-search-cache-mv3` should note the `instanceId` dimension added by cache schema v2 — the key is now `${instanceId ?? providerId}:${query}`, not `${providerId}:${query}`.
-  - `agent-skill-localhost-capability-bridge` should mention the v2 additive action surface (`search-instance`, `list-instances`) and confirm v1 callers remain unaffected.
+  - `agent-skill-localhost-capability-bridge` should mention the v2 additive action surface (`search-instance`, `list-instances`) and confirm v1 callers remain unaffected. *(Resolved 2026-09-14: the bridge surface reached ten actions and the full exposure recipe is recorded in `agent-bridge-source-instance-exposure.md`; the capability-bridge doc's action-surface section was refreshed in the same pass.)*

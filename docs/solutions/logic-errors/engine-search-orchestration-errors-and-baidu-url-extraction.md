@@ -1,7 +1,7 @@
 ---
 title: Engine-search misclassified tab failures as unsupported-layout and weak Baidu organic URLs
 date: 2026-07-23
-last_updated: 2026-08-23
+last_updated: 2026-09-14
 category: logic-errors
 module: engine-search
 problem_type: logic_error
@@ -211,7 +211,7 @@ function isTabReady(tab: { status?: string; url?: string }): boolean {
 
 **Fix (TS + Python, one carrier field):**
 
-1. *Claim protocol* — `search` / `engine-search` / `search-instance` claims accept an optional integer `timeoutMs` ∈ [7000, 300000] (out-of-range rejects the claim, same style as `maxResults`); `list-*` stays unchanged. Pure helpers (`clampTimeoutMs`, `effectiveActionDurationMs`, `engineInnerBudgetMs`) are exported so deadline math is unit-testable without timers.
+1. *Claim protocol* — `search` / `engine-search` / `search-instance` claims accept an optional integer `timeoutMs` ∈ [7000, 300000] (out-of-range rejects the claim, same style as `maxResults`); `list-*` stays unchanged. *(Update 2026-09-14: the "list-* stays unchanged" freeze was superseded — the strict `hasOnlyKeys(['action'])` list parsers rejected the `timeoutMs` that CLI `--timeout` / MCP `JUSO_TIMEOUT` attach to every claim, so any list command with a budget failed fast with `claim_rejected`. All list-* parsers now accept `action` + optional `timeoutMs`; see [list-* claims rejected timeoutMs](../integration-issues/agent-bridge-list-claims-reject-timeoutms.md).)* Pure helpers (`clampTimeoutMs`, `effectiveActionDurationMs`, `engineInnerBudgetMs`) are exported so deadline math is unit-testable without timers.
 2. *Unified action deadline* — the engine-search re-arm branch is deleted; one `AGENT_BRIDGE_ACTION_DEADLINE_MS = 35_000` covers every action (35 keeps engine-search's existing headroom; other actions widen 30→35s, harmless since they normally finish in seconds). Effective deadline = `timeoutMs − 6000` (complete-POST reserve) when the claim carries `timeoutMs`, else the test-hook `deps.deadlineMs`, else the 35s default; computed once, armed once.
 3. *Engine-search inner budget* — always `remaining − 750 ms` of the action deadline (clamped ≥ 0), passed as `deps.completeTimeoutMs` from `background.ts`; the 750ms margin makes the inner `timeout` classification deterministically beat the outer `aborted`. `COMPLETE_TIMEOUT_MS` remains only as a defensive fallback for direct/test calls that pass no budget.
 4. *Python single source* — `DEFAULT_TIMEOUT_SECONDS = 40.0` lives once in `juso_bridge.py` (`__all__`-exported; CLI and `config.py` reference it, `Config.timeout` is `float | None` with None = not customized). CLI/MCP emit `timeoutMs` **only when the timeout was explicitly configured** (flag given or `JUSO_TIMEOUT` set), so the default path's claim bytes are unchanged — zero impact on old extensions.

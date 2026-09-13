@@ -47,7 +47,7 @@ npm run lint     # eslint .
 - `lib/engines/`、`lib/ai-engines/`、`lib/site-instances.ts`、`lib/custom-engines.ts`：传统搜索引擎、AI 对话引擎（Grok/ChatGPT/DeepSeek/豆包/Gemini，注入或 URL 预填）、站外搜索（site instance：per-instance 构造模式 baidu zhannei / bing q1 / `site:` 前缀）、自定义引擎（`%s` URL 模板）。
 - SERP Switch Bar 与 `lib/engine-search.ts`：结果页切换栏注入、普通结果提取；其执行契约不同于 API 服务。
 - `lib/storage/`、`lib/config-io.ts`、`lib/schema.ts`：本地配置、来源偏好、缓存、配置导入导出与 schema 迁移。
-- `mcp-server/`：独立 pip 包 `juso-search`，把 Agent Bridge 的 5 个 action 暴露为 MCP 工具（stdio），供 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）调用；与 CLI skill 共享 `juso_bridge` 单源模块（drift 锁守卫）。
+- `mcp-server/`：独立 pip 包 `juso-search`，把 Agent Bridge 的 action 暴露为 MCP 工具（每个 action 一个工具；集合随版本累加，经 list-* 工具运行时发现），供 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）调用；与 CLI skill 共享 `juso_bridge` 单源模块（drift 锁守卫）。
 
 ## 技术栈
 

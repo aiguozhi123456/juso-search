@@ -1,7 +1,7 @@
 ---
 title: Bridge a General Agent Skill to Chrome MV3 Without Exposing BYOK Keys
 date: 2026-07-15
-last_updated: 2026-08-10
+last_updated: 2026-09-14
 category: architecture-patterns
 module: agent-skill-localhost-bridge
 problem_type: architecture_pattern
@@ -75,9 +75,9 @@ The token is passed in the extension-page fragment rather than the query string.
 
 `bridge.html` only parses bridge credentials and calls the typed `agentBridgeClaim` message. It does not read storage, execute searches, or post results.
 
-Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then checks a total capability switch (`agentBridgeEnabled`, default off) and returns `{ ok: false }` without proceeding if the user has not opted in. Only then does it inject the existing provider gateway, declassified provider-list and engine-list handlers, and a wrapped engine-search executor into `lib/agent-bridge.ts` — the wrapper checks a second sub-switch (`engineSearchEnabled`, default off) so engine-search can be denied independently of provider search, list-providers, and list-engines. See `default-off-capability-gating-for-cws-compliance.md` for why both gates must ship off by default.
+Before using the credentials, `entrypoints/background.ts` verifies that the sender ID is the current extension, the origin is the current extension origin, and the path is exactly `/bridge.html`. The worker then checks a total capability switch (`agentBridgeEnabled`, default off) and returns `{ ok: false }` without proceeding if the user has not opted in. Only then does it inject the existing provider gateway, declassified provider-list and engine-list handlers, and a wrapped engine-search executor into `lib/agent-bridge.ts` — the wrapper checks a second sub-switch (`engineSearchEnabled`, default off) so third-party-page extraction can be denied independently of provider search and the discovery lists; since the site/aggregate exposure the sub-switch is capability-scoped (engine-search, site-instance searches, and engine-member aggregate searches), not one-action-scoped (see `agent-aggregate-engine-member-gating.md`). See `default-off-capability-gating-for-cws-compliance.md` for why both gates must ship off by default.
 
-The bridge action surface is `search`, `list-providers`, `list-instances`, `search-instance`, `engine-search`, and `list-engines`. `list-providers` returns only provider IDs, answer capability, and configured status; `list-engines` returns only engine IDs. Both are the discovery surface for the bridge vocabulary — ids are never hardcoded in the Python skill or MCP server, they are fetched at runtime (see `skill-mcp-vocabulary-decoupling.md`). Provider search still flows through `lib/gateway.ts`, so key access, normalization, caching, and error mapping remain identical to extension UI searches.
+The bridge action surface is additive: six actions at the protocol-2 baseline (provider `search`/`list-providers`, instance `search-instance`/`list-instances`, engine `engine-search`/`list-engines`), extended in 2026-09-14 by the site/aggregate quartet `list-sites`/`search-site`/`list-aggregates`/`search-aggregate` (recipe: `agent-bridge-source-instance-exposure.md`). The authoritative set is always discovered at runtime via the `list-*` actions — prose enumerations are informational, never contractual. `list-providers` returns only provider IDs, answer capability, and configured status; `list-engines` returns only engine IDs. Both are the discovery surface for the bridge vocabulary — ids are never hardcoded in the Python skill or MCP server, they are fetched at runtime (see `skill-mcp-vocabulary-decoupling.md`). Provider search still flows through `lib/gateway.ts`, so key access, normalization, caching, and error mapping remain identical to extension UI searches.
 
 ### Define claim direction and deadlines precisely
 

@@ -1,7 +1,7 @@
 ---
 title: "Runtime discovery for Agent Skill and MCP vocabulary (eliminate provider/engine tuple drift)"
 date: 2026-08-10
-last_updated: 2026-08-15
+last_updated: 2026-09-14
 category: architecture-patterns
 module: agent-bridge
 problem_type: architecture_pattern
@@ -22,7 +22,7 @@ tags: [agent-bridge, juso-skill, mcp-server, runtime-discovery, drift, single-so
 The Juso Search extension (WXT + React + TypeScript, Chrome MV3) ships two external interfaces for AI agents:
 
 1. **Agent Skill** — a Python CLI (`juso_search.py` + `juso_bridge.py`) that launches a local loopback HTTP bridge to the extension. The Python side binds `127.0.0.1` on an OS-assigned port, launches Chromium with a `chrome-extension://<id>/bridge.html#v=1&p=<port>&t=<token>` URL, the extension claims the request over `/v1/claim`, processes it through the worker gateway (`lib/gateway.ts`), and POSTs the reply back over `/v1/complete`. The Python side validates the reply shape before returning it.
-2. **MCP server** — a pip package (`juso-search`) that exposes the same six bridge actions (`search`, `engine-search`, `search-instance`, `list-providers`, `list-instances`, `list-engines`) as MCP tools over stdio.
+2. **MCP server** — a pip package (`juso-search`) that exposes the same bridge actions as MCP tools over stdio, one tool per action, tracking the bridge's additive surface (ten actions as of 2026-09-14; the `list-*` discovery tools are the runtime source of truth, not any prose enumeration).
 
 Both interfaces are thin transport layers. The authoritative source of the provider and engine vocabularies lives in the extension itself: `lib/providers/types.ts` defines `ProviderId` as a TypeScript union and `allProviders()` reads the registry; `lib/engines/` together with `allEngines()` define the engine registry. Adding a provider or engine is meant to be a one-line registry change.
 

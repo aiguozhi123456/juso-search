@@ -1,6 +1,7 @@
 ---
 title: Cooperative Cancellation and Robustness Hardening for MCP stdio Server
 date: 2026-08-10
+last_updated: 2026-09-14
 category: docs/solutions/architecture-patterns/
 module: mcp-server (juso-search pip package)
 problem_type: architecture_pattern
@@ -42,7 +43,7 @@ tags:
 
 ## Context
 
-The juso-search MCP server (`mcp-server/juso_search/`) is a stdio MCP server that exposes the Juso extension's six agent-bridge actions (`search`, `engine-search`, `search-instance`, `list-providers`, `list-instances`, `list-engines`) as tools. Every `tools/call` runs one short-lived bridge cycle through the vendored `juso_bridge` module: it spawns a `BridgeHTTPServer` on an OS-assigned loopback port, launches Chromium pointed at `chrome-extension://<id>/bridge.html#...`, and waits for the extension worker to claim and complete the request (see `agent-skill-localhost-capability-bridge.md`). A single call can therefore block for tens of seconds on a real browser tab.
+The juso-search MCP server (`mcp-server/juso_search/`) is a stdio MCP server that exposes the Juso extension's agent-bridge actions as tools, one tool per action, tracking the bridge's additive surface (ten actions as of 2026-09-14 — search, search-instance, search-site, search-aggregate, engine-search, and the five `list-*` discovery tools). Every `tools/call` runs one short-lived bridge cycle through the vendored `juso_bridge` module: it spawns a `BridgeHTTPServer` on an OS-assigned loopback port, launches Chromium pointed at `chrome-extension://<id>/bridge.html#...`, and waits for the extension worker to claim and complete the request (see `agent-skill-localhost-capability-bridge.md`). A single call can therefore block for tens of seconds on a real browser tab.
 
 An architectural review of the server found nine issues spanning robustness, correctness, and maintainability. The most significant was the **lack of cancellation support**. The MCP Python SDK dispatches a *synchronous* tool handler (a plain `def`, not `async def`) by running it in a worker thread via `anyio.to_thread.run_sync`, then awaiting that thread result on the event-loop task. When an MCP client sends `notifications/cancelled` (or drops the connection), the SDK's interrupt-mode cancellation cancels the **event-loop task** — but it cannot kill the **worker thread**. The thread keeps running `run_bridge`, which keeps the `BridgeHTTPServer` alive and the Chromium process open until the full `timeout` elapses. The cancellation is honoured on the wire (the client sees a cancel response) while the OS resources leak silently in the background.
 
@@ -81,7 +82,7 @@ The server was constructing `MCPServer("Juso Search", version="0.1.0")` with a h
 
 `load_config` parses `JUSO_EXTENSION_ID` and `JUSO_TIMEOUT` from the MCP client's `env` block. Two validation gaps could let invalid config through to runtime:
 
-- **L1 — reject `inf`/`nan` timeouts.** `float("inf")` and `float("nan")` parse successfully through `float(raw_timeout)` and pass a naive `> 0` check (`nan` fails it, but `inf` passes), then propagate into `run_bridge` as a timeout that never elapses — the server would hang forever on a stalled bridge cycle. The fix calls `math.isfinite(parsed)` after parsing and rejects non-finite values with a clear stderr message before they reach the bridge.
+- **L1 — reject `inf`/`nan` timeouts.** *(Update 2026-09-14: a configured `JUSO_TIMEOUT` now feeds the extension-side end-to-end budget (`timeoutMs` claim field) of **every** action, list-* included, and the extension grants each action `timeout − ~6s`; `DEFAULT_TIMEOUT_SECONDS` is single-sourced in `juso_bridge.py`. See `agent-bridge-list-claims-reject-timeoutms.md`.)* `float("inf")` and `float("nan")` parse successfully through `float(raw_timeout)` and pass a naive `> 0` check (`nan` fails it, but `inf` passes), then propagate into `run_bridge` as a timeout that never elapses — the server would hang forever on a stalled bridge cycle. The fix calls `math.isfinite(parsed)` after parsing and rejects non-finite values with a clear stderr message before they reach the bridge.
 - **L3 — validate extension ID at config time.** `juso_bridge.EXTENSION_ID_RE` (at the time `^[a-p]{32}$`, the 32-lowercase-letter Chrome extension id shape; since relaxed to also accept Firefox email-style ids and `{GUID}` forms) already existed and was checked inside `run_bridge`. But a malformed `JUSO_EXTENSION_ID` would only fail after Chromium launched, opened `bridge.html`, and timed out — a confusing multi-second failure with no message. The fix runs `EXTENSION_ID_RE.fullmatch(extension_id)` in `load_config`, so a typo or a pasted URL fragment fails fast at startup with the id-shape error on stderr and a non-zero exit.
 
 `JUSO_BROWSER_PATH` is also required at startup (validated in `config.py:78-87`; `JUSO_CHROME_PATH` is accepted as a legacy alias) — the server refuses to guess a browser (auto-discovery is a CLI-skill convenience, not an MCP one) and exits via the same `_die()` stderr discipline if it is missing. The bridge target itself comes from `JUSO_EXTENSION_ID` or `JUSO_BRIDGE_URL` (at least one; the URL form serves Firefox, whose ids cannot be resolved to a loopback origin).
@@ -230,8 +231,9 @@ def build_server(config: Config) -> MCPServer:
             cancel_event=_cancel_event(ctx),
         )
 
-    # ... engine-search, search-instance, list-providers, list-instances
-    #     all pass cancel_event=_cancel_event(ctx) the same way ...
+    # ... every remaining tool (engine-search, search-instance, search-site,
+    #     search-aggregate, and the list-* discovery tools) passes
+    #     cancel_event=_cancel_event(ctx) the same way ...
     return server
 ```
 

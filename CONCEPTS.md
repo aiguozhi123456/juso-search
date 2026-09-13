@@ -34,6 +34,14 @@ Construction modes: baidu supports `zhannei` (true in-site search at `zhannei.ba
 
 Trusted local reads normalize Site Instance collections item-by-item and must not empty the collection solely because a size or count budget is exceeded; untrusted imports use a strict bound check; mutations reject writes that would exceed the serialized budget. Selecting a Site Instance on the search page or SERP bar re-resolves the definition after the active-source write so concurrent Options edits or deletes cannot navigate with a stale or deleted scope.
 
+Agent exposure is additive v2: `list-sites` returns the sanitized id/label/backing-engine/target list, and `search-site` executes the instance's construction as a real engine-page extraction — the same temporary-tab pipeline as engine-search, therefore under the engine-search sub-switch, with a SearchReply-shaped envelope so unknown/deleted ids fail as `ok:false` like `search-instance`. The extractor content script matches the request against the constructed SERP URL's own query text (`matchQuery`, derived worker-side from `matchEngineByUrl`), so prefix-construction modes that embed the `site:` operand and the zhannei surface both match without mode-specific branches.
+
+### Match Query
+
+The query text a constructed SERP URL actually carries, derived worker-side from the built URL itself and carried on the agent search request so the extractor content script can match the page against the request. It equals the user's query except when a construction mode embeds the `site:` operand into the query text or the page lives on a distinct surface host.
+
+Derivation reads the constructed URL rather than recomputing from the definition, so construction and recognition share one source and mode changes cannot fork the two; the extraction reply is still keyed on the user's query, not the match query.
+
 ### Custom Engine
 A user-saved Search Source that navigates an arbitrary search URL built from a stored URL template with a `%s` query placeholder, mirroring the browser's built-in custom search engines. It is not a BYOK provider and not a first-class engine registry entry: each definition stores a display name and an http(s) URL template containing exactly one `%s`. Dynamic source ids use the `custom:<uuid>` form so Source Order, Source Visibility, Active Source, and the SERP Switch Bar treat them like other sources. Unlike a Site Instance, a Custom Engine has no backing engine, no SERP extractor, and is not part of the SERP Scope (the switch bar is never injected into a custom engine's own page); its navigation is per-surface — same-tab from the search page, new-tab from the SERP Switch Bar so the current results page is preserved.
 
@@ -54,6 +62,8 @@ AI Engines ship default-hidden via a one-shot schema migration because each requ
 A user-saved Search Source that runs one search across a set of member sources (bare providers, provider instances, and conventional engines), merges their results, and returns a reranked top list. Dynamic source ids use the `agg:` form so Source Order, Source Visibility, and the SERP Switch Bar treat them like other sources.
 
 An instance holds only its name, member list, and result cap — never secrets; the rerank endpoint/model/apiKey live in one machine-level global Rerank Config. Eligibility (at least one valid member plus rerank configured) gates only projection and availability; the order/hidden persistence layer normalizes against the full definition set, so eligibility flapping never drops instances from saved ordering. Deleting every member is legal (the instance simply becomes ineligible) — there is no sole-instance protection, unlike provider instances. Engine members are always live-extracted with no per-member caching, while provider members participate in the normal search cache.
+
+Agent exposure is additive v2: `list-aggregates` returns id/label/eligible/topN/members (no secrets), and `search-aggregate` re-enters the same aggregate search pipeline with its cache and hard-error rerank contract. Because engine members open third-party pages on the agent's behalf, an instance containing extractor-capable engine members additionally requires the engine-search sub-switch (provider-only aggregates stop at the total switch) — the per-capability gating rationale lives in docs/solutions/architecture-patterns/agent-aggregate-engine-member-gating.md.
 
 ### Rerank Config
 The machine-level global configuration for the external rerank service — endpoint, model, and optional API key — shared by every Aggregate Instance rather than held per instance.
@@ -133,9 +143,15 @@ A short-lived, loopback-only capability channel that lets a local Agent invoke s
 
 Each invocation uses a new local port, token, and request identity. The protocol is a claim/complete/abort triple: the agent claims a single bounded request on the loopback endpoint, the worker validates sender and request, executes the one action, and reports completion; if the bridge page cannot process the fragment (e.g. version mismatch) or the worker rejects the claim (e.g. invalid provider/engine id), it sends an abort so the skill fails fast instead of waiting for timeout. The bridge disappears after completion, abort, or timeout; it is not a persistent local API or a source of long-term identity.
 
-The bridge ships disabled by default behind a two-layer opt-in: a total switch gates the entire bridge, and a separate sub-switch gates only the engine-search action, which can drive the browser to load third-party search-engine pages and extract their public results. A capability that silently loads third-party pages on an external process's behalf must be opt-in, not default-on.
+The bridge ships disabled by default behind a two-layer opt-in: a total switch gates the entire bridge, and a separate sub-switch gates third-party-page extraction — any action whose execution opens and extracts search-engine pages on the agent's behalf (the engine-search action, site-instance searches, and aggregate searches that contain engine members). A capability that silently loads third-party pages on an external process's behalf must be opt-in, not default-on.
 
 The temporary `bridge.html` page is fire-and-forget: after claim success or failure it closes itself. It should not remain the focused tab: the page deactivates itself immediately after open, and Agent SERP tabs are created inactive (with a best-effort re-assert) so skill invocations do not steal the user’s current page. Worker-side host APIs such as `fetch` must be injected with a bound/wrapped call form when stored on a deps object, because bare method extraction from `WorkerGlobalScope` throws Illegal invocation.
+
+### Claim Timeout Budget
+
+The optional end-to-end budget a bridge claim may carry, bounding how long the worker may spend executing that one action; every action accepts it, including the pure discovery lists.
+
+The budget is clamped to a fixed bounded range; the action's usable duration is the budget minus a reserve held back for the completion report; an absent budget falls back to a default deadline. The field is transport-level — it belongs to the claim envelope, never to an individual action's search parameters, so client-side budget knobs (a CLI flag or an environment variable) apply uniformly across the whole action surface.
 
 ### Engine Extraction Error
 A structured failure returned by browser-powered Search Engine search when no usable natural results are obtained. Kinds split into two groups Agents must branch on separately:
