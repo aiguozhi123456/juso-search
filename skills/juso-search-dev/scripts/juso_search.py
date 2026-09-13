@@ -73,11 +73,23 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("list-providers")
     commands.add_parser("list-instances")
     commands.add_parser("list-engines")
+    commands.add_parser("list-sites")
+    commands.add_parser("list-aggregates")
 
     search_instance = commands.add_parser("search-instance")
     search_instance.add_argument("query", type=search_query)
     search_instance.add_argument("--instance-id", required=True)
     search_instance.add_argument("--force-refresh", action="store_true")
+
+    search_site = commands.add_parser("search-site")
+    search_site.add_argument("query", type=search_query)
+    search_site.add_argument("--site-id", required=True)
+    search_site.add_argument("--max-results", type=int, choices=range(1, 21))
+
+    search_aggregate = commands.add_parser("search-aggregate")
+    search_aggregate.add_argument("query", type=search_query)
+    search_aggregate.add_argument("--aggregate-id", required=True)
+    search_aggregate.add_argument("--force-refresh", action="store_true")
     return argument_parser
 
 
@@ -99,6 +111,8 @@ def run(args: argparse.Namespace) -> tuple[int, Any]:
             provider_id=getattr(args, "provider", None),
             engine_id=getattr(args, "engine", None),
             instance_id=getattr(args, "instance_id", None),
+            site_id=getattr(args, "site_id", None),
+            aggregate_id=getattr(args, "aggregate_id", None),
             force_refresh=getattr(args, "force_refresh", False),
             max_results=getattr(args, "max_results", None),
             extension_id=args.extension_id,

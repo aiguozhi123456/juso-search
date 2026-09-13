@@ -66,6 +66,29 @@ describe('engine natural-result extractors', () => {
     });
   });
 
+  it('extracts Baidu zhannei site-instance results from the #results.content-main container', () => {
+    // zhannei 站内 SERP（站点实例 baidu zhannei 模式的落点）：容器与主站不同，
+    // 页面 URL 为 zhannei.baidu.com/cse/site。fixture 按 2026-09-13 真机校准的卡片结构
+    // （div.result.f.s0 + h3.c-title > a + .c-abstract + .c-showurl）复刻；mu/跳转壳为防御性变体。
+    const document = new DOMParser().parseFromString(fixture('zhannei-basic.html'), 'text/html');
+    expect(extractEngineSearch({ document, engine: 'baidu', query: 'test query', pageUrl: 'https://zhannei.baidu.com/cse/site?q=test&cc=example.com' })).toEqual({
+      engine: 'baidu',
+      query: 'test query',
+      results: [
+        { title: 'Example One intro', url: 'https://example.com/one', snippet: 'First abstract text.' },
+        { title: 'Example Two', url: 'https://example.com/two', snippet: 'Second abstract.' },
+      ],
+    });
+  });
+
+  it('keeps the main Baidu path on #content_left even when a #results container exists', () => {
+    // 主站页面 URL（www.baidu.com/s）永不走 zhannei 分支——分支按 pageUrl host 判定。
+    const document = new DOMParser().parseFromString(fixture('baidu-basic.html'), 'text/html');
+    expect(extractEngineSearch({ document, engine: 'baidu', query: 'test query', pageUrl: 'https://www.baidu.com/s?wd=test' })).toEqual({
+      engine: 'baidu', query: 'test query', results: [{ title: 'Baidu title', url: 'https://example.cn/article', snippet: 'Baidu abstract' }],
+    });
+  });
+
   it('extracts Yandex natural results and rejects ads and invalid schemes', () => {
     expect(extract('yandex', 'yandex-basic.html')).toEqual({
       engine: 'yandex', query: 'test query', results: [{ title: 'Yandex title', url: 'https://example.com/yandex', snippet: 'Yandex snippet' }],

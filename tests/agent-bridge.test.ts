@@ -273,10 +273,15 @@ describe('agent bridge claim timeoutMs parsing', () => {
     expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-instance', query: 'x', instanceId: 'inst:exa:abc123', timeoutMs: 300_001 } })).toMatchObject({ ok: false, error: 'invalid search instance request' });
   });
 
-  it('still rejects timeoutMs on list-* claims', () => {
-    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-providers', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
-    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-instances', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
-    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-engines', timeoutMs: 12_000 } })).toMatchObject({ ok: false });
+  it('accepts timeoutMs on list-* claims (transport budget relax); out-of-range and unknown fields still rejected', () => {
+    for (const action of ['list-providers', 'list-instances', 'list-engines', 'list-sites', 'list-aggregates']) {
+      expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action, timeoutMs: 45_000 } }))
+        .toMatchObject({ ok: true, value: { request: { action, timeoutMs: 45_000 } } });
+      expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action, timeoutMs: 6_999 } })).toMatchObject({ ok: false });
+    }
+    // 放宽仅限 timeoutMs：其余未知字段照旧拒绝
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-providers', query: 'x' } })).toMatchObject({ ok: false });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-sites', extra: 1 } })).toMatchObject({ ok: false });
   });
 
   it('parses claims without timeoutMs unchanged (no stray field on the parsed request)', () => {
@@ -314,5 +319,109 @@ describe('agent bridge action deadline pass-through', () => {
     const deadline = handleEngineSearch.mock.calls[0][2];
     expect(deadline).toBeGreaterThanOrEqual(before + AGENT_BRIDGE_ACTION_DEADLINE_MS);
     expect(deadline).toBeLessThanOrEqual(after + AGENT_BRIDGE_ACTION_DEADLINE_MS);
+  });
+});
+
+describe('agent bridge v2 site / aggregate actions (parse)', () => {
+  it('parses search-site with a valid site id and trims the query', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: ' x ', siteId: 'site:abc-123', maxResults: 10 } }))
+      .toMatchObject({ ok: true, value: { request: { action: 'search-site', query: 'x', siteId: 'site:abc-123', maxResults: 10 } } });
+  });
+
+  it('rejects search-site with a malformed or non-site id, or out-of-range maxResults', () => {
+    for (const bad of ['inst:exa:abc123', 'agg:abc123', 'site:', 'custom:abc', '']) {
+      expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: 'x', siteId: bad } })).toMatchObject({ ok: false, error: 'invalid site search request' });
+    }
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: 'x' } })).toMatchObject({ ok: false });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: 'x', siteId: 'site:abc', maxResults: 0 } })).toMatchObject({ ok: false, error: 'invalid site search request' });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: 'x', siteId: 'site:abc', maxResults: 21 } })).toMatchObject({ ok: false, error: 'invalid site search request' });
+  });
+
+  it('parses search-aggregate with a valid aggregate id and forceRefresh', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc-123', forceRefresh: true } }))
+      .toMatchObject({ ok: true, value: { request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc-123', forceRefresh: true } } });
+  });
+
+  it('rejects search-aggregate with a malformed id or stray field', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-aggregate', query: 'x', aggregateId: 'site:abc' } })).toMatchObject({ ok: false, error: 'invalid aggregate search request' });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', extra: 1 } })).toMatchObject({ ok: false });
+  });
+
+  it('parses list-sites and list-aggregates claims, timeoutMs included', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-sites' } })).toMatchObject({ ok: true, value: { request: { action: 'list-sites' } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-aggregates' } })).toMatchObject({ ok: true, value: { request: { action: 'list-aggregates' } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-sites', timeoutMs: 12_000 } })).toMatchObject({ ok: true, value: { request: { timeoutMs: 12_000 } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'list-aggregates', timeoutMs: 12_000 } })).toMatchObject({ ok: true, value: { request: { timeoutMs: 12_000 } } });
+  });
+
+  it('accepts timeoutMs on search-site and search-aggregate claims within the clamp range', () => {
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-site', query: 'x', siteId: 'site:abc', timeoutMs: 60_000 } }))
+      .toMatchObject({ ok: true, value: { request: { timeoutMs: 60_000 } } });
+    expect(parseAgentClaim({ protocol: 2, requestId: 'r', request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', timeoutMs: 300_001 } }))
+      .toMatchObject({ ok: false, error: 'invalid aggregate search request' });
+  });
+});
+
+describe('agent bridge v2 site / aggregate dispatch', () => {
+  const baseDeps = { fetch: vi.fn(), handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn() };
+
+  it('returns the Service unavailable fallback when a site/aggregate dep is missing', async () => {
+    for (const request of [
+      { action: 'search-site', query: 'x', siteId: 'site:abc' },
+      { action: 'list-sites' },
+      { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc' },
+      { action: 'list-aggregates' },
+    ]) {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request })))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock })).resolves.toEqual({ ok: true });
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
+    }
+  });
+
+  it('dispatches search-site to handleSearchSite with signal and deadline', async () => {
+    const siteClaim = { protocol: 2, requestId: 'site', request: { action: 'search-site', query: 'hello', siteId: 'site:abc123', maxResults: 5, timeoutMs: 60_000 } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(siteClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const siteReply = { ok: true, response: { query: 'hello', engine: 'bing', results: [] }, cache: { hit: false } };
+    const handleSearchSite = vi.fn().mockResolvedValue(siteReply);
+    const before = Date.now();
+    await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchSite })).resolves.toEqual({ ok: true });
+    expect(handleSearchSite.mock.calls[0][0]).toMatchObject({ action: 'search-site', query: 'hello', siteId: 'site:abc123', maxResults: 5 });
+    expect(handleSearchSite.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
+    expect(handleSearchSite.mock.calls[0][2]).toBeGreaterThanOrEqual(before + 60_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: siteReply });
+  });
+
+  it('dispatches list-sites / search-aggregate / list-aggregates to their deps', async () => {
+    const sitesReply = { sites: [{ id: 'site:abc', label: 'S', engineId: 'bing', target: 'example.com', description: '' }] };
+    const aggregatesReply = { aggregates: [{ id: 'agg:abc', label: 'A', eligible: true, topN: 20, members: ['tavily'] }] };
+    const aggregateReply = { ok: false, error: { kind: 'keyMissing', message: 'm' } };
+    const listSites = vi.fn().mockResolvedValue(sitesReply);
+    const listAggregates = vi.fn().mockResolvedValue(aggregatesReply);
+    const handleSearchAggregate = vi.fn().mockResolvedValue(aggregateReply);
+
+    const sitesFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 's', request: { action: 'list-sites' } })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge({ port: 3210, token }, { fetch: sitesFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listSites });
+    expect(listSites).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(sitesFetch.mock.calls[1][1].body)).toMatchObject({ reply: sitesReply });
+
+    const aggFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'a', request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', forceRefresh: true } })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge({ port: 3210, token }, { fetch: aggFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchAggregate });
+    expect(handleSearchAggregate.mock.calls[0][0]).toMatchObject({ action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', forceRefresh: true });
+    expect(JSON.parse(aggFetch.mock.calls[1][1].body)).toMatchObject({ reply: aggregateReply });
+
+    const listAggFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'l', request: { action: 'list-aggregates' } })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge({ port: 3210, token }, { fetch: listAggFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listAggregates });
+    expect(listAggregates).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(listAggFetch.mock.calls[1][1].body)).toMatchObject({ reply: aggregatesReply });
   });
 });

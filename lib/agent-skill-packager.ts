@@ -23,7 +23,7 @@ const TOP_LEVEL_DIR = 'juso-search';
 const ZIP_DATA_URL_PREFIX = 'data:application/zip;base64,';
 
 // reference/ 子目录下的章节文件清单（固定契约，与 SKILL.md 一同入 zip）。
-const REFERENCE_FILES = ['engines.md', 'errors.md', 'configuration.md', 'provider-instances.md'] as const;
+const REFERENCE_FILES = ['engines.md', 'errors.md', 'configuration.md', 'provider-instances.md', 'site-instances.md', 'aggregate-instances.md'] as const;
 
 /** 把 text 中所有 placeholder 替换为 value。使用 split/join（非 replace），无需正则转义。 */
 function stamp(text: string, placeholder: string, value: string): string {

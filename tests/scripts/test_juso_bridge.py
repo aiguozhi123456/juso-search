@@ -542,5 +542,161 @@ class ConstantsTests(unittest.TestCase):
         self.assertEqual(juso_bridge.ERROR_CANCELLED, "cancelled")
 
 
+SITES_REPLY = {
+    "sites": [
+        {"id": "site:abc123", "label": "Example 站内", "engineId": "bing", "target": "example.com", "description": ""},
+    ]
+}
+
+AGGREGATES_REPLY = {
+    "aggregates": [
+        {"id": "agg:abc123", "label": "研究聚合", "eligible": True, "topN": 20, "members": ["tavily", "google"]},
+    ]
+}
+
+SITE_SEARCH_REPLY = {
+    "ok": True,
+    "response": {
+        "query": "hello",
+        "engine": "bing",
+        "results": [{"title": "T", "url": "https://example.com", "snippet": "S", "snippetKind": "metadata"}],
+    },
+    "cache": {"hit": False},
+}
+
+AGGREGATE_SEARCH_REPLY = {
+    "ok": True,
+    "response": {
+        "instanceId": "agg:abc123",
+        "query": "hello",
+        "kind": "aggregate",
+        "answers": [],
+        "results": [{"title": "T", "url": "https://example.com", "snippet": "S", "sources": ["tavily"]}],
+        "members": [{"sourceId": "tavily", "ok": True, "resultCount": 1}],
+        "dedupedCount": 0,
+        "rerank": {"rerankedAt": 1_700_000_000_000},
+    },
+    "cache": {"hit": False},
+}
+
+
+class SiteAggregateTests(unittest.TestCase):
+    """v2 additive validators and claims for the site-instance and aggregate-instance actions."""
+
+    def test_is_site_list_reply_accepts_valid_and_rejects_invalid(self):
+        self.assertTrue(juso_bridge.is_site_list_reply(SITES_REPLY))
+        self.assertTrue(juso_bridge.is_valid_reply({"request": {"action": "list-sites"}}, SITES_REPLY))
+        bad_shapes = [
+            {"sites": "no"},
+            {"sites": [{"id": "inst:exa:abc", "label": "L", "engineId": "bing", "target": "t", "description": ""}]},
+            {"sites": [{"id": "site:abc", "label": "L", "engineId": "", "target": "t", "description": ""}]},
+            {"sites": [{"id": "site:abc", "label": "L", "engineId": "bing", "target": "t", "extra": 1}]},
+            {"engines": []},
+        ]
+        for reply in bad_shapes:
+            self.assertFalse(juso_bridge.is_site_list_reply(reply), reply)
+
+    def test_is_site_search_reply_accepts_envelope_and_rejects_invalid(self):
+        self.assertTrue(juso_bridge.is_site_search_reply(SITE_SEARCH_REPLY))
+        self.assertTrue(juso_bridge.is_valid_reply({"request": {"action": "search-site", "query": "hello"}}, SITE_SEARCH_REPLY))
+        error_reply = {"ok": False, "error": {"kind": "unknown", "message": "site instance not found"}}
+        self.assertTrue(juso_bridge.is_site_search_reply(error_reply))
+        self.assertTrue(juso_bridge.is_valid_reply({"request": {"action": "search-site", "query": "hello"}}, error_reply))
+        bad_shapes = [
+            {**SITE_SEARCH_REPLY, "response": {**SITE_SEARCH_REPLY["response"], "engine": ""}},
+            {**SITE_SEARCH_REPLY, "cache": "no"},
+            {"ok": False, "error": {"kind": "notAKind", "message": "m"}},
+            {"ok": True, "response": SITE_SEARCH_REPLY["response"]},
+        ]
+        for reply in bad_shapes:
+            self.assertFalse(juso_bridge.is_site_search_reply(reply), reply)
+
+    def test_is_aggregate_list_reply_accepts_valid_and_rejects_invalid(self):
+        self.assertTrue(juso_bridge.is_aggregate_list_reply(AGGREGATES_REPLY))
+        self.assertTrue(juso_bridge.is_valid_reply({"request": {"action": "list-aggregates"}}, AGGREGATES_REPLY))
+        bad_shapes = [
+            {"aggregates": [{"id": "site:abc", "label": "L", "eligible": True, "topN": 20, "members": []}]},
+            {"aggregates": [{"id": "agg:abc", "label": "L", "eligible": "yes", "topN": 20, "members": []}]},
+            {"aggregates": [{"id": "agg:abc", "label": "L", "eligible": True, "topN": 20, "members": [1]}]},
+            {"aggregates": [{"id": "agg:abc", "label": "L", "eligible": True}]},
+        ]
+        for reply in bad_shapes:
+            self.assertFalse(juso_bridge.is_aggregate_list_reply(reply), reply)
+
+    def test_is_aggregate_search_reply_accepts_envelope_and_rejects_invalid(self):
+        self.assertTrue(juso_bridge.is_aggregate_search_reply(AGGREGATE_SEARCH_REPLY))
+        self.assertTrue(juso_bridge.is_valid_reply({"request": {"action": "search-aggregate", "query": "hello"}}, AGGREGATE_SEARCH_REPLY))
+        error_reply = {"ok": False, "error": {"kind": "keyMissing", "message": "rerank not configured"}}
+        self.assertTrue(juso_bridge.is_aggregate_search_reply(error_reply))
+        bad_shapes = [
+            {**AGGREGATE_SEARCH_REPLY, "response": {**AGGREGATE_SEARCH_REPLY["response"], "kind": "provider"}},
+            {**AGGREGATE_SEARCH_REPLY, "response": {**AGGREGATE_SEARCH_REPLY["response"], "instanceId": "inst:exa:abc"}},
+            {**AGGREGATE_SEARCH_REPLY, "response": {k: v for k, v in AGGREGATE_SEARCH_REPLY["response"].items() if k != "members"}},
+        ]
+        for reply in bad_shapes:
+            self.assertFalse(juso_bridge.is_aggregate_search_reply(reply), reply)
+
+    def test_make_claim_site_and_aggregate_actions(self):
+        self.assertEqual(
+            juso_bridge.make_claim("search-site", "hello", None, False, "id", max_results=5, site_id="site:abc")["request"],
+            {"action": "search-site", "query": "hello", "siteId": "site:abc", "maxResults": 5},
+        )
+        self.assertEqual(
+            juso_bridge.make_claim("search-aggregate", "hello", None, True, "id", aggregate_id="agg:abc")["request"],
+            {"action": "search-aggregate", "query": "hello", "aggregateId": "agg:abc", "forceRefresh": True},
+        )
+        self.assertEqual(juso_bridge.make_claim("list-sites", None, None, False, "id")["request"], {"action": "list-sites"})
+        self.assertEqual(juso_bridge.make_claim("list-aggregates", None, None, False, "id")["request"], {"action": "list-aggregates"})
+
+    def test_run_bridge_site_and_aggregate_full_cycles(self):
+        capture: dict = {}
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(SITE_SEARCH_REPLY, capture)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "search-site", "hello", site_id="site:abc123",
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, SITE_SEARCH_REPLY)
+        self.assertEqual(capture["request"], {"action": "search-site", "query": "hello", "siteId": "site:abc123"})
+
+        capture.clear()
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(AGGREGATE_SEARCH_REPLY, capture)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "search-aggregate", "hello", aggregate_id="agg:abc123", force_refresh=True,
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, AGGREGATE_SEARCH_REPLY)
+        self.assertEqual(capture["request"], {"action": "search-aggregate", "query": "hello", "aggregateId": "agg:abc123", "forceRefresh": True})
+
+        capture.clear()
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(SITES_REPLY, capture)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "list-sites", None,
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, SITES_REPLY)
+        self.assertEqual(capture["request"], {"action": "list-sites"})
+
+        capture.clear()
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(AGGREGATES_REPLY, capture)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "list-aggregates", None,
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, AGGREGATES_REPLY)
+        self.assertEqual(capture["request"], {"action": "list-aggregates"})
+
+
 if __name__ == "__main__":
     unittest.main()

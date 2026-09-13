@@ -47,8 +47,8 @@ VARIANTS = {
 DEV_PATCH_SKILL_MD = [
     ("name: juso-search\n", "name: juso-search-dev\n"),
     (
-        "description: Search through configured Juso providers or supported browser search engines, or inspect configured providers.\n",
-        "description: Search through configured Juso providers or supported browser search engines, or inspect configured providers (developer build, uses dev extension ID).\n",
+        "description: Search through configured Juso providers, browser search engines, user-defined site or aggregate instances, or inspect configured sources.\n",
+        "description: Search through configured Juso providers, browser search engines, user-defined site or aggregate instances, or inspect configured sources (developer build, uses dev extension ID).\n",
     ),
     (
         "compatibility: Python 3.11+, a Chromium-family or Firefox browser with the Juso extension installed and enabled\n",

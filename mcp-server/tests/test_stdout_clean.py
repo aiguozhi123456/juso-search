@@ -52,7 +52,18 @@ def test_stdout_only_jsonrpc():
     assert list_result["ttlMs"] == 0
     assert list_result["cacheScope"] == "private"
     tool_names = [tool["name"] for tool in list_result["tools"]]
-    assert tool_names == ["search", "engine-search", "search-instance", "list-providers", "list-instances", "list-engines"]
+    assert tool_names == [
+        "search",
+        "engine-search",
+        "search-instance",
+        "search-site",
+        "search-aggregate",
+        "list-providers",
+        "list-instances",
+        "list-engines",
+        "list-sites",
+        "list-aggregates",
+    ]
     search_tool = next(t for t in list_result["tools"] if t["name"] == "search")
     assert search_tool["annotations"]["readOnlyHint"] is True
     assert search_tool["annotations"]["openWorldHint"] is True

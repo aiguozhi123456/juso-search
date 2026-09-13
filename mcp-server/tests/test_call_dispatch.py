@@ -84,16 +84,46 @@ def test_search_instance_dispatch(server):
     assert result.is_error is False
 
 
+def test_search_site_dispatch(server):
+    site_id = "site:9f2220a2-f6ed-4ecc-80f9-142605a5e706"
+    reply = {"ok": True, "response": {"query": "q", "engine": "bing", "results": []}, "cache": {"hit": False}}
+    with _patch_run_bridge() as run_bridge:
+        run_bridge.return_value = reply
+        result = _call(server, "search-site", {"query": "q", "site": site_id, "max_results": 5})
+    _assert_bridge_kwargs(run_bridge, action="search-site", query="q", site_id=site_id, max_results=5)
+    assert result.is_error is False
+    assert result.structured_content == reply
+
+
+def test_search_aggregate_dispatch(server):
+    aggregate_id = "agg:9f2220a2-f6ed-4ecc-80f9-142605a5e706"
+    reply = {"ok": False, "error": {"kind": "keyMissing", "message": "rerank not configured"}}
+    with _patch_run_bridge() as run_bridge:
+        run_bridge.return_value = reply
+        result = _call(server, "search-aggregate", {"query": "q", "aggregate": aggregate_id, "force_refresh": True})
+    _assert_bridge_kwargs(run_bridge, action="search-aggregate", query="q", aggregate_id=aggregate_id, force_refresh=True)
+    assert result.is_error is False
+    assert result.structured_content == reply
+
+
 @pytest.mark.parametrize(
     ("name", "arguments", "action"),
     [
         ("list-providers", {}, "list-providers"),
         ("list-instances", {}, "list-instances"),
         ("list-engines", {}, "list-engines"),
+        ("list-sites", {}, "list-sites"),
+        ("list-aggregates", {}, "list-aggregates"),
     ],
 )
 def test_list_tools_dispatch(server, name, arguments, action):
-    replies = {"list-providers": {"providers": []}, "list-instances": {"instances": []}, "list-engines": {"engines": []}}
+    replies = {
+        "list-providers": {"providers": []},
+        "list-instances": {"instances": []},
+        "list-engines": {"engines": []},
+        "list-sites": {"sites": []},
+        "list-aggregates": {"aggregates": []},
+    }
     reply = replies[action]
     with _patch_run_bridge() as run_bridge:
         run_bridge.return_value = reply

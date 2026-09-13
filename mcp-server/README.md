@@ -151,15 +151,21 @@ fallback:
 | `search`        | `query`, `provider`, `force_refresh?`                   | Available providers are discovered via the `list-providers` tool. |
 | `engine-search` | `query`, `engine`, `max_results?`                       | Available engines are discovered via the `list-engines` tool. |
 | `search-instance`| `query`, `instance`, `force_refresh?`                 | Searches a configured provider instance. |
+| `search-site`   | `query`, `site`, `max_results?`                         | Searches a configured site instance (per-site engine search). |
+| `search-aggregate`| `query`, `aggregate`, `force_refresh?`                | Runs a configured aggregate instance (multi-source reranked search). |
 | `list-providers`| —                                                       | Providers and their config state. |
 | `list-engines`  | —                                                       | Available engine ids for `engine-search`. |
 | `list-instances`| —                                                       | Registered provider instances. |
+| `list-sites`    | —                                                       | Registered site instances (ids for `search-site`). |
+| `list-aggregates`| —                                                      | Registered aggregate instances (ids for `search-aggregate`). |
 
 All tools are annotated `readOnlyHint` + `openWorldHint`. Tool results carry
 `structuredContent` plus a text serialization; `engine-search` error replies
-(consent wall, challenge, timeout) surface as **successful** results carrying
-an `error` field — only genuine bridge failures (e.g. Chrome not found,
-bridge not enabled) come back as `isError`.
+(consent wall, challenge, timeout) and `search-site` / `search-aggregate`
+error replies (unknown id, disabled engine-search sub-switch, rerank
+unconfigured) surface as **successful** results carrying an `error` field —
+only genuine bridge failures (e.g. Chrome not found, bridge not enabled) come
+back as `isError`.
 
 The search tools return leads, not evidence: titles, snippets, and AI
 summaries may be truncated, stale, or inaccurate. Agents should open result

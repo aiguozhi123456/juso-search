@@ -3,7 +3,7 @@ import { ProviderError } from './providers/types';
 import type { AggregateSearchReply, AggregateSearchRequest, ProviderConfigReply, SearchReply, SearchRequest, SetRerankConfigReply, TestKeyReply } from './messaging';
 import { isEngineId, isProviderId, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
-import { isSiteInstanceId, type SiteInstanceDefinition, type SiteInstanceEngineId, type SiteInstanceId, type SiteInstanceOptions } from './site-instances';
+import { buildSiteInstanceUrl, isSiteInstanceId, type SiteInstanceDefinition, type SiteInstanceEngineId, type SiteInstanceId, type SiteInstanceOptions } from './site-instances';
 import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { isAggregateInstanceId, type AggregateInstance } from './aggregate-instances';
@@ -14,11 +14,11 @@ import type { RerankResultItem } from './aggregate/rerank-client';
 import { isRerankConfigured, MSG_RERANK_ENDPOINT_INVALID, rerankDocuments, RerankError, testRerank, validateRerankEndpoint } from './aggregate/rerank-client';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
-import { allEngines } from './engines/registry';
+import { allEngines, matchEngineByUrl } from './engines/registry';
 import { runEngineSearch } from './engine-search';
 import type { EngineId } from './engines/types';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
-import type { AgentInstance, AgentListEnginesReply, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
+import type { AgentInstance, AgentListAggregatesReply, AgentListEnginesReply, AgentListProvidersReply, AgentListSitesReply, AgentSearchAggregateRequest, AgentSearchInstanceRequest, AgentSearchSiteRequest, AgentSiteSearchReply } from './agent-bridge';
 import {
   clearKey,
   clearProviderMaxResults,
@@ -38,6 +38,8 @@ import {
   getRerankConfig,
   getSearchCacheSummaries,
   getProviderConfigSnapshot,
+  getSiteInstanceDefinitions,
+  getEngineSearchEnabled,
   getSourceHidden,
   saveCachedAggregateSearch,
   saveCachedSearch,
@@ -225,6 +227,97 @@ export async function handleSearchInstance(request: AgentSearchInstanceRequest, 
   } catch (e) {
     return toSearchError(e);
   }
+}
+
+// === Agent bridge v2：站点实例 / 聚合实例（additive，不动既有 6 action 契约）===
+
+// i18n 占位键名（同上方聚合占位键先例；词条落 lib/i18n.ts + _locales/{zh_CN,en}/messages.json）。
+const MSG_AGENT_SITE_INSTANCE_UNKNOWN = 'error_site_instance_unknown';
+const MSG_AGENT_ENGINE_SEARCH_DISABLED = 'error_agent_engine_search_disabled';
+
+/** Agent bridge 的站点实例清单（脱敏）：id/名称/backing engine/目标站，无任何密钥。 */
+export async function handleListAgentSites(): Promise<AgentListSitesReply> {
+  await getSchemaReady();
+  const definitions = await getSiteInstanceDefinitions();
+  return {
+    sites: definitions.map((definition) => ({
+      id: definition.id,
+      label: definition.name,
+      engineId: definition.engineId,
+      target: definition.target,
+      description: '',
+    })),
+  };
+}
+
+/** Agent bridge 的聚合实例清单：members/topN 为非敏感定义数据；eligible 与 handleAggregateSearch 同源判定。 */
+export async function handleListAgentAggregates(): Promise<AgentListAggregatesReply> {
+  await getSchemaReady();
+  const [instances, configured, providerInstances, rerankConfig] = await Promise.all([
+    getAggregateInstances(),
+    getConfiguredProviderIds(),
+    getProviderInstances(),
+    getRerankConfig(),
+  ]);
+  const eligibilityContext = { configuredProviderIds: configured, providerInstances, rerankConfig };
+  return {
+    aggregates: instances.map((instance) => ({
+      id: instance.id,
+      label: instance.name,
+      eligible: resolveAggregateEligibility(instance, eligibilityContext).eligible,
+      topN: instance.topN,
+      members: instance.members,
+    })),
+  };
+}
+
+/** Agent bridge v2：站点实例搜索（构造站内 SERP URL → 临时 tab → backing engine 抽取）。
+ *  reply 为 SearchReply 式 envelope：未知/已删 id、URL 构造失败统一 ok:false（search-instance 先例）；
+ *  子开关 off 的折入在 background.ts 包装层（engine-search 先例）。 */
+export async function handleSearchSiteInstance(request: AgentSearchSiteRequest, signal?: AbortSignal, innerBudgetMs?: number): Promise<AgentSiteSearchReply> {
+  await getSchemaReady();
+  try {
+    const query = request.query.trim();
+    const definition = (await getSiteInstanceDefinitions()).find((candidate) => candidate.id === request.siteId);
+    if (!definition) {
+      return { ok: false, error: { kind: 'unknown', message: t(MSG_AGENT_SITE_INSTANCE_UNKNOWN) } };
+    }
+    const serpUrl = buildSiteInstanceUrl(definition, query);
+    if (!serpUrl) {
+      return { ok: false, error: { kind: 'unknown', message: t(MSG_AGENT_SITE_INSTANCE_UNKNOWN) } };
+    }
+    // URL↔请求匹配文本直接取自构造出的 URL 本身（matchEngineByUrl 覆盖 zhannei surface）：
+    // 与内容脚本的识别单一来源，构造模式变化时无需双处维护。
+    const matchQuery = matchEngineByUrl(serpUrl)?.extractQuery(serpUrl) ?? query;
+    const result = await runEngineSearch(
+      { query, engineId: definition.engineId, serpUrl, matchQuery, ...(request.maxResults === undefined ? {} : { maxResults: request.maxResults }) },
+      signal,
+      { tabs: browser.tabs, ...(innerBudgetMs === undefined ? {} : { completeTimeoutMs: innerBudgetMs }) },
+    );
+    if (!('results' in result)) {
+      // 抽取错误分型原样透传为 message（challenge/timeout/…），kind 归 'providerError'（引擎页侧失败，非 id/配置问题）。
+      return { ok: false, error: { kind: 'providerError', message: result.error } };
+    }
+    return { ok: true, response: { query, engine: definition.engineId, results: result.results }, cache: { hit: false } };
+  } catch (e) {
+    return { ok: false, error: { kind: 'unknown', message: errorMessage(e) } };
+  }
+}
+
+/** Agent bridge v2：聚合搜索。门控（additive 决策，与 runEngineAggregateMember 的用户 UI 豁免互补）：
+ *  聚合含 extractor-capable 引擎成员时代 agent 打开第三方页 → 需 engine-search 子开关；纯 provider/
+ *  实例成员聚合不受该子开关约束。判定与决策记录：docs/solutions/architecture-patterns/
+ *  agent-aggregate-engine-member-gating.md。 */
+export async function handleSearchAggregate(request: AgentSearchAggregateRequest, signal?: AbortSignal): Promise<AggregateSearchReply> {
+  await getSchemaReady();
+  const instance = (await getAggregateInstances()).find((candidate) => candidate.id === request.aggregateId);
+  if (instance && extractorCapableEngineIds().some((engineId) => instance.members.includes(engineId)) && !(await getEngineSearchEnabled())) {
+    return { ok: false, error: { kind: 'unknown', message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } };
+  }
+  return handleAggregateSearch(
+    { instanceId: request.aggregateId, query: request.query, ...(request.forceRefresh === undefined ? {} : { forceRefresh: request.forceRefresh }) },
+    signal,
+  );
 }
 
 // === 聚合搜索（aggregate-search-rerank plan KTD3/KTD8/KTD12/KTD9）===

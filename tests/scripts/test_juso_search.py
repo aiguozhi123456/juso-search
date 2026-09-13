@@ -181,6 +181,28 @@ class PureFunctionTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 juso_search.parser().parse_args(["--extension-id", "a" * 32, "engine-search", query, "--engine", "google"])
 
+    def test_cli_site_and_aggregate_subcommands(self):
+        """v2 additive 子命令：list-sites / search-site / list-aggregates / search-aggregate。"""
+        self.assertIsNone(juso_search.parser().parse_args(["list-sites"]).timeout)
+        self.assertIsNone(juso_search.parser().parse_args(["list-aggregates"]).timeout)
+        site_args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-site", "hello", "--site-id", "site:abc123", "--max-results", "5"])
+        self.assertEqual((site_args.site_id, site_args.max_results), ("site:abc123", 5))
+        aggregate_args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-aggregate", "hello", "--aggregate-id", "agg:abc123", "--force-refresh"])
+        self.assertEqual((aggregate_args.aggregate_id, aggregate_args.force_refresh), ("agg:abc123", True))
+        # --site-id / --aggregate-id 必填
+        with self.assertRaises(SystemExit):
+            juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-site", "hello"])
+        with self.assertRaises(SystemExit):
+            juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-aggregate", "hello"])
+        # max_results 越界拒绝
+        with self.assertRaises(SystemExit):
+            juso_search.parser().parse_args(["--extension-id", "a" * 32, "search-site", "hello", "--site-id", "site:abc", "--max-results", "21"])
+        # list-* claim 携带 timeoutMs（--timeout 对发现类命令生效，扩展端已放宽接受）
+        self.assertEqual(
+            juso_search.make_claim("list-sites", None, None, False, "id", timeout_ms=45000)["request"],
+            {"action": "list-sites", "timeoutMs": 45000},
+        )
+
     def test_default_extension_id_is_used_when_none_provided(self):
         """--extension-id 默认值回退到 DEFAULT_EXTENSION_ID（Chrome Web Store 发布版），无需手动传参。"""
         self.assertEqual(juso_search.DEFAULT_EXTENSION_ID, "illmhdnglkjfcenboepdgopaeejdgoji")

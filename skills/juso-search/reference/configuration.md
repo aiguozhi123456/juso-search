@@ -34,6 +34,8 @@ Profile handling also differs by browser: Chrome uses `--profile-directory=<name
 
 Use `--timeout` (or `JUSO_TIMEOUT`) to set the end-to-end budget for one bridge call (default: 40 seconds, browser launch included). An explicit value is carried to the extension, which grants the action itself `timeout − ~6s` (the reserve covers the final reply POST); the wait stays exactly as configured. The carried budget is clamped to 7–300 seconds — values below 7s are raised, values above 300s are capped (the wait is not). Budget passthrough requires a current extension: an older extension rejects the claim and the call fails fast with a "reload the extension" hint.
 
+All global options (`--timeout`, `--browser`, `--profile`, `--extension-id`, `--bridge-url`) are top-level argparse arguments: they go **before** the subcommand (`python scripts/juso_search.py --timeout 60 list-sites`) and are rejected after it. The same value via `JUSO_TIMEOUT` avoids the placement question entirely.
+
 ## Persisting settings
 
 The `JUSO_*` variables persist across invocations when set in your shell profile, so terminals and agents inherit them automatically without passing flags each time. This is the easiest way to pin a non-default browser path or profile on Windows, where session-scoped `$env:` variables do not survive a closed terminal.

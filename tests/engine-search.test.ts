@@ -153,4 +153,27 @@ describe('runEngineSearch', () => {
     await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', completeTimeoutMs: 30 })).resolves.toEqual({ engine: 'google', query: 'hello', error: 'timeout' });
     expect(api.sendMessage).not.toHaveBeenCalled();
   });
+
+  it('navigates a prebuilt serpUrl (site-instance path) instead of buildSerpUrl', async () => {
+    const api = tabs();
+    api.sendMessage.mockResolvedValue({ requestId: 'id', engine: 'bing', query: 'hello', results: [] });
+    const serpUrl = 'https://www.bing.com/search?q=hello&q1=site%3Aexample.com';
+    await expect(runEngineSearch({ engineId: 'bing', query: 'hello', serpUrl }, undefined, { tabs: api, requestId: () => 'id' })).resolves.toEqual({ engine: 'bing', query: 'hello', results: [] });
+    expect(api.create).toHaveBeenCalledWith({ url: serpUrl, active: false });
+  });
+
+  it('forwards matchQuery to the extractor message but keeps the reply keyed on query', async () => {
+    const api = tabs();
+    api.sendMessage.mockResolvedValue({ requestId: 'id', engine: 'baidu', query: 'hello', results: [] });
+    await expect(runEngineSearch({ engineId: 'baidu', query: 'hello', serpUrl: 'https://www.baidu.com/s?wd=site%3Aexample.com%20hello', matchQuery: 'site:example.com hello' }, undefined, { tabs: api, requestId: () => 'id' })).resolves.toEqual({ engine: 'baidu', query: 'hello', results: [] });
+    expect(api.sendMessage).toHaveBeenCalledWith(7, expect.objectContaining({ type: 'juso:extract-engine-results', requestId: 'id', engineId: 'baidu', query: 'hello', matchQuery: 'site:example.com hello' }));
+  });
+
+  it('omits matchQuery and maxResults from the extractor message when unset (claim byte-stability mirror)', async () => {
+    const api = tabs();
+    api.sendMessage.mockResolvedValue({ requestId: 'id', engine: 'google', query: 'hello', results: [] });
+    await runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' });
+    expect(api.sendMessage).toHaveBeenCalledTimes(1);
+    expect(Object.keys(api.sendMessage.mock.calls[0][1]).sort()).toEqual(['engineId', 'query', 'requestId', 'type']);
+  });
 });

@@ -505,6 +505,9 @@ export const MSG = {
   error_aggregate_instance_unknown: 'error_aggregate_instance_unknown',
   error_rerank_endpoint_invalid: 'error_rerank_endpoint_invalid',
   opts_rerank_endpoint_rewritten: 'opts_rerank_endpoint_rewritten',
+  // Agent bridge v2（站点实例/聚合实例暴露）：search-site 未知 id + search-aggregate 引擎成员门控
+  error_site_instance_unknown: 'error_site_instance_unknown',
+  error_agent_engine_search_disabled: 'error_agent_engine_search_disabled',
   aggregate_label: 'aggregate_label',
   history_aggregate_label: 'history_aggregate_label',
   aggregate_answers_heading: 'aggregate_answers_heading',

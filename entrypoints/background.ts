@@ -25,6 +25,10 @@ import {
   handleImportConfig,
   handleListAgentInstances,
   handleListAgentEngines,
+  handleListAgentSites,
+  handleListAgentAggregates,
+  handleSearchSiteInstance,
+  handleSearchAggregate,
   handleListAgentProviders,
   handlePackageAgentSkill,
   handlePreviewImport,
@@ -184,6 +188,17 @@ export default defineBackground(() => {
       handleSearchInstance: handleSearchInstance,
       listInstances: handleListAgentInstances,
       listEngines: handleListAgentEngines,
+      listSites: handleListAgentSites,
+      listAggregates: handleListAgentAggregates,
+      handleSearchAggregate: handleSearchAggregate,
+      // search-site 与 engine-search 同门槛：子开关 off 落 ok:false（envelope），不代 agent 加载第三方页。
+      handleSearchSite: async (request, signal, deadline) => {
+        if (!(await getEngineSearchEnabled())) {
+          return { ok: false, error: { kind: 'unknown' as const, message: 'engine-search sub-switch is off.' } };
+        }
+        // 内层预算 = 外层截止 - 余量：保证 runEngineSearch 的 timeout 先于桥接层的 aborted 判定。
+        return handleSearchSiteInstance(request, signal, engineInnerBudgetMs(deadline, Date.now()));
+      },
       handleEngineSearch: async (request, signal, deadline) => {
         if (!(await getEngineSearchEnabled())) {
           return { engine: request.engineId, query: request.query, error: 'extract-failed' };

@@ -1,10 +1,14 @@
-import type { SearchReply, SearchRequest } from './messaging';
+import type { SearchReply, SearchRequest, AggregateSearchReply } from './messaging';
 import { isEngineId, isProviderId } from './sources';
 import { isProviderInstanceId } from './provider-instances';
 import type { ProviderInstanceId } from './provider-instances';
+import { isSiteInstanceId } from './site-instances';
+import type { SiteInstanceId } from './site-instances';
+import { isAggregateInstanceId } from './aggregate-instances';
+import type { AggregateInstanceId, AggregateMemberId } from './aggregate-instances';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import type { EngineExtractionResult } from './engines/extractors';
+import type { EngineExtractionResult, EngineResult } from './engines/extractors';
 
 export const AGENT_BRIDGE_PROTOCOL = 2;
 export const AGENT_BRIDGE_MAX_BODY_BYTES = 64 * 1024;
@@ -23,8 +27,9 @@ export const AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS = 750;
 
 export type BridgeCredentials = { port: number; token: string };
 export type AgentSearchRequest = { action: 'search'; query: string; providerId: ProviderId; forceRefresh?: boolean; timeoutMs?: number };
-export type AgentListProvidersRequest = { action: 'list-providers' };
-export type AgentListEnginesRequest = { action: 'list-engines' };
+// list-* 请求同样接受可选 timeoutMs（传输预算）：CLI --timeout / MCP JUSO_TIMEOUT 对任意命令统一生效。
+export type AgentListProvidersRequest = { action: 'list-providers'; timeoutMs?: number };
+export type AgentListEnginesRequest = { action: 'list-engines'; timeoutMs?: number };
 export type AgentEngineSearchRequest = { action: 'engine-search'; query: string; engineId: EngineId; maxResults?: number; timeoutMs?: number };
 export interface AgentSearchInstanceRequest {
   action: 'search-instance';
@@ -35,8 +40,26 @@ export interface AgentSearchInstanceRequest {
 }
 export interface AgentListInstancesRequest {
   action: 'list-instances';
+  timeoutMs?: number;
 }
-export type AgentV2Request = AgentSearchInstanceRequest | AgentListInstancesRequest | AgentListEnginesRequest;
+export type AgentSearchSiteRequest = { action: 'search-site'; query: string; siteId: SiteInstanceId; maxResults?: number; timeoutMs?: number };
+export type AgentListSitesRequest = { action: 'list-sites'; timeoutMs?: number };
+export interface AgentSearchAggregateRequest {
+  action: 'search-aggregate';
+  query: string;
+  aggregateId: AggregateInstanceId;
+  forceRefresh?: boolean;
+  timeoutMs?: number;
+}
+export type AgentListAggregatesRequest = { action: 'list-aggregates'; timeoutMs?: number };
+export type AgentV2Request =
+  | AgentSearchInstanceRequest
+  | AgentListInstancesRequest
+  | AgentListEnginesRequest
+  | AgentSearchSiteRequest
+  | AgentListSitesRequest
+  | AgentSearchAggregateRequest
+  | AgentListAggregatesRequest;
 export type AgentRequest = AgentSearchRequest | AgentListProvidersRequest | AgentEngineSearchRequest | AgentV2Request;
 export type AgentProvider = { id: ProviderId; supportsAnswer: boolean; configured: boolean; hasInstances?: boolean };
 export interface AgentInstance {
@@ -50,8 +73,34 @@ export type AgentEngine = { id: EngineId };
 export type AgentListProvidersReply = { providers: AgentProvider[] };
 export type AgentListInstancesReply = { instances: AgentInstance[] };
 export type AgentListEnginesReply = { engines: AgentEngine[] };
+/** 站点实例清单条目（脱敏）：target 是规范化 public hostname，不含任何密钥。 */
+export type AgentSiteInfo = { id: SiteInstanceId; label: string; engineId: EngineId; target: string; description: string };
+export type AgentListSitesReply = { sites: AgentSiteInfo[] };
+/** 聚合实例清单条目：members 是成员 id 数组（非敏感）；eligible 与 worker eligibility 判定同源。 */
+export type AgentAggregateInfo = { id: AggregateInstanceId; label: string; eligible: boolean; topN: number; members: AggregateMemberId[] };
+export type AgentListAggregatesReply = { aggregates: AgentAggregateInfo[] };
+/**
+ * search-site 回复：SearchReply 式 envelope（与 search-instance 对未知实例的处理同先例）——
+ * 未知/已删 id、engine-search 子开关 off、URL 构造失败统一走 ok:false，抽取成功才 ok:true。
+ */
+export type AgentSiteSearchReply =
+  | { ok: true; response: { query: string; engine: EngineId; results: EngineResult[] }; cache: { hit: false } }
+  | { ok: false; error: { kind: 'keyMissing' | 'providerError' | 'unknown'; message: string } };
 export type AgentClaim = { protocol: 1 | 2; requestId: string; request: AgentRequest };
-export type AgentComplete = { protocol: 1 | 2; requestId: string; reply: SearchReply | AgentListProvidersReply | AgentListInstancesReply | AgentListEnginesReply | EngineExtractionResult };
+export type AgentComplete = {
+  protocol: 1 | 2;
+  requestId: string;
+  reply:
+    | SearchReply
+    | AgentListProvidersReply
+    | AgentListInstancesReply
+    | AgentListEnginesReply
+    | AgentListSitesReply
+    | AgentListAggregatesReply
+    | AgentSiteSearchReply
+    | AggregateSearchReply
+    | EngineExtractionResult;
+};
 export type AgentBridgeDeps = {
   fetch: typeof fetch;
   handleSearch: (request: SearchRequest, signal?: AbortSignal) => Promise<SearchReply>;
@@ -60,6 +109,10 @@ export type AgentBridgeDeps = {
   handleSearchInstance?: (request: AgentSearchInstanceRequest, signal?: AbortSignal) => Promise<SearchReply>;
   listInstances?: () => Promise<AgentListInstancesReply>;
   listEngines?: () => Promise<AgentListEnginesReply>;
+  handleSearchSite?: (request: AgentSearchSiteRequest, signal: AbortSignal | undefined, deadline: number) => Promise<AgentSiteSearchReply>;
+  listSites?: () => Promise<AgentListSitesReply>;
+  handleSearchAggregate?: (request: AgentSearchAggregateRequest, signal?: AbortSignal) => Promise<AggregateSearchReply>;
+  listAggregates?: () => Promise<AgentListAggregatesReply>;
   deadlineMs?: number;
 };
 
@@ -149,9 +202,10 @@ export function engineInnerBudgetMs(deadline: number, now: number): number {
   return Math.max(0, deadline - now - AGENT_BRIDGE_ENGINE_INNER_MARGIN_MS);
 }
 
-// list-* claim 不携带 timeoutMs；三个支持预算的 action 读取各自的可选字段。
+// 所有 action（含 list-*，2026-09-14 放宽）的 claim 均接受可选 timeoutMs：CLI --timeout /
+// MCP JUSO_TIMEOUT 对任意命令统一生效，list-* 声明不再因携带 timeoutMs 被拒。
 function claimTimeoutMs(request: AgentRequest): number | undefined {
-  return request.action === 'search' || request.action === 'engine-search' || request.action === 'search-instance' ? request.timeoutMs : undefined;
+  return request.timeoutMs;
 }
 
 export async function runAgentBridge(credentials: BridgeCredentials, deps: AgentBridgeDeps): Promise<{ ok: boolean }> {
@@ -191,7 +245,15 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
               ? (await deps.listInstances?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
               : claim.value.request.action === 'list-engines'
                 ? (await deps.listEngines?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                : await deps.listProviders();
+                : claim.value.request.action === 'search-site'
+                  ? (await deps.handleSearchSite?.(claim.value.request, actionController.signal, actionDeadline)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+                  : claim.value.request.action === 'list-sites'
+                    ? (await deps.listSites?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+                    : claim.value.request.action === 'search-aggregate'
+                      ? (await deps.handleSearchAggregate?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+                      : claim.value.request.action === 'list-aggregates'
+                        ? (await deps.listAggregates?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
+                        : await deps.listProviders();
     } catch (error) {
       reply = claim.value.request.action === 'engine-search'
         ? {
@@ -264,9 +326,8 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     return { ok: false, error: 'invalid search request' };
   }
   if (value.action === 'list-providers') {
-    return hasOnlyKeys(value, ['action'])
-      ? { ok: true, value: { action: 'list-providers' } }
-      : { ok: false, error: 'invalid list providers request' };
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list providers request' };
+    return { ok: true, value: { action: 'list-providers', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action === 'engine-search') {
     if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults', 'timeoutMs']) || typeof value.query !== 'string' || typeof value.engineId !== 'string' || !isEngineId(value.engineId)) return { ok: false, error: 'invalid engine search request' };
@@ -276,14 +337,12 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action === 'list-instances') {
-    return hasOnlyKeys(value, ['action'])
-      ? { ok: true, value: { action: 'list-instances' } }
-      : { ok: false, error: 'invalid list instances request' };
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list instances request' };
+    return { ok: true, value: { action: 'list-instances', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action === 'list-engines') {
-    return hasOnlyKeys(value, ['action'])
-      ? { ok: true, value: { action: 'list-engines' } }
-      : { ok: false, error: 'invalid list engines request' };
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list engines request' };
+    return { ok: true, value: { action: 'list-engines', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action === 'search-instance') {
     if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };
@@ -292,6 +351,30 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search instance request' };
     if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid search instance request' };
     return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+  }
+  if (value.action === 'list-sites') {
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list sites request' };
+    return { ok: true, value: { action: 'list-sites', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+  }
+  if (value.action === 'search-site') {
+    if (!hasOnlyKeys(value, ['action', 'query', 'siteId', 'maxResults', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid site search request' };
+    const query = value.query.trim();
+    if (!query || query.length > 8192 || typeof value.siteId !== 'string' || !isSiteInstanceId(value.siteId)) return { ok: false, error: 'invalid site search request' };
+    if (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20)) return { ok: false, error: 'invalid site search request' };
+    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid site search request' };
+    return { ok: true, value: { action: 'search-site', query, siteId: value.siteId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+  }
+  if (value.action === 'list-aggregates') {
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list aggregates request' };
+    return { ok: true, value: { action: 'list-aggregates', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+  }
+  if (value.action === 'search-aggregate') {
+    if (!hasOnlyKeys(value, ['action', 'query', 'aggregateId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid aggregate search request' };
+    const query = value.query.trim();
+    if (!query || query.length > 8192 || typeof value.aggregateId !== 'string' || !isAggregateInstanceId(value.aggregateId)) return { ok: false, error: 'invalid aggregate search request' };
+    if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid aggregate search request' };
+    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid aggregate search request' };
+    return { ok: true, value: { action: 'search-aggregate', query, aggregateId: value.aggregateId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
   }
   if (value.action !== 'search' || !hasOnlyKeys(value, ['action', 'query', 'providerId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') {
     return { ok: false, error: 'invalid search request' };

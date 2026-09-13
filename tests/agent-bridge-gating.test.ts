@@ -6,7 +6,7 @@ import {
   setEngineSearchEnabled,
 } from '@/lib/storage';
 import { runAgentBridge } from '@/lib/agent-bridge';
-import type { AgentEngineSearchRequest } from '@/lib/agent-bridge';
+import type { AgentEngineSearchRequest, AgentSiteSearchReply } from '@/lib/agent-bridge';
 import type { EngineExtractionResult } from '@/lib/engines/extractors';
 import type { SearchReply } from '@/lib/messaging';
 
@@ -185,5 +185,65 @@ describe('agent bridge gating: defaults are off (policy compliance)', () => {
   it('both switches default to false on a fresh storage', async () => {
     expect(await getAgentBridgeEnabled()).toBe(false);
     expect(await getEngineSearchEnabled()).toBe(false);
+  });
+});
+
+describe('agent bridge gating: search-site sub-switch (background wrapper mirror)', () => {
+  const siteClaim = { protocol: 2, requestId: 'site', request: { action: 'search-site', query: 'hello', siteId: 'site:abc123' } };
+
+  // 复刻 background.ts 的 handleSearchSite 包装：子开关 off → ok:false envelope，不代 agent 加载第三方页。
+  async function gatedSearchSite(
+    request: { action: 'search-site'; query: string; siteId: string },
+    runReal: () => Promise<AgentSiteSearchReply>,
+  ): Promise<AgentSiteSearchReply> {
+    if (!(await getEngineSearchEnabled())) {
+      return { ok: false, error: { kind: 'unknown' as const, message: 'engine-search sub-switch is off.' } };
+    }
+    return runReal();
+  }
+
+  it('off → returns ok:false envelope without running real site search', async () => {
+    await setAgentBridgeEnabled(true);
+    await setEngineSearchEnabled(false);
+    const realSiteSearch = vi.fn();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(siteClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge(
+      { port: 3210, token },
+      {
+        fetch: fetchMock,
+        handleSearch: vi.fn(),
+        listProviders: vi.fn(),
+        handleEngineSearch: vi.fn(),
+        handleSearchSite: (request) => gatedSearchSite(request, () => realSiteSearch(request)),
+      },
+    );
+    expect(realSiteSearch).not.toHaveBeenCalled();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+      reply: { ok: false, error: { kind: 'unknown', message: 'engine-search sub-switch is off.' } },
+    });
+  });
+
+  it('on → runs the real site search', async () => {
+    await setAgentBridgeEnabled(true);
+    await setEngineSearchEnabled(true);
+    const siteReply = { ok: true, response: { query: 'hello', engine: 'bing', results: [] }, cache: { hit: false } };
+    const realSiteSearch = vi.fn().mockResolvedValue(siteReply);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(siteClaim)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge(
+      { port: 3210, token },
+      {
+        fetch: fetchMock,
+        handleSearch: vi.fn(),
+        listProviders: vi.fn(),
+        handleEngineSearch: vi.fn(),
+        handleSearchSite: (request) => gatedSearchSite(request, () => realSiteSearch(request)),
+      },
+    );
+    expect(realSiteSearch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: siteReply });
   });
 });

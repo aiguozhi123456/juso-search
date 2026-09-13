@@ -100,7 +100,7 @@ Chrome Web Store 安装无开发者模式警告，且可自动更新。
 1. 按上面的步骤在 **装有 Juso 的 Chromium 系浏览器**（Chrome / Edge / Chromium 等）中安装并启用扩展。使用 `engine-search` 检索传统搜索引擎无需配置 AI 搜索服务；只有通过 `search --provider` 调用 AI 搜索 API 时，才需要先配置对应服务。
 2. 打开扩展 Options → 通用 → Agent Bridge，开启 Agent Bridge 总开关（默认关闭，需显式开启）。若要用 `engine-search` 检索传统搜索引擎，再单独开启其子开关。
 
-智能体接入有 **CLI Skill** 与 **MCP Server** 两种方式，二选一即可。两者走同一个 Agent Bridge、同样的 5 个 action，密钥同样不离开扩展。
+智能体接入有 **CLI Skill** 与 **MCP Server** 两种方式，二选一即可。两者走同一个 Agent Bridge 与同一套 action（随版本增长，运行时发现），密钥同样不离开扩展。
 
 #### 方式一：Agent Skill（CLI）
 
@@ -113,6 +113,11 @@ python scripts/juso_search.py engine-search "latest AI research" --engine google
 # 支持实例的服务（Exa、Doubao）可按实例搜索：
 python scripts/juso_search.py list-instances
 python scripts/juso_search.py search-instance "latest AI research" --instance-id inst:exa:abc123
+# 站点实例（站外搜索）与聚合实例（多源重排）：
+python scripts/juso_search.py list-sites
+python scripts/juso_search.py search-site "限定某站内的查询" --site-id site:abc123
+python scripts/juso_search.py list-aggregates
+python scripts/juso_search.py search-aggregate "宽泛的研究型查询" --aggregate-id agg:abc123
 ```
 
 浏览器路径、profile、扩展 ID、超时等边缘配置见技能包内的参考文档。
@@ -149,9 +154,9 @@ python scripts/juso_search.py search-instance "latest AI research" --instance-id
 
 智能体通过短生命周期、仅回环地址的 Agent Bridge 调用扩展后台的一次受限操作，而不是连接一个常驻本地 API。每次调用使用新的本地端口、令牌与请求标识，完成或超时后即失效。
 
-MCP server（`juso-search`）复用同一 Agent Bridge 接口与边界：同样 5 个 action（`list-providers`、`search`、`list-instances`、`search-instance`、`engine-search`）、同样的默认关闭门控，密钥同样只由 worker 读取、绝不离开扩展。上述接口与边界对 CLI skill 与 MCP server 同样适用。
+MCP server（`juso-search`）复用同一 Agent Bridge 接口与边界：同样的 10 个 action（`list-providers`、`list-engines`、`list-instances`、`list-sites`、`list-aggregates`、`search`、`engine-search`、`search-instance`、`search-site`、`search-aggregate`）、同样的默认关闭门控，密钥同样只由 worker 读取、绝不离开扩展。上述接口与边界对 CLI skill 与 MCP server 同样适用。
 
-`search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。支持实例的服务（Exa、Doubao）可用 `search-instance --instance-id` 按实例搜索，实例 id 从 `list-instances` 取得。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
+`search` 必须提供 `--provider`，不会悄悄跟随扩展当前服务。支持实例的服务（Exa、Doubao）可用 `search-instance --instance-id` 按实例搜索，实例 id 从 `list-instances` 取得。站点实例（`search-site --site-id`）与聚合实例（`search-aggregate --aggregate-id`）同理，id 分别从 `list-sites`、`list-aggregates` 取得；两者都需要开启 Agent Bridge，站点实例与含引擎成员的聚合还需 engine-search 子开关。`engine-search` 仅提取普通结果链接，不承诺 AI 摘要、知识面板或其他页面内容；取得 URL 后，页面抓取应由智能体宿主自己的 `web_fetch` 等能力完成。启动或桥接失败时，标准输出中的 JSON 会带结构化 `error.kind`（例如 `chrome_not_found`、`chrome_launch_failed`、`extension_did_not_claim`、`extension_did_not_complete`）；请按提示检查浏览器路径、profile、扩展 ID，以及打开的浏览器里是否已启用 Juso，不要通过暴露密钥来重试。`engine-search` 在验证页、同意页、布局不支持或无结果时也会失败。完整 kind 表见 `skills/juso-search/SKILL.md`。
 
 ## 开发
 

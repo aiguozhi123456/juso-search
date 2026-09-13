@@ -347,6 +347,8 @@
   "error_aggregate_instance_unknown": { "message": "Aggregate instance not found or deleted" },
   "error_rerank_endpoint_invalid": { "message": "Invalid rerank endpoint: only http://127.0.0.1 is allowed (port optional)" },
   "opts_rerank_endpoint_rewritten": { "message": "Rewrote localhost/[::1] to 127.0.0.1 automatically" },
+  "error_site_instance_unknown": { "message": "Site instance not found or deleted" },
+  "error_agent_engine_search_disabled": { "message": "The engine-search sub-switch is off (extension options → Agent Bridge); search pages cannot be loaded on the agent's behalf" },
   "aggregate_label": { "message": "Aggregate" },
   "history_aggregate_label": { "message": "Aggregate · $1", "placeholders": { "1": { "content": "$1" } } },
   "aggregate_answers_heading": { "message": "Member answers" },

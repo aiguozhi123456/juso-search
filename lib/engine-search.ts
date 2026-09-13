@@ -2,7 +2,16 @@ import { getEngine } from './engines/registry';
 import type { EngineId } from './engines/types';
 import type { EngineExtractionErrorKind, EngineExtractionResult } from './engines/extractors';
 
-export type EngineSearchRequest = { query: string; engineId: EngineId; maxResults?: number };
+export type EngineSearchRequest = {
+  query: string;
+  engineId: EngineId;
+  maxResults?: number;
+  /** 预构造 SERP URL（站点实例搜索）：存在时直接导航，跳过 engine.buildSerpUrl。 */
+  serpUrl?: string;
+  /** SERP URL 实际携带的查询文本（构造模式把 site: 前缀并入 query 时 ≠ query）；
+   *  内容脚本用它做 URL↔请求匹配，抽取回包仍以 query 为准。 */
+  matchQuery?: string;
+};
 export type EngineExtractionReply = EngineExtractionResult & { requestId: string };
 
 type TabsApi = {
@@ -45,7 +54,8 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
     if (removedTabId === tabId) closedByUser = true;
   };
   try {
-    const tab = await deps.tabs.create({ url: getEngine(request.engineId).buildSerpUrl(request.query), active: false });
+    const url = request.serpUrl ?? getEngine(request.engineId).buildSerpUrl(request.query);
+    const tab = await deps.tabs.create({ url, active: false });
     if (tab.id === undefined) return extractionError(request, 'extract-failed');
     tabId = tab.id;
     // Some Chromium builds still focus a newly created background tab; force inactive.
@@ -54,7 +64,20 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
     const deadline = Date.now() + (deps.completeTimeoutMs ?? COMPLETE_TIMEOUT_MS);
     await waitForComplete(tab, deps.tabs, signal, deadline);
     if (closedByUser) return extractionError(request, 'tab-closed');
-    const reply = await sendWithRetry(tabId, { type: 'juso:extract-engine-results', requestId, ...request }, deps, signal, deadline);
+    const reply = await sendWithRetry(
+      tabId,
+      {
+        type: 'juso:extract-engine-results',
+        requestId,
+        engineId: request.engineId,
+        query: request.query,
+        ...(request.maxResults === undefined ? {} : { maxResults: request.maxResults }),
+        ...(request.matchQuery === undefined ? {} : { matchQuery: request.matchQuery }),
+      },
+      deps,
+      signal,
+      deadline,
+    );
     return isExtractionReply(reply, request, requestId) ? stripRequestId(reply) : extractionError(request, 'extract-failed');
   } catch (error) {
     if (closedByUser) return extractionError(request, 'tab-closed');

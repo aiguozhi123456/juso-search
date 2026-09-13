@@ -347,6 +347,8 @@
   "error_aggregate_instance_unknown": { "message": "聚合实例不存在或已被删除" },
   "error_rerank_endpoint_invalid": { "message": "重排 endpoint 无效：仅允许 http://127.0.0.1（可含端口）" },
   "opts_rerank_endpoint_rewritten": { "message": "已将 localhost/[::1] 自动改写为 127.0.0.1" },
+  "error_site_instance_unknown": { "message": "站点实例不存在或已被删除" },
+  "error_agent_engine_search_disabled": { "message": "引擎搜索子开关未开启（扩展设置 → Agent Bridge），无法代为加载搜索结果页" },
   "aggregate_label": { "message": "聚合" },
   "history_aggregate_label": { "message": "聚合 · $1", "placeholders": { "1": { "content": "$1" } } },
   "aggregate_answers_heading": { "message": "成员回答" },

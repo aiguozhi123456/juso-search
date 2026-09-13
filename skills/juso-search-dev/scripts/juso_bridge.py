@@ -67,6 +67,10 @@ __all__ = [
     "is_instance_list_reply",
     "is_engine_search_reply",
     "is_engine_list_reply",
+    "is_site_list_reply",
+    "is_site_search_reply",
+    "is_aggregate_list_reply",
+    "is_aggregate_search_reply",
     "is_valid_reply",
     "result_status",
     "wait_failure",
@@ -156,6 +160,29 @@ def detect_browser_type(browser_path: str) -> str:
     return "firefox" if "firefox" in name else "chrome"
 
 
+def _is_error_envelope(reply: dict[str, Any]) -> bool:
+    """Shared ok:false branch of the SearchReply-style envelopes (search / search-site / search-aggregate)."""
+    if set(reply) != {"ok", "error"} or not isinstance(reply["error"], dict):
+        return False
+    error = reply["error"]
+    return (
+        set(error).issubset({"kind", "message", "providerErrorKind"})
+        and error.get("kind") in {"keyMissing", "providerError", "unknown"}
+        and isinstance(error.get("message"), str)
+        and ("providerErrorKind" not in error or isinstance(error["providerErrorKind"], str))
+    )
+
+
+def _is_reply_cache_shape(cache: Any) -> bool:
+    return (
+        isinstance(cache, dict)
+        and isinstance(cache.get("hit"), bool)
+        and set(cache).issubset({"hit", "entryId", "createdAt"})
+        and ("entryId" not in cache or isinstance(cache["entryId"], str))
+        and ("createdAt" not in cache or isinstance(cache["createdAt"], (int, float)))
+    )
+
+
 def is_search_reply(reply: Any) -> bool:
     if not isinstance(reply, dict) or not isinstance(reply.get("ok"), bool):
         return False
@@ -169,21 +196,9 @@ def is_search_reply(reply: Any) -> bool:
             and isinstance(response.get("provider"), str)
             and response.get("provider")
             and isinstance(response.get("results"), list)
-            and isinstance(cache, dict)
-            and isinstance(cache.get("hit"), bool)
-            and set(cache).issubset({"hit", "entryId", "createdAt"})
-            and ("entryId" not in cache or isinstance(cache["entryId"], str))
-            and ("createdAt" not in cache or isinstance(cache["createdAt"], (int, float)))
+            and _is_reply_cache_shape(cache)
         )
-    if set(reply) != {"ok", "error"} or not isinstance(reply["error"], dict):
-        return False
-    error = reply["error"]
-    return (
-        set(error).issubset({"kind", "message", "providerErrorKind"})
-        and error.get("kind") in {"keyMissing", "providerError", "unknown"}
-        and isinstance(error.get("message"), str)
-        and ("providerErrorKind" not in error or isinstance(error["providerErrorKind"], str))
-    )
+    return _is_error_envelope(reply)
 
 
 def is_provider_list_reply(reply: Any) -> bool:
@@ -254,6 +269,78 @@ def is_engine_list_reply(reply: Any) -> bool:
     )
 
 
+def is_site_list_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or set(reply) != {"sites"} or not isinstance(reply["sites"], list):
+        return False
+    return all(
+        isinstance(site, dict)
+        and set(site) == {"id", "label", "engineId", "target", "description"}
+        and isinstance(site["id"], str)
+        and site["id"].startswith("site:")
+        and isinstance(site["label"], str)
+        and isinstance(site["engineId"], str)
+        and site["engineId"]
+        and isinstance(site["target"], str)
+        and isinstance(site["description"], str)
+        for site in reply["sites"]
+    )
+
+
+def is_site_search_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or not isinstance(reply.get("ok"), bool):
+        return False
+    if reply["ok"]:
+        if set(reply) != {"ok", "response", "cache"}:
+            return False
+        response, cache = reply["response"], reply["cache"]
+        return (
+            isinstance(response, dict)
+            and isinstance(response.get("query"), str)
+            and isinstance(response.get("engine"), str)
+            and response.get("engine")
+            and isinstance(response.get("results"), list)
+            and _is_reply_cache_shape(cache)
+        )
+    return _is_error_envelope(reply)
+
+
+def is_aggregate_list_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or set(reply) != {"aggregates"} or not isinstance(reply["aggregates"], list):
+        return False
+    return all(
+        isinstance(aggregate, dict)
+        and set(aggregate) == {"id", "label", "eligible", "topN", "members"}
+        and isinstance(aggregate["id"], str)
+        and aggregate["id"].startswith("agg:")
+        and isinstance(aggregate["label"], str)
+        and isinstance(aggregate["eligible"], bool)
+        and isinstance(aggregate["topN"], int)
+        and isinstance(aggregate["members"], list)
+        and all(isinstance(member, str) and member for member in aggregate["members"])
+        for aggregate in reply["aggregates"]
+    )
+
+
+def is_aggregate_search_reply(reply: Any) -> bool:
+    if not isinstance(reply, dict) or not isinstance(reply.get("ok"), bool):
+        return False
+    if reply["ok"]:
+        if set(reply) != {"ok", "response", "cache"}:
+            return False
+        response, cache = reply["response"], reply["cache"]
+        return (
+            isinstance(response, dict)
+            and isinstance(response.get("query"), str)
+            and isinstance(response.get("instanceId"), str)
+            and response.get("instanceId").startswith("agg:")
+            and response.get("kind") == "aggregate"
+            and isinstance(response.get("results"), list)
+            and isinstance(response.get("members"), list)
+            and _is_reply_cache_shape(cache)
+        )
+    return _is_error_envelope(reply)
+
+
 def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:
     request = claim.get("request") if isinstance(claim, dict) else None
     if not isinstance(request, dict):
@@ -268,6 +355,14 @@ def is_valid_reply(claim: dict[str, Any] | None, reply: Any) -> bool:
         return is_engine_list_reply(reply)
     if request.get("action") == "search-instance":
         return is_search_reply(reply)  # same reply shape as search
+    if request.get("action") == "list-sites":
+        return is_site_list_reply(reply)
+    if request.get("action") == "search-site":
+        return is_site_search_reply(reply)
+    if request.get("action") == "list-aggregates":
+        return is_aggregate_list_reply(reply)
+    if request.get("action") == "search-aggregate":
+        return is_aggregate_search_reply(reply)
     if request.get("action") == "engine-search":
         return (
             is_engine_search_reply(reply)
@@ -490,7 +585,7 @@ def clamp_timeout_ms(value: float) -> int:
     return min(300000, max(7000, int(round(value))))
 
 
-def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None, instance_id: str | None = None, timeout_ms: float | None = None) -> dict[str, Any]:
+def make_claim(action: str, query: str | None, provider: str | None, force_refresh: bool, request_id: str, engine: str | None = None, max_results: int | None = None, instance_id: str | None = None, site_id: str | None = None, aggregate_id: str | None = None, timeout_ms: float | None = None) -> dict[str, Any]:
     request: dict[str, Any] = {"action": action}
     if action == "search":
         request.update(query=query, providerId=provider)
@@ -504,7 +599,16 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
         request.update(query=query, instanceId=instance_id)
         if force_refresh:
             request["forceRefresh"] = True
-    # list-providers, list-instances, and list-engines have no extra fields
+    if action == "search-site":
+        request.update(query=query, siteId=site_id)
+        if max_results is not None:
+            request["maxResults"] = max_results
+    if action == "search-aggregate":
+        request.update(query=query, aggregateId=aggregate_id)
+        if force_refresh:
+            request["forceRefresh"] = True
+    # list-providers, list-instances, list-engines, list-sites, and
+    # list-aggregates have no extra fields
     # Optional extension-side action budget: omitted entirely (claim stays
     # byte-identical to a default run) unless the caller customized the
     # timeout. Any explicit value, however small, is emitted clamped.
@@ -514,7 +618,8 @@ def make_claim(action: str, query: str | None, provider: str | None, force_refre
 
 
 def run_bridge(action: str, query: str | None, *, provider_id: str | None = None, engine_id: str | None = None,
-               instance_id: str | None = None, force_refresh: bool = False, max_results: int | None = None,
+               instance_id: str | None = None, site_id: str | None = None, aggregate_id: str | None = None,
+               force_refresh: bool = False, max_results: int | None = None,
                extension_id: str | None = None, chrome_path: str | None = None, profile: str | None = None,
                timeout: float = DEFAULT_TIMEOUT_SECONDS, timeout_ms: float | None = None,
                cancel_event: threading.Event | None = None,
@@ -526,13 +631,16 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
 
     Args:
         action: one of "search", "engine-search", "search-instance",
-            "list-providers", "list-instances", "list-engines".
+            "search-site", "search-aggregate", "list-providers",
+            "list-instances", "list-engines", "list-sites", "list-aggregates".
         query: search query for search-like actions; None for list actions.
         provider_id: provider for "search" (any non-empty provider id string).
         engine_id: engine for "engine-search" (any non-empty engine id string).
         instance_id: instance id for "search-instance".
-        force_refresh: bypass cache for "search"/"search-instance".
-        max_results: optional result cap for "engine-search".
+        site_id: site-instance id for "search-site" (``site:<token>``).
+        aggregate_id: aggregate-instance id for "search-aggregate" (``agg:<token>``).
+        force_refresh: bypass cache for "search"/"search-instance"/"search-aggregate".
+        max_results: optional result cap for "engine-search"/"search-site".
         extension_id: extension id (Chrome [a-p]{32} or Firefox email-style/{GUID}).
             Optional when bridge_url is set.
         chrome_path: explicit browser executable (auto-discovery otherwise).
@@ -595,6 +703,8 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         engine_id,
         max_results,
         instance_id,
+        site_id,
+        aggregate_id,
         timeout_ms,
     )
     server: BridgeHTTPServer | None = None

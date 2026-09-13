@@ -70,7 +70,7 @@ describe('packageAgentSkill', () => {
 
     expect(createStoreZip).toHaveBeenCalledTimes(1);
     const entries = vi.mocked(createStoreZip).mock.calls[0][0];
-    expect(entries).toHaveLength(7);
+    expect(entries).toHaveLength(9);
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
@@ -79,6 +79,8 @@ describe('packageAgentSkill', () => {
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',
       'juso-search/reference/provider-instances.md',
+      'juso-search/reference/site-instances.md',
+      'juso-search/reference/aggregate-instances.md',
     ]);
 
     // 每个 entry 都盖章了 fake id，且占位符零残留（断言 5：成功调用必然无占位符）。
@@ -122,6 +124,8 @@ describe('packageAgentSkill', () => {
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',
       'juso-search/reference/provider-instances.md',
+      'juso-search/reference/site-instances.md',
+      'juso-search/reference/aggregate-instances.md',
     ]);
     expect(entries.some((e) => e.path.startsWith('juso-search-dev'))).toBe(false);
     for (const entry of entries) {
@@ -147,6 +151,8 @@ describe('packageAgentSkill', () => {
       'juso-search/reference/errors.md',
       'juso-search/reference/configuration.md',
       'juso-search/reference/provider-instances.md',
+      'juso-search/reference/site-instances.md',
+      'juso-search/reference/aggregate-instances.md',
     ]);
     for (const entry of entries) {
       expect(decode(entry)).toContain(custom);
