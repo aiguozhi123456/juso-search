@@ -164,7 +164,42 @@ describe('engine natural-result extractors', () => {
           snippet: '作者: @原神 · 点赞: 31.8万',
           snippetKind: 'metadata',
         },
-        // #0 用户聚合卡（含 /user/ 链接）、#4 相关搜索卡 均无时长/图文前缀，被 parseCardFields 丢弃。
+        // #0 用户聚合卡（含 /user/ 链接）、#4 相关搜索卡 均无时长/图文形状，被丢弃（兜底 blob 解析同样失配）。
+      ],
+    });
+  });
+
+  it('extracts Douyin glued-caption cards by leaf shapes after whitespace removal (2026-09-13 regression)', () => {
+    // 复刻 2026-09-13 实测 DOM：class 混淆、卡内无 <a>、字段各为独立叶子，
+    // 且 card.textContent 的 token 间无空白（10:041.3万…、图文408…、#话题@作者）。
+    const document = new DOMParser().parseFromString(fixture('douyin-glued.html'), 'text/html');
+    const result = extractEngineSearch({ document, engine: 'douyin', query: 'test query', pageUrl: 'https://www.douyin.com/search/test' });
+    expect(result).toEqual({
+      engine: 'douyin',
+      query: 'test query',
+      results: [
+        // 视频卡：时长叶子 + 点赞叶子 + 「@」叶子的下一兄弟元素为作者。
+        {
+          title: '新疆乌鲁木齐美食攻略 拌面凉皮面肺子 烤肉抓饭椒麻鸡 还有新疆炒米粉～#乌鲁木齐美食 #迈扣来了',
+          url: 'https://www.douyin.com/video/7655237577460416832',
+          snippet: '作者: @迈扣来了 · 点赞: 1.3万',
+          snippetKind: 'metadata',
+        },
+        // 图文卡：以「图文」叶子分类，URL 用 /note/{id}。
+        {
+          title: '感觉是安阳目前top1好吃的！！！！夯爆了好好吃 #安阳美食 #口袋虾球',
+          url: 'https://www.douyin.com/note/7682991989692042971',
+          snippet: '作者: @霹雳小熊吃不胖 · 点赞: 408',
+          snippetKind: 'metadata',
+        },
+        // 无点赞叶子的视频卡：snippet 只剩作者，优雅降级。
+        {
+          title: '这道菜，我请你吃｜第一期：蛏子捞饭 #北京美食推荐',
+          url: 'https://www.douyin.com/video/7684620269587057960',
+          snippet: '作者: @美食和Ta的朋友们',
+          snippetKind: 'metadata',
+        },
+        // 相关搜索卡（全 <p> 叶子）、用户聚合卡（<a> + 获赞粉丝文本）均无时长/图文叶子，被丢弃。
       ],
     });
   });

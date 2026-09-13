@@ -14,9 +14,7 @@ Results are scraped from `www.xiaohongshu.com/search_result` in the user's logge
 
 ## `douyin`
 
-Results are scraped from `www.douyin.com/search/{keyword}` in the user's logged-in profile. Douyin is heavily obfuscated: cards have no `<a>` links (navigation is JS-routed), so the result `url` is synthesized from the card id as `https://www.douyin.com/video/{id}` (videos) or `/note/{id}` (image posts). There is no title element — `title` is the full caption text and `snippet` is `作者: … · 点赞: …` parsed from it. User-aggregate / related-searches cards (no duration or `图文` prefix) are skipped.
-
-> **`douyin` headless limitation (2026-07-31):** the extractor code is correct (verified: the same selectors return 25 cards when the tab is open and visible), but in the automated `engine-search` flow — which opens the SERP as a programmatically-created tab — Douyin's anti-bot frequently returns `no-results` (cards not rendered) or `challenge` (captcha/slider). This is a site anti-bot reaction to the automated tab, not an extraction bug. Retry, or treat `douyin` as best-effort; `bilibili` and `xiaohongshu` are reliable in the same flow.
+Results are scraped from `www.douyin.com/search/{keyword}` in the user's logged-in profile. Douyin is heavily obfuscated: cards have no `<a>` links (navigation is JS-routed), so the result `url` is synthesized from the card id as `https://www.douyin.com/video/{id}` (videos) or `/note/{id}` (image posts). There is no title element — `title` is the full caption text and `snippet` is `作者: … · 点赞: …` parsed from it. Cards are classified by leaf-node text shapes (a `mm:ss` duration leaf → video, a bare `图文` leaf → image post), never by whitespace-separated tokens: Douyin strips inter-token whitespace from `textContent` at any time (2026-09-13 regression). User-aggregate / related-searches cards (neither shape) are skipped. Occasional `challenge` (captcha/slider) can still appear in the automated flow; retry.
 
 ## `weixin`
 

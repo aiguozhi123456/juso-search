@@ -23,6 +23,8 @@ related_components:
 
 # Douyin returns no-results/challenge in the automated engine-search flow despite a correct extractor
 
+> **Erratum (2026-09-13):** the main conclusion below was a misdiagnosis. The dominant `no-results` failure was not anti-bot gating — the extractor broke when Douyin stripped the inter-token whitespace its caption parser required (fixed via leaf-shape parsing in `douyin-caption-whitespace-regression.md`). Live recon on 2026-09-13 rendered 20 cards in a programmatically-created background tab with zero challenge markers, and replaying the then-current extractor against them yielded 0/20. The occasional `challenge` errors remain genuine anti-bot. The recon here verified selector *hit counts*, never extractor *yield* — both failures surface as the same `no-results` string, which is what misled the triage. The "don't stretch global timeouts" prevention guidance stands.
+
 ## Problem
 
 The `douyin` `EngineExtractor` (`lib/engines/extractors/douyin.ts`) is verified correct — its selectors and caption parser return 25 result cards when the SERP tab is open and visible. But in the real `engine-search` flow (the agent bridge → `runEngineSearch` opens the SERP in a programmatically-created tab → content script extracts), Douyin consistently returns `no-results`, with intermittent `challenge` and rare `timeout`. `bilibili` and `xiaohongshu` succeed in the identical flow on the same logged-in profile.
