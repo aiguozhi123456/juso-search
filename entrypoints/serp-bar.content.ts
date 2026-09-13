@@ -3,7 +3,7 @@ import type { Root } from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
 import type { ProviderConfigReply } from '@/lib/messaging';
-import { allSources } from '@/lib/sources';
+import { aggregateSourcesOf, allSources } from '@/lib/sources';
 import type { SearchEngine } from '@/lib/engines/types';
 import type { SearchSource, SourceId } from '@/lib/sources';
 import type { GroupConfig } from '@/lib/source-groups';
@@ -143,6 +143,7 @@ export default defineContentScript({
 
     /** Apply a fresh provider config onto local bar state and re-render chips. */
     const applyConfigSnapshot = (config: ProviderConfigReply) => {
+      // 聚合投影（KTD4 第 7 参）：eligibility 由 worker 快照单点计算，栏只消费标志。
       const sources = allSources(
         config.configuredProviderIds,
         config.sourceOrder,
@@ -150,6 +151,7 @@ export default defineContentScript({
         config.siteInstances ?? [],
         config.customEngines ?? [],
         config.providerInstances ?? [],
+        aggregateSourcesOf(config.aggregate),
       );
       const rawQuery = readQuery(state.engine, window.location.href);
       const context = resolveSerpContext(
@@ -590,7 +592,7 @@ async function loadBarState(engine: SearchEngine, url: string): Promise<BarState
   // browser.i18n.getUILanguage()（浏览器语言），若不显式应用扩展设置，会出现
   // 浏览器为英语、扩展设为中文时快切栏仍显示英语。在首次 render 前应用以避免闪烁。
   applyLocalePref(localePref);
-  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteInstances ?? [], config.customEngines ?? [], config.providerInstances ?? []);
+  const sources = allSources(config.configuredProviderIds, config.sourceOrder, config.sourceHidden, config.siteInstances ?? [], config.customEngines ?? [], config.providerInstances ?? [], aggregateSourcesOf(config.aggregate));
   const context = resolveSerpContext(
     engine,
     url,

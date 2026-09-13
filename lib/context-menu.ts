@@ -15,7 +15,7 @@
 //     重建期间到达的新请求标记 pending，当前轮结束后自动再跑一轮，不丢请求。
 
 import { getProviderConfigSnapshot } from './storage';
-import { allSources, sourceLabel, type SearchSource } from './sources';
+import { aggregateSourcesOf, allSources, sourceLabel, type SearchSource } from './sources';
 import { projectLayout, resolveEffectiveLayout, type SourceLabel } from './source-groups';
 import { resolveSerpHandoff } from './serp-handoff';
 import { buildSafeSearchUrl } from './search-page-url';
@@ -29,13 +29,17 @@ const GROUP_PREFIX = 'juso-group:';
 /** 模块级 source 映射：菜单构建时填充，点击时据此解析 source（避免重复读配置）。 */
 let sourceById = new Map<string, SearchSource>();
 
-/** 触发菜单重建的 storage key 集合（这些键变化会影响菜单结构与可用源）。 */
+/** 触发菜单重建的 storage key 集合（这些键变化会影响菜单结构与可用源）。
+ *  ⚠️ REBUILD_KEYS 是唯一注册点——新 source 相关键漏登记 = 菜单与快切栏漂移（M1/M2 前科）。
+ *  聚合（KTD16）：aggregateInstances 变更菜单结构；rerankConfig 变更 eligibility（隐式可见轴）。 */
 const REBUILD_KEYS = new Set([
   'sourceOrder',
   'sourceHidden',
   'siteInstances',
   'customEngines',
   'providerInstances',
+  'aggregateInstances',
+  'rerankConfig',
   'groupConfig',
   'providerKeys',
   'localePref',
@@ -89,6 +93,7 @@ async function rebuildMenuOnce(): Promise<void> {
     applyLocalePref(isLocalePref(prefGot.localePref) ? prefGot.localePref : 'auto');
 
     const snapshot = await getProviderConfigSnapshot();
+    // 聚合投影（KTD4 第 7 参）：eligibility 由 worker 快照单点计算，菜单只消费标志。
     const sources = allSources(
       snapshot.configuredProviderIds,
       snapshot.sourceOrder,
@@ -96,6 +101,7 @@ async function rebuildMenuOnce(): Promise<void> {
       snapshot.siteInstances,
       snapshot.customEngines,
       snapshot.providerInstances,
+      aggregateSourcesOf(snapshot.aggregate),
     );
 
     // 无可用源（如全部源被隐藏）→ 仅清空旧菜单，避免残留陈旧项。
@@ -202,5 +208,6 @@ function resolveSourceFromSnapshot(
     snapshot.siteInstances,
     snapshot.customEngines,
     snapshot.providerInstances,
+    aggregateSourcesOf(snapshot.aggregate),
   ).find((s) => s.id === sourceId);
 }

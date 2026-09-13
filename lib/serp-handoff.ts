@@ -12,6 +12,7 @@ import type { SearchSource } from './sources';
 import type { SourceId } from './sources';
 import { isEngineId, isProviderId } from './sources';
 import { isProviderInstanceId } from './provider-instances';
+import { isAggregateInstanceId } from './aggregate-instances';
 import type { SearchEngine } from './engines/types';
 import { getEngine } from './engines/registry';
 import { buildSearchDeepLink } from './deep-link';
@@ -128,6 +129,14 @@ export function resolveSerpHandoff(
       ? withEnterParam(baseUrl, '1')
       : baseUrl;
     return { kind: 'navigate', url };
+  }
+  if (source.kind === 'aggregate-instance' && isAggregateInstanceId(source.id)) {
+    // 聚合实例（KTD16）：与 provider 实例同语义——委托 background 打开搜索页深链
+    // （搜索页按实例定义存在 && eligible 受理，KTD16 fresh-config 重解析由页面负责）。
+    return {
+      kind: 'openSearchPage',
+      deepLink: trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html',
+    };
   }
   if (source.kind === 'provider-instance' && isProviderInstanceId(source.id)) {
     // 实例与裸 provider 同语义：委托 background 打开搜索页深链，deep link 携带实例 id

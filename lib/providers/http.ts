@@ -9,28 +9,44 @@ export interface PostJsonResult<T> {
   errorDetail?: string;
 }
 
+export interface RequestJsonInit {
+  headers?: Record<string, string>;
+  body?: string;
+  signal?: AbortSignal;
+  /**
+   * 可选 fetch 注入（rerank 客户端等 worker 路径用）。注入值必须已是包装形态
+   * `(...args) => fetch(...args)`：SW 里把裸 fetch 存为对象属性再以方法形式调用会丢
+   * WorkerGlobalScope receiver（Illegal invocation）——
+   * 见 docs/solutions/runtime-errors/service-worker-fetch-illegal-invocation.md。
+   * 缺省时用自由函数形态调用全局 fetch（与既有适配器一致，天然安全）。
+   */
+  fetch?: typeof fetch;
+}
+
 export async function postJson<T>(
   url: string,
-  init: { headers?: Record<string, string>; body: string; signal?: AbortSignal },
+  init: RequestJsonInit & { body: string },
 ): Promise<PostJsonResult<T>> {
   return requestJson<T>(url, { ...init, method: 'POST' });
 }
 
 export async function getJson<T>(
   url: string,
-  init: { headers?: Record<string, string>; params?: Record<string, string>; signal?: AbortSignal },
+  init: RequestJsonInit & { params?: Record<string, string> },
 ): Promise<PostJsonResult<T>> {
   const requestUrl = init.params ? `${url}?${new URLSearchParams(init.params).toString()}` : url;
-  return requestJson<T>(requestUrl, { headers: init.headers, signal: init.signal, method: 'GET' });
+  return requestJson<T>(requestUrl, { headers: init.headers, signal: init.signal, fetch: init.fetch, method: 'GET' });
 }
 
 async function requestJson<T>(
   url: string,
-  init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
+  init: RequestJsonInit & { method: 'GET' | 'POST' },
 ): Promise<PostJsonResult<T>> {
+  // 见 RequestJsonInit.fetch 的包装形态要求（service-worker-fetch-illegal-invocation 教训）。
+  const doFetch = init.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   let res: Response;
   try {
-    res = await fetch(url, { method: init.method, headers: init.headers, body: init.body, signal: init.signal });
+    res = await doFetch(url, { method: init.method, headers: init.headers, body: init.body, signal: init.signal });
   } catch {
     throw new ProviderError('network', t(MSG.error_http_network));
   }

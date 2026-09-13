@@ -9,7 +9,8 @@ import { absoluteHttpUrl, titleText } from './shared';
 // 卡片混有两类（用链接存在性区分，一石二鸟）：
 //   ① 真笔记：含 a[href*="/explore/"]，20/26 张；
 //   ② 广告/直播/热搜卡：无 /explore/ 链接（且带 [class*="ad"]），6/26 张 → 缺链接即被丢弃。
-// snippet 为富元数据拼接：作者: X · 点赞: X（笔记卡无独立正文）。无标题的笔记标题填占位。
+// snippet 为富元数据拼接：作者: X · 点赞: X（笔记卡无独立正文）→ snippetKind:'metadata'
+//（聚合重排剔除展示元数据，见 buildRerankDocument）。无标题的笔记标题填占位。
 const CARD_SELECTOR = '.note-item';
 const NOTE_LINK_SELECTOR = 'a[href*="/explore/"]';
 
@@ -44,7 +45,7 @@ export const xiaohongshuExtractor: EngineExtractor = {
       // 无标题的笔记填占位，保证每条结果都有 title。
       const title = titleText(item.querySelector('.title')) || '(无标题)';
       const snippet = buildSnippet(item);
-      return [{ title, url, snippet }];
+      return [{ title, url, snippet, snippetKind: 'metadata' }];
     });
   },
 };

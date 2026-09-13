@@ -1,4 +1,5 @@
 export * from './keys';
+export { buildAggregateProjection } from './shared';
 export * from './provider-keys-store';
 export {
   MAX_RESULTS_MIN,
@@ -15,5 +16,6 @@ export * from './prefs-store';
 export * from './site-instance-store';
 export * from './custom-engine-store';
 export * from './provider-instance-store';
+export * from './aggregate-instance-store';
 export * from './search-cache-store';
 export * from './snapshot';

@@ -492,12 +492,13 @@ describe('storage: source order', () => {
 describe('storage: groupConfig', () => {
   it('returns the default group config when unset (all sources grouped by type)', async () => {
     const cfg = await getGroupConfig();
-    expect(cfg.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'custom']);
+    expect(cfg.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'aggregate', 'custom']);
     expect(cfg.layout).toEqual([
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
       { kind: 'group', groupId: 'ai-engines' },
       { kind: 'group', groupId: 'ai-search' },
+      { kind: 'group', groupId: 'aggregate' },
       { kind: 'group', groupId: 'custom' },
     ]);
     expect(cfg.assignments).toEqual({});
@@ -522,7 +523,7 @@ describe('storage: groupConfig', () => {
     const cfg = await getGroupConfig();
     // google pinned → its assignment dropped; ghost (unknown source) dropped
     expect(cfg.assignments).toEqual({ tavily: 'custom' });
-    // 持久化 layout 缺 engines/sites/ai-engines；normalize 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
+    // 持久化 layout 缺 engines/sites/ai-engines/aggregate；normalize 把缺失内置组按 DEFAULT_GROUPS 顺序追加到末尾。
     expect(cfg.layout).toEqual([
       { kind: 'source', sourceId: 'google' },
       { kind: 'group', groupId: 'ai-search' },
@@ -530,6 +531,7 @@ describe('storage: groupConfig', () => {
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
       { kind: 'group', groupId: 'ai-engines' },
+      { kind: 'group', groupId: 'aggregate' },
     ]);
   });
 
@@ -542,15 +544,16 @@ describe('storage: groupConfig', () => {
     });
     const snap = await getProviderConfigSnapshot();
     expect(snap.groupConfig).toBeDefined();
-    // missing builtin groups (engines, sites, ai-engines, custom) filled into groups in DEFAULT_GROUPS order;
-    // the persisted ai-search is reordered into its canonical position. The layout's missing builtin
-    // groups (engines, sites, ai-engines, custom) are appended at the end so the new groups render persistently.
-    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'custom']);
+    // missing builtin groups (engines, sites, ai-engines, aggregate, custom) filled into groups in
+    // DEFAULT_GROUPS order; the persisted ai-search is reordered into its canonical position. The
+    // layout's missing builtin groups are appended at the end so the new groups render persistently.
+    expect(snap.groupConfig.groups.map((g) => g.id)).toEqual(['engines', 'sites', 'ai-engines', 'ai-search', 'aggregate', 'custom']);
     expect(snap.groupConfig.layout).toEqual([
       { kind: 'group', groupId: 'ai-search' },
       { kind: 'group', groupId: 'engines' },
       { kind: 'group', groupId: 'sites' },
       { kind: 'group', groupId: 'ai-engines' },
+      { kind: 'group', groupId: 'aggregate' },
       { kind: 'group', groupId: 'custom' },
     ]);
   });
@@ -1021,11 +1024,13 @@ describe('storage: local search cache', () => {
     expect(summary.answerPreview).toHaveLength(160);
     expect(summary.resultPreviews).toHaveLength(3);
     expect(summary.resultCount).toBe(12);
-    expect(hit?.response.answer?.text).toHaveLength(2000);
-    expect(hit?.response.answer?.citations).toHaveLength(10);
-    expect(hit?.response.results).toHaveLength(12);
-    expect(hit?.response.results[0].snippet).toHaveLength(1000);
-    expect(hit?.response.results[0]).not.toHaveProperty('content');
+    // provider 条目为 solo 形状（KTD7 折叠：entry 联合按 providerId 哨兵判别，测试侧按形状收窄）。
+    const soloResponse = hit!.response as NormalizedSearchResponse;
+    expect(soloResponse.answer?.text).toHaveLength(2000);
+    expect(soloResponse.answer?.citations).toHaveLength(10);
+    expect(soloResponse.results).toHaveLength(12);
+    expect(soloResponse.results[0].snippet).toHaveLength(1000);
+    expect(soloResponse.results[0]).not.toHaveProperty('content');
   });
 
   it('replaces an existing provider/query cache entry', async () => {

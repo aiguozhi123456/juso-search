@@ -2,11 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
-import { allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
+import { aggregateSourcesOf, allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
 import { compareByPinyin } from '@/lib/pinyin-sort';
 import type { SiteInstanceDefinition } from '@/lib/site-instances';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
+import type { AggregateConfigSnapshot } from '@/lib/aggregate/types';
+import { AggregateSearchManager } from '@/components/AggregateSearchManager';
 import type { GroupConfig } from '@/lib/source-groups';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import { SourceGroupEditor } from '@/components/SourceGroupEditor';
@@ -134,6 +136,9 @@ export default function App() {
   const [siteInstances, setSiteInstances] = useState<SiteInstanceDefinition[]>([]);
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
   const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
+  // 聚合搜索脱敏快照（KTD5）：instances + eligibility + rerank{configured,endpoint,model}，永不携带 apiKey。
+  // 老 worker / 字段缺失时保持 undefined → 聚合 section 按空快照降级渲染（无实例、警示条）。
+  const [aggregate, setAggregate] = useState<AggregateConfigSnapshot | undefined>(undefined);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const configRequestEpoch = useRef(0);
   const sourceOrderRevision = useRef(0);
@@ -199,6 +204,7 @@ export default function App() {
       const customs = config.customEngines ?? [];
       setCustomEngines(customs);
       setProviderInstances(config.providerInstances ?? []);
+      setAggregate(config.aggregate);
       // 与 sourceOrder/sourceHidden 同构：仅当请求期间没有本地 groupConfig 乐观变更时才采纳响应，
       // 避免在途的旧配置覆盖 SourceGroupEditor.persist 刚写入的乐观态。
       if (groupRevisionAtRequest === groupConfigRevision.current) {
@@ -222,10 +228,10 @@ export default function App() {
     })();
   }
 
-  const configuredSources = allSources(configuredProviderIds, sourceOrder, undefined, siteInstances, customEngines, providerInstances);
+  const configuredSources = allSources(configuredProviderIds, sourceOrder, undefined, siteInstances, customEngines, providerInstances, aggregateSourcesOf(aggregate));
   // 激活态下拉框只列可见来源（已隐藏项不出现在下拉框）。
   // 注意：快切栏管理列表仍用 configuredSources（不过滤），否则隐藏项无法再「显示」。
-  const visibleSources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances);
+  const visibleSources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregateSourcesOf(aggregate));
   // active 被隐藏时，下拉框渲染回退到首个可见源；active 本身在 toggleHidden
   // 隐藏当前激活项时已被持久化重选（见 toggleHidden），这里只兜底初次加载的不一致。
   const activeVisible = active == null
@@ -293,7 +299,7 @@ export default function App() {
     // 隐藏当前激活项：把激活态重选到首个仍可见来源并持久化，避免下拉框落到
     // 已隐藏的值上。仅隐藏分支需要；显示分支恢复原激活项由渲染兜底。
     const reselectTo = !isHidden && active === sourceId
-      ? allSources(configuredProviderIds, sourceOrder, next, siteInstances, customEngines, providerInstances).find((s) => s.id !== sourceId)?.id
+      ? allSources(configuredProviderIds, sourceOrder, next, siteInstances, customEngines, providerInstances, aggregateSourcesOf(aggregate)).find((s) => s.id !== sourceId)?.id
       : undefined;
 
     sourceHiddenRevision.current += 1;
@@ -403,6 +409,17 @@ export default function App() {
           <section data-section="site-instances">
             <h2>{t(MSG.opts_site_instances_heading)}</h2>
             <SiteInstanceManager siteInstances={siteInstances} onChange={syncConfig} />
+          </section>
+
+          <section data-section="aggregate-search">
+            <h2>{t(MSG.opts_aggregate_heading)}</h2>
+            <p className="hint">{t(MSG.opts_aggregate_hint)}</p>
+            <AggregateSearchManager
+              aggregate={aggregate}
+              configuredProviderIds={configuredProviderIds}
+              providerInstances={providerInstances}
+              onChange={syncConfig}
+            />
           </section>
 
           <section data-section="custom-engines">

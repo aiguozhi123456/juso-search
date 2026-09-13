@@ -14,14 +14,16 @@ import type { SearchSource, SourceId } from './sources';
 import { isProviderId, isEngineId } from './sources';
 import { isCustomEngineId } from './custom-engines';
 import { isProviderInstanceId } from './provider-instances';
+import { isAggregateInstanceId } from './aggregate-instances';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
 
-/** 内置分组 id：搜索引擎 / 站点 / AI 搜索 / API 搜索 / 自定义。 */
+/** 内置分组 id：搜索引擎 / 站点 / AI 搜索 / API 搜索 / 聚合搜索 / 自定义。 */
 export const AI_SEARCH_GROUP = 'ai-search';
 export const AI_ENGINES_GROUP = 'ai-engines';
 export const ENGINES_GROUP = 'engines';
 export const SITES_GROUP = 'sites';
 export const CUSTOM_GROUP = 'custom';
+export const AGGREGATE_GROUP = 'aggregate';
 
 /** 平铺触发阈值（可见源总数）：≤ 此值则无论分组结构都平铺到顶层。 */
 export const FEW_SOURCES_FLAT_THRESHOLD = 4;
@@ -55,12 +57,15 @@ export interface GroupConfig {
   groupOrders: Record<string, SourceId[]>;
 }
 
-/** 内置默认分组定义（i18n 标签，渲染处用 t() 解析）。 */
+/** 内置默认分组定义（i18n 标签，渲染处用 t() 解析）。
+ *  aggregate（KTD11）插在 ai-search 之后、custom 之前；老存量非空 layout 由 normalizeGroupConfig
+ *  的 L4 回填追加到末尾（不重排既有项），空 layout / 新装按本数组全序就位。 */
 export const DEFAULT_GROUPS: SourceGroup[] = [
   { id: ENGINES_GROUP, label: { kind: 'i18n', key: 'group_engines' } },
   { id: SITES_GROUP, label: { kind: 'i18n', key: 'group_sites' } },
   { id: AI_ENGINES_GROUP, label: { kind: 'i18n', key: 'group_ai_engines' } },
   { id: AI_SEARCH_GROUP, label: { kind: 'i18n', key: 'group_ai_search' } },
+  { id: AGGREGATE_GROUP, label: { kind: 'i18n', key: 'group_aggregate' } },
   { id: CUSTOM_GROUP, label: { kind: 'i18n', key: 'group_custom' } },
 ];
 
@@ -69,15 +74,18 @@ const BUILTIN_GROUP_IDS: ReadonlySet<string> = new Set([
   AI_ENGINES_GROUP,
   ENGINES_GROUP,
   SITES_GROUP,
+  AGGREGATE_GROUP,
   CUSTOM_GROUP,
 ]);
 
-/** 按 source 的 kind 推导缺省分组 id（不查 assignments，仅按类型）。 */
+/** 按 source 的 kind 推导缺省分组 id（不查 assignments，仅按类型）。
+ *  聚合实例（KTD11）必须显式分支——否则静默落 sites 兜底（类型→组唯一分发点）。 */
 export function defaultGroupForSourceId(sourceId: SourceId): SourceGroupId {
   if (isProviderId(sourceId) || isProviderInstanceId(sourceId)) return AI_SEARCH_GROUP;
   if (isRegisteredAiEngineId(sourceId)) return AI_ENGINES_GROUP;
   if (isEngineId(sourceId)) return ENGINES_GROUP;
   if (isCustomEngineId(sourceId)) return CUSTOM_GROUP;
+  if (isAggregateInstanceId(sourceId)) return AGGREGATE_GROUP;
   return SITES_GROUP; // site:*
 }
 

@@ -86,4 +86,34 @@ describe('SearchCachePanel', () => {
 
     expect(await screen.findByText('暂无搜索历史')).toBeInTheDocument();
   });
+
+  // ── 聚合条目 label（R11/Oracle F4）：'aggregate' 哨兵 → i18n「聚合 · 实例名」 ──
+
+  function installAggregateSummary() {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'agg-cache-1', cacheKey: 'agg:abc:q', query: 'q', normalizedQuery: 'q', providerId: 'aggregate', instanceId: 'agg:abc', createdAt: 1, lastAccessedAt: 1, answerPreview: 'agg answer', resultPreviews: [{ title: 'Result A', url: 'https://a.test' }], resultCount: 1 },
+        ]);
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+  }
+
+  it('labels an aggregate summary with the i18n aggregate prefix plus the instance name', async () => {
+    installAggregateSummary();
+    render(<SearchCachePanel open onClose={vi.fn()} onSelect={vi.fn()} aggNameById={{ 'agg:abc': '全家桶' }} />);
+
+    // label 与相对时间同 span（拆分多文本节点）→ 按 class + includes 匹配。
+    expect(await screen.findByText((_, element) => element?.classList.contains('history-meta') === true
+      && (element.textContent ?? '').includes('聚合 · 全家桶'))).toBeInTheDocument();
+  });
+
+  it('falls back to the bare aggregate label when the instance name mapping is missing', async () => {
+    installAggregateSummary();
+    render(<SearchCachePanel open onClose={vi.fn()} onSelect={vi.fn()} />);
+
+    expect(await screen.findByText((_, element) => element?.classList.contains('history-meta') === true
+      && (element.textContent ?? '').includes('聚合'))).toBeInTheDocument();
+  });
 });

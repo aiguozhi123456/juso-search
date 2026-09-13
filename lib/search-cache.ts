@@ -1,8 +1,20 @@
 import type { NormalizedSearchResponse, ProviderId } from './providers/types';
+import type { AggregateSearchResponse } from './aggregate/types';
 
 export const SEARCH_CACHE_INDEX_KEY = 'searchCacheIndex';
 export const SEARCH_CACHE_ENTRY_PREFIX = 'searchCacheEntry:';
-export const SEARCH_CACHE_CAP = 50;
+// KTD9：聚合条目与 provider 条目共池后扩容（运行时常量，无迁移）。
+export const SEARCH_CACHE_CAP = 100;
+
+/**
+ * 聚合缓存条目的 providerId 哨兵（KTD7，折叠终态）。
+ *
+ * SearchCacheEntry/SearchCacheSummary 的 `providerId` 类型为 `ProviderId | 'aggregate'`、
+ * `response` 类型为 `NormalizedSearchResponse | AggregateSearchResponse`。判别一律收口到
+ * `providerId === AGGREGATE_CACHE_PROVIDER_ID`（isAggregateCacheEntry / isAggregateCacheSummary），
+ * 不做 response.kind 运行时散比、不做字符串散比。
+ */
+export const AGGREGATE_CACHE_PROVIDER_ID = 'aggregate' as const;
 
 // === 缓存池 schema 版本（与 config 域的 schemaVersion 独立演进）===
 // 双版本体系：config 域用 schemaVersion（见 schema.ts 的 ensureSchema + migrations），
@@ -59,8 +71,9 @@ export interface SearchCacheSummary {
   cacheKey: string;
   query: string;
   normalizedQuery: string;
-  providerId: ProviderId;
-  /** 当缓存条目来自某个 provider 实例时存在（IU6）；裸 provider 搜索则缺省。 */
+  /** solo 条目为 provider id；聚合条目为 'aggregate' 哨兵（判别：=== AGGREGATE_CACHE_PROVIDER_ID）。 */
+  providerId: ProviderId | typeof AGGREGATE_CACHE_PROVIDER_ID;
+  /** 条目归属实例 id：IU6 的 provider 实例 id，或聚合条目的 AggregateInstanceId（KTD7）。 */
   instanceId?: string;
   createdAt: number;
   lastAccessedAt: number;
@@ -76,18 +89,33 @@ export interface SearchCacheIndex {
   summaries: Record<string, SearchCacheSummary>;
 }
 
-export interface SearchCacheEntry {
+/** 缓存条目公共字段（solo / 聚合同构）。 */
+export interface SearchCacheEntryCommon {
   id: string;
   cacheKey: string;
   query: string;
   normalizedQuery: string;
-  providerId: ProviderId;
-  /** 当缓存条目来自某个 provider 实例时存在（IU6）；裸 provider 搜索则缺省。 */
+  /** 条目归属实例 id：IU6 的 provider 实例 id，或聚合条目的 AggregateInstanceId（KTD7）。 */
   instanceId?: string;
   createdAt: number;
   lastAccessedAt: number;
+}
+
+/** solo（单源/实例）条目：providerId = provider id，response = 归一化响应。 */
+export interface SoloSearchCacheEntry extends SearchCacheEntryCommon {
+  providerId: ProviderId;
   response: NormalizedSearchResponse;
 }
+
+/** 聚合条目（KTD7）：providerId = 'aggregate' 哨兵，response = 聚合响应。
+ *  判别一律经 providerId 哨兵（isAggregateCacheEntry / isAggregateCacheSummary），
+ *  该联合按 providerId 字面量判别，收窄免费。 */
+export interface AggregateSearchCacheEntry extends SearchCacheEntryCommon {
+  providerId: typeof AGGREGATE_CACHE_PROVIDER_ID;
+  response: AggregateSearchResponse;
+}
+
+export type SearchCacheEntry = SoloSearchCacheEntry | AggregateSearchCacheEntry;
 
 export function emptySearchCacheIndex(): SearchCacheIndex {
   return { version: 1, order: [], byKey: {}, summaries: {} };
@@ -131,7 +159,95 @@ export function buildSearchCacheEntry(response: NormalizedSearchResponse, instan
   };
 }
 
+/** 聚合条目判别（KTD7 折叠终态）：providerId 哨兵收口；同时把 response 收窄为聚合形状。 */
+export function isAggregateCacheEntry(entry: SearchCacheEntry): entry is AggregateSearchCacheEntry {
+  return entry.providerId === AGGREGATE_CACHE_PROVIDER_ID;
+}
+
+/** 聚合 summary 判别（KTD7）：providerId 哨兵值。 */
+export function isAggregateCacheSummary(summary: SearchCacheSummary): boolean {
+  return summary.providerId === AGGREGATE_CACHE_PROVIDER_ID;
+}
+
+/**
+ * 聚合缓存条目构造（KTD7）：cacheKey = makeSearchCacheKey(aggInstanceId, normalizedQuery)
+ * （镜像 IU6 实例键先例；读侧 getCachedSearch(aggInstanceId, …) 与写侧同键同源）。
+ */
+export function buildAggregateCacheEntry(response: AggregateSearchResponse, now = Date.now()): SearchCacheEntry {
+  const id = createCacheId();
+  const normalizedQuery = normalizeSearchQuery(response.query);
+  const cacheKey = makeSearchCacheKey(response.instanceId, normalizedQuery);
+  return {
+    id,
+    cacheKey,
+    query: response.query,
+    normalizedQuery,
+    providerId: AGGREGATE_CACHE_PROVIDER_ID,
+    instanceId: response.instanceId,
+    createdAt: now,
+    lastAccessedAt: now,
+    response: slimAggregateResponse(response),
+  };
+}
+
+/**
+ * 聚合响应 slim（KTD7 界）：answers 每条 text≤2000、citations≤10；results ≤20、snippet≤1000、
+ * 保留 sources provenance 与 score；members/rerank 全保。白名单拷贝——content（若有）不入缓存，
+ * 排序不随缓存状态漂移（KTD2 文档构造约定）。
+ */
+export function slimAggregateResponse(response: AggregateSearchResponse): AggregateSearchResponse {
+  return {
+    instanceId: response.instanceId,
+    query: response.query,
+    kind: 'aggregate',
+    answers: response.answers.map((entry) => ({
+      sourceId: entry.sourceId,
+      answer: {
+        text: truncate(entry.answer.text, MAX_CACHED_ANSWER_CHARS),
+        citations: entry.answer.citations.slice(0, MAX_CACHED_CITATIONS).map((citation) => ({
+          url: citation.url,
+          title: citation.title,
+        })),
+      },
+    })),
+    results: response.results.slice(0, MAX_CACHED_RESULTS).map((result) => ({
+      title: result.title,
+      url: result.url,
+      snippet: truncate(result.snippet, MAX_CACHED_SNIPPET_CHARS),
+      score: result.score,
+      publishedDate: result.publishedDate,
+      favicon: result.favicon,
+      sources: [...result.sources],
+    })),
+    members: response.members.map((member) => ({ ...member })),
+    dedupedCount: response.dedupedCount,
+    rerank: { ...response.rerank },
+  };
+}
+
 export function buildSearchCacheSummary(entry: SearchCacheEntry): SearchCacheSummary {
+  // KTD7 聚合分支（Oracle F8）：answerPreview 取 answers[0] 文本截断（无 answers 则省略）；
+  // providerId 沿 entry（聚合条目为 'aggregate' 哨兵）+ instanceId = agg 实例 id。
+  if (isAggregateCacheEntry(entry)) {
+    const aggregate = entry.response;
+    const firstAnswer = aggregate.answers[0]?.answer.text;
+    return {
+      id: entry.id,
+      cacheKey: entry.cacheKey,
+      query: entry.query,
+      normalizedQuery: entry.normalizedQuery,
+      providerId: entry.providerId,
+      ...(entry.instanceId ? { instanceId: entry.instanceId } : {}),
+      createdAt: entry.createdAt,
+      lastAccessedAt: entry.lastAccessedAt,
+      answerPreview: firstAnswer ? truncate(firstAnswer.replace(/\s+/g, ' '), MAX_ANSWER_PREVIEW_CHARS) : undefined,
+      resultPreviews: aggregate.results.slice(0, MAX_SUMMARY_RESULTS).map((result) => ({
+        title: result.title,
+        url: result.url,
+      })),
+      resultCount: aggregate.results.length,
+    };
+  }
   const answerPreview = entry.response.answer?.text ? truncate(entry.response.answer.text.replace(/\s+/g, ' '), MAX_ANSWER_PREVIEW_CHARS) : undefined;
   return {
     id: entry.id,

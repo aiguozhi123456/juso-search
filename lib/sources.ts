@@ -14,11 +14,24 @@ import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import { isCustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
 import { isProviderInstanceId } from './provider-instances';
+import type { AggregateInstanceId } from './aggregate-instances';
+import { isAggregateInstanceId } from './aggregate-instances';
+import type { AggregateConfigSnapshot } from './aggregate/types';
 import type { AiEngineId } from './ai-engines/types';
 import { allAiEngines, allAiEngineIds, isRegisteredAiEngineId } from './ai-engines/registry';
 
-export type SourceKind = 'provider' | 'engine' | 'site-instance' | 'custom-engine' | 'provider-instance' | 'ai-engine';
-export type SourceId = ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId;
+export type SourceKind = 'provider' | 'engine' | 'site-instance' | 'custom-engine' | 'provider-instance' | 'ai-engine' | 'aggregate-instance';
+export type SourceId = ProviderId | EngineId | SiteInstanceId | CustomEngineId | ProviderInstanceId | AiEngineId | AggregateInstanceId;
+
+/**
+ * 聚合实例的投影输入（KTD4 第 7 参元素）：eligibility 由快照边界单点计算
+ * （lib/aggregate/eligibility.ts），本层是纯投影——只信 eligible 标志，不重算。
+ */
+export interface AggregateSourceDefinition {
+  id: AggregateInstanceId;
+  name: string;
+  eligible: boolean;
+}
 
 /** A label which is either an i18n message key or a user-supplied literal. */
 export type SourceLabel =
@@ -53,13 +66,17 @@ const DEFAULT_SOURCE_ORDER: SourceId[] = [
 
 /**
  * 当前已知的全部 source id（provider + engine + 给定 site-instance 定义 + 给定 custom-engine 定义
- * + 给定 provider-instance 定义），供 normalizeGroupConfig 等校验逻辑使用。单一定义点，避免各调用方
- * 各自硬编码 engine 列表导致漂移。
+ * + 给定 provider-instance 定义 + 给定 aggregate-instance 定义），供 normalizeGroupConfig 等校验
+ * 逻辑使用。单一定义点，避免各调用方各自硬编码 engine 列表导致漂移。
+ *
+ * 聚合定义集（KTD4 Oracle F2 分层铁律）= 全部已定义实例，与 eligibility 无关——
+ * eligibility 只作用于投影（allSources）与可用性解析，normalize/持久层永远收全量。
  */
 export function allKnownSourceIds(
   siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
+  aggregateInstances: readonly { id: AggregateInstanceId }[] = [],
 ): SourceId[] {
   return [
     ...allProviders().map((provider) => provider.id),
@@ -68,6 +85,7 @@ export function allKnownSourceIds(
     ...siteDefinitions.map((definition) => definition.id),
     ...customDefinitions.map((definition) => definition.id),
     ...providerInstances.map((instance) => instance.id),
+    ...aggregateInstances.map((instance) => instance.id),
   ];
 }
 
@@ -89,21 +107,25 @@ export function isProviderId(id: string): id is ProviderId {
 
 /**
  * 规范化用户保存的完整来源顺序：保留已知 id 的首次出现，遗漏项按默认 registry 顺序补尾。
+ * 聚合实例定义集（KTD4/F2）= 全部已定义实例，与 eligibility 无关：eligibility 抖动
+ * （如 rerank 短暂未配置）期间重写 order 绝不剥落 agg id。
  */
 export function normalizeSourceOrder(
   order: unknown,
   siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
+  aggregateInstances: readonly { id: AggregateInstanceId }[] = [],
 ): SourceId[] {
   const siteIds = new Set(siteDefinitions.map((site) => site.id));
   const customIds = new Set(customDefinitions.map((c) => c.id));
   const instanceIds = new Set(providerInstances.map((instance) => instance.id));
+  const aggregateIds = new Set(aggregateInstances.map((instance) => instance.id));
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id)) && !(isAggregateInstanceId(id) && aggregateIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
@@ -119,23 +141,45 @@ export function normalizeSourceOrder(
   for (const id of providerInstances.map((instance) => instance.id)) {
     if (!seen.has(id)) normalized.push(id);
   }
+  for (const id of aggregateInstances.map((instance) => instance.id)) {
+    if (!seen.has(id)) normalized.push(id);
+  }
   return normalized;
 }
 
-/** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。 */
-export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = []): SourceId[] {
+/** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。聚合定义集语义同 normalizeSourceOrder（KTD4/F2）。 */
+export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], aggregateInstances: readonly { id: AggregateInstanceId }[] = []): SourceId[] {
   const siteIds = new Set(siteDefinitions.map((site) => site.id));
   const customIds = new Set(customDefinitions.map((c) => c.id));
   const instanceIds = new Set(providerInstances.map((instance) => instance.id));
+  const aggregateIds = new Set(aggregateInstances.map((instance) => instance.id));
   const list = Array.isArray(ids) ? ids : [];
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id)) && !(isAggregateInstanceId(id) && aggregateIds.has(id))) || seen.has(id as SourceId)) continue;
     seen.add(id as SourceId);
     normalized.push(id as SourceId);
   }
   return normalized;
+}
+
+/** A dynamic Aggregate Instance ID is known only when there is a saved definition for it. */
+export function isKnownAggregateInstanceId(id: string, aggregateInstances: readonly { id: AggregateInstanceId }[]): id is AggregateInstanceId {
+  return isAggregateInstanceId(id) && new Set(aggregateInstances.map((instance) => instance.id)).has(id);
+}
+
+/**
+ * 把快照的脱敏 aggregate 字段（KTD5）转成 allSources / 可用性解析所需的投影输入。
+ * 缺省（老 worker / 字段缺失）→ 空数组 = 无聚合 pill（调用点免判空）。
+ */
+export function aggregateSourcesOf(aggregate?: AggregateConfigSnapshot | null): AggregateSourceDefinition[] {
+  if (!aggregate) return [];
+  return aggregate.instances.map((instance) => ({
+    id: instance.id,
+    name: instance.name,
+    eligible: aggregate.eligibility[instance.id]?.eligible ?? false,
+  }));
 }
 
 /** A dynamic Site Engine ID is known only when there is a saved definition for it. */
@@ -157,6 +201,11 @@ export function isKnownCustomEngineId(id: string, customDefinitions: readonly Cu
  * 实例投影（镜像 site-instance/custom-engine 分支）：有实例的 provider 不再投影裸 provider pill，
  * 而是每个实例投影一个 pill（共享 base adapter 的 favicon/supportsAnswer，label 用实例名字面量）；
  * 同 base provider 的实例在投影中相邻（组内按 sourceOrder 相对位置排列）。
+ *
+ * 聚合实例投影（KTD4 第 7 参）：每个 **eligible** 实例一枚 pill（label = 实例名 literal，
+ * 图标 = aggregate.svg）；ineligible 实例不投影（隐式可见轴，eligibility 由快照单点计算，
+ * 本层只信标志）。缺省（不传）= 无聚合 pill。`DEFAULT_SOURCE_ORDER` 不含聚合条目（无静态源），
+ * agg id 靠 normalize 定义集补尾（site → custom → providerInstances → aggregate 追加链）。
  */
 export function allSources(
   configuredProviderIds: ProviderId[],
@@ -165,6 +214,7 @@ export function allSources(
   siteDefinitions: readonly SiteInstanceDefinition[] = [],
   customDefinitions: readonly CustomEngineDefinition[] = [],
   providerInstances: readonly ProviderInstance[] = [],
+  aggregateSources: readonly AggregateSourceDefinition[] = [],
 ): SearchSource[] {
   const hidden = hiddenSourceIds && hiddenSourceIds.length > 0 ? new Set(hiddenSourceIds) : null;
   const providersById = new Map(allProviders().map((provider) => [provider.id, provider]));
@@ -172,6 +222,7 @@ export function allSources(
   const aiEnginesById = new Map(allAiEngines().map((engine) => [engine.id, engine]));
   const sitesById = new Map(siteDefinitions.map((site) => [site.id, site]));
   const customsById = new Map(customDefinitions.map((c) => [c.id, c]));
+  const aggregatesById = new Map(aggregateSources.map((aggregate) => [aggregate.id, aggregate]));
   // 实例按 base provider 分组；组内顺序 = 实例数组顺序（即创建/sourceOrder 补尾顺序）。
   const instancesByProvider = new Map<ProviderId, ProviderInstance[]>();
   for (const instance of providerInstances) {
@@ -180,7 +231,7 @@ export function allSources(
     else instancesByProvider.set(instance.baseProviderId, [instance]);
   }
   const instancesById = new Map(providerInstances.map((instance) => [instance.id, instance]));
-  const order = normalizeSourceOrder(sourceOrder, siteDefinitions, customDefinitions, providerInstances);
+  const order = normalizeSourceOrder(sourceOrder, siteDefinitions, customDefinitions, providerInstances, aggregateSources);
   // 排序启发式：同 base provider 的实例按其在 sourceOrder 中的相对位置排列，
   // 未出现在 sourceOrder 里的实例按存储顺序补尾——保证 flyout 内同 provider 实例相邻。
   const orderIndexOf = new Map(order.map((id, index) => [id, index]));
@@ -261,6 +312,19 @@ export function allSources(
         return projectInstanceGroup(instance.baseProviderId, adapter.supportsAnswer, adapter.favicon);
       }
     }
+    // 聚合实例（KTD4）：每个 eligible 实例一枚 pill；ineligible 不投影（双保险——
+    // 投影输入本就应只含调用方算好的 eligibility 标志）。
+    const aggregate = aggregatesById.get(id as AggregateInstanceId);
+    if (aggregate && aggregate.eligible) {
+      return [{
+        id: aggregate.id,
+        kind: 'aggregate-instance',
+        label: aggregate.name,
+        labelDescriptor: { kind: 'literal', value: aggregate.name },
+        supportsAnswer: false,
+        favicon: '/icons/aggregate.svg',
+      }];
+    }
     return [];
   });
 }
@@ -268,10 +332,15 @@ export function allSources(
 /**
  * 解析「有效激活 source」的纯函数：storage 的 getActiveSourceId / getProviderConfigSnapshot 与
  * config-io 的导出/导入预览共用（单一定义点，避免两处拷贝漂移）。
- * 优先级：storedSource（engine → site → custom → 实例 → 裸 provider）→ 首个已配置 provider。
+ * 优先级：storedSource（engine → site → custom → 实例 → 聚合 → 裸 provider）→ 首个已配置 provider。
  * 有实例的 provider 返回首个实例 id——与 allSources 的实例投影一致（有实例时不再投影裸 provider pill，
  * 激活源若是裸 provider id，快切栏将找不到高亮目标，回退到错误的首个可见源）。无已配置 provider 时
  * 返回 undefined，由调用方回退到默认 engine（google）。
+ *
+ * 聚合实例（KTD5）：经定义集 + eligibility 受理（`aggregateSources` 中存在且 eligible）；
+ * 聚合无 base provider，**不做 activeProvider 双写**（与 provider 实例的显式分歧）。
+ * 派生回退语义：storedSource 是 ineligible/未定义 agg id 时按未命中处理，落到后续回退链——
+ * 本函数是纯派生视图，绝不持久化写（hidden-source-still-active 教训）。
  */
 export function resolveEffectiveActiveSource(
   storedSource: SourceId | null | undefined,
@@ -279,6 +348,7 @@ export function resolveEffectiveActiveSource(
   siteDefinitions: readonly SiteInstanceDefinition[],
   customDefinitions: readonly CustomEngineDefinition[],
   instances: readonly ProviderInstance[],
+  aggregateSources: readonly AggregateSourceDefinition[] = [],
 ): SourceId | undefined {
   if (storedSource) {
     if (isEngineId(storedSource)) return storedSource;
@@ -286,6 +356,7 @@ export function resolveEffectiveActiveSource(
     if (isKnownSiteInstanceId(storedSource, siteDefinitions)) return storedSource;
     if (isKnownCustomEngineId(storedSource, customDefinitions)) return storedSource;
     if (isProviderInstanceId(storedSource) && instances.some((instance) => instance.id === storedSource && keys[instance.baseProviderId])) return storedSource;
+    if (isAggregateInstanceId(storedSource) && aggregateSources.some((aggregate) => aggregate.id === storedSource && aggregate.eligible)) return storedSource;
     if (isProviderId(storedSource) && keys[storedSource]) {
       const firstInstance = instances.find((instance) => instance.baseProviderId === storedSource);
       return firstInstance ? firstInstance.id : storedSource;
@@ -302,7 +373,8 @@ export function resolveEffectiveActiveSource(
 /**
  * 找出 order 中第一个「可见且可用」的 source：常规 engine / 已注册 AI engine 恒可用，
  * 动态 site-instance / custom-engine 仅在存在对应定义时可用，provider / provider-instance
- * 仅在已配置 key（对应 base provider）时可用。storage 的 delete* 回退与 config-io 的
+ * 仅在已配置 key（对应 base provider）时可用，聚合实例仅在定义存在且 eligible 时可用
+ * （KTD5：eligibility 由调用方预计算，本层只信标志）。storage 的 delete* 回退与 config-io 的
  * 导入预览共用（单一定义点，避免两处拷贝漂移）。
  */
 export function visibleUsableSource(
@@ -312,6 +384,7 @@ export function visibleUsableSource(
   siteDefinitions: readonly SiteInstanceDefinition[],
   customDefinitions: readonly CustomEngineDefinition[],
   instances: readonly ProviderInstance[],
+  aggregateSources: readonly AggregateSourceDefinition[] = [],
 ): SourceId | undefined {
   const hiddenSet = new Set(hidden);
   return order.find((id) => !hiddenSet.has(id) && (
@@ -320,6 +393,7 @@ export function visibleUsableSource(
     isKnownSiteInstanceId(id, siteDefinitions) ||
     isKnownCustomEngineId(id, customDefinitions) ||
     (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId])) ||
+    (isAggregateInstanceId(id) && aggregateSources.some((aggregate) => aggregate.id === id && aggregate.eligible)) ||
     (isProviderId(id) && !!keys[id])
   ));
 }

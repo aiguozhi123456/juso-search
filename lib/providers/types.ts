@@ -16,6 +16,12 @@ export interface NormalizedResult {
   score?: number;
   publishedDate?: string;
   favicon?: string;
+  /**
+   * snippet 语义标记（缺省 = 语义正文摘要；仅 engine 成员路径会携带）——'metadata' 表示
+   * snippet 是纯展示元数据（作者/点赞/播放等），聚合重排据此剔除出重排文档
+   * （buildRerankDocument；engine 成员结果经 gateway 直通赋值进聚合响应，字段随合并透传）。
+   */
+  snippetKind?: 'metadata';
 }
 
 export interface NormalizedAnswer {

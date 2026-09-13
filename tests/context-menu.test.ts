@@ -6,6 +6,7 @@
 // 点击跳转（navigate / openSearchPage / 空选词 / 非叶子前缀）、M2 布局偏好路由、
 // M3 aiAutoEnter 偏好，以及 S1 快照回退路径（sourceById 未填充时点击仍有效）。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { ProviderId } from '@/lib/providers/types';
 import { defaultGroupConfig } from '@/lib/source-groups';
 import { allKnownSourceIds } from '@/lib/sources';
 import { t } from '@/lib/i18n';
@@ -44,6 +45,7 @@ const baseSnapshot: Snapshot = {
   providerInstances: [],
   providerMaxResults: {},
   groupConfig: defaultGroupConfig(allKnownSourceIds()),
+  aggregate: { instances: [], eligibility: {}, rerank: { configured: false, hasApiKey: false } },
   aiAutoEnter: true,
   flatLayoutFewSources: true,
 };
@@ -93,6 +95,9 @@ describe('contextMenuNeedsRebuild', () => {
     expect(contextMenuNeedsRebuild({ siteInstances: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ customEngines: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ providerInstances: {} })).toBe(true);
+    // 聚合（KTD16）：实例集合变更菜单结构；rerankConfig 变更 eligibility（隐式可见轴）。
+    expect(contextMenuNeedsRebuild({ aggregateInstances: {} })).toBe(true);
+    expect(contextMenuNeedsRebuild({ rerankConfig: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ groupConfig: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ providerKeys: {} })).toBe(true);
     expect(contextMenuNeedsRebuild({ localePref: {} })).toBe(true);
@@ -228,5 +233,170 @@ describe('S1 回退路径：内存 map 未命中时从快照自解析', () => {
 
     await cm.handleContextMenuClick({ menuItemId: 'juso-src:google', selectionText: 'fallback' });
     expect(tabsCreate).toHaveBeenCalledWith({ url: 'https://www.google.com/search?q=fallback' });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// 聚合 chip 场景（Lane G 回归锁 / KTD16）：聚合实例增删、改成员（eligibility 变化）、
+// rerank 配置变化 → 菜单重建后 chip 集同步。REBUILD_KEYS 登记已在上文锁定；
+// 这里锁「重建后的菜单内容与快照投影一致」——菜单与快切栏无漂移（plan Verification 3）。
+// ────────────────────────────────────────────────────────────────────────────
+describe('聚合 chip 场景：实例增删/改成员/rerank 变化 → 菜单重建 + chip 集同步', () => {
+  const AGG = 'agg:menu1';
+  const RERANK = { configured: true, hasApiKey: false, endpoint: 'http://127.0.0.1:8000/v1/rerank' };
+
+  /** 基础快照 + 一个聚合实例（members 只含 tavily → tavily 已配置时 eligible）。 */
+  function aggSnapshot(overrides: { aggregate?: Snapshot['aggregate']; configuredProviderIds?: ProviderId[] } = {}): Snapshot {
+    return {
+      ...baseSnapshot,
+      ...(overrides.configuredProviderIds ? { configuredProviderIds: overrides.configuredProviderIds } : {}),
+      aggregate: overrides.aggregate ?? {
+        instances: [{ id: AGG, name: '全家桶', members: ['tavily'], topN: 20 }],
+        eligibility: { [AGG]: { eligible: true, validMembers: 1 } },
+        rerank: RERANK,
+      },
+    };
+  }
+
+  function menuSourceIds(): string[] {
+    return menuCreate.mock.calls
+      .map(([props]) => props.id as string)
+      .filter((id) => id.startsWith('juso-src:'))
+      .map((id) => id.slice('juso-src:'.length));
+  }
+
+  /** 模拟一次 storage 变更触发的菜单重建：换快照 → 重跑 setupContextMenu。 */
+  async function rebuildWith(snapshot: Snapshot): Promise<void> {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(snapshot);
+    menuCreate.mockClear();
+    menuRemoveAll.mockClear();
+    await setupContextMenu();
+  }
+
+  it('eligible 聚合实例投影为 juso-src:agg: 叶子项', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot());
+    await setupContextMenu();
+    expect(menuSourceIds()).toContain(AGG);
+  });
+
+  it('新增实例 → 重建后 chip 集包含新实例（增）', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot());
+    await setupContextMenu();
+    expect(menuSourceIds()).not.toContain('agg:menu2');
+
+    await rebuildWith(aggSnapshot({
+      aggregate: {
+        instances: [
+          { id: AGG, name: '全家桶', members: ['tavily'], topN: 20 },
+          { id: 'agg:menu2', name: '技术区', members: ['tavily', 'exa'], topN: 10 },
+        ],
+        eligibility: {
+          [AGG]: { eligible: true, validMembers: 1 },
+          'agg:menu2': { eligible: true, validMembers: 2 },
+        },
+        rerank: RERANK,
+      },
+    }));
+    expect(menuSourceIds()).toContain(AGG);
+    expect(menuSourceIds()).toContain('agg:menu2');
+  });
+
+  it('删除实例 → 重建后该 chip 消失、其余 chip 不受影响（删）', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot({
+      aggregate: {
+        instances: [
+          { id: AGG, name: '全家桶', members: ['tavily'], topN: 20 },
+          { id: 'agg:menu2', name: '技术区', members: ['tavily'], topN: 10 },
+        ],
+        eligibility: {
+          [AGG]: { eligible: true, validMembers: 1 },
+          'agg:menu2': { eligible: true, validMembers: 1 },
+        },
+        rerank: RERANK,
+      },
+    }));
+    await setupContextMenu();
+    expect(menuSourceIds()).toEqual(expect.arrayContaining([AGG, 'agg:menu2', 'google']));
+
+    // 删除 agg:menu2（定义集去掉）→ 重建后仅该 chip 消失
+    await rebuildWith(aggSnapshot({
+      aggregate: {
+        instances: [{ id: AGG, name: '全家桶', members: ['tavily'], topN: 20 }],
+        eligibility: { [AGG]: { eligible: true, validMembers: 1 } },
+        rerank: RERANK,
+      },
+    }));
+    const ids = menuSourceIds();
+    expect(ids).not.toContain('agg:menu2');
+    expect(ids).toContain(AGG);
+    expect(ids).toContain('google');
+  });
+
+  it('改成员致 0 有效成员（eligibility 翻 false）→ 重建后 chip 消失；成员恢复 → chip 复活', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot());
+    await setupContextMenu();
+    expect(menuSourceIds()).toContain(AGG);
+
+    // 成员失效（如 tavily key 清除 → eligibility 单点重算为 false）→ chip 消失
+    await rebuildWith(aggSnapshot({
+      aggregate: {
+        instances: [{ id: AGG, name: '全家桶', members: ['tavily'], topN: 20 }],
+        eligibility: { [AGG]: { eligible: false, validMembers: 0 } },
+        rerank: RERANK,
+      },
+    }));
+    expect(menuSourceIds()).not.toContain(AGG);
+    expect(menuSourceIds()).toContain('google'); // 其余 chip 不受影响
+
+    // 成员恢复（eligibility 复活）→ chip 复活
+    await rebuildWith(aggSnapshot());
+    expect(menuSourceIds()).toContain(AGG);
+  });
+
+  it('rerank 配置清除（隐式可见轴失效）→ 全部聚合 chip 消失；重新配置 → 复活', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot({
+      aggregate: {
+        instances: [
+          { id: AGG, name: '全家桶', members: ['tavily'], topN: 20 },
+          { id: 'agg:menu2', name: '技术区', members: ['tavily'], topN: 10 },
+        ],
+        eligibility: {
+          [AGG]: { eligible: true, validMembers: 1 },
+          'agg:menu2': { eligible: true, validMembers: 1 },
+        },
+        rerank: RERANK,
+      },
+    }));
+    await setupContextMenu();
+    expect(menuSourceIds()).toEqual(expect.arrayContaining([AGG, 'agg:menu2']));
+
+    await rebuildWith(aggSnapshot({
+      aggregate: {
+        instances: [
+          { id: AGG, name: '全家桶', members: ['tavily'], topN: 20 },
+          { id: 'agg:menu2', name: '技术区', members: ['tavily'], topN: 10 },
+        ],
+        eligibility: {
+          [AGG]: { eligible: false, validMembers: 1 },
+          'agg:menu2': { eligible: false, validMembers: 1 },
+        },
+        rerank: { configured: false, hasApiKey: false },
+      },
+    }));
+    const ids = menuSourceIds();
+    expect(ids).not.toContain(AGG);
+    expect(ids).not.toContain('agg:menu2');
+
+    await rebuildWith(aggSnapshot());
+    expect(menuSourceIds()).toContain(AGG);
+  });
+
+  it('点击聚合 chip → openSearchPage 深链 provider=agg:（与 provider 实例同语义）', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(aggSnapshot());
+    await setupContextMenu();
+    vi.clearAllMocks();
+
+    await handleContextMenuClick({ menuItemId: `juso-src:${AGG}`, selectionText: 'hello' });
+    expect(tabsCreate).toHaveBeenCalledWith({ url: `${EXT_ORIGIN}/search.html?provider=${encodeURIComponent(AGG)}&query=hello` });
   });
 });

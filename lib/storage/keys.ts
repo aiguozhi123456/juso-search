@@ -18,6 +18,11 @@ export const SOURCE_HIDDEN_KEY = 'sourceHidden'; // SourceId[]
 export const SITE_INSTANCES_KEY = 'siteInstances'; // SiteInstanceDefinition[]
 export const CUSTOM_ENGINES_KEY = 'customEngines'; // CustomEngineDefinition[]
 export const PROVIDER_INSTANCES_KEY = 'providerInstances'; // ProviderInstance[]
+// 聚合搜索（aggregate-search-rerank plan KTD10）：两个键都经 Default-by-Getter 兜底（无 schema bump）。
+export const AGGREGATE_INSTANCES_KEY = 'aggregateInstances'; // AggregateInstance[]（lib/aggregate-instances.ts；空 = 功能整体隐藏）
+// rerankConfig 的 apiKey 明文随导出文件（与 providerKeys 同设计），仅 worker 读；
+// 页面侧需要配置状态时走 worker message 脱敏快照，绝不直读本键。
+export const RERANK_CONFIG_KEY = 'rerankConfig'; // RerankConfig（lib/aggregate/types.ts：{ endpoint; model?; apiKey? }）
 export const GROUP_CONFIG_KEY = 'groupConfig'; // GroupConfig（分组定义 + 顶层混合 layout + 赋值）
 export const MAX_RESULTS_KEY = 'providerMaxResults'; // Record<ProviderId, number>
 // Agent Bridge 门控（默认 false）：上架合规——engine-search 抓 Google/Bing/Baidu 属 scraping 风险，

@@ -7,6 +7,8 @@ import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 import type { SiteInstanceDefinition, SiteInstanceEngineId, SiteInstanceId, SiteInstanceOptions } from './site-instances';
 import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
+import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId, AggregateSearchResponse } from './aggregate/types';
+import type { AggregateInstance } from './aggregate-instances';
 
 export type SearchRequest = {
   query: string;
@@ -35,6 +37,35 @@ export type TestKeyReply =
   | { ok: true }
   | { ok: false; error: { kind: 'keyMissing' | 'providerError'; message: string } };
 
+// === 聚合搜索消息族（aggregate-search-rerank plan KTD1；不动既有 `search` 契约，bridge v1 零影响）===
+
+export type AggregateSearchRequest = {
+  instanceId: AggregateInstanceId;
+  query: string;
+  forceRefresh?: boolean;
+};
+
+/** 与 SearchReply 同构：ok 带 AggregateSearchResponse；error 判别联合同款（错误不跨 message 抛）。 */
+export type AggregateSearchReply =
+  | {
+      ok: true;
+      response: AggregateSearchResponse;
+      cache: { hit: boolean; entryId?: string; createdAt?: number };
+    }
+  | {
+      ok: false;
+      error: {
+        kind: 'keyMissing' | 'providerError' | 'unknown';
+        message: string;
+        providerErrorKind?: string;
+      };
+    };
+
+/** setRerankConfig 回复：成功带规范化 endpoint 与 localhost/[::1] 自动改写标志（KTD12，UI 提示用）。 */
+export type SetRerankConfigReply =
+  | { ok: true; endpoint: string; rewritten: boolean }
+  | { ok: false; error: { kind: 'invalid'; message: string } };
+
 export type ProviderConfigReply = {
   configuredProviderIds: ProviderId[];
   activeProviderId: ProviderId | null;
@@ -53,6 +84,9 @@ export type ProviderConfigReply = {
    * IU2/IU4 落地后应收紧为必填（`ProviderInstance[]`）。
    */
   providerInstances?: ProviderInstance[];
+  /** 聚合搜索脱敏配置（KTD5）：实例定义集 + per-instance eligibility + rerank 配置状态。
+   *  ⚠️ 永不携带 apiKey——UI 凭此投影聚合 pill（eligible 过滤）与渲染配置面。 */
+  aggregate?: AggregateConfigSnapshot;
   /** AI engine 自动回车开关（默认 true）。注入型 AI engine 的 URL 是否追加 enter=1。 */
   aiAutoEnter?: boolean;
   /** 少量来源自动平铺开关（默认 true）。开启后源 ≤4 或单组且 ≤6 时平铺到顶层。 */
@@ -106,6 +140,13 @@ export type ProtocolMap = {
   createProviderInstance(input: { baseProviderId: ProviderId; name: string; options: Record<string, unknown> }): Promise<ProviderInstance>;
   updateProviderInstance(input: { id: ProviderInstanceId; patch: { name?: string; options?: Record<string, unknown> } }): Promise<ProviderInstance | null>;
   deleteProviderInstance(id: ProviderInstanceId): Promise<void>;
+  // 聚合搜索消息族（KTD1）：聚合实例 CRUD + 搜索 + 全局 rerank 配置 + 测试连接。
+  aggregateSearch(request: AggregateSearchRequest): Promise<AggregateSearchReply>;
+  createAggregateInstance(input: { name: string; members: AggregateMemberId[]; topN?: number }): Promise<AggregateInstance>;
+  updateAggregateInstance(input: { id: AggregateInstanceId; patch: { name?: string; members?: AggregateMemberId[]; topN?: number } }): Promise<AggregateInstance | null>;
+  deleteAggregateInstance(id: AggregateInstanceId): Promise<void>;
+  setRerankConfig(config: { endpoint: string; model?: string; apiKey?: string }): Promise<SetRerankConfigReply>;
+  testRerank(): Promise<TestKeyReply>;
   openNewTab(url: string): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;
   deleteProviderKey(providerId: ProviderId): Promise<void>;

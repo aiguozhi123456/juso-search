@@ -75,6 +75,13 @@ describe('CONFIG_KEYS whitelist', () => {
   it('includes onboardingCompleted in the config whitelist', () => {
     expect(CONFIG_KEYS).toContain('onboardingCompleted');
   });
+
+  // 回归（L1 / aggregate-search-rerank plan KTD10）：聚合搜索两个新存储键须纳入白名单；
+  // 两者均 Default-by-Getter（缺键 = 未启用/未配置），不 bump 版本。
+  it('includes aggregateInstances and rerankConfig in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('aggregateInstances');
+    expect(CONFIG_KEYS).toContain('rerankConfig');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

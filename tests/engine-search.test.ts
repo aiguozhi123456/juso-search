@@ -39,6 +39,44 @@ describe('runEngineSearch', () => {
     expect(api.remove).toHaveBeenCalledWith(7);
   });
 
+  it('accepts the 4-key result shape carrying the snippetKind metadata marker (社媒抽取器)', async () => {
+    const api = tabs();
+    api.sendMessage.mockResolvedValue({
+      requestId: 'id',
+      engine: 'google',
+      query: 'hello',
+      results: [{ title: 'T', url: 'https://a.test/1', snippet: '作者: X · 点赞: Y', snippetKind: 'metadata' }],
+    });
+    await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' })).resolves.toEqual({
+      engine: 'google',
+      query: 'hello',
+      results: [{ title: 'T', url: 'https://a.test/1', snippet: '作者: X · 点赞: Y', snippetKind: 'metadata' }],
+    });
+  });
+
+  it('rejects results with an invalid snippetKind value or extra unknown keys (extract-failed)', async () => {
+    const api = tabs();
+    // snippetKind 非法值 → 整条 results 回复拒绝。
+    api.sendMessage.mockResolvedValue({
+      requestId: 'id',
+      engine: 'google',
+      query: 'hello',
+      results: [{ title: 'T', url: 'https://a.test/1', snippet: 's', snippetKind: 'semantic' }],
+    });
+    await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' }))
+      .resolves.toEqual({ engine: 'google', query: 'hello', error: 'extract-failed' });
+
+    // 5 键（合法 snippetKind + 多出未知键）→ 同样拒绝。
+    api.sendMessage.mockResolvedValue({
+      requestId: 'id',
+      engine: 'google',
+      query: 'hello',
+      results: [{ title: 'T', url: 'https://a.test/1', snippet: 's', snippetKind: 'metadata', extra: 1 }],
+    });
+    await expect(runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' }))
+      .resolves.toEqual({ engine: 'google', query: 'hello', error: 'extract-failed' });
+  });
+
   it('ignores other tab updates, retries unavailable receivers, and removes only its tab', async () => {
     const api = tabs('loading', 'https://www.bing.com/search?q=hello');
     api.sendMessage.mockRejectedValueOnce(new Error('receiving end does not exist')).mockResolvedValue({ requestId: 'id', engine: 'bing', query: 'hello', error: 'no-results' });

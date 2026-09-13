@@ -1,4 +1,4 @@
-// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteInstances / agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig）。
+// Schema 版本与迁移：config 域（providerKeys / activeProvider / activeSource / themePref / localePref / sourceOrder / sourceHidden / siteInstances / agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / aggregateInstances / rerankConfig）。
 //
 // 双版本体系：config 域用 `schemaVersion`（本文件），缓存池用 `cacheSchemaVersion`
 // （见 search-cache.ts 的 ensureCacheSchema + cacheMigrations）。两域独立演进——
@@ -18,10 +18,10 @@ export const SCHEMA_VERSION_KEY = 'schemaVersion';
 export const CURRENT_SCHEMA_VERSION = 10;
 
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
-// ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
+// ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它（教训 L1）。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
-// serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
+// aggregateInstances / rerankConfig 同为 Default-by-Getter（KTD10：缺键 = 未启用/未配置，getter 归一兜底），不 bump 版本。
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'aggregateInstances', 'rerankConfig', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {

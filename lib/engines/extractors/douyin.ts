@@ -15,7 +15,8 @@ import { normalizeText } from './shared';
 //   • URL 由 id 拼接：视频卡 → https://www.douyin.com/video/{id}，图文卡 → /note/{id}。
 //   • 卡片按文本前缀分类：视频卡（^\d{1,2}:\d{2} 时长）、图文卡（^图文）；其余（用户聚合/
 //     相关搜索/直播/百科）无有效结果内容，丢弃。
-//   • title 取整段文案（截 300）；snippet 拆出尾部 @作者·时间 + 点赞数。
+//   • title 取整段文案（截 300，语义正文在 title，不动）；snippet 拆出尾部 @作者·时间 +
+//     点赞数（纯展示元数据 → snippetKind:'metadata'，聚合重排剔除，见 buildRerankDocument）。
 const WATERFALL_SELECTOR = '[id^="waterfall_item_"]';
 const clean = (value: string | null | undefined): string => (value ?? '').replace(/\s+/g, ' ').trim();
 
@@ -84,7 +85,7 @@ export const douyinExtractor: EngineExtractor = {
       if (fields.author) snippetParts.push(`作者: ${fields.author}`);
       if (fields.likes) snippetParts.push(`点赞: ${fields.likes}`);
       const snippet = snippetParts.join(' · ');
-      return [{ title, url, snippet }];
+      return [{ title, url, snippet, snippetKind: 'metadata' }];
     });
   },
 };

@@ -11,6 +11,7 @@ import {
   searchCacheEntryKey,
   type CacheMigration,
   type SearchCacheEntry,
+  type SoloSearchCacheEntry,
   type SearchCacheIndex,
 } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
@@ -45,8 +46,8 @@ function installStorage(seed: Record<string, unknown> = {}): { store: Map<string
   return { store };
 }
 
-function entry(id: string, overrides: Partial<SearchCacheEntry> = {}): SearchCacheEntry {
-  return {
+function entry(id: string, overrides: Partial<SoloSearchCacheEntry> = {}): SearchCacheEntry {
+  const base: SoloSearchCacheEntry = {
     id,
     cacheKey: `tavily:${id}`,
     query: id,
@@ -55,8 +56,8 @@ function entry(id: string, overrides: Partial<SearchCacheEntry> = {}): SearchCac
     createdAt: 1000,
     lastAccessedAt: 1000,
     response: { query: id, provider: 'tavily', results: [{ title: id, url: `https://${id}.test`, snippet: 's' }] },
-    ...overrides,
   };
+  return { ...base, ...overrides };
 }
 
 function indexWith(entries: SearchCacheEntry[]): SearchCacheIndex {
@@ -174,12 +175,15 @@ describe('migrateCachePool (pure migration runner)', () => {
       { version: 1, migrate: ({ index, entries }) => ({
         index,
         entries: entries.map((e): SearchCacheEntry => {
-          if (!e.response.answer) return e;
+          // 合成迁移场景：response 形状随迁移漂移（entry 联合按 providerId 判别），
+          // 这里按 solo 形状窄化后再读 answer。
+          const soloResponse = e.response as NormalizedSearchResponse;
+          if (!soloResponse.answer) return e;
           return {
             ...e,
             response: {
-              ...e.response,
-              answer: { parts: [e.response.answer.text], citations: e.response.answer.citations },
+              ...soloResponse,
+              answer: { parts: [soloResponse.answer.text], citations: soloResponse.answer.citations },
             },
           } as unknown as SearchCacheEntry;
         }),

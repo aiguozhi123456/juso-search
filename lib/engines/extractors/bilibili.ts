@@ -10,7 +10,8 @@ const clean = (value: string | null | undefined): string => (value ?? '').replac
 // （//www.bilibili.com/video/BVxxx/）。列表含两类卡（统一抽取，按 skill 文档说明）：
 //   ① 真结果卡：含 .bili-video-card__info--owner（UP主 + 日期）、stats 为「播放 弹幕」两项；
 //   ② 顶部「作者最新视频」聚合卡：无 owner、stats 仅播放一项——缺失字段优雅降级跳过。
-// snippet 为富元数据拼接：UP主: X · 播放: X · 弹幕: X · 时长: X，缺哪项跳哪项。
+// snippet 为富元数据拼接：UP主: X · 播放: X · 弹幕: X · 时长: X，缺哪项跳哪项 →
+// snippetKind:'metadata'（聚合重排剔除展示元数据，见 buildRerankDocument）。
 
 const CARD_SELECTOR = '.bili-video-card';
 const VIDEO_LINK_SELECTOR = 'a[href*="/video/"], a[href*="/bangumi/"], a[href*="/cheese/"]';
@@ -61,7 +62,7 @@ export const bilibiliExtractor: EngineExtractor = {
       const title = titleText(item.querySelector('.bili-video-card__info--tit'));
       if (!url || !title) return [];
       const snippet = buildSnippet(item);
-      return [{ title, url, snippet }];
+      return [{ title, url, snippet, snippetKind: 'metadata' }];
     });
   },
 };

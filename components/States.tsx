@@ -3,6 +3,8 @@ import { t, MSG } from '@/lib/i18n';
 interface ErrorProps {
   message: string;
   onOpenSettings?: () => void;
+  /** 覆盖默认 CTA 文案（如聚合 rerank 未配置 → 「打开设置配置重排服务」，R3）。 */
+  ctaLabel?: string;
 }
 
 /**
@@ -52,11 +54,11 @@ export function Empty() {
   return <div className="state">{t(MSG.state_empty)}</div>;
 }
 
-export function ErrorState({ message, onOpenSettings }: ErrorProps) {
+export function ErrorState({ message, onOpenSettings, ctaLabel }: ErrorProps) {
   return (
     <div className="state error" role="alert">
       <p>{message}</p>
-      {onOpenSettings && <button onClick={onOpenSettings}>{t(MSG.open_settings_cta)}</button>}
+      {onOpenSettings && <button onClick={onOpenSettings}>{ctaLabel ?? t(MSG.open_settings_cta)}</button>}
     </div>
   );
 }

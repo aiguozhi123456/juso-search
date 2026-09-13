@@ -390,3 +390,31 @@ describe('nextQueryAfterSerpContext', () => {
     )).toBe('site:docs.example.com/guide install');
   });
 });
+
+describe('resolveSerpHandoff — aggregate-instance chip (KTD16)', () => {
+  const aggregate: SearchSource = {
+    id: 'agg:family-bucket',
+    kind: 'aggregate-instance',
+    label: '全家桶',
+    supportsAnswer: false,
+    favicon: '/icons/aggregate.svg',
+  };
+
+  it('yields an openSearchPage deep link carrying the agg instance id', () => {
+    expect(resolveSerpHandoff(aggregate, 'hello world')).toEqual({
+      kind: 'openSearchPage',
+      deepLink: '/search.html?provider=agg%3Afamily-bucket&query=hello+world',
+    });
+  });
+
+  it('falls back to the bare search page when the query is empty', () => {
+    expect(resolveSerpHandoff(aggregate, '   ')).toEqual({
+      kind: 'openSearchPage',
+      deepLink: '/search.html',
+    });
+  });
+
+  it('yields null for a malformed aggregate id (never navigates)', () => {
+    expect(resolveSerpHandoff({ ...aggregate, id: 'agg:' as SourceId }, 'hello')).toBeNull();
+  });
+});

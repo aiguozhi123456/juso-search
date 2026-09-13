@@ -5,29 +5,31 @@ import type { ProviderId } from './providers/types';
 import { isProviderId } from './sources';
 import type { ProviderInstanceId } from './provider-instances';
 import { isProviderInstanceId } from './provider-instances';
+import type { AggregateInstanceId } from './aggregate-instances';
+import { isAggregateInstanceId } from './aggregate-instances';
 
 export interface SearchDeepLink {
-  provider?: ProviderId | ProviderInstanceId;
+  provider?: ProviderId | ProviderInstanceId | AggregateInstanceId;
   query?: string;
 }
 
 /**
- * 解析搜索页深链参数。provider 仅在合法（已知 provider id 或 provider-instance id）时返回；
- * 是否已配置由调用方比对（实例 id 按 base provider 判定）。query 原样返回
- * （去首尾空白前的原值，由调用方 trim）。
+ * 解析搜索页深链参数。provider 仅在合法（已知 provider id / provider-instance id /
+ * aggregate-instance id）时返回；是否已配置/可用由调用方比对（实例 id 按 base provider 或
+ * eligibility 判定，KTD16）。query 原样返回（去首尾空白前的原值，由调用方 trim）。
  */
 export function parseSearchDeepLink(search: string): SearchDeepLink {
   const params = new URLSearchParams(search);
   const result: SearchDeepLink = {};
   const provider = params.get('provider');
-  if (provider && (isProviderId(provider) || isProviderInstanceId(provider))) result.provider = provider;
+  if (provider && (isProviderId(provider) || isProviderInstanceId(provider) || isAggregateInstanceId(provider))) result.provider = provider;
   const query = params.get('query');
   if (query) result.query = query;
   return result;
 }
 
-/** 构建 Juso 搜索页深链 URL（供 SERP 栏跳转用）。provider 可为裸 provider id 或实例 id。 */
-export function buildSearchDeepLink(provider: ProviderId | ProviderInstanceId, query: string): string {
+/** 构建 Juso 搜索页深链 URL（供 SERP 栏跳转用）。provider 可为裸 provider id、实例 id 或聚合实例 id。 */
+export function buildSearchDeepLink(provider: ProviderId | ProviderInstanceId | AggregateInstanceId, query: string): string {
   const params = new URLSearchParams();
   params.set('provider', provider);
   params.set('query', query);

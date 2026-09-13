@@ -4,6 +4,12 @@ export interface EngineResult {
   title: string;
   url: string;
   snippet: string;
+  /**
+   * snippet 语义标记（缺省 = 语义正文摘要）。'metadata' = 纯展示元数据拼接
+   * （作者/点赞/播放等，无语义正文）——聚合重排把这类 snippet 剔除出重排文档
+   * （buildRerankDocument，用户反馈修复：元数据稀释 cross-encoder 相关度）。
+   */
+  snippetKind?: 'metadata';
 }
 
 export interface EngineSearchResponse {

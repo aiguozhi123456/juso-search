@@ -12,6 +12,12 @@ import {
   handleCreateProviderInstance,
   handleUpdateProviderInstance,
   handleDeleteProviderInstance,
+  handleAggregateSearch,
+  handleCreateAggregateInstance,
+  handleUpdateAggregateInstance,
+  handleDeleteAggregateInstance,
+  handleSetRerankConfig,
+  handleTestRerank,
   handleExportConfig,
   handleGetCachedSearchEntry,
   handleGetProviderConfig,
@@ -103,6 +109,13 @@ export default defineBackground(() => {
   onMessage('createProviderInstance', ({ data }) => handleCreateProviderInstance(data));
   onMessage('updateProviderInstance', ({ data }) => handleUpdateProviderInstance(data));
   onMessage('deleteProviderInstance', ({ data }) => handleDeleteProviderInstance(data));
+  // 聚合搜索消息族（KTD1）：rerank 配置与聚合实例 CRUD 均在 worker 侧（key 仅 worker 读）。
+  onMessage('aggregateSearch', ({ data }) => handleAggregateSearch(data));
+  onMessage('createAggregateInstance', ({ data }) => handleCreateAggregateInstance(data));
+  onMessage('updateAggregateInstance', ({ data }) => handleUpdateAggregateInstance(data));
+  onMessage('deleteAggregateInstance', ({ data }) => handleDeleteAggregateInstance(data));
+  onMessage('setRerankConfig', ({ data }) => handleSetRerankConfig(data));
+  onMessage('testRerank', () => handleTestRerank());
   onMessage('openNewTab', ({ data, sender }) => {
     // sender.tab 只保证存在一个 tab 上下文——内容脚本与「在标签页打开的扩展页」都有 tab，
     // 故此检查并不用于区分内容脚本。真正的安全边界是 sanitizeOpenNewTabUrl 内的 http/https

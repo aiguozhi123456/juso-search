@@ -1,35 +1,51 @@
-import type { ProviderId, SearchOptions } from './providers/types';
+import type { NormalizedSearchResponse, ProviderId, SearchOptions } from './providers/types';
 import { ProviderError } from './providers/types';
-import type { ProviderConfigReply, SearchReply, SearchRequest, TestKeyReply } from './messaging';
-import { isProviderId, type SourceId } from './sources';
+import type { AggregateSearchReply, AggregateSearchRequest, ProviderConfigReply, SearchReply, SearchRequest, SetRerankConfigReply, TestKeyReply } from './messaging';
+import { isEngineId, isProviderId, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { isSiteInstanceId, type SiteInstanceDefinition, type SiteInstanceEngineId, type SiteInstanceId, type SiteInstanceOptions } from './site-instances';
 import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
+import { isAggregateInstanceId, type AggregateInstance } from './aggregate-instances';
+import type { AggregateInstanceId, AggregateMemberId, AggregateMergedResult, AggregateSearchResponse } from './aggregate/types';
+import { buildRerankDocument, mergeAggregateMembers } from './aggregate/merge';
+import { resolveAggregateEligibility, extractorCapableEngineIds } from './aggregate/eligibility';
+import type { RerankResultItem } from './aggregate/rerank-client';
+import { isRerankConfigured, MSG_RERANK_ENDPOINT_INVALID, rerankDocuments, RerankError, testRerank, validateRerankEndpoint } from './aggregate/rerank-client';
 import { getAdapter } from './providers/registry';
 import { allProviders } from './providers/registry';
 import { allEngines } from './engines/registry';
+import { runEngineSearch } from './engine-search';
+import type { EngineId } from './engines/types';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
 import type { AgentInstance, AgentListEnginesReply, AgentListProvidersReply, AgentSearchInstanceRequest } from './agent-bridge';
 import {
   clearKey,
   clearProviderMaxResults,
   clearSearchCache,
+  createAggregateInstance,
+  deleteAggregateCacheEntries,
+  deleteAggregateInstance,
   deleteCachedSearch,
   getActiveProviderId,
+  getAggregateInstances,
   getCachedSearch,
   getCachedSearchEntry,
   getConfiguredProviderIds,
   getKey,
   getProviderMaxResults,
+  getProviderInstances,
+  getRerankConfig,
   getSearchCacheSummaries,
   getProviderConfigSnapshot,
   getSourceHidden,
+  saveCachedAggregateSearch,
   saveCachedSearch,
   setActiveProviderAndSourceId,
   selectActiveSourceId,
   setKey,
   setProviderMaxResults,
+  setRerankConfig,
   setSourceHidden,
   setSourceOrder,
   setGroupConfig,
@@ -37,13 +53,13 @@ import {
   setFlatLayoutFewSources,
   setSelectionSearchEnabled,
   setSelectionSearchSource,
+  updateAggregateInstance,
   createSiteInstanceDefinition,
   updateSiteInstanceDefinition,
   deleteSiteInstanceDefinition,
   createCustomEngineDefinition,
   updateCustomEngineDefinition,
   deleteCustomEngineDefinition,
-  getProviderInstances,
   createProviderInstance,
   updateProviderInstance,
   deleteProviderInstance,
@@ -51,6 +67,7 @@ import {
 } from './storage';
 import { t, MSG } from './i18n';
 import type { SearchCacheEntry, SearchCacheSummary } from './search-cache';
+import { isAggregateCacheEntry } from './search-cache';
 import { ensureSchema } from './schema';
 import { ensureCacheSchema } from './search-cache';
 import { buildExportPayload, parseImportPayload, previewImport, mergeImport, type ConfigExport, type ImportReport } from './config-io';
@@ -77,6 +94,12 @@ export function getSchemaReady(): Promise<void> {
 }
 
 type SearchErrorReply = Extract<SearchReply, { ok: false }>;
+
+// i18n 占位键名（Lane D 落 lib/i18n.ts + _locales/{zh_CN,en}/messages.json 双语条目；现阶段 t() 回退键名本身）。
+const MSG_AGGREGATE_RERANK_FAILED = 'error_aggregate_rerank_failed';
+const MSG_AGGREGATE_ALL_MEMBERS_FAILED = 'error_aggregate_all_members_failed';
+const MSG_AGGREGATE_RERANK_NOT_CONFIGURED = 'error_rerank_not_configured';
+const MSG_AGGREGATE_INSTANCE_UNKNOWN = 'error_aggregate_instance_unknown';
 
 /** 搜索：优先复用本地缓存；forceRefresh 时 worker 读 key → 调激活 provider → 写缓存。
  *  providerId 绑定 UI 视图（避免跨标签 active 漂移导致搜/缓存到错误 provider）。
@@ -202,6 +225,298 @@ export async function handleSearchInstance(request: AgentSearchInstanceRequest, 
   } catch (e) {
     return toSearchError(e);
   }
+}
+
+// === 聚合搜索（aggregate-search-rerank plan KTD3/KTD8/KTD12/KTD9）===
+
+// Lane F（Phase 3，KTD3/R9）engine 成员扇出参数：
+// - AGGREGATE_ENGINE_MEMBER_CONCURRENCY：并发信号量上限。仅约束 engine 成员（同时打开的后台
+//   SERP tab 数 ≤ 上限），provider 成员并发不受限。作用域 = 单次 handleAggregateSearch 调用
+//   （跨本次聚合搜索窗口，不跨请求共享）。调参直接改常量；上限同时是反爬压力预算（AE4）。
+// - AGGREGATE_ENGINE_MEMBER_TIMEOUT_MS：runEngineSearch 的 completeTimeoutMs（tab 加载等待 +
+//   extractor 握手重试的总预算；见 lib/engine-search.ts deps 契约）。聚合路径用固定 20s；
+//   agent-bridge 路径沿用 deadline 收窄（background.ts engineInnerBudgetMs 先例），互不影响。
+export const AGGREGATE_ENGINE_MEMBER_CONCURRENCY = 3;
+export const AGGREGATE_ENGINE_MEMBER_TIMEOUT_MS = 20_000;
+
+/** 最小异步信号量：任务排队等待空位，完成即放行下一个（FIFO）。
+ *  run() 永不吞任务结果/异常，仅约束同时在途数量。 */
+function createAggregateEngineLimiter(limit: number = AGGREGATE_ENGINE_MEMBER_CONCURRENCY): <T>(task: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+  return async <T>(task: () => Promise<T>): Promise<T> => {
+    if (active >= limit) await new Promise<void>((resolve) => waiters.push(resolve));
+    active += 1;
+    try {
+      return await task();
+    } finally {
+      active -= 1;
+      waiters.shift()?.();
+    }
+  };
+}
+
+/** 单成员扇出上下文：signal 取消传播 + engine 成员专用信号量（provider 成员忽略之）。 */
+interface AggregateMemberContext {
+  signal?: AbortSignal;
+  engineSlots: <T>(task: () => Promise<T>) => Promise<T>;
+}
+
+/** 单成员扇出结果（R6：状态透明、错误分型保留不折叠；engine 成员恒为实时抽取）。 */
+type AggregateMemberOutcome =
+  | { sourceId: AggregateMemberId; ok: true; cached?: boolean; response: NormalizedSearchResponse }
+  | { sourceId: AggregateMemberId; ok: false; errorKind: string; errorMessage: string };
+
+/**
+ * 聚合搜索（KTD3 全流程）：解析实例（未知 id → error）→ rerank 配置校验（未配置 → keyMissing）→
+ * （非 forceRefresh）按 **agg 实例 id** 查聚合缓存（命中即返回，0 扇出，AE7）→ eligibility 复核 →
+ * `Promise.allSettled` 扇出 provider/实例成员（经 resolveSearchSource 语义执行，复用 runProviderSearch
+ * 内部路径：各自子缓存优先、forceRefresh 传播、各自写缓存、cache.hit 记入 member.cached）→
+ * merge（候选池 40）→ rerankDocuments → relevance_score 降序写 score → saveCachedAggregateSearch
+ * （best-effort）→ ok reply。≥1 成功即继续；全员失败 → providerError 汇总文案；rerank 失败 →
+ * providerError 专用文案，不降级（AE3）。聚合级缓存读写从同一边界贯穿同一实例 id（parallel-IU 接缝）。
+ */
+export async function handleAggregateSearch(request: AggregateSearchRequest, signal?: AbortSignal): Promise<AggregateSearchReply> {
+  await getSchemaReady();
+  try {
+    const query = request.query.trim();
+    if (!isAggregateInstanceId(request.instanceId)) {
+      return { ok: false, error: { kind: 'unknown', message: t(MSG_AGGREGATE_INSTANCE_UNKNOWN) } };
+    }
+    const instances = await getAggregateInstances();
+    const instance = instances.find((candidate) => candidate.id === request.instanceId);
+    if (!instance) {
+      return { ok: false, error: { kind: 'unknown', message: t(MSG_AGGREGATE_INSTANCE_UNKNOWN) } };
+    }
+    const rerankConfig = await getRerankConfig();
+    if (!isRerankConfigured(rerankConfig)) {
+      return { ok: false, error: { kind: 'keyMissing', message: t(MSG_AGGREGATE_RERANK_NOT_CONFIGURED) } };
+    }
+    if (!request.forceRefresh) {
+      // 聚合级缓存读：键 = agg 实例 id，与下方 saveCachedAggregateSearch 同源（KTD7）。
+      const cached = await getCachedSearch(request.instanceId, query);
+      if (cached && isAggregateCacheEntry(cached)) {
+        return { ok: true, response: cached.response, cache: { hit: true, entryId: cached.id, createdAt: cached.createdAt } };
+      }
+    }
+    // eligibility 复核（KTD5）：rerank 已配置前提下，0 有效成员 → 扇出必然全员失败，直接按汇总分型返回。
+    const [configured, providerInstances] = await Promise.all([getConfiguredProviderIds(), getProviderInstances()]);
+    const eligibility = resolveAggregateEligibility(instance, { configuredProviderIds: configured, providerInstances, rerankConfig });
+    if (eligibility.validMembers.length === 0) {
+      return { ok: false, error: { kind: 'providerError', message: t(MSG_AGGREGATE_ALL_MEMBERS_FAILED) } };
+    }
+    // Lane F：engine 成员并发信号量作用域 = 本次聚合搜索窗口（KTD3：≤3，仅约束 engine 成员）。
+    const engineSlots = createAggregateEngineLimiter();
+    const settled = await Promise.allSettled(instance.members.map((member) => runAggregateMember(member, query, request.forceRefresh, { signal, engineSlots })));
+    const outcomes: AggregateMemberOutcome[] = settled.map((result, index) => {
+      if (result.status === 'fulfilled') return result.value;
+      // runAggregateMember 自吞错误；此处兜底意外 rejection → 失败成员（分型保留，不折叠，R6）。
+      return { sourceId: instance.members[index], ok: false, errorKind: 'unknown', errorMessage: errorMessage(result.reason) };
+    });
+    const contributions = outcomes
+      .filter((outcome): outcome is Extract<AggregateMemberOutcome, { ok: true }> => outcome.ok)
+      .map((outcome) => ({ sourceId: outcome.sourceId, response: outcome.response }));
+    if (contributions.length === 0) {
+      return { ok: false, error: { kind: 'providerError', message: t(MSG_AGGREGATE_ALL_MEMBERS_FAILED) } };
+    }
+    const merged = mergeAggregateMembers(contributions);
+    let ranked: AggregateMergedResult[] = merged.results;
+    if (merged.results.length > 0) {
+      const rerankResults = await rerankDocuments(
+        rerankConfig,
+        { query, documents: merged.results.map(buildRerankDocument), top_n: instance.topN },
+        { signal, fetch: (...args) => fetch(...args) },
+      );
+      ranked = applyRerankOrdering(merged.results, rerankResults, instance.topN);
+    }
+    const response: AggregateSearchResponse = {
+      instanceId: instance.id,
+      query,
+      kind: 'aggregate',
+      answers: merged.answers,
+      results: ranked,
+      members: outcomes.map((outcome) => (outcome.ok
+        ? { sourceId: outcome.sourceId, ok: true, ...(outcome.cached ? { cached: true } : {}), resultCount: outcome.response.results.length }
+        : { sourceId: outcome.sourceId, ok: false, errorKind: outcome.errorKind, errorMessage: outcome.errorMessage })),
+      dedupedCount: merged.dedupedCount,
+      rerank: { ...(rerankConfig.model ? { model: rerankConfig.model } : {}), rerankedAt: Date.now() },
+    };
+    const saved = await saveCachedAggregateSearch(response).catch(() => null);
+    return { ok: true, response, cache: { hit: false, entryId: saved?.id, createdAt: saved?.createdAt } };
+  } catch (e) {
+    return toAggregateSearchError(e);
+  }
+}
+
+/** 单成员执行（KTD3 扇出单元）：永不 reject（错误折入 member 状态，分型保留）。
+ *  provider/实例成员经 resolveSearchSource 语义解析并复用 runProviderSearch 内部路径
+ *  （各自缓存优先 / forceRefresh 传播 / 各自写缓存 / cache.hit → member.cached）；
+ *  engine 成员经 runEngineSearch（信号量限流、恒实时抽取、错误分型原样透传）。 */
+async function runAggregateMember(member: AggregateMemberId, query: string, forceRefresh: boolean | undefined, ctx: AggregateMemberContext): Promise<AggregateMemberOutcome> {
+  try {
+    // LANE-F-ENGINE-MEMBER（KTD3/R9 已实装）：engine 成员（extractor-capable EngineId）扇出经
+    // runEngineAggregateMember——runEngineSearch({ tabs, completeTimeoutMs: 20_000 })、信号量 ≤3、
+    // cached 恒缺省、错误分型原样透传；判型从 extractor registry 派生（KTD15），不做字符串散比。
+    if (isEngineId(member)) {
+      return await runEngineAggregateMember(member, query, ctx);
+    }
+    const resolution = await resolveAggregateMemberSource(member);
+    if (!resolution) {
+      return { sourceId: member, ok: false, errorKind: 'keyMissing', errorMessage: t(MSG.error_no_provider_key) };
+    }
+    const reply = await runProviderSearch(query, resolution, forceRefresh, ctx.signal);
+    if (reply.ok) {
+      return { sourceId: member, ok: true, ...(reply.cache.hit ? { cached: true } : {}), response: reply.response };
+    }
+    return { sourceId: member, ok: false, errorKind: reply.error.providerErrorKind ?? reply.error.kind, errorMessage: reply.error.message };
+  } catch (e) {
+    // runProviderSearch 会把 adapter 的 ProviderError 直接抛出（handleSearch 内由 try/catch 收口）——
+    // 成员路径在此收口并保留分型（R6：不折叠到 'unknown'）。
+    if (e instanceof ProviderError) {
+      return { sourceId: member, ok: false, errorKind: e.kind, errorMessage: e.message };
+    }
+    return { sourceId: member, ok: false, errorKind: 'unknown', errorMessage: errorMessage(e) };
+  }
+}
+
+// KTD15②（决策注释）：聚合的 engine 成员**不走** engineSearchEnabled 门控。该门控的语义是
+// 「外部进程代理加载第三方页」的 agent 门（CONCEPTS.md:126；default-off-capability-gating-for-cws-
+// compliance.md 的默认关闭要求只针对程序化路径），其 :83 豁免条款明确不覆盖用户经可见 UI 主动
+// 触发的能力——用户在 Options 聚合编辑器勾选 engine 成员即显式 opt-in（警示文案 = KTD15③）。
+// 判据全文与三条件索引：docs/solutions/architecture-patterns/engine-extraction-for-user-initiated-aggregate.md。
+async function runEngineAggregateMember(member: EngineId, query: string, ctx: AggregateMemberContext): Promise<AggregateMemberOutcome> {
+  // 扇出侧资格判定共用 eligibility 的单一派生源（R9，勿另写清单）：registry 漂移（engine 被移除/
+  // 降级为 UNSUPPORTED_EXTRACTOR 后成员残留）→ 该成员失败标注，不 throw 整体。
+  if (!extractorCapableEngineIds().includes(member)) {
+    return { sourceId: member, ok: false, errorKind: 'unsupported-engine', errorMessage: 'unsupported-engine' };
+  }
+  // 信号量仅约束 engine 成员（provider 成员并发不受限，KTD3）；deps 注入沿 background.ts 先例
+  //（{ tabs: browser.tabs, completeTimeoutMs }），总预算 20s（AGGREGATE_ENGINE_MEMBER_TIMEOUT_MS）。
+  const result = await ctx.engineSlots(() =>
+    runEngineSearch({ query, engineId: member }, ctx.signal, { tabs: browser.tabs, completeTimeoutMs: AGGREGATE_ENGINE_MEMBER_TIMEOUT_MS }),
+  );
+  if ('results' in result) {
+    // engine 成员恒实时抽取（R6/R7：无子缓存，cached 恒缺省）；无综合答案 → 空答案贡献（R4）。
+    // EngineId ≠ ProviderId（两个不相交 id 域）：engine 的临时归一响应借位 provider 字段——该响应
+    // 只进聚合 merge（merge 只读 answer/results），绝不触 getAdapter/getKey，绝不单独入子缓存。
+    const response: NormalizedSearchResponse = { query, provider: member as unknown as ProviderId, results: result.results };
+    return { sourceId: member, ok: true, response };
+  }
+  // 错误种类原样透传（R6：page-state（challenge/consent/unsupported-layout/no-results）与
+  // orchestration（tab-closed/timeout/aborted/extract-failed）分型不折叠——engine-search-orchestration 教训）。
+  return { sourceId: member, ok: false, errorKind: result.error, errorMessage: result.error };
+}
+
+/** 成员解析（resolveSearchSource 语义的成员版）：显式成员且已配置才执行；
+ *  裸 provider 有实例时路由第一个实例并注入 options（默认实例；cacheKeyId 与 solo/agent 搜索同源），
+ *  实例 id 直接走 resolveInstance——成员子缓存键因此与 IU6 实例键一致。 */
+async function resolveAggregateMemberSource(member: ProviderId | ProviderInstanceId): Promise<{
+  providerId: ProviderId;
+  providerSettings?: Record<string, unknown>;
+  cacheKeyId: string;
+} | null> {
+  if (isProviderInstanceId(member)) return resolveInstance(member);
+  const configured = await getConfiguredProviderIds();
+  if (!configured.includes(member)) return null;
+  return resolveBareProvider(member);
+}
+
+/** rerank 结果应用（R5/KTD3）：按 relevance_score 降序写 NormalizedResult.score（同分稳定保持候选序），
+ *  截取实例 topN。畸形服务端响应的重复 index 用 seen 集合跳过（首现有效），同一候选绝不重复投影
+ *  （Oracle #6 防御；去重放在唯一消费点，validateRerankResults 保持纯形状校验——形状与语义分层）。
+ *  服务端返回空/越界下标时防御性保留候选序（不因畸形服务响应丢结果）。 */
+function applyRerankOrdering(candidates: AggregateMergedResult[], rerankResults: RerankResultItem[], topN: number): AggregateMergedResult[] {
+  if (rerankResults.length === 0) return candidates.slice(0, topN);
+  const seen = new Set<number>();
+  return rerankResults
+    .filter((item) => {
+      if (!(Number.isInteger(item.index) && item.index >= 0 && item.index < candidates.length)) return false;
+      if (seen.has(item.index)) return false;
+      seen.add(item.index);
+      return true;
+    })
+    .map((item, position) => ({ item, position }))
+    .sort((a, b) => b.item.relevance_score - a.item.relevance_score || a.position - b.position)
+    .slice(0, topN)
+    .map(({ item }) => ({ ...candidates[item.index], score: item.relevance_score }));
+}
+
+/** 聚合回复错误映射：RerankError → providerError + rerank 专用文案（AE3：失败不降级，绝不返回未重排结果）；
+ *  其余同 toSearchError。 */
+function toAggregateSearchError(e: unknown): AggregateSearchReply {
+  if (e instanceof RerankError) {
+    return { ok: false, error: { kind: 'providerError', message: t(MSG_AGGREGATE_RERANK_FAILED, e.message), providerErrorKind: e.kind } };
+  }
+  return toSearchError(e);
+}
+
+/** 保存全局 rerank 配置（KTD12/KTD9）：endpoint loopback 校验 + localhost/[::1] 自动改写为 127.0.0.1
+ *  （保留端口/路径，reply 带改写标志供 UI 提示）；最终必须 http + 127.0.0.1 否则拒绝。
+ *  成功持久化后删除全部聚合缓存条目——设置不在缓存键内 ⇒ 写时失效（AE5 第二行）。 */
+export async function handleSetRerankConfig(config: { endpoint: string; model?: string; apiKey?: string }): Promise<SetRerankConfigReply> {
+  await getSchemaReady();
+  const validation = validateRerankEndpoint(config.endpoint);
+  if (!validation.ok) {
+    return { ok: false, error: { kind: 'invalid', message: t(MSG_RERANK_ENDPOINT_INVALID) } };
+  }
+  await setRerankConfig({
+    endpoint: validation.endpoint,
+    ...(config.model !== undefined ? { model: config.model } : {}),
+    ...(config.apiKey !== undefined ? { apiKey: config.apiKey } : {}),
+  });
+  await deleteAggregateCacheEntries('all');
+  return { ok: true, endpoint: validation.endpoint, rewritten: validation.rewritten };
+}
+
+/** 设置页「测试连接」（KTD6/R12）：复用 rerank-client testRerank（1 query + 2 小文档），TestKeyReply 同款形状。 */
+export async function handleTestRerank(): Promise<TestKeyReply> {
+  await getSchemaReady();
+  try {
+    const config = await getRerankConfig();
+    await testRerank(config, { fetch: (...args) => fetch(...args) });
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof RerankError) {
+      return {
+        ok: false,
+        error: {
+          kind: e.kind === 'keyMissing' ? 'keyMissing' : 'providerError',
+          message: e.kind === 'keyMissing' ? t(MSG_AGGREGATE_RERANK_NOT_CONFIGURED) : e.message,
+        },
+      };
+    }
+    const reply = toSearchError(e);
+    return { ok: false, error: { kind: 'providerError', message: reply.error.message } };
+  }
+}
+
+// === 聚合实例 CRUD（KTD18 实体、KTD9 精确失效）===
+
+export async function handleCreateAggregateInstance(data: { name: string; members: AggregateMemberId[]; topN?: number }): Promise<AggregateInstance> {
+  await getSchemaReady();
+  // 归一/容量/字节预算校验在 store（normalizeAggregateInstance + 双队列锁序）。
+  return createAggregateInstance(data);
+}
+
+export async function handleUpdateAggregateInstance(data: { id: AggregateInstanceId; patch: { name?: string; members?: AggregateMemberId[]; topN?: number } }): Promise<AggregateInstance | null> {
+  await getSchemaReady();
+  if (!isAggregateInstanceId(data.id)) throw new Error('invalid_aggregate_instance');
+  // KTD9 精确失效（AE5 第一行）：members/topN **实际变更** → 仅该实例条目；改名不失效；
+  // 其他实例条目与 provider 历史条目一律存活。
+  const before = (await getAggregateInstances()).find((candidate) => candidate.id === data.id);
+  const updated = await updateAggregateInstance(data.id, data.patch);
+  if (updated && before && (JSON.stringify(before.members) !== JSON.stringify(updated.members) || before.topN !== updated.topN)) {
+    await deleteAggregateCacheEntries(data.id);
+  }
+  return updated;
+}
+
+export async function handleDeleteAggregateInstance(id: AggregateInstanceId): Promise<void> {
+  await getSchemaReady();
+  if (!isAggregateInstanceId(id)) throw new Error('invalid_aggregate_instance');
+  await deleteAggregateInstance(id);
+  // KTD9：删除实例 → 仅该实例条目失效（order/hidden 剥落与 activeSource 派生回退在 store）。
+  await deleteAggregateCacheEntries(id);
 }
 
 export async function handleSaveProviderKey(providerId: ProviderId, key: string): Promise<void> {
@@ -510,7 +825,8 @@ async function runProviderSearch(
   const { providerId, providerSettings, cacheKeyId } = resolution;
   if (!forceRefresh) {
     const cached = await getCachedSearch(cacheKeyId, query);
-    if (cached) {
+    // 哨兵判别（键空间不相交：agg: 前缀永不等于 provider/inst: 键）——防御性收窄到 solo 形状。
+    if (cached && !isAggregateCacheEntry(cached)) {
       return {
         ok: true,
         response: cached.response,

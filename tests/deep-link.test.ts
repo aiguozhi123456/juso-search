@@ -32,6 +32,17 @@ describe('parseSearchDeepLink', () => {
     });
   });
 
+  it('parses an aggregate-instance id (KTD16)', () => {
+    expect(parseSearchDeepLink('?provider=agg%3Afamily-bucket&query=hello')).toEqual({
+      provider: 'agg:family-bucket',
+      query: 'hello',
+    });
+  });
+
+  it('rejects a malformed aggregate id (empty token)', () => {
+    expect(parseSearchDeepLink('?provider=agg%3A&query=x')).toEqual({ query: 'x' });
+  });
+
   it('rejects a malformed instance id (unknown base provider)', () => {
     expect(parseSearchDeepLink('?provider=inst%3Aunknownprovider%3Aabc&query=x')).toEqual({ query: 'x' });
   });
@@ -57,6 +68,15 @@ describe('buildSearchDeepLink', () => {
     expect(deepLink).toBe('/search.html?provider=inst%3Aexa%3Aresearch&query=hello+world');
     expect(parseSearchDeepLink(deepLink.slice(deepLink.indexOf('?')))).toEqual({
       provider: 'inst:exa:research',
+      query: 'hello world',
+    });
+  });
+
+  it('round-trips an aggregate-instance id through build + parse (KTD16)', () => {
+    const deepLink = buildSearchDeepLink('agg:family-bucket', 'hello world');
+    expect(deepLink).toBe('/search.html?provider=agg%3Afamily-bucket&query=hello+world');
+    expect(parseSearchDeepLink(deepLink.slice(deepLink.indexOf('?')))).toEqual({
+      provider: 'agg:family-bucket',
       query: 'hello world',
     });
   });

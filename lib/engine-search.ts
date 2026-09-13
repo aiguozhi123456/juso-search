@@ -169,7 +169,13 @@ function isExtractionReply(value: unknown, request: EngineSearchRequest, request
 }
 
 function isResult(value: unknown): boolean {
-  return isRecord(value) && Object.keys(value).length === 3 && typeof value.title === 'string' && typeof value.url === 'string' && typeof value.snippet === 'string';
+  if (!isRecord(value) || typeof value.title !== 'string' || typeof value.url !== 'string' || typeof value.snippet !== 'string') return false;
+  const keys = Object.keys(value);
+  // 3 键 = 基础形状（snippet 为语义正文）；4 键 = 基础形状 + snippetKind:'metadata'
+  // （纯展示元数据标记，三个社媒抽取器置位，聚合重排据此剔除 snippet——buildRerankDocument）。
+  // 其余键数或非法 snippetKind 值一律拒绝（反序列化守卫，畸形不进 worker）。
+  if (keys.length === 3) return true;
+  return keys.length === 4 && value.snippetKind === 'metadata';
 }
 
 function stripRequestId(reply: EngineExtractionReply): EngineExtractionResult {

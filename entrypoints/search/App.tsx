@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { NormalizedSearchResponse, ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
+import { allEngines } from '@/lib/engines/registry';
 import { sendMessage } from '@/lib/messaging';
 import type { ProviderConfigReply, SearchReply } from '@/lib/messaging';
 import { SearchBox } from '@/components/SearchBox';
@@ -12,11 +13,15 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Wordmark } from '@/components/Wordmark';
 import { AnswerCard } from '@/components/AnswerCard';
 import { ResultList } from '@/components/ResultList';
+import { AggregateResultView } from '@/components/AggregateResultView';
+import { relativeTime } from '@/components/relativeTime';
 import { Loading, ErrorState } from '@/components/States';
-import { getCurrentLocale, t, MSG } from '@/lib/i18n';
+import { t, MSG } from '@/lib/i18n';
 import { useLocale } from '@/lib/useLocale';
 import type { SearchCacheEntry } from '@/lib/search-cache';
-import { allSources, isProviderId } from '@/lib/sources';
+import { AGGREGATE_CACHE_PROVIDER_ID, isAggregateCacheEntry } from '@/lib/search-cache';
+import { allSources, isEngineId, isProviderId } from '@/lib/sources';
+import { aggregateSourcesOf } from '@/lib/sources';
 import type { SearchSource, SourceId } from '@/lib/sources';
 import type { GroupConfig } from '@/lib/source-groups';
 import { defaultGroupConfig } from '@/lib/source-groups';
@@ -27,15 +32,62 @@ import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import { isCustomEngineId } from '@/lib/custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
 import { isProviderInstanceId } from '@/lib/provider-instances';
+import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId, AggregateSearchResponse } from '@/lib/aggregate/types';
+import { isAggregateInstanceId } from '@/lib/aggregate-instances';
 import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteInstanceHandoff, resolveSerpHandoff } from '@/lib/serp-handoff';
 
 type CacheMeta = { hit: boolean; entryId?: string; createdAt?: number };
 
-/** 深链 provider 参数（裸 provider id 或实例 id）是否已配置：实例按 base provider 判定。 */
-function isLinkSourceConfigured(provider: ProviderId | ProviderInstanceId, configured: readonly ProviderId[]): boolean {
+/** 深链 provider 参数（裸 provider id / 实例 id / 聚合实例 id）是否已受理：
+ *  provider/实例按 configured 判定（实例 id 按 base provider）；聚合实例按「定义存在 && eligible」
+ *  判定（KTD16：fresh snapshot 重解析 + stillDefined 消歧——eligibility 表只含本快照已定义实例，
+ *  绕过 configuredProviderIds，AE10）。 */
+function isLinkSourceConfigured(
+  provider: SourceId,
+  configured: readonly ProviderId[],
+  aggregate: AggregateConfigSnapshot | null,
+): provider is ProviderId | ProviderInstanceId | AggregateInstanceId {
   if (isProviderId(provider)) return configured.includes(provider);
   if (isProviderInstanceId(provider)) return configured.includes(provider.split(':')[1] as ProviderId);
+  if (isAggregateInstanceId(provider)) {
+    return !!aggregate
+      && aggregate.instances.some((instance) => instance.id === provider)
+      && (aggregate.eligibility[provider]?.eligible ?? false);
+  }
   return false;
+}
+
+/** 聚合实例可用性 gate（R11 历史回放同款判据）：实例仍定义 && eligible——快照派生视图，
+ *  绝不因 gate 失败持久化写（hidden-source-still-active 教训）。 */
+function isAggregateInstanceUsable(instanceId: AggregateInstanceId, aggregate: AggregateConfigSnapshot | null): boolean {
+  if (!aggregate) return false;
+  return aggregate.instances.some((instance) => instance.id === instanceId)
+    && (aggregate.eligibility[instanceId]?.eligible ?? false);
+}
+
+/** 聚合视图标题 / 历史面板 label 的实例名解析：未知实例（已删）回退实例 id。 */
+function aggregateInstanceName(instanceId: AggregateInstanceId, aggregate: AggregateConfigSnapshot | null): string {
+  return aggregate?.instances.find((instance) => instance.id === instanceId)?.name ?? instanceId;
+}
+
+/** 聚合成员徽标（R4/R5）：provider 实例成员 = 实例名 + base provider favicon；engine 成员 =
+ *  engine 标签 + favicon；裸 provider 成员 = provider 标签 + favicon。 */
+function aggregateMemberBadge(
+  member: AggregateMemberId,
+  providers: ReturnType<typeof allProviders>,
+  providerInstances: readonly ProviderInstance[],
+): { id: string; label: string; favicon?: string } {
+  if (isProviderInstanceId(member)) {
+    const instance = providerInstances.find((candidate) => candidate.id === member);
+    const base = instance ? providers.find((candidate) => candidate.id === instance.baseProviderId) : undefined;
+    return { id: member, label: instance?.name ?? member, favicon: base?.favicon };
+  }
+  if (isEngineId(member)) {
+    const engine = allEngines().find((candidate) => candidate.id === member);
+    return { id: member, label: engine ? t(engine.label) : member, favicon: engine?.favicon };
+  }
+  const provider = providers.find((candidate) => candidate.id === member);
+  return { id: member, label: provider ? t(provider.label) : member, favicon: provider?.favicon };
 }
 
 export default function App() {
@@ -49,6 +101,7 @@ export default function App() {
   const [siteInstances, setSiteInstances] = useState<SiteInstanceDefinition[]>([]);
   const [customEngines, setCustomEngines] = useState<CustomEngineDefinition[]>([]);
   const [providerInstances, setProviderInstances] = useState<ProviderInstance[]>([]);
+  const [aggregate, setAggregate] = useState<AggregateConfigSnapshot | null>(null);
   const [groupConfig, setGroupConfig] = useState<GroupConfig>(() => defaultGroupConfig([]));
   const [aiAutoEnter, setAiAutoEnter] = useState(true);
   const [flatLayoutFewSources, setFlatLayoutFewSources] = useState(true);
@@ -57,8 +110,9 @@ export default function App() {
   const [switching, setSwitching] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [response, setResponse] = useState<NormalizedSearchResponse | null>(null);
+  const [aggregateResponse, setAggregateResponse] = useState<AggregateSearchResponse | null>(null);
   const [cacheMeta, setCacheMeta] = useState<CacheMeta | null>(null);
-  const [error, setError] = useState<{ message: string; needKey: boolean } | null>(null);
+  const [error, setError] = useState<{ message: string; needKey: boolean; ctaLabel?: string } | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const reqIdRef = useRef(0);
   const switchReqIdRef = useRef(0);
@@ -76,14 +130,16 @@ export default function App() {
       setSiteInstances(config.siteInstances ?? []);
       setCustomEngines(config.customEngines ?? []);
       setProviderInstances(config.providerInstances ?? []);
+      setAggregate(config.aggregate ?? null);
       setGroupConfig(config.groupConfig);
       setAiAutoEnter(config.aiAutoEnter ?? true);
       setFlatLayoutFewSources(config.flatLayoutFewSources ?? true);
       // 深链优先：search.html?provider=X&query=Y（SERP 栏跳转 / 后台打开用）。
-      // provider 必须已配置才认（实例 id 按 base provider 判定，configuredProviderIds 是 ProviderId[]）；
+      // provider 必须已受理才认：provider/实例按 configuredProviderIds 判定（实例 id 按 base
+      // provider）；聚合实例按「定义存在 && eligible」判定（KTD16，绕过 configured gate）。
       // query 预填并立即触发一次搜索。
       const link = parseSearchDeepLink(window.location.search);
-      const linkProvider = link.provider && isLinkSourceConfigured(link.provider, config.configuredProviderIds)
+      const linkProvider = link.provider && isLinkSourceConfigured(link.provider, config.configuredProviderIds, config.aggregate ?? null)
         ? link.provider
         : null;
       const initialSource = linkProvider ?? config.activeSourceId;
@@ -94,6 +150,7 @@ export default function App() {
         config.siteInstances ?? [],
         config.customEngines ?? [],
         config.providerInstances ?? [],
+        aggregateSourcesOf(config.aggregate),
       );
       // Query-only links honor the persisted source unless it is hidden from
       // the current projection. This executes a visible fallback without
@@ -117,7 +174,7 @@ export default function App() {
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
-  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
+  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId | AggregateInstanceId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
     const query = rawQuery.trim();
     if (!query) return;
     let source: SourceId | null;
@@ -154,6 +211,7 @@ export default function App() {
           refreshed.siteInstances ?? [],
           refreshed.customEngines ?? [],
           refreshed.providerInstances ?? [],
+          aggregateSourcesOf(refreshed.aggregate),
         );
         const freshSelectedSource = refreshedSources.find((candidate) => candidate.id === source);
         // If the selected Site Engine disappeared (or is no longer visible), run
@@ -177,6 +235,7 @@ export default function App() {
         refreshed.siteInstances ?? [],
         refreshed.customEngines ?? [],
         refreshed.providerInstances ?? [],
+        aggregateSourcesOf(refreshed.aggregate),
       );
       selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
       source = selectedSource?.id ?? null;
@@ -184,6 +243,48 @@ export default function App() {
     const handoff = selectedSource && resolveSerpHandoff(selectedSource, query, { aiAutoEnter });
     if (handoff?.kind === 'navigate') {
       location.assign(handoff.url);
+      return;
+    }
+    // 聚合搜索分支（KTD16）：`isAggregateInstanceId` 判别（不做字符串散比）→ aggregateSearch
+    // 消息族。回复写独立 aggregateResponse state（与 solo response 互斥渲染）；错误态走
+    // ErrorState——keyMissing → rerank 设置入口 CTA（R3），providerError → 原样文案（AE3
+    // 不降级渲染）。state 卫生与 solo 同款：非刷新先清空、reqId 丢弃过期响应。
+    if (source && isAggregateInstanceId(source)) {
+      const isRefresh = opts.forceRefresh === true;
+      const hadResponse = response !== null || aggregateResponse !== null;
+      const reqId = ++reqIdRef.current;
+      setLoading(true);
+      setError(null);
+      setRefreshError(null);
+      if (!isRefresh) {
+        setResponse(null);
+        setAggregateResponse(null);
+        setCacheMeta(null);
+      }
+      try {
+        const reply = await sendMessage('aggregateSearch', {
+          instanceId: source,
+          query,
+          forceRefresh: opts.forceRefresh,
+        });
+        if (reqId !== reqIdRef.current) return; // 过期响应丢弃
+        if (reply.ok) {
+          setAggregateResponse(reply.response);
+          setCacheMeta(reply.cache);
+        } else if (isRefresh && hadResponse) {
+          setRefreshError(reply.error.message);
+        } else if (reply.error.kind === 'keyMissing') {
+          setError({ message: reply.error.message, needKey: true, ctaLabel: t(MSG.aggregate_open_rerank_settings) });
+        } else {
+          setError({ message: reply.error.message, needKey: false });
+        }
+      } catch {
+        if (reqId !== reqIdRef.current) return;
+        if (isRefresh && hadResponse) setRefreshError(t(MSG.search_failed_retry));
+        else setError({ message: t(MSG.search_failed_retry), needKey: false });
+      } finally {
+        if (reqId === reqIdRef.current) setLoading(false);
+      }
       return;
     }
     if (!source || (!isProviderId(source) && !isProviderInstanceId(source))) return;
@@ -198,6 +299,7 @@ export default function App() {
     setRefreshError(null);
     if (!isRefresh) {
       setResponse(null);
+      setAggregateResponse(null);
       setCacheMeta(null);
     }
     try {
@@ -255,6 +357,7 @@ export default function App() {
             config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
+            aggregateSourcesOf(config.aggregate),
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -310,6 +413,7 @@ export default function App() {
             config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
+            aggregateSourcesOf(config.aggregate),
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -374,6 +478,7 @@ export default function App() {
             config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
+            aggregateSourcesOf(config.aggregate),
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -430,6 +535,7 @@ export default function App() {
             config.siteInstances ?? [],
             config.customEngines ?? [],
             config.providerInstances ?? [],
+            aggregateSourcesOf(config.aggregate),
           );
           const fallback = fallbackSources[0];
           if (!fallback) {
@@ -478,6 +584,25 @@ export default function App() {
       }
       return;
     }
+    // 聚合实例 chip（KTD16）：先串行写 activeSource，再以当前输入框查询发起 aggregateSearch
+    // （provider-switch-current-query 教训：写序在搜序之前，晚到的快照回放不会覆盖新选择）。
+    if (source.kind === 'aggregate-instance') {
+      if (!isAggregateInstanceId(source.id)) return;
+      if (loading || switching) return;
+      if (source.id === active) return;
+      const switchReqId = ++switchReqIdRef.current;
+      setSwitching(true);
+      setActive(source.id);
+      try {
+        await sendMessage('setActiveSource', source.id);
+        if (switchReqId !== switchReqIdRef.current) return;
+        const nextQuery = query.trim();
+        if (nextQuery) await handleSearch(nextQuery, { providerId: source.id });
+      } finally {
+        if (switchReqId === switchReqIdRef.current) setSwitching(false);
+      }
+      return;
+    }
     // 实例 chip 与裸 provider chip 同路径：序列化写 active source（实例 id）并用实例 id 搜索
     // （gateway 在边界解析实例 → base provider + per-instance options，KTD2/R8）。
     if (!isProviderId(source.id) && !isProviderInstanceId(source.id)) return;
@@ -506,7 +631,32 @@ export default function App() {
     reqIdRef.current += 1;
     setLoading(false);
     setQuery(entry.query);
+    // 聚合条目（KTD7 折叠判据：providerId === 'aggregate' 哨兵）：绕过 configuredProviderIds
+    // gate，gate = 实例仍定义 && eligible（快照派生，isAggregateInstanceUsable）；gate 通过时
+    // active 回写 agg 实例 id，渲染完整聚合响应（AE7 回放保真——slim 白名单 answers/members/
+    // provenance/rerank 完整）。
+    if (entry.providerId === AGGREGATE_CACHE_PROVIDER_ID && isAggregateCacheEntry(entry)) {
+      setResponse(null);
+      setAggregateResponse(entry.response);
+      setCacheMeta({ hit: true, entryId: entry.id, createdAt: entry.createdAt });
+      setError(null);
+      setRefreshError(null);
+      const instanceId = (entry.instanceId ?? entry.response.instanceId) as AggregateInstanceId;
+      if (isAggregateInstanceUsable(instanceId, aggregate) && instanceId !== active) {
+        const switchReqId = ++switchReqIdRef.current;
+        setSwitching(true);
+        void sendMessage('setActiveSource', instanceId)
+          .then(() => {
+            if (switchReqId === switchReqIdRef.current) setActive(instanceId);
+          })
+          .finally(() => {
+            if (switchReqId === switchReqIdRef.current) setSwitching(false);
+          });
+      }
+      return;
+    }
     setResponse(entry.response);
+    setAggregateResponse(null);
     setCacheMeta({ hit: true, entryId: entry.id, createdAt: entry.createdAt });
     setError(null);
     setRefreshError(null);
@@ -528,8 +678,11 @@ export default function App() {
   async function handleRefresh() {
     // 实例搜索的响应 provider 是 base ProviderId；刷新必须回到产出该结果的实例，
     // 否则会路由到默认实例（KTD5）而非用户选择的那一个（BUG-2）。
-    const providerId = (active && isProviderInstanceId(active)) ? active : response?.provider;
-    await handleSearch(response?.query ?? query, { forceRefresh: true, providerId });
+    // 聚合视图：active 即 agg 实例 id → 用实例 id + forceRefresh 刷新（R8）。
+    const providerId = active && isAggregateInstanceId(active)
+      ? active
+      : (active && isProviderInstanceId(active)) ? active : response?.provider;
+    await handleSearch(aggregateResponse?.query ?? response?.query ?? query, { forceRefresh: true, providerId });
   }
 
   async function loadSourceSnapshot() {
@@ -545,6 +698,7 @@ export default function App() {
     setSiteInstances(config.siteInstances ?? []);
     setCustomEngines(config.customEngines ?? []);
     setProviderInstances(config.providerInstances ?? []);
+    setAggregate(config.aggregate ?? null);
     setGroupConfig(config.groupConfig);
     setAiAutoEnter(config.aiAutoEnter ?? true);
     setFlatLayoutFewSources(config.flatLayoutFewSources ?? true);
@@ -555,8 +709,8 @@ export default function App() {
     browser.runtime.openOptionsPage();
   }
 
-  const isStart = !loading && !error && !response;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances);
+  const isStart = !loading && !error && !response && !aggregateResponse;
+  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregateSourcesOf(aggregate));
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，
@@ -566,6 +720,14 @@ export default function App() {
     : sources.some((s) => s.id === active)
       ? active
       : sources[0]?.id ?? null;
+  // 聚合历史条目 label 解析（Oracle F4）：SearchCachePanel 的 'aggregate' 哨兵 → 「聚合 · 实例名」。
+  const aggNameById: Record<string, string> = {};
+  for (const instance of aggregate?.instances ?? []) aggNameById[instance.id] = instance.name;
+  // 账单确认阈值输入（plan Phase 4）：有效成员数取快照 eligibility（KTD5 单点计算）；
+  // 快照缺失/实例已删（AE7 历史回放旧实例）时回退响应成员数——刷新重新查询的就是这批成员。
+  const aggregateValidMemberCount = aggregateResponse
+    ? aggregate?.eligibility[aggregateResponse.instanceId]?.validMembers ?? aggregateResponse.members.length
+    : 0;
 
   return (
     <div className={`app${isStart ? ' app--start' : ''}`}>
@@ -579,20 +741,33 @@ export default function App() {
         </div>
       </header>
       <SearchBox value={query} onChange={setQuery} onSearch={handleSearch} onInterrupt={handleInterrupt} loading={loading} disabled={switching} />
-      <SearchCachePanel open={historyOpen} onClose={() => setHistoryOpen(false)} onSelect={handleSelectCached} />
+      <SearchCachePanel open={historyOpen} onClose={() => setHistoryOpen(false)} onSelect={handleSelectCached} aggNameById={aggNameById} />
       <main className="results">
         {loading && <Loading />}
         {!loading && error && (
           <ErrorState
             message={error.message}
+            ctaLabel={error.ctaLabel}
             onOpenSettings={error.needKey ? openSettings : undefined}
+          />
+        )}
+        {!loading && !error && aggregateResponse && (
+          <AggregateResultView
+            response={aggregateResponse}
+            instanceName={aggregateInstanceName(aggregateResponse.instanceId, aggregate)}
+            validMemberCount={aggregateValidMemberCount}
+            cacheHit={cacheMeta?.hit === true}
+            cacheCreatedAt={cacheMeta?.createdAt}
+            refreshError={refreshError}
+            onForceRefresh={() => void handleRefresh()}
+            getMemberBadge={(member) => aggregateMemberBadge(member, providers, providerInstances)}
           />
         )}
         {!loading && !error && response && (
           <>
             {cacheMeta?.hit && (
               <div className="cache-notice">
-                <span>{t(MSG.cache_hit_notice, [providerLabel(response.provider, providers), cacheMeta.createdAt ? relativeTime(cacheMeta.createdAt) : ''])}</span>
+                <span>{t(MSG.cache_hit_notice, [providerLabel(response.provider, providers, aggregate), cacheMeta.createdAt ? relativeTime(cacheMeta.createdAt) : ''])}</span>
                 {isActiveSourceForProvider(active, response.provider) && <button type="button" onClick={() => void handleRefresh()}>{t(MSG.cache_refresh)}</button>}
                 {refreshError && <span className="cache-error">{refreshError}</span>}
               </div>
@@ -606,21 +781,14 @@ export default function App() {
   );
 }
 
-function relativeTime(timestamp: number): string {
-  const seconds = Math.round((timestamp - Date.now()) / 1000);
-  const abs = Math.abs(seconds);
-  const rtf = new Intl.RelativeTimeFormat(getCurrentLocale() === 'zh_CN' ? 'zh-CN' : 'en', { numeric: 'auto' });
-  if (abs < 60) return rtf.format(seconds, 'second');
-  const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
-  return rtf.format(Math.round(hours / 24), 'day');
-}
-
-function providerLabel(providerId: ProviderId, providers: ReturnType<typeof allProviders>): string {
-  const provider = providers.find((candidate) => candidate.id === providerId);
-  return provider ? t(provider.label) : providerId;
+function providerLabel(
+  sourceId: ProviderId | AggregateInstanceId,
+  providers: ReturnType<typeof allProviders>,
+  aggregate: AggregateConfigSnapshot | null,
+): string {
+  if (isAggregateInstanceId(sourceId)) return aggregateInstanceName(sourceId, aggregate);
+  const provider = providers.find((candidate) => candidate.id === sourceId);
+  return provider ? t(provider.label) : sourceId;
 }
 
 /** 刷新按钮显隐：激活源是响应 provider 本身，或是该 provider 的实例（响应来自该 provider）。 */

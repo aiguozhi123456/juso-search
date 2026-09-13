@@ -1,6 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import type { SearchCacheEntry, SearchCacheSummary } from '@/lib/search-cache';
+import { AGGREGATE_CACHE_PROVIDER_ID } from '@/lib/search-cache';
 import { allProviders } from '@/lib/providers/registry';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import { useSearchCache } from '@/lib/useSearchCache';
@@ -10,11 +11,14 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSelect: (entry: SearchCacheEntry) => void;
+  /** 聚合条目 label 解析（R11/Oracle F4）：agg 实例 id → 实例名；宿主从快照注入。
+   *  'aggregate' 哨兵 summary 走专用分支显示 i18n「聚合 · 实例名」（无映射回退「聚合」）。 */
+  aggNameById?: Record<string, string>;
 }
 
 const providers = allProviders();
 
-export function SearchCachePanel({ open, onClose, onSelect }: Props) {
+export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props) {
   const { summaries, loading, loadEntry, deleteEntry, clear, refresh } = useSearchCache(open);
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -91,7 +95,7 @@ export function SearchCachePanel({ open, onClose, onSelect }: Props) {
               <article className="history-item" key={summary.id}>
                 <button type="button" className="history-item-main" onClick={() => void select(summary)}>
                   <span className="history-query">{summary.query}</span>
-                  <span className="history-meta">{providerLabel(summary.providerId)} · {relativeTime(summary.lastAccessedAt)}</span>
+                  <span className="history-meta">{providerLabel(summary.providerId, summary.instanceId, aggNameById)} · {relativeTime(summary.lastAccessedAt)}</span>
                   {summary.answerPreview && <span className="history-answer">{summary.answerPreview}</span>}
                   {summary.resultPreviews.length > 0 && (
                     <span className="history-results">
@@ -112,7 +116,13 @@ export function SearchCachePanel({ open, onClose, onSelect }: Props) {
   );
 }
 
-function providerLabel(providerId: ProviderId): string {
+/** 历史条目 label（R11/Oracle F4）：'aggregate' 哨兵 → i18n「聚合 · $实例名」（映射缺失回退「聚合」）；
+ *  solo 条目 → provider 标签。 */
+function providerLabel(providerId: ProviderId | typeof AGGREGATE_CACHE_PROVIDER_ID, instanceId: string | undefined, aggNameById?: Record<string, string>): string {
+  if (providerId === AGGREGATE_CACHE_PROVIDER_ID) {
+    const name = instanceId ? aggNameById?.[instanceId] : undefined;
+    return name ? t(MSG.history_aggregate_label, [name]) : t(MSG.aggregate_label);
+  }
   const provider = providers.find((candidate) => candidate.id === providerId);
   return provider ? t(provider.label) : providerId;
 }

@@ -6,16 +6,19 @@ import * as storage from '@/lib/storage';
  *
  * 拆分前单文件 lib/storage.ts 的导出面共 92 项：88 个运行时值 + 4 个纯类型
  * （ThemePref / LocalePref / StylePref / BarPositionPref）。类型不出现在运行时命名空间，
- * 由 typecheck 覆盖；本快照锁定 91 个运行时导出，防止未来模块用 `export *` 静默泄漏
+ * 由 typecheck 覆盖；本快照锁定全部运行时导出，防止未来模块用 `export *` 静默泄漏
  * 内部实现（max-results-store 的 readMaxResultsMapFrom 即靠精确命名列表排除）。
+ * 聚合搜索（aggregate-search-rerank plan KTD10/KTD18）新增 10 项运行时导出（2 键 + 8 函数）；
+ * Lane B（KTD7/KTD9 聚合缓存路径）再加 2 项：saveCachedAggregateSearch / deleteAggregateCacheEntries。
  */
 describe('storage barrel export surface', () => {
-  it('exposes exactly the 91 runtime exports (alphabetical snapshot)', () => {
+  it('exposes exactly the 104 runtime exports (alphabetical snapshot)', () => {
     expect(Object.keys(storage).sort()).toEqual([
-      // keys（20 常量）+ max-results 常量（2）
+      // keys（22 常量）+ max-results 常量（2）
       'ACTIVE_KEY',
       'ACTIVE_SOURCE_KEY',
       'AGENT_BRIDGE_ENABLED_KEY',
+      'AGGREGATE_INSTANCES_KEY',
       'AI_AUTO_ENTER_KEY',
       'BAR_POSITION_KEY',
       'CUSTOM_ENGINES_KEY',
@@ -29,6 +32,7 @@ describe('storage barrel export surface', () => {
       'MAX_RESULTS_MIN',
       'ONBOARDING_COMPLETED_KEY',
       'PROVIDER_INSTANCES_KEY',
+      'RERANK_CONFIG_KEY',
       'SELECTION_SEARCH_ENABLED_KEY',
       'SELECTION_SEARCH_SOURCE_KEY',
       'SITE_INSTANCES_KEY',
@@ -36,14 +40,18 @@ describe('storage barrel export surface', () => {
       'SOURCE_ORDER_KEY',
       'STYLE_KEY',
       'THEME_KEY',
-      // 函数（66）
+      // 函数（77）
+      'buildAggregateProjection',
       'clampMaxResults',
       'clearKey',
       'clearProviderMaxResults',
       'clearSearchCache',
+      'createAggregateInstance',
       'createCustomEngineDefinition',
       'createProviderInstance',
       'createSiteInstanceDefinition',
+      'deleteAggregateCacheEntries',
+      'deleteAggregateInstance',
       'deleteCachedSearch',
       'deleteCustomEngineDefinition',
       'deleteProviderInstance',
@@ -52,6 +60,7 @@ describe('storage barrel export surface', () => {
       'getActiveProviderId',
       'getActiveSourceId',
       'getAgentBridgeEnabled',
+      'getAggregateInstances',
       'getAiAutoEnter',
       'getAllProviderMaxResults',
       'getBarPositionPref',
@@ -68,6 +77,7 @@ describe('storage barrel export surface', () => {
       'getProviderConfigSnapshot',
       'getProviderInstances',
       'getProviderMaxResults',
+      'getRerankConfig',
       'getSearchCacheSummaries',
       'getSelectionSearchEnabled',
       'getSelectionSearchSource',
@@ -76,12 +86,14 @@ describe('storage barrel export surface', () => {
       'getSourceOrder',
       'getStylePref',
       'getThemePref',
+      'saveCachedAggregateSearch',
       'saveCachedSearch',
       'selectActiveSourceId',
       'setActiveProviderAndSourceId',
       'setActiveProviderId',
       'setActiveSourceId',
       'setAgentBridgeEnabled',
+      'setAggregateInstances',
       'setAiAutoEnter',
       'setBarPositionPref',
       'setEngineSearchEnabled',
@@ -92,20 +104,23 @@ describe('storage barrel export surface', () => {
       'setOnboardingCompleted',
       'setProviderInstances',
       'setProviderMaxResults',
+      'setRerankConfig',
       'setSelectionSearchEnabled',
       'setSelectionSearchSource',
       'setSourceHidden',
       'setSourceOrder',
       'setStylePref',
       'setThemePref',
+      'updateAggregateInstance',
       'updateCustomEngineDefinition',
       'updateProviderInstance',
       'updateSiteInstanceDefinition',
+      'withAggregateInstancesMutation',
       'withProviderInstancesMutation',
       'withProviderKeysMutation',
       'withProviderMaxResultsMutation',
       'withSourceMutation',
     ]);
-    expect(Object.keys(storage)).toHaveLength(91);
+    expect(Object.keys(storage)).toHaveLength(104);
   });
 });

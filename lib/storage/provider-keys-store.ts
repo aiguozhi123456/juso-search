@@ -4,8 +4,9 @@ import { normalizeSourceHidden, normalizeSourceOrder } from '../sources';
 import { normalizeSiteInstanceDefinitions } from '../site-instances';
 import { normalizeCustomEngineDefinitions } from '../custom-engines';
 import { normalizeProviderInstances } from '../provider-instances';
-import { KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY, CUSTOM_ENGINES_KEY } from './keys';
-import { ensureVisibleUsable } from './shared';
+import { normalizeAggregateInstances } from '../aggregate-instances';
+import { KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY, CUSTOM_ENGINES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY } from './keys';
+import { buildAggregateProjection, ensureVisibleUsable } from './shared';
 import { withSourceMutation } from './source-graph-store';
 
 // providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
@@ -46,14 +47,17 @@ export async function clearKey(id: ProviderId): Promise<void> {
   // Always acquire source before provider keys when an operation touches both;
   // mergeImport follows this same order.
   await withSourceMutation(() => withProviderKeysMutation(async () => {
-    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY]);
+    // 红线（source-graph-new-type-threading-data-loss）：聚合定义集穿透每次 order/hidden 重写；
+    // eligibility 输入用**删除后**的 keys（与 snapshot 的 configuredProviderIds 同源语义）。
+    const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY]);
     const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
     delete keys[id];
     const definitions = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
     const customDefinitions = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
-    const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances);
-    const hidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], definitions, customDefinitions, instances), order, keys, definitions, customDefinitions, instances);
+    const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], definitions, customDefinitions, instances, normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]));
+    const { sources: aggregateSources } = buildAggregateProjection(got[AGGREGATE_INSTANCES_KEY], got[RERANK_CONFIG_KEY], keys, instances);
+    const hidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], definitions, customDefinitions, instances, normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY])), order, keys, definitions, customDefinitions, instances, aggregateSources);
     // 同步清除该 provider 的 maxResults，避免删除 key 后残留孤立设置，
     // 用户重新配置 key 时旧 maxResults 不会静默复用。
     const maxMap = (got[MAX_RESULTS_KEY] && typeof got[MAX_RESULTS_KEY] === 'object' && !Array.isArray(got[MAX_RESULTS_KEY])

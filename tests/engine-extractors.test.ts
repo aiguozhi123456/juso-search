@@ -102,10 +102,11 @@ describe('engine natural-result extractors', () => {
       query: 'test query',
       results: [
         // 聚合卡（顶部「作者最新视频」）：无 UP主/弹幕，snippet 字段优雅降级。
-        { title: '千星奇域 7.0版本传说套装PV', url: 'https://www.bilibili.com/video/BV1JS316dELY/', snippet: '播放: 1.5万 · 时长: 01:01' },
+        // snippet 为纯展示元数据 → snippetKind:'metadata'（聚合重排剔除出重排文档）。
+        { title: '千星奇域 7.0版本传说套装PV', url: 'https://www.bilibili.com/video/BV1JS316dELY/', snippet: '播放: 1.5万 · 时长: 01:01', snippetKind: 'metadata' },
         // 真结果卡：全字段富元数据；protocol-relative URL 解析为 https。
-        { title: '原神 超越PV 骤雪', url: 'https://www.bilibili.com/video/BV1zi7Y6BEdS/', snippet: 'UP主: 原神 · 播放: 952.7万 · 弹幕: 7.8万 · 时长: 20:57' },
-        { title: '原神 角色演示 钟离 听书人', url: 'https://www.bilibili.com/video/BV1hD4y1X7Rm/', snippet: 'UP主: 原神 · 播放: 703.6万 · 弹幕: 6.3万 · 时长: 03:38' },
+        { title: '原神 超越PV 骤雪', url: 'https://www.bilibili.com/video/BV1zi7Y6BEdS/', snippet: 'UP主: 原神 · 播放: 952.7万 · 弹幕: 7.8万 · 时长: 20:57', snippetKind: 'metadata' },
+        { title: '原神 角色演示 钟离 听书人', url: 'https://www.bilibili.com/video/BV1hD4y1X7Rm/', snippet: 'UP主: 原神 · 播放: 703.6万 · 弹幕: 6.3万 · 时长: 03:38', snippetKind: 'metadata' },
         // 无 http(s) URL 的卡被丢弃；含 data-ad 的推广卡被排除。
       ],
     });
@@ -119,10 +120,11 @@ describe('engine natural-result extractors', () => {
       query: 'test query',
       results: [
         // 真笔记（有标题）：作者名干净、点赞数；相对 URL 解析为 https。
-        { title: '原神前瞻活动', url: 'https://www.xiaohongshu.com/explore/6a6c986d0000000033010cc1', snippet: '作者: 雨滴归云 · 点赞: 18' },
-        { title: '原神7.0卡池爆料合集', url: 'https://www.xiaohongshu.com/explore/6b7d000000000000004412dd2', snippet: '作者: 后日谈STUDIO · 点赞: 1.2万' },
+        // snippet 为纯展示元数据 → snippetKind:'metadata'（聚合重排剔除出重排文档）。
+        { title: '原神前瞻活动', url: 'https://www.xiaohongshu.com/explore/6a6c986d0000000033010cc1', snippet: '作者: 雨滴归云 · 点赞: 18', snippetKind: 'metadata' },
+        { title: '原神7.0卡池爆料合集', url: 'https://www.xiaohongshu.com/explore/6b7d000000000000004412dd2', snippet: '作者: 后日谈STUDIO · 点赞: 1.2万', snippetKind: 'metadata' },
         // 无标题笔记：填占位 (无标题)。
-        { title: '(无标题)', url: 'https://www.xiaohongshu.com/explore/7c8e000000000000005523ee3', snippet: '作者: 流星J · 点赞: 324' },
+        { title: '(无标题)', url: 'https://www.xiaohongshu.com/explore/7c8e000000000000005523ee3', snippet: '作者: 流星J · 点赞: 324', snippetKind: 'metadata' },
         // 无 /explore/ 链接的广告/直播/热搜卡 + 无效 scheme 的卡均被丢弃。
       ],
     });
@@ -135,27 +137,32 @@ describe('engine natural-result extractors', () => {
       engine: 'douyin',
       query: 'test query',
       results: [
-        // 视频卡：URL 由 id 拼成 /video/{id}；title 取文案全文；snippet 拆出 点赞+作者。
+        // 视频卡：URL 由 id 拼成 /video/{id}；title 取文案全文（语义在 title，不动）；
+        // snippet 为纯展示元数据（作者/点赞）→ snippetKind:'metadata'。
         {
           title: '#原神 #阿罗夏 疾掠弋缇 · 阿罗夏 | 似隼疾掠，弋猎于冬 《原神》「无神怜爱的雪国」前瞻特别节目将于7月31日20:00正式开启。',
           url: 'https://www.douyin.com/video/7668537075284643087',
           snippet: '作者: @原神 · 点赞: 15.8万',
+          snippetKind: 'metadata',
         },
         {
           title: '#原神 #原神至冬 《原神》7.0版本「无神怜爱的雪国」活动汇总',
           url: 'https://www.douyin.com/video/7668682492911635764',
           snippet: '作者: @原神 · 点赞: 3784',
+          snippetKind: 'metadata',
         },
         // 图文卡：URL 用 /note/{id}。
         {
           title: '原神至冬最新兑换码单个码最大的一次。#原神 #原神空月之歌',
           url: 'https://www.douyin.com/note/7632304936659804392',
           snippet: '作者: @苏打ooo · 点赞: 461',
+          snippetKind: 'metadata',
         },
         {
           title: '亲爱的旅行者，派蒙的特别节目预告时间到啦 《原神》7.0版本前瞻特别节目将于7月31日晚20:00正式开启。',
           url: 'https://www.douyin.com/video/7667794922409446706',
           snippet: '作者: @原神 · 点赞: 31.8万',
+          snippetKind: 'metadata',
         },
         // #0 用户聚合卡（含 /user/ 链接）、#4 相关搜索卡 均无时长/图文前缀，被 parseCardFields 丢弃。
       ],

@@ -64,7 +64,8 @@ vi.mock('@/lib/providers/registry', () => ({
 // schema 启动护栏短路：gateway 模块加载即触发 schemaReady IIFE，
 // 这里把两个 ensure mock 为 no-op，使 schemaReady 立即 resolve（不依赖 browser.storage）。
 vi.mock('@/lib/schema', () => ({ ensureSchema: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('@/lib/search-cache', () => ({
+vi.mock('@/lib/search-cache', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/search-cache')>()),
   ensureCacheSchema: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -504,6 +505,7 @@ describe('handleGetProviderConfig', () => {
       providerInstances: [],
       providerMaxResults: {},
       groupConfig: defaultGroupConfig([]),
+      aggregate: { instances: [], eligibility: {}, rerank: { configured: false, hasApiKey: false } },
       aiAutoEnter: true,
       flatLayoutFewSources: true,
       ...overrides,
@@ -1181,7 +1183,9 @@ describe('handleImportConfig', () => {
       written: ['exa'], skipped: ['tavily'],
       activeProviderOverridden: true, activeSourceOverridden: true, themePrefOverridden: true, localePrefOverridden: true,
       serpBarPositionOverridden: false, aiAutoEnterOverridden: false, flatLayoutFewSourcesOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false,
+      aggregateInstancesOverridden: false, rerankConfigOverridden: false,
+      providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     const reply = await handleImportConfig({ payload, applyPrefs: true });
@@ -1200,7 +1204,9 @@ describe('handleImportConfig', () => {
       written: [], skipped: [],
       activeProviderOverridden: false, activeSourceOverridden: false, themePrefOverridden: false, localePrefOverridden: false,
       serpBarPositionOverridden: false, aiAutoEnterOverridden: false, flatLayoutFewSourcesOverridden: false,
-      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false, providerMaxResultsOverridden: false,
+      sourceOrderOverridden: true, sourceHiddenOverridden: false, siteInstancesOverridden: false, customEnginesOverridden: false, providerInstancesOverridden: false,
+      aggregateInstancesOverridden: false, rerankConfigOverridden: false,
+      providerMaxResultsOverridden: false,
       groupConfigOverridden: false,
     } as ImportReport);
     await handleImportConfig({ payload, applyPrefs: false });

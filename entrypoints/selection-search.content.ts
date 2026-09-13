@@ -21,7 +21,7 @@ import { createElement } from 'react';
 import type { Root } from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { sendMessage } from '@/lib/messaging';
-import { allSources } from '@/lib/sources';
+import { aggregateSourcesOf, allSources } from '@/lib/sources';
 import type { SearchSource } from '@/lib/sources';
 import { resolveSerpHandoff } from '@/lib/serp-handoff';
 import { getSelectionSearchEnabled, getSelectionSearchSource, getThemePref, getStylePref, getLocalePref } from '@/lib/storage';
@@ -147,6 +147,7 @@ export default defineContentScript({
           config.siteInstances ?? [],
           config.customEngines ?? [],
           config.providerInstances ?? [],
+          aggregateSourcesOf(config.aggregate),
         );
         if (sources.length === 0) return;
         // 解析主源：固定源优先（须仍可见），否则跟随激活源，否则首个可见源。

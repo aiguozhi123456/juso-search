@@ -13,9 +13,11 @@ import { PROVIDER_INSTANCES_KEY } from './storage';
 import {
   ACTIVE_KEY,
   ACTIVE_SOURCE_KEY,
+  AGGREGATE_INSTANCES_KEY,
   KEYS_KEY,
   LOCALE_KEY,
   MAX_RESULTS_KEY,
+  RERANK_CONFIG_KEY,
   SOURCE_HIDDEN_KEY,
   SOURCE_ORDER_KEY,
   SITE_INSTANCES_KEY,
@@ -26,13 +28,14 @@ import {
   AI_AUTO_ENTER_KEY,
   FLAT_LAYOUT_FEW_SOURCES_KEY,
   clampMaxResults,
+  deleteAggregateCacheEntries,
   withProviderKeysMutation,
   withSourceMutation,
 } from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
 import type { EngineId } from './engines/types';
-import { allKnownSourceIds, isEngineId, isKnownSiteInstanceId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource, type SourceId } from './sources';
+import { allKnownSourceIds, isEngineId, isKnownSiteInstanceId, isKnownCustomEngineId, isProviderId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, visibleUsableSource, type AggregateSourceDefinition, type SourceId } from './sources';
 import type { GroupConfig } from './source-groups';
 import { normalizeGroupConfig } from './source-groups';
 import { CURRENT_SCHEMA_VERSION } from './schema';
@@ -42,6 +45,11 @@ import type { ProviderInstance } from './provider-instances';
 import { isBoundedProviderInstanceCollection, isProviderInstanceId, normalizeProviderInstances } from './provider-instances';
 import type { CustomEngineDefinition } from './custom-engines';
 import { isBoundedCustomEngineCollection, isCustomEngineId, normalizeCustomEngineDefinitions } from './custom-engines';
+import type { AggregateInstance } from './aggregate-instances';
+import { isAggregateInstanceId, isBoundedAggregateInstanceCollection, normalizeAggregateInstances } from './aggregate-instances';
+import type { RerankConfig } from './aggregate/types';
+import { normalizeRerankConfig, validateRerankEndpoint } from './aggregate/rerank-client';
+import { buildAggregateProjection } from './storage';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
@@ -76,6 +84,10 @@ export interface ConfigExport {
   customEngines?: CustomEngineDefinition[];
   /** Absent in legacy exports; absence preserves local Provider Instances. */
   providerInstances?: ProviderInstance[];
+  /** Absent in legacy exports; absence preserves local Aggregate Instances（KTD13/Oracle F3 preserve）。 */
+  aggregateInstances?: AggregateInstance[];
+  /** 全局 rerank 配置（KTD10/KTD13）：apiKey 明文随导出（与 providerKeys 同设计）；缺失保留本地。 */
+  rerankConfig?: RerankConfig;
   /** 每个 provider 的搜索结果条数（仅含已显式设置的 id）。 */
   providerMaxResults?: Partial<Record<ProviderId, number>>;
   /** 来源分组与顶层布局（导入文件可选；缺失则保留本地配置）。 */
@@ -84,25 +96,30 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const siteInstances = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const providerInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
+  const aggregateInstances = normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
   const providerKeys = normalizeProviderKeys(keys);
   const activeRaw = got[ACTIVE_KEY];
   const active = KNOWN_PROVIDER_IDS.has(activeRaw as ProviderId) ? (activeRaw as ProviderId) : null;
+  // KTD5：导出侧 activeSource 解析受理聚合（定义集 = 本地全量实例，eligibility 输入 = 本地 keys/
+  // 实例/rerank）——与 snapshot 的 getActiveSourceId 共用同一 resolve（fallback 自动一致）。
+  const aggregateProjection = buildAggregateProjection(got[AGGREGATE_INSTANCES_KEY], got[RERANK_CONFIG_KEY], providerKeys, providerInstances);
   const activeSource = resolveEffectiveActiveSource(
     (typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null) ?? active,
     providerKeys,
     siteInstances,
     customEngines,
     providerInstances,
+    aggregateProjection.sources,
   ) ?? DEFAULT_ENGINE_ID;
   const theme = THEME_VALUES.has(got[THEME_KEY] as ThemePref) ? (got[THEME_KEY] as ThemePref) : 'auto';
   const locale = LOCALE_VALUES.has(got[LOCALE_KEY] as LocalePref) ? (got[LOCALE_KEY] as LocalePref) : 'auto';
   const barPosition = BAR_POSITION_VALUES.has(got[BAR_POSITION_KEY] as BarPositionPref) ? (got[BAR_POSITION_KEY] as BarPositionPref) : 'auto';
-  const knownSourceIds = allKnownSourceIds(siteInstances, customEngines, providerInstances);
+  const knownSourceIds = allKnownSourceIds(siteInstances, customEngines, providerInstances, aggregateInstances);
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     exportedAt: Date.now(),
@@ -115,11 +132,15 @@ export async function buildExportPayload(): Promise<ConfigExport> {
     serpBarPosition: barPosition,
     aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false,
     flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false,
-    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteInstances, customEngines, providerInstances),
-    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteInstances, customEngines, providerInstances),
+    // KTD4/F2：定义集 = 本地全量聚合实例（与 eligibility 无关）——本地 order/hidden 中的 agg id
+    // 由 normalize 直接收敛保留（Lane C 折叠，手术式回注已删除）。
+    sourceOrder: normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteInstances, customEngines, providerInstances, aggregateInstances),
+    sourceHidden: normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteInstances, customEngines, providerInstances, aggregateInstances),
     siteInstances,
     customEngines,
     providerInstances,
+    aggregateInstances,
+    rerankConfig: normalizeRerankConfig(got[RERANK_CONFIG_KEY]),
     providerMaxResults: normalizeMaxResultsMap(got[MAX_RESULTS_KEY]),
     groupConfig: got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
       ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], knownSourceIds)
@@ -195,8 +216,35 @@ export function parseImportPayload(raw: unknown): ParseResult {
     providerInstances = normalizeProviderInstances(obj.providerInstances);
     if (!Array.isArray(obj.providerInstances) || providerInstances.length !== obj.providerInstances.length) return { ok: false, error: 'invalid_provider_instances' };
   }
+  // Aggregate Instances（KTD13）：同 providerInstances 语义——缺失保留本地；存在时 isBounded +
+  // normalize 长度等值（逐条校验 + 首现去重），非法拒收 invalid_aggregate_instances。
+  const hasAggregateInstances = Object.prototype.hasOwnProperty.call(obj, 'aggregateInstances');
+  let aggregateInstances: AggregateInstance[] | undefined;
+  if (hasAggregateInstances) {
+    if (!isBoundedAggregateInstanceCollection(obj.aggregateInstances)) return { ok: false, error: 'invalid_aggregate_instances' };
+    aggregateInstances = normalizeAggregateInstances(obj.aggregateInstances);
+    if (!Array.isArray(obj.aggregateInstances) || aggregateInstances.length !== obj.aggregateInstances.length) return { ok: false, error: 'invalid_aggregate_instances' };
+  }
+  // rerankConfig（KTD12/KTD13）：endpoint 复用 KTD12 loopback 校验（localhost/[::1] 同步改写为
+  // 127.0.0.1），非法拒收 invalid_rerank_config；endpoint 为空 = 未配置态，合法放行。缺失保留本地。
+  const hasRerankConfig = Object.prototype.hasOwnProperty.call(obj, 'rerankConfig');
+  let rerankConfig: RerankConfig | undefined;
+  if (hasRerankConfig) {
+    const normalizedRerank = normalizeRerankConfig(obj.rerankConfig);
+    if (normalizedRerank.endpoint !== '') {
+      const endpointCheck = validateRerankEndpoint(normalizedRerank.endpoint);
+      if (!endpointCheck.ok) return { ok: false, error: 'invalid_rerank_config' };
+      rerankConfig = {
+        endpoint: endpointCheck.endpoint,
+        ...(normalizedRerank.model ? { model: normalizedRerank.model } : {}),
+        ...(normalizedRerank.apiKey ? { apiKey: normalizedRerank.apiKey } : {}),
+      };
+    } else {
+      rerankConfig = normalizedRerank;
+    }
+  }
   const activeSource = obj.activeSource;
-  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteInstances, customEngines, providerInstances, isLegacyV3)) return { ok: false, error: 'invalid_active_source' };
+  if (activeSource !== undefined && activeSource !== null && !isKnownSource(activeSource, siteInstances, customEngines, providerInstances, isLegacyV3, aggregateInstances)) return { ok: false, error: 'invalid_active_source' };
   const theme = obj.themePref;
   if (!THEME_VALUES.has(theme as ThemePref)) return { ok: false, error: 'invalid_theme' };
   const locale = obj.localePref;
@@ -216,7 +264,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceOrder)) return { ok: false, error: 'invalid_source_order' };
     const seen = new Set<SourceId>();
     for (const sourceId of sourceOrder) {
-      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
+      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3, aggregateInstances) || seen.has(sourceId)) return { ok: false, error: 'invalid_source_order' };
       seen.add(sourceId);
     }
   }
@@ -226,7 +274,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
     if (!Array.isArray(sourceHidden)) return { ok: false, error: 'invalid_source_hidden' };
     const seenHidden = new Set<SourceId>();
     for (const sourceId of sourceHidden) {
-      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
+      if (!isKnownSource(sourceId, siteInstances, customEngines, providerInstances, isLegacyV3, aggregateInstances) || seenHidden.has(sourceId)) return { ok: false, error: 'invalid_source_hidden' };
       seenHidden.add(sourceId);
     }
   }
@@ -236,7 +284,8 @@ export function parseImportPayload(raw: unknown): ParseResult {
   let groupConfig: GroupConfig | undefined;
   if (hasGroupConfig) {
     // normalizeGroupConfig 容错：非法结构会被规整为默认配置，不阻断导入。
-    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteInstances ?? [], customEngines ?? [], providerInstances ?? []));
+    // 已知集含 payload 聚合定义集（缺失 = []，此时含 agg id 的赋值会被剔除——与 order/hidden 校验同判据）。
+    groupConfig = normalizeGroupConfig(obj.groupConfig, allKnownSourceIds(siteInstances ?? [], customEngines ?? [], providerInstances ?? [], aggregateInstances ?? []));
   }
   return {
     ok: true,
@@ -252,11 +301,15 @@ export function parseImportPayload(raw: unknown): ParseResult {
       serpBarPosition: hasBarPosition ? barPosition as BarPositionPref : undefined,
       aiAutoEnter: hasAiAutoEnter ? aiAutoEnter as boolean : undefined,
       flatLayoutFewSources: hasFlatLayoutFewSources ? flatLayoutFewSources as boolean : undefined,
-      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteInstances, customEngines, providerInstances) : undefined,
-      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteInstances, customEngines, providerInstances) : undefined,
+      // KTD4/F2：定义集 = payload 聚合实例集（校验层已保证仅其成员可出现 agg id）——
+      // normalize 直调保留（Lane C 折叠，withAggregateIdsPreserved 包裹已删除）。
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteInstances, customEngines, providerInstances, aggregateInstances ?? []) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteInstances, customEngines, providerInstances, aggregateInstances ?? []) : undefined,
       siteInstances,
       customEngines,
       providerInstances,
+      aggregateInstances,
+      rerankConfig,
       providerMaxResults,
       groupConfig,
     },
@@ -294,6 +347,10 @@ export interface ImportReport {
   customEnginesOverridden: boolean;
   /** 是否覆盖了 Provider Instance definitions。 */
   providerInstancesOverridden: boolean;
+  /** 是否覆盖了 Aggregate Instance definitions（KTD13：整数组替换）。 */
+  aggregateInstancesOverridden: boolean;
+  /** 是否覆盖了 rerank 的 endpoint/model（KTD13；apiKey 仅填空不计入）。实际变更时聚合缓存已全量失效（KTD9/F5）。 */
+  rerankConfigOverridden: boolean;
   /** 是否覆盖了 providerMaxResults。 */
   providerMaxResultsOverridden: boolean;
   /** 是否覆盖了 groupConfig（来源分组与顶层布局）。 */
@@ -302,7 +359,7 @@ export interface ImportReport {
 
 /** 单个 pref 的预览 diff：from 当前值 -> to 导入值（仅当两者不同时为 diff）。 */
 export interface PrefDiff {
-  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'flatLayoutFewSources' | 'sourceOrder' | 'sourceHidden' | 'siteInstances' | 'customEngines' | 'providerInstances' | 'providerMaxResults' | 'groupConfig';
+  key: 'activeProvider' | 'activeSource' | 'themePref' | 'localePref' | 'serpBarPosition' | 'aiAutoEnter' | 'flatLayoutFewSources' | 'sourceOrder' | 'sourceHidden' | 'siteInstances' | 'customEngines' | 'providerInstances' | 'aggregateInstances' | 'rerankConfig' | 'providerMaxResults' | 'groupConfig';
   from: string | null;
   to: string | null;
 }
@@ -323,7 +380,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -352,6 +409,18 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (payload.providerInstances !== undefined) {
     if (!sameProviderInstances(currentInstances, payload.providerInstances)) {
       prefDiffs.push({ key: 'providerInstances', from: providerInstancesSummary(currentInstances), to: providerInstancesSummary(payload.providerInstances) });
+    }
+  }
+  // 聚合实例（KTD13）：整数组替换语义，summary 行 = id:name:成员数:topN。
+  const currentAggregates = normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]);
+  if (payload.aggregateInstances !== undefined && !sameAggregateInstances(currentAggregates, payload.aggregateInstances)) {
+    prefDiffs.push({ key: 'aggregateInstances', from: aggregateInstancesSummary(currentAggregates), to: aggregateInstancesSummary(payload.aggregateInstances) });
+  }
+  // rerankConfig（AE6/KTD13）：diff 只含 endpoint/model——**apiKey 绝不进预览**。
+  if (payload.rerankConfig !== undefined) {
+    const currentRerank = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
+    if (currentRerank.endpoint !== payload.rerankConfig.endpoint || (currentRerank.model ?? undefined) !== (payload.rerankConfig.model ?? undefined)) {
+      prefDiffs.push({ key: 'rerankConfig', from: rerankConfigSummary(currentRerank), to: rerankConfigSummary(payload.rerankConfig) });
     }
   }
   const currentKeys = normalizeProviderKeys(current);
@@ -398,7 +467,7 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (payload.groupConfig !== undefined) {
     const curGroupRaw = got[GROUP_CONFIG_KEY];
     const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-      ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances))
+      ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances, currentAggregates))
       : undefined;
     if (!sameGroupConfig(curGroup, payload.groupConfig)) {
       prefDiffs.push({ key: 'groupConfig', from: groupConfigSummary(curGroup), to: groupConfigSummary(payload.groupConfig) });
@@ -435,7 +504,7 @@ export async function mergeImport(
   const applyPrefs = opts.applyPrefs === true;
   // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
   return withSourceMutation(() => withProviderKeysMutation(async () => {
-const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -472,8 +541,34 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
     let siteInstancesOverridden = false;
     let customEnginesOverridden = false;
     let providerInstancesOverridden = false;
+    let aggregateInstancesOverridden = false;
+    let rerankConfigOverridden = false;
+    let aggregateCacheInvalidated = false;
     let providerMaxResultsOverridden = false;
     let groupConfigOverridden = false;
+    // rerankConfig（KTD13/F5）：apiKey 仅填空（providerKeys 同款，不依赖 applyPrefs）；
+    // endpoint/model 随 pref——applyPrefs 且实际变更才写，并触发全部聚合缓存失效（KTD9 导入失效行）。
+    if (payload.rerankConfig !== undefined) {
+      const currentRerank = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
+      const importedRerank = payload.rerankConfig;
+      let nextEndpoint = currentRerank.endpoint;
+      let nextModel = currentRerank.model;
+      if (applyPrefs && (importedRerank.endpoint !== currentRerank.endpoint || (importedRerank.model ?? undefined) !== (currentRerank.model ?? undefined))) {
+        nextEndpoint = importedRerank.endpoint;
+        nextModel = importedRerank.model;
+        rerankConfigOverridden = true;
+      }
+      const nextApiKey = currentRerank.apiKey ?? importedRerank.apiKey;
+      if (nextEndpoint !== currentRerank.endpoint || (nextModel ?? undefined) !== (currentRerank.model ?? undefined) || (nextApiKey ?? undefined) !== (currentRerank.apiKey ?? undefined)) {
+        setObj[RERANK_CONFIG_KEY] = normalizeRerankConfig({
+          endpoint: nextEndpoint,
+          ...(nextModel ? { model: nextModel } : {}),
+          ...(nextApiKey ? { apiKey: nextApiKey } : {}),
+        });
+      }
+      // F5 用户裁决：仅 endpoint/model 实际变更触发失效；apiKey 仅填空不触发（不改 reranker 身份）。
+      if (rerankConfigOverridden) aggregateCacheInvalidated = true;
+    }
     if (applyPrefs) {
       const currentSites = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
       const currentCustoms = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
@@ -486,6 +581,18 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, importedCustoms)) { setObj[CUSTOM_ENGINES_KEY] = importedCustoms; customEnginesOverridden = true; }
       // 整数组覆盖（pref 语义，同 siteInstances）：导入文件显式包含 providerInstances 时整体替换。
       if (payload.providerInstances !== undefined && !sameProviderInstances(currentInstances, payload.providerInstances)) { setObj[PROVIDER_INSTANCES_KEY] = payload.providerInstances; providerInstancesOverridden = true; }
+      // 聚合实例整数组替换（KTD13，同 providerInstances 先例）。⚠️ 缓存缝隙修复（Oracle #1）：
+      // 导出文件逐字携带实例 id——导入一份 `agg:xxx` 成员已改的备份后 id 不变，「旧条目按 id
+      // 天然失配」不成立，`agg:xxx:query` 会带着旧成员组合存活（同一变更经 options 编辑路径
+      // 会精确失效，导入路径此前绕过了它）。实例 id 即缓存键 ⇒ 集合实际替换 = 内容可能已变
+      // ⇒ 全部聚合缓存条目失效（缓存可重生，无需 per-id diff）。
+      // Accepted deviation #4（Oracle 裁决可接受，显式记录）：provider key 配置/清除**不**失效
+      // 内嵌成员状态的聚合条目——KTD9 未列此触发；有缓存命中提示 + 强制全新搜索兜底。
+      if (payload.aggregateInstances !== undefined && !sameAggregateInstances(normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]), payload.aggregateInstances)) {
+        setObj[AGGREGATE_INSTANCES_KEY] = payload.aggregateInstances;
+        aggregateInstancesOverridden = true;
+        aggregateCacheInvalidated = true;
+      }
       if (curActive !== payload.activeProvider) {
         setObj[ACTIVE_KEY] = payload.activeProvider;
         activeOverridden = true;
@@ -539,11 +646,14 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       }
       if (payload.groupConfig !== undefined) {
         const curGroupRaw = got[GROUP_CONFIG_KEY];
+        const currentAggregatesForGroups = normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]);
         const curGroup = curGroupRaw && typeof curGroupRaw === 'object'
-          ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances))
+          ? normalizeGroupConfig(curGroupRaw, allKnownSourceIds(currentSites, currentCustoms, currentInstances, currentAggregatesForGroups))
           : undefined;
         // 用导入的 site/custom engines 视角重新规范化导入的 groupConfig，确保赋值合法。
-        const newGroup = normalizeGroupConfig(payload.groupConfig, allKnownSourceIds(importedSites, importedCustoms, importedInstances));
+        // 已知集并入导入聚合定义集（缺失 = 本地保留集，F3②）——agg 赋值不因导入剥落。
+        const importedAggregatesForGroups = payload.aggregateInstances ?? currentAggregatesForGroups;
+        const newGroup = normalizeGroupConfig(payload.groupConfig, allKnownSourceIds(importedSites, importedCustoms, importedInstances, importedAggregatesForGroups));
         if (!sameGroupConfig(curGroup, newGroup)) {
           setObj[GROUP_CONFIG_KEY] = newGroup;
           groupConfigOverridden = true;
@@ -551,6 +661,12 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       }
     }
     await browser.storage.local.set(setObj);
+
+    // KTD9 导入失效行（F5 + Oracle #1）：rerank endpoint/model 实际变更，或聚合实例集合被导入
+    // 替换（同 id 换成员缝隙）→ 全部聚合缓存条目失效。缓存队列与 source/providerKeys 队列无交集，无锁序问题。
+    if (aggregateCacheInvalidated) {
+      await deleteAggregateCacheEntries('all');
+    }
 
     return {
       written,
@@ -567,6 +683,8 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       siteInstancesOverridden,
       customEnginesOverridden,
       providerInstancesOverridden,
+      aggregateInstancesOverridden,
+      rerankConfigOverridden,
       providerMaxResultsOverridden,
       groupConfigOverridden,
     };
@@ -619,12 +737,20 @@ function resolveImportedSourcePreferences(
   const importedCustoms = payload.customEngines ?? currentCustoms;
   const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
   const importedInstances = payload.providerInstances ?? currentInstances;
+  // F3 聚合语义（KTD13/Oracle F3）：payload.aggregateInstances 缺失 = 本地聚合实例整体保留
+  // （legacy 语义），定义集并入本地集合；带集合 = 整数组替换，定义集 = 导入集合。
+  // Lane C 折叠：normalize 直调 + 定义集参数（withAggregateIdsPreserved/scopeAggIds 已删除）。
+  const currentAggregates = normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]);
+  const importedAggregates = payload.aggregateInstances ?? currentAggregates;
+  const rawActiveSource = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
+  const { sources: currentAggregateSources } = buildAggregateProjection(currentAggregates, got[RERANK_CONFIG_KEY], currentKeys, currentInstances);
   const curActiveSource = resolveEffectiveActiveSource(
-    (typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null) ?? currentActive,
+    rawActiveSource ?? currentActive,
     currentKeys,
     currentSites,
     currentCustoms,
     currentInstances,
+    currentAggregateSources,
   ) ?? DEFAULT_ENGINE_ID;
   // Preserve the current active source when it is a dynamic id whose collection
   // is absent from the import (i.e. preserved from current storage). Each dynamic
@@ -633,28 +759,52 @@ function resolveImportedSourcePreferences(
   // still preserves a custom-engine active source.
   const preserveSite = payload.siteInstances === undefined && isKnownSiteInstanceId(curActiveSource, currentSites);
   const preserveCustom = payload.customEngines === undefined && isKnownCustomEngineId(curActiveSource, currentCustoms);
-  const preferredActiveSource = (preserveSite || preserveCustom) ? curActiveSource : payload.activeSource;
-  const newActiveSource = resolveEffectiveActiveSource(
-    preferredActiveSource ?? payload.activeProvider,
+  // F3 ①（KTD13/Oracle F3）：本地 activeSource 是 agg id 且导入未带聚合实例集 → 原样保留
+  // 本地 agg id（eligibility 抖动不影响保留判定——可用性是派生视图，导入合并以保留本地状态优先）。
+  const preserveAggregate = payload.aggregateInstances === undefined && !!rawActiveSource && currentAggregates.some((instance) => instance.id === rawActiveSource);
+  const preferredActiveSource = (preserveSite || preserveCustom || preserveAggregate) ? curActiveSource : payload.activeSource;
+  // KTD13：eligibility 输入用本地 rerankConfig（apiKey 仅填空，不改 endpoint → 不改 eligibility）。
+  const { sources: importedAggregateSources } = buildAggregateProjection(importedAggregates, got[RERANK_CONFIG_KEY], mergedKeys, importedInstances);
+  const newActiveSource = preserveAggregate && rawActiveSource
+    ? rawActiveSource
+    : resolveEffectiveActiveSource(
+        preferredActiveSource ?? payload.activeProvider,
+        mergedKeys,
+        importedSites,
+        importedCustoms,
+        importedInstances,
+        importedAggregateSources,
+      ) ?? DEFAULT_ENGINE_ID;
+  const orderInput = payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder;
+  const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], currentSites, currentCustoms, currentInstances, currentAggregates);
+  const newSourceOrder = normalizeSourceOrder(orderInput, importedSites, importedCustoms, importedInstances, importedAggregates);
+  const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms, currentInstances, currentAggregates);
+  const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
+  // legacy（site/custom 集合缺失）合并分支：本地 hidden 中的动态 id 一并并入输入。
+  const hiddenBase = payload.siteInstances === undefined && payload.customEngines === undefined
+    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteInstanceId(id) || isCustomEngineId(id))]
+    : importedHidden;
+  // F3 ②（payload 缺聚合实例集）：本地 hidden 中的 agg id 一并并入输入——否则导入文件未列出的
+  // 本地隐藏聚合实例会因 normalize 而剥落（原 withAggregateIdsPreserved 额外保留源语义，
+  // 对全部导入形态生效，不限于 legacy 合并分支）。normalize 去重保首现，重复并入无副作用。
+  const hiddenInput = payload.aggregateInstances === undefined && Array.isArray(hiddenBase)
+    ? [...hiddenBase, ...curSourceHidden.filter((id) => isAggregateInstanceId(id))]
+    : hiddenBase;
+  const newSourceHidden = ensureVisibleUsable(
+    normalizeSourceHidden(hiddenInput, importedSites, importedCustoms, importedInstances, importedAggregates),
+    newSourceOrder,
     mergedKeys,
     importedSites,
     importedCustoms,
     importedInstances,
-  ) ?? DEFAULT_ENGINE_ID;
-  const curSourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], currentSites, currentCustoms, currentInstances);
-  const newSourceOrder = normalizeSourceOrder(payload.sourceOrder === undefined ? got[SOURCE_ORDER_KEY] : payload.sourceOrder, importedSites, importedCustoms, importedInstances);
-  const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms, currentInstances);
-  const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
-  const hiddenInput = payload.siteInstances === undefined && payload.customEngines === undefined
-    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteInstanceId(id) || isCustomEngineId(id))]
-    : importedHidden;
-  const newSourceHidden = ensureVisibleUsable(normalizeSourceHidden(hiddenInput, importedSites, importedCustoms, importedInstances), newSourceOrder, mergedKeys, importedSites, importedCustoms, importedInstances);
+    importedAggregateSources,
+  );
   return { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden };
 }
 
-function isKnownSource(value: unknown, siteInstances: readonly SiteInstanceDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false): value is SourceId {
+function isKnownSource(value: unknown, siteInstances: readonly SiteInstanceDefinition[] = [], customEngines: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], allowUnresolvedSite = false, aggregateInstances: readonly AggregateInstance[] = []): value is SourceId {
   return typeof value === 'string'
-    && (isProviderId(value) || isEngineId(value) || isRegisteredAiEngineId(value) || isKnownSiteInstanceId(value, siteInstances) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteInstanceId(value) || isCustomEngineId(value))));
+    && (isProviderId(value) || isEngineId(value) || isRegisteredAiEngineId(value) || isKnownSiteInstanceId(value, siteInstances) || isKnownCustomEngineId(value, customEngines) || (isProviderInstanceId(value) && providerInstances.some((instance) => instance.id === value)) || (allowUnresolvedSite && (isSiteInstanceId(value) || isCustomEngineId(value))) || (isAggregateInstanceId(value) && aggregateInstances.some((instance) => instance.id === value)));
 }
 
 function sameSiteInstances(left: readonly SiteInstanceDefinition[], right: readonly SiteInstanceDefinition[]): boolean {
@@ -666,6 +816,10 @@ function sameCustomEngines(left: readonly CustomEngineDefinition[], right: reado
 }
 
 function sameProviderInstances(left: readonly ProviderInstance[], right: readonly ProviderInstance[]): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameAggregateInstances(left: readonly AggregateInstance[], right: readonly AggregateInstance[]): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -702,9 +856,24 @@ function providerInstancesSummary(instances: readonly ProviderInstance[]): strin
   return instances.map((instance) => `${instance.id}:${instance.baseProviderId}:${instance.name}:${JSON.stringify(instance.options)}`).join(' | ');
 }
 
-function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteInstanceDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = []): SourceId[] {
-  if (visibleUsableSource(order, hidden, providerKeys, sites, customs, instances)) return hidden;
-  const fallback = visibleUsableSource(order, [], providerKeys, sites, customs, instances);
+/** 聚合实例 summary 行（KTD13）：`id:name:成员数:topN`。 */
+function aggregateInstancesSummary(instances: readonly AggregateInstance[]): string {
+  return instances.map((instance) => `${instance.id}:${instance.name}:${instance.members.length}:${instance.topN}`).join(' | ');
+}
+
+/** rerankConfig 摘要（KTD13/AE6）：只含 endpoint/model——**apiKey 绝不进 preview/diff**。 */
+function rerankConfigSummary(config: RerankConfig): string {
+  return `${config.endpoint || '—'}:${config.model ?? '—'}`;
+}
+
+// LANE-C-FOLD（KTD13/Oracle F3 interim）已折叠：normalizeSourceOrder/normalizeSourceHidden 直接受
+// 聚合定义集参数（lib/sources.ts），withAggregateIdsPreserved / aggregateIdsOf / scopeAggIds 已删除；
+// eligibility 经 buildAggregateProjection（lib/storage/shared.ts）单点计算后传入
+// resolveEffectiveActiveSource / ensureVisibleUsable（KTD5）。
+
+function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys: Record<string, string>, sites: readonly SiteInstanceDefinition[], customs: readonly CustomEngineDefinition[] = [], instances: readonly ProviderInstance[] = [], aggregateSources: readonly AggregateSourceDefinition[] = []): SourceId[] {
+  if (visibleUsableSource(order, hidden, providerKeys, sites, customs, instances, aggregateSources)) return hidden;
+  const fallback = visibleUsableSource(order, [], providerKeys, sites, customs, instances, aggregateSources);
   return fallback ? hidden.filter((id) => id !== fallback) : hidden;
 }
 
