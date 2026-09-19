@@ -38,7 +38,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1",
     "vitest": "^4.1.9",
-    "wxt": "^0.20.27"
+    "wxt": "^0.21.4"
   },
   "overrides": {
     "shell-quote": "^1.9.0",
