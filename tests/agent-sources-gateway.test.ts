@@ -33,7 +33,6 @@ vi.mock('@/lib/storage', () => ({
   getSourceHidden: vi.fn(),
   saveCachedAggregateSearch: vi.fn().mockResolvedValue(null),
   saveCachedSearch: vi.fn(),
-  setActiveProviderAndSourceId: vi.fn(),
   selectActiveSourceId: vi.fn(),
   setKey: vi.fn(),
   setProviderMaxResults: vi.fn().mockResolvedValue(undefined),

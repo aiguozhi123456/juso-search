@@ -35,16 +35,6 @@ export async function getActiveProviderId(): Promise<ProviderId | null> {
   return allProviders().find((p) => keys[p.id])?.id ?? null;
 }
 
-export async function setActiveProviderId(id: ProviderId | null): Promise<void> {
-  await browser.storage.local.set({ [ACTIVE_KEY]: id });
-}
-
-export async function setActiveProviderAndSourceId(id: ProviderId): Promise<void> {
-  await withSourceMutation(async () => {
-    await browser.storage.local.set({ [ACTIVE_KEY]: id, [ACTIVE_SOURCE_KEY]: id });
-  });
-}
-
 // 实例 id 属 SourceId 边界（IU7 将把 ProviderInstanceId 并入 SourceId 联合），
 // 在 IU7 落地前 storage 层用本地联合承载「当前激活源可能是实例」这一事实。
 type EffectiveSourceId = SourceId | ProviderInstanceId;
@@ -60,10 +50,6 @@ export async function getActiveSourceId(): Promise<EffectiveSourceId> {
   const stored = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
   const activeFallback = typeof got[ACTIVE_KEY] === 'string' ? got[ACTIVE_KEY] as SourceId : null;
   return resolveEffectiveActiveSource(stored ?? activeFallback, keys, definitions, customDefinitions, instances, aggregateSources) ?? DEFAULT_ENGINE_ID;
-}
-
-export async function setActiveSourceId(id: SourceId | null): Promise<void> {
-  await withSourceMutation(async () => { await browser.storage.local.set({ [ACTIVE_SOURCE_KEY]: id }); });
 }
 
 /** Validates and commits a source selection against one queued storage snapshot. */

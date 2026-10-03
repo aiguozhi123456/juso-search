@@ -43,13 +43,11 @@ import {
   getSourceHidden,
   saveCachedAggregateSearch,
   saveCachedSearch,
-  setActiveProviderAndSourceId,
   selectActiveSourceId,
   setKey,
   setProviderMaxResults,
   setRerankConfig,
   setSourceHidden,
-  setSourceOrder,
   setGroupConfig,
   setAiAutoEnter,
   setFlatLayoutFewSources,
@@ -479,7 +477,7 @@ async function runAggregateMember(member: AggregateMemberId, query: string, forc
 // 判据全文与三条件索引：docs/solutions/architecture-patterns/engine-extraction-for-user-initiated-aggregate.md。
 async function runEngineAggregateMember(member: EngineId, query: string, ctx: AggregateMemberContext): Promise<AggregateMemberOutcome> {
   // 扇出侧资格判定共用 eligibility 的单一派生源（R9，勿另写清单）：registry 漂移（engine 被移除/
-  // 降级为 UNSUPPORTED_EXTRACTOR 后成员残留）→ 该成员失败标注，不 throw 整体。
+  // 无 extractor 后成员残留）→ 该成员失败标注，不 throw 整体。
   if (!extractorCapableEngineIds().includes(member)) {
     return { sourceId: member, ok: false, errorKind: 'unsupported-engine', errorMessage: 'unsupported-engine' };
   }
@@ -647,11 +645,6 @@ export async function handleClearProviderMaxResults(providerId: ProviderId): Pro
   await clearSearchCache();
 }
 
-export async function handleSetActiveProvider(providerId: ProviderId): Promise<void> {
-  await getSchemaReady();
-  await setActiveProviderAndSourceId(providerId);
-}
-
 export async function handleSetActiveSource(sourceId: SourceId): Promise<void> {
   await getSchemaReady();
   await selectActiveSourceId(sourceId);
@@ -713,11 +706,6 @@ export async function handleDeleteProviderInstance(id: ProviderInstanceId): Prom
   // 缓存现已按 instanceId 键控（IU6），可精确清理该实例条目；但保守清空整个缓存池
   // （可重生）与 maxResults/delete 先例一致，且避免索引扫描的复杂度。
   await clearSearchCache();
-}
-
-export async function handleSetSourceOrder(sourceOrder: SourceId[]): Promise<void> {
-  await getSchemaReady();
-  await setSourceOrder(sourceOrder);
 }
 
 export async function handleSetSourceHidden(sourceHidden: SourceId[]): Promise<void> {

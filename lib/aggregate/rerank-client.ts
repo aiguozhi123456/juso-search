@@ -19,7 +19,6 @@ export const RERANK_TIMEOUT_MS = 10_000;
 
 /** i18n 占位键名（Lane D 落 lib/i18n.ts + _locales/{zh_CN,en}/messages.json 双语条目；现阶段 t() 回退键名本身）。 */
 export const MSG_RERANK_ENDPOINT_INVALID = 'error_rerank_endpoint_invalid';
-export const MSG_RERANK_ENDPOINT_REWRITTEN = 'opts_rerank_endpoint_rewritten';
 
 /**
  * mapStatus 的 provider 显示名。复用 http.ts 的错误文案模板（含脱敏 detail）；

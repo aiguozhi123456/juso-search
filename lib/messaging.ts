@@ -115,9 +115,7 @@ export type ProtocolMap = {
   search(request: SearchRequest): Promise<SearchReply>;
   testKey(providerId: ProviderId): Promise<TestKeyReply>;
   getProviderConfig(): Promise<ProviderConfigReply>;
-  setActiveProvider(providerId: ProviderId): Promise<void>;
   setActiveSource(sourceId: SourceId): Promise<void>;
-  setSourceOrder(sourceOrder: SourceId[]): Promise<void>;
   setSourceHidden(sourceHidden: SourceId[]): Promise<void>;
   setGroupConfig(config: GroupConfig): Promise<void>;
   /** AI 注入可见性门控：该 AI engine 是否对用户可见（未被 sourceHidden 收录）。content script 在 fillAndSubmit 前查询，fail-closed。 */

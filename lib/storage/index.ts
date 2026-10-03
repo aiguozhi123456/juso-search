@@ -9,7 +9,6 @@ export {
   getProviderMaxResults,
   setProviderMaxResults,
   clearProviderMaxResults,
-  getAllProviderMaxResults,
 } from './max-results-store';
 export * from './source-graph-store';
 export * from './prefs-store';

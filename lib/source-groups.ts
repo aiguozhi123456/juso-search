@@ -10,8 +10,8 @@
 // 与 sources.ts 的关系：sources.ts 仍是 source 投影层（sourceOrder/sourceHidden），
 // 本文件在其之上叠加一层「布局」——分组只是布局层，不改变 source 的显隐与底层顺序。
 
-import type { SearchSource, SourceId } from './sources';
-import { isProviderId, isEngineId } from './sources';
+import type { SearchSource, SourceId, SourceLabel } from './sources';
+import { isProviderId, isEngineId, sourceLabel } from './sources';
 import { isCustomEngineId } from './custom-engines';
 import { isProviderInstanceId } from './provider-instances';
 import { isAggregateInstanceId } from './aggregate-instances';
@@ -32,13 +32,20 @@ export const SINGLE_GROUP_FLAT_THRESHOLD = 6;
 
 export type SourceGroupId = string;
 
-export type SourceLabel =
-  | { kind: 'i18n'; key: string }
-  | { kind: 'literal'; value: string };
-
 export interface SourceGroup {
   id: SourceGroupId;
   label: SourceLabel;
+}
+
+/**
+ * 分组标签取可见文本：i18n key 经 translate 解析，字面量直出。
+ *
+ * SourceLabel 的单一定义点在 lib/sources.ts，本函数是它在「分组标签」语境下的
+ * SourceLabel 入参适配（sourceLabel 收 SearchSource 的 label/labelDescriptor 形状），
+ * 内部仍走 sourceLabel 的字面量/i18n 分流——单一派生点，避免三处渲染层各抄一份三元。
+ */
+export function groupLabelText(label: SourceLabel, translate: (key: string) => string): string {
+  return sourceLabel({ label: label.kind === 'i18n' ? label.key : label.value, labelDescriptor: label }, translate);
 }
 
 /** 顶层布局项：置顶 source 或分组。 */

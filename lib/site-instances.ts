@@ -1,6 +1,8 @@
 import type { EngineId, SearchEngine } from './engines/types';
 import { getEngine } from './engines/registry';
 import { isSerpUrl, isZhanneiSerpHostname } from './engines/scopes';
+import { normalizeInstanceCollection } from './normalize-instance-collection';
+import { serializedSize } from './serialized-size';
 
 /** IDs for user-defined, site-scoped search sources. */
 export type SiteInstanceId = `site:${string}`;
@@ -258,21 +260,7 @@ function siteInstanceDedupKey(definition: SiteInstanceDefinition): string | null
  * for untrusted import/config rejection.
  */
 export function normalizeSiteInstanceDefinitions(value: unknown): SiteInstanceDefinition[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<SiteInstanceId>();
-  const seenKeys = new Set<string>();
-  const definitions: SiteInstanceDefinition[] = [];
-  for (const item of value) {
-    const definition = normalizeSiteInstanceDefinition(item);
-    if (!definition || seen.has(definition.id)) continue;
-    const key = siteInstanceDedupKey(definition);
-    if (!key || seenKeys.has(key)) continue;
-    seen.add(definition.id);
-    seenKeys.add(key);
-    definitions.push(definition);
-    if (definitions.length >= MAX_SITE_INSTANCES) break;
-  }
-  return definitions;
+  return normalizeInstanceCollection(value, normalizeSiteInstanceDefinition, MAX_SITE_INSTANCES, siteInstanceDedupKey);
 }
 
 /** Strict guard for untrusted import/config payloads (not trusted storage reads). */
@@ -280,13 +268,9 @@ export function isBoundedSiteInstanceCollection(value: unknown): value is unknow
   return Array.isArray(value) && value.length <= MAX_SITE_INSTANCES && serializedSize(value) <= MAX_INSTANCES_SERIALIZED_BYTES;
 }
 
-/** UTF-8 JSON byte length of a value; Infinity when stringify fails. */
+/** UTF-8 JSON byte length of a value; Infinity when stringify fails. 口径见 lib/serialized-size.ts。 */
 export function siteInstancesSerializedBytes(value: unknown): number {
   return serializedSize(value);
-}
-
-function serializedSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
 }
 
 /** Builds the `site:`-prefixed query for a scope（query 模式构造与前缀识别共用）。 */

@@ -3,6 +3,9 @@
 // 与 site-instances.ts 同构：纯函数、无浏览器 API、防御式规范化。
 // 区别：site-instance 把 site: 前缀注入已有引擎，custom-engine 直接导航到用户指定的 URL。
 
+import { normalizeInstanceCollection } from './normalize-instance-collection';
+import { serializedSize } from './serialized-size';
+
 /** IDs for user-defined custom search engines. */
 export type CustomEngineId = `custom:${string}`;
 
@@ -86,20 +89,12 @@ export function normalizeCustomEngineDefinition(value: unknown): CustomEngineDef
  * for untrusted import/config rejection.
  */
 export function normalizeCustomEngineDefinitions(value: unknown): CustomEngineDefinition[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<CustomEngineId>();
-  const seenUrls = new Set<string>();
-  const definitions: CustomEngineDefinition[] = [];
-  for (const item of value) {
-    const definition = normalizeCustomEngineDefinition(item);
-    if (!definition || seen.has(definition.id)) continue;
-    if (seenUrls.has(definition.urlTemplate)) continue;
-    seen.add(definition.id);
-    seenUrls.add(definition.urlTemplate);
-    definitions.push(definition);
-    if (definitions.length >= MAX_CUSTOM_ENGINES) break;
-  }
-  return definitions;
+  return normalizeInstanceCollection(
+    value,
+    normalizeCustomEngineDefinition,
+    MAX_CUSTOM_ENGINES,
+    (definition) => definition.urlTemplate,
+  );
 }
 
 /** Strict guard for untrusted import/config payloads (not trusted storage reads). */
@@ -107,13 +102,8 @@ export function isBoundedCustomEngineCollection(value: unknown): value is unknow
   return Array.isArray(value) && value.length <= MAX_CUSTOM_ENGINES && serializedSize(value) <= MAX_CUSTOM_ENGINES_SERIALIZED_BYTES;
 }
 
-/** UTF-8 JSON byte length of a value; Infinity when stringify fails. */
 export function customEnginesSerializedBytes(value: unknown): number {
   return serializedSize(value);
-}
-
-function serializedSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
 }
 
 /** Builds the navigation URL by replacing `%s` with the encoded query. */

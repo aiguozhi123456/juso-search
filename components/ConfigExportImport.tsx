@@ -11,7 +11,7 @@ type Status =
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
 
-export function ConfigExportImport({ onImported }: { onImported?: () => void } = {}) {
+export function ConfigExportImport({ onImported }: { onImported: () => void }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +69,7 @@ export function ConfigExportImport({ onImported }: { onImported?: () => void } =
     try {
       const reply = await sendMessage('importConfig', { payload, applyPrefs });
       if (reply.ok) {
-        onImported?.();
+        onImported();
         setStatus({ kind: 'imported', report: reply.report });
       } else {
         setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, reply.error.message) });

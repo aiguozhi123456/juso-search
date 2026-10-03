@@ -22,14 +22,10 @@ vi.mock('@/lib/storage', () => ({
   getProviderConfigSnapshot: vi.fn(),
   getSiteInstanceDefinitions: vi.fn(),
   saveCachedSearch: vi.fn(),
-  setActiveProviderId: vi.fn(),
-  setActiveProviderAndSourceId: vi.fn(),
-  setActiveSourceId: vi.fn(),
   selectActiveSourceId: vi.fn(),
   setKey: vi.fn(),
   setProviderMaxResults: vi.fn().mockResolvedValue(undefined),
   setSourceHidden: vi.fn(),
-  setSourceOrder: vi.fn(),
   setGroupConfig: vi.fn().mockResolvedValue(undefined),
   setAiAutoEnter: vi.fn().mockResolvedValue(undefined),
   setFlatLayoutFewSources: vi.fn().mockResolvedValue(undefined),
@@ -103,10 +99,8 @@ import {
   handleImportConfig,
   handleSaveProviderKey,
   handleSearch,
-  handleSetActiveProvider,
   handleSetActiveSource,
   handleSetProviderMaxResults,
-  handleSetSourceOrder,
   handleSetSourceHidden,
   handleSetGroupConfig,
   handleSetAiAutoEnter,
@@ -140,13 +134,10 @@ import {
   getSourceOrder,
   getProviderConfigSnapshot,
   saveCachedSearch,
-  setActiveProviderId,
-  setActiveProviderAndSourceId,
   selectActiveSourceId,
   setKey,
   setProviderMaxResults,
   setSourceHidden,
-  setSourceOrder,
   setGroupConfig,
   setAiAutoEnter,
   setFlatLayoutFewSources,
@@ -180,12 +171,9 @@ const mockedGetKey = vi.mocked(getKey);
 const mockedGetProviderMaxResults = vi.mocked(getProviderMaxResults);
 const mockedGetSearchCacheSummaries = vi.mocked(getSearchCacheSummaries);
 const mockedSaveCachedSearch = vi.mocked(saveCachedSearch);
-const mockedSetActive = vi.mocked(setActiveProviderId);
-const mockedSetActiveAndSource = vi.mocked(setActiveProviderAndSourceId);
 const mockedSelectActiveSource = vi.mocked(selectActiveSourceId);
 const mockedSetKey = vi.mocked(setKey);
 const mockedSetProviderMaxResults = vi.mocked(setProviderMaxResults);
-const mockedSetSourceOrder = vi.mocked(setSourceOrder);
 const mockedSetSourceHidden = vi.mocked(setSourceHidden);
 const mockedSetGroupConfig = vi.mocked(setGroupConfig);
 const mockedSetAiAutoEnter = vi.mocked(setAiAutoEnter);
@@ -651,14 +639,6 @@ describe('handleAiInjectAllowed', () => {
   });
 });
 
-describe('handleSetSourceOrder', () => {
-  it('writes the source order from the worker context', async () => {
-    const sourceOrder = ['bing', 'tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'baidu'] as const;
-    await handleSetSourceOrder([...sourceOrder]);
-    expect(mockedSetSourceOrder).toHaveBeenCalledWith(sourceOrder);
-  });
-});
-
 describe('handleSetGroupConfig', () => {
   it('writes the group config from the worker context', async () => {
     const cfg = defaultGroupConfig(['tavily', 'google']);
@@ -766,16 +746,6 @@ describe('handleDeleteProviderKey', () => {
   });
 });
 
-describe('handleSetActiveProvider', () => {
-  it('writes both active provider and active source from the worker context', async () => {
-    mockedSetActiveAndSource.mockResolvedValue(undefined);
-
-    await handleSetActiveProvider('exa');
-
-    expect(mockedSetActiveAndSource).toHaveBeenCalledWith('exa');
-  });
-});
-
 describe('handleSetActiveSource', () => {
   it('delegates engine selection to the atomic storage operation', async () => {
     mockedSelectActiveSource.mockResolvedValue(undefined);
@@ -783,7 +753,6 @@ describe('handleSetActiveSource', () => {
     await handleSetActiveSource('baidu');
 
     expect(mockedSelectActiveSource).toHaveBeenCalledWith('baidu');
-    expect(mockedSetActive).not.toHaveBeenCalled();
   });
 
   it('delegates provider selection to the atomic storage operation', async () => {

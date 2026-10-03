@@ -5,9 +5,7 @@ import {
   clearKey,
   getConfiguredProviderIds,
   getActiveProviderId,
-  setActiveProviderId,
   getActiveSourceId,
-  setActiveSourceId,
   selectActiveSourceId,
   getThemePref,
   setThemePref,
@@ -17,9 +15,7 @@ import {
   setStylePref,
   getBarPositionPref,
   setBarPositionPref,
-  getAiAutoEnter,
   setAiAutoEnter,
-  getFlatLayoutFewSources,
   setFlatLayoutFewSources,
   getSelectionSearchEnabled,
   setSelectionSearchEnabled,
@@ -159,13 +155,13 @@ describe('storage: active provider', () => {
   it('explicit choice wins over fallback', async () => {
     await setKey('tavily', 'tvly-x');
     await setKey('exa', 'exa-x');
-    await setActiveProviderId('exa');
+    await browser.storage.local.set({ activeProvider: 'exa' });
     expect(await getActiveProviderId()).toBe('exa');
   });
 
   it('falls back when explicit choice has no key', async () => {
     await setKey('tavily', 'tvly-x');
-    await setActiveProviderId('stepfun');
+    await browser.storage.local.set({ activeProvider: 'stepfun' });
     expect(await getActiveProviderId()).toBe('tavily');
   });
 
@@ -176,11 +172,11 @@ describe('storage: active provider', () => {
     expect(await getActiveProviderId()).toBe('exa');
   });
 
-  it('setActiveProviderId(null) falls back to first configured', async () => {
+  it('stored null active id falls back to first configured', async () => {
     await setKey('exa', 'exa-x');
-    await setActiveProviderId('exa');
+    await browser.storage.local.set({ activeProvider: 'exa' });
     expect(await getActiveProviderId()).toBe('exa');
-    await setActiveProviderId(null);
+    await browser.storage.local.set({ activeProvider: null });
     expect(await getActiveProviderId()).toBe('exa');
   });
 });
@@ -191,20 +187,20 @@ describe('storage: active source', () => {
   });
 
   it('explicit baidu engine round-trips without keys', async () => {
-    await setActiveSourceId('baidu');
+    await browser.storage.local.set({ activeSource: 'baidu' });
     expect(await getActiveSourceId()).toBe('baidu');
   });
 
   it('missing activeSource falls back to effective active provider', async () => {
     await setKey('tavily', 'tvly-x');
     await setKey('exa', 'exa-x');
-    await setActiveProviderId('exa');
+    await browser.storage.local.set({ activeProvider: 'exa' });
     expect(await getActiveSourceId()).toBe('exa');
   });
 
   it('stored provider activeSource without key falls back', async () => {
     await setKey('tavily', 'tvly-x');
-    await setActiveSourceId('exa');
+    await browser.storage.local.set({ activeSource: 'exa' });
     expect(await getActiveSourceId()).toBe('tavily');
   });
 
@@ -326,24 +322,6 @@ describe('storage: barPosition pref', () => {
 });
 
 describe('storage: aiAutoEnter', () => {
-  it('defaults to true when unset', async () => {
-    expect(await getAiAutoEnter()).toBe(true);
-  });
-
-  it('round-trips explicit values', async () => {
-    await setAiAutoEnter(false);
-    expect(await getAiAutoEnter()).toBe(false);
-    await setAiAutoEnter(true);
-    expect(await getAiAutoEnter()).toBe(true);
-  });
-
-  it('treats stored false as off and any other value as on', async () => {
-    await browser.storage.local.set({ aiAutoEnter: false });
-    expect(await getAiAutoEnter()).toBe(false);
-    await browser.storage.local.set({ aiAutoEnter: true });
-    expect(await getAiAutoEnter()).toBe(true);
-  });
-
   it('is included in getProviderConfigSnapshot (defaults true)', async () => {
     const snap = await getProviderConfigSnapshot();
     expect(snap.aiAutoEnter).toBe(true);
@@ -353,24 +331,6 @@ describe('storage: aiAutoEnter', () => {
 });
 
 describe('storage: flatLayoutFewSources', () => {
-  it('defaults to true when unset', async () => {
-    expect(await getFlatLayoutFewSources()).toBe(true);
-  });
-
-  it('round-trips explicit values', async () => {
-    await setFlatLayoutFewSources(false);
-    expect(await getFlatLayoutFewSources()).toBe(false);
-    await setFlatLayoutFewSources(true);
-    expect(await getFlatLayoutFewSources()).toBe(true);
-  });
-
-  it('treats stored false as off and any other value as on', async () => {
-    await browser.storage.local.set({ flatLayoutFewSources: false });
-    expect(await getFlatLayoutFewSources()).toBe(false);
-    await browser.storage.local.set({ flatLayoutFewSources: true });
-    expect(await getFlatLayoutFewSources()).toBe(true);
-  });
-
   it('is included in getProviderConfigSnapshot (defaults true)', async () => {
     const snap = await getProviderConfigSnapshot();
     expect(snap.flatLayoutFewSources).toBe(true);

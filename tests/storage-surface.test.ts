@@ -12,7 +12,7 @@ import * as storage from '@/lib/storage';
  * Lane B（KTD7/KTD9 聚合缓存路径）再加 2 项：saveCachedAggregateSearch / deleteAggregateCacheEntries。
  */
 describe('storage barrel export surface', () => {
-  it('exposes exactly the 104 runtime exports (alphabetical snapshot)', () => {
+  it('exposes exactly the 98 runtime exports (alphabetical snapshot)', () => {
     expect(Object.keys(storage).sort()).toEqual([
       // keys（22 常量）+ max-results 常量（2）
       'ACTIVE_KEY',
@@ -40,7 +40,7 @@ describe('storage barrel export surface', () => {
       'SOURCE_ORDER_KEY',
       'STYLE_KEY',
       'THEME_KEY',
-      // 函数（77）
+      // 函数（74）
       'buildAggregateProjection',
       'clampMaxResults',
       'clearKey',
@@ -61,15 +61,12 @@ describe('storage barrel export surface', () => {
       'getActiveSourceId',
       'getAgentBridgeEnabled',
       'getAggregateInstances',
-      'getAiAutoEnter',
-      'getAllProviderMaxResults',
       'getBarPositionPref',
       'getCachedSearch',
       'getCachedSearchEntry',
       'getConfiguredProviderIds',
       'getCustomEngineDefinitions',
       'getEngineSearchEnabled',
-      'getFlatLayoutFewSources',
       'getGroupConfig',
       'getKey',
       'getLocalePref',
@@ -89,9 +86,6 @@ describe('storage barrel export surface', () => {
       'saveCachedAggregateSearch',
       'saveCachedSearch',
       'selectActiveSourceId',
-      'setActiveProviderAndSourceId',
-      'setActiveProviderId',
-      'setActiveSourceId',
       'setAgentBridgeEnabled',
       'setAggregateInstances',
       'setAiAutoEnter',
@@ -121,6 +115,6 @@ describe('storage barrel export surface', () => {
       'withProviderMaxResultsMutation',
       'withSourceMutation',
     ]);
-    expect(Object.keys(storage)).toHaveLength(104);
+    expect(Object.keys(storage)).toHaveLength(98);
   });
 });

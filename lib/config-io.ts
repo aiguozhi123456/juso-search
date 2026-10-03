@@ -51,6 +51,7 @@ import type { RerankConfig } from './aggregate/types';
 import { normalizeRerankConfig, validateRerankEndpoint } from './aggregate/rerank-client';
 import { buildAggregateProjection } from './storage';
 import { isRegisteredAiEngineId } from './ai-engines/registry';
+import { serializedSize } from './serialized-size';
 
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
 const THEME_VALUES = new Set<ThemePref>(['auto', 'light', 'dark']);
@@ -877,6 +878,3 @@ function ensureVisibleUsable(hidden: SourceId[], order: SourceId[], providerKeys
   return fallback ? hidden.filter((id) => id !== fallback) : hidden;
 }
 
-function serializedSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
-}

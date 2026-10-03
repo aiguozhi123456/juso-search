@@ -164,11 +164,6 @@ export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly Si
   return normalized;
 }
 
-/** A dynamic Aggregate Instance ID is known only when there is a saved definition for it. */
-export function isKnownAggregateInstanceId(id: string, aggregateInstances: readonly { id: AggregateInstanceId }[]): id is AggregateInstanceId {
-  return isAggregateInstanceId(id) && new Set(aggregateInstances.map((instance) => instance.id)).has(id);
-}
-
 /**
  * 把快照的脱敏 aggregate 字段（KTD5）转成 allSources / 可用性解析所需的投影输入。
  * 缺省（老 worker / 字段缺失）→ 空数组 = 无聚合 pill（调用点免判空）。

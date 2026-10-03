@@ -10,7 +10,6 @@
 import type { EngineId } from '../engines/types';
 import { allEngines } from '../engines/registry';
 import { getEngineExtractor } from '../engines/extractors/registry';
-import { UNSUPPORTED_EXTRACTOR } from '../engines/extractors/unsupported';
 import type { ProviderId } from '../providers/types';
 import type { ProviderInstance } from '../provider-instances';
 import type { AggregateMemberId } from './types';
@@ -20,8 +19,10 @@ import type { AggregateInstance } from '../aggregate-instances';
 
 /**
  * 引擎能力从 extractor registry 派生（engine-capability-is-per-registry-not-per-id-union 教训：
- * 能力按 registry 而非 id union）——映射到 UNSUPPORTED_EXTRACTOR 占位的 engine 自然失去
- * 成员资格，新增/删除 extractor 无需改本清单。
+ * 能力按 registry 而非 id union），新增/删除 extractor 无需改本清单。
+ * 当前 `extractors` 是覆盖闭合 `EngineId` 联合的满表，故下面的 `!= null` 在生产里不筛掉任何
+ * engine——它保留在此是为了让派生式对 registry 变稀疏（如按引擎标注能力）仍然成立，而不是靠
+ * 某个引擎"恰好"没有 extractor。网关侧的 `unsupported-engine` 分支同理只在这类漂移下可达。
  * 每次调用即时求值（成本 = 一次 9 项 registry 遍历，可忽略）：不缓存快照，registry 状态变化
  * 即时反映到所有调用方（eligibility 判定与 gateway 扇出校验，Lane F）。
  */
@@ -29,10 +30,7 @@ function extractorCapableEngineIdSet(): ReadonlySet<EngineId> {
   return new Set(
     allEngines()
       .map((engine) => engine.id)
-      .filter((id) => {
-        const extractor = getEngineExtractor(id);
-        return extractor != null && extractor !== UNSUPPORTED_EXTRACTOR;
-      }),
+      .filter((id) => getEngineExtractor(id) != null),
   );
 }
 

@@ -14,7 +14,7 @@ beforeEach(() => {
 describe('ConfigExportImport', () => {
   it('clicking export sends exportConfig and shows success banner', async () => {
     mockedSend.mockResolvedValue({ ok: true, filename: 'juso-config-20260708-1530.json' } as never);
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: '导出配置' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('exportConfig', undefined));
     expect(await screen.findByText('导出完成。')).toBeInTheDocument();
@@ -22,7 +22,7 @@ describe('ConfigExportImport', () => {
 
   it('export failure shows the error banner', async () => {
     mockedSend.mockResolvedValue({ ok: false, error: { kind: 'download_failed', message: 'blocked' } } as never);
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: '导出配置' }));
     expect(await screen.findByText('导出失败，请稍后重试')).toBeInTheDocument();
   });
@@ -38,7 +38,7 @@ describe('ConfigExportImport', () => {
       }
       return Promise.resolve({ ok: true });
     }) as never);
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     const input = screen.getByDisplayValue('') as HTMLInputElement;
     // 模拟文件选择：直接触发 onChange（input 是 hidden，用 fireEvent.change）
     const file = new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' });
@@ -69,7 +69,7 @@ describe('ConfigExportImport', () => {
       }
       return Promise.resolve({ ok: true });
     }) as never);
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     const input = screen.getByDisplayValue('') as HTMLInputElement;
     const file = new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' });
     fireEvent.change(input, { target: { files: [file] } });
@@ -106,7 +106,7 @@ describe('ConfigExportImport', () => {
       }
       return Promise.resolve({ ok: true });
     }) as never);
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     const input = screen.getByDisplayValue('') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
     expect(await screen.findByText('以下偏好将被覆盖：')).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('ConfigExportImport', () => {
   });
 
   it('oversized file is rejected before any messaging', async () => {
-    render(<ConfigExportImport />);
+    render(<ConfigExportImport onImported={() => {}} />);
     const input = screen.getByDisplayValue('') as HTMLInputElement;
     // 构造一个 > 256KB 的文件（size 由 File 构造器的内容长度决定，这里用大字符串）
     const big = new File([new Array(300 * 1024).fill('x').join('')], 'huge.json', { type: 'application/json' });

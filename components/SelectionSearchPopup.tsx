@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { SearchSource } from '@/lib/sources';
+import type { SearchSource, SourceLabel } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
-import type { GroupConfig, SourceLabel } from '@/lib/source-groups';
-import { projectLayout, resolveEffectiveLayout } from '@/lib/source-groups';
+import type { GroupConfig } from '@/lib/source-groups';
+import { projectLayout, groupLabelText, resolveEffectiveLayout } from '@/lib/source-groups';
 import { t } from '@/lib/i18n';
 
 interface Props {
@@ -11,10 +11,6 @@ interface Props {
   primarySource: SearchSource;
   flatLayoutFewSources: boolean;
   onSearch: (source: SearchSource) => void;
-}
-
-function resolveLabel(label: SourceLabel): string {
-  return label.kind === 'literal' ? label.value : t(label.key);
 }
 
 /**
@@ -272,7 +268,7 @@ function SelectionGroupItem({
       ref={rootRef}
       className={`juso-sel-group${open ? ' open' : ''}`}
       role="group"
-      aria-label={resolveLabel(group.label)}
+      aria-label={groupLabelText(group.label, t)}
       onMouseEnter={() => { cancelClose(); onOpen(); }}
       onMouseLeave={scheduleClose}
       onKeyDown={(e) => {
@@ -310,7 +306,7 @@ function SelectionGroupItem({
           }
         }}
       >
-        <span>{resolveLabel(group.label)}</span>
+        <span>{groupLabelText(group.label, t)}</span>
         <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M4 2 L8 6 L4 10" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -319,7 +315,7 @@ function SelectionGroupItem({
         ref={sourcesRef}
         className="juso-sel-group-sources"
         role="menu"
-        aria-label={resolveLabel(group.label)}
+        aria-label={groupLabelText(group.label, t)}
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
       >

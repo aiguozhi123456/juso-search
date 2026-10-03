@@ -35,12 +35,10 @@ import {
   handleSaveProviderKey,
   handleSearch,
   handleSearchInstance,
-  handleSetActiveProvider,
   handleSetActiveSource,
   handleClearProviderMaxResults,
   handleSetProviderMaxResults,
   handleSetSourceHidden,
-  handleSetSourceOrder,
   handleSetGroupConfig,
   handleSetAiAutoEnter,
   handleSetFlatLayoutFewSources,
@@ -94,9 +92,7 @@ export default defineBackground(() => {
   onMessage('search', ({ data }) => handleSearch(data));
   onMessage('testKey', ({ data }) => handleTestKey(data));
   onMessage('getProviderConfig', () => handleGetProviderConfig());
-  onMessage('setActiveProvider', ({ data }) => handleSetActiveProvider(data));
   onMessage('setActiveSource', ({ data }) => handleSetActiveSource(data));
-  onMessage('setSourceOrder', ({ data }) => handleSetSourceOrder(data));
   onMessage('setSourceHidden', ({ data }) => handleSetSourceHidden(data));
   onMessage('aiInjectAllowed', ({ data }) => handleAiInjectAllowed(data));
   onMessage('setAiAutoEnter', ({ data }) => handleSetAiAutoEnter(data));

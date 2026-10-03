@@ -15,6 +15,8 @@ import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
 import { isProviderInstanceId } from './provider-instances';
 import type { AggregateInstanceId, AggregateMemberId } from './aggregate/types';
+import { normalizeInstanceCollection } from './normalize-instance-collection';
+import { serializedSize } from './serialized-size';
 
 export type { AggregateInstanceId, AggregateMemberId } from './aggregate/types';
 
@@ -106,17 +108,7 @@ export function normalizeAggregateInstance(value: unknown): AggregateInstance | 
  * for untrusted import/config rejection（site-engine-third-source 安全持久化三不变量）。
  */
 export function normalizeAggregateInstances(value: unknown): AggregateInstance[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<AggregateInstanceId>();
-  const instances: AggregateInstance[] = [];
-  for (const item of value) {
-    const instance = normalizeAggregateInstance(item);
-    if (!instance || seen.has(instance.id)) continue;
-    seen.add(instance.id);
-    instances.push(instance);
-    if (instances.length >= MAX_AGGREGATE_INSTANCES) break;
-  }
-  return instances;
+  return normalizeInstanceCollection(value, normalizeAggregateInstance, MAX_AGGREGATE_INSTANCES);
 }
 
 /** Strict guard for untrusted import/config payloads (not trusted storage reads). */
@@ -124,11 +116,6 @@ export function isBoundedAggregateInstanceCollection(value: unknown): value is u
   return Array.isArray(value) && value.length <= MAX_AGGREGATE_INSTANCES && serializedSize(value) <= MAX_AGGREGATE_SERIALIZED_BYTES;
 }
 
-/** UTF-8 JSON byte length of a value; Infinity when stringify fails. */
 export function aggregateInstancesSerializedBytes(value: unknown): number {
   return serializedSize(value);
-}
-
-function serializedSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
 }

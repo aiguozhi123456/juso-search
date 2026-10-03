@@ -16,7 +16,7 @@
 
 import { getProviderConfigSnapshot } from './storage';
 import { aggregateSourcesOf, allSources, sourceLabel, type SearchSource } from './sources';
-import { projectLayout, resolveEffectiveLayout, type SourceLabel } from './source-groups';
+import { projectLayout, resolveEffectiveLayout, groupLabelText } from './source-groups';
 import { resolveSerpHandoff } from './serp-handoff';
 import { buildSafeSearchUrl } from './search-page-url';
 import { applyLocalePref, t } from './i18n';
@@ -49,10 +49,6 @@ const REBUILD_KEYS = new Set([
 /** 判断某次 storage 变更是否需要重建右键菜单。 */
 export function contextMenuNeedsRebuild(changes: Record<string, unknown>): boolean {
   return Object.keys(changes).some((key) => REBUILD_KEYS.has(key));
-}
-
-function resolveLabel(label: SourceLabel): string {
-  return label.kind === 'literal' ? label.value : t(label.key);
 }
 
 /**
@@ -138,7 +134,7 @@ async function rebuildMenuOnce(): Promise<void> {
         await browser.contextMenus.create({
           id: groupId,
           parentId: ROOT_MENU_ID,
-          title: resolveLabel(item.group.label),
+          title: groupLabelText(item.group.label, t),
           contexts: ['selection'],
         });
         for (const source of item.items) {

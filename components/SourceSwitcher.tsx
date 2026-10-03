@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { SearchSource, SourceId } from '@/lib/sources';
+import type { SearchSource, SourceId, SourceLabel } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
-import type { GroupConfig, SourceLabel } from '@/lib/source-groups';
-import { projectLayout, defaultGroupConfig, resolveEffectiveLayout } from '@/lib/source-groups';
+import type { GroupConfig } from '@/lib/source-groups';
+import { projectLayout, defaultGroupConfig, groupLabelText, resolveEffectiveLayout } from '@/lib/source-groups';
 import { scrollChildToCenter } from '@/lib/scroll-child-to-center';
 import { t, MSG } from '@/lib/i18n';
 
@@ -40,11 +40,6 @@ interface FlyoutAnchor {
   left: number;
   bottom?: number;
   top?: number;
-}
-
-/** 解析分组/来源标签为可见文本（i18n key 走 t()，字面量直出）。 */
-function resolveLabel(label: SourceLabel): string {
-  return label.kind === 'literal' ? label.value : t(label.key);
 }
 
 /**
@@ -335,7 +330,7 @@ function GroupPill({
   onToggle: () => void;
   overlayPosition: 'top' | 'bottom' | null;
 }) {
-  const label = resolveLabel(group.label);
+  const label = groupLabelText(group.label, t);
   // overlayPosition 非 null 即覆盖层模式（top/bottom 共用 fixed flyout 行为）。
   const isOverlay = overlayPosition !== null;
   // 浮层内每个 source 的按钮 id，用于 aria 与可访问性。

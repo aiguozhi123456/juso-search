@@ -1,5 +1,7 @@
 import type { ProviderId } from './providers/types';
 import { allProviders } from './providers/registry';
+import { normalizeInstanceCollection } from './normalize-instance-collection';
+import { serializedSize } from './serialized-size';
 
 /** IDs for user-defined, per-provider search source instances (`inst:<providerId>:<uuid>`). */
 export type ProviderInstanceId = `inst:${ProviderId}:${string}`;
@@ -78,17 +80,7 @@ export function normalizeProviderInstance(value: unknown): ProviderInstance | nu
  * for untrusted import/config rejection.
  */
 export function normalizeProviderInstances(value: unknown): ProviderInstance[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<ProviderInstanceId>();
-  const instances: ProviderInstance[] = [];
-  for (const item of value) {
-    const instance = normalizeProviderInstance(item);
-    if (!instance || seen.has(instance.id)) continue;
-    seen.add(instance.id);
-    instances.push(instance);
-    if (instances.length >= MAX_PROVIDER_INSTANCES) break;
-  }
-  return instances;
+  return normalizeInstanceCollection(value, normalizeProviderInstance, MAX_PROVIDER_INSTANCES);
 }
 
 /** Strict guard for untrusted import/config payloads (not trusted storage reads). */
@@ -96,11 +88,6 @@ export function isBoundedProviderInstanceCollection(value: unknown): value is un
   return Array.isArray(value) && value.length <= MAX_PROVIDER_INSTANCES && serializedSize(value) <= MAX_INSTANCES_SERIALIZED_BYTES;
 }
 
-/** UTF-8 JSON byte length of a value; Infinity when stringify fails. */
 export function providerInstancesSerializedBytes(value: unknown): number {
   return serializedSize(value);
-}
-
-function serializedSize(value: unknown): number {
-  try { return new TextEncoder().encode(JSON.stringify(value)).length; } catch { return Infinity; }
 }

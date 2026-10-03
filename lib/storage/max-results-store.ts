@@ -76,11 +76,6 @@ export async function clearProviderMaxResults(id: ProviderId): Promise<void> {
   });
 }
 
-/** 返回全部已配置的 maxResults 映射（仅含已知 provider、已 clamp）。 */
-export async function getAllProviderMaxResults(): Promise<Partial<Record<ProviderId, number>>> {
-  return readMaxResultsMap();
-}
-
 /** 从已读的 storage 原始值解析 maxResults 映射（避免重复 IO，供 snapshot 复用同一份 get）。 */
 export async function readMaxResultsMapFrom(raw: unknown): Promise<Partial<Record<ProviderId, number>>> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
