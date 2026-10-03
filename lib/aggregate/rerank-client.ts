@@ -90,12 +90,14 @@ export function normalizeRerankConfig(value: unknown): RerankConfig {
   return { endpoint, ...(model ? { model } : {}), ...(apiKey ? { apiKey } : {}) };
 }
 
-// === KTD12：endpoint 强制 loopback（127.0.0.1-only）校验/规范化 ===
+// === KTD12：endpoint 白名单（loopback + 硅基流动云端）校验/规范化 ===
 //
 // 消费方：worker 侧 handleSetRerankConfig 与 config-io 导入（KTD13）共用本校验，保证两条写路径
-// 语义一致。理由：manifest host_permissions 已含 `http://127.0.0.1/*`（Chrome match pattern 忽略
-// 端口；localhost/[::1]/https 不被覆盖）；「本地」威胁模型（搜索内容 + apiKey 不出 loopback）在
-// 校验层硬约束。manifest 零 host-permission 变更。
+// 语义一致。两条白名单分支：
+// - loopback：`http://127.0.0.1`（manifest host_permissions 已含 `http://127.0.0.1/*`；localhost/
+//   [::1]/https 不被覆盖）——「本地」威胁模型（搜索内容 + apiKey 不出 loopback）；
+// - 硅基流动云端：`https://api.siliconflow.cn`（host 精确匹配，需 manifest 声明该 host permission）。
+// 除白名单外不开放任意 https，保持收紧式校验。
 
 export type RerankEndpointValidation =
   | { ok: true; /** 规范化后的 endpoint（localhost/[::1] 已改写为 127.0.0.1）。 */ endpoint: string; /** 输入是否经 localhost/[::1] 自动改写（reply 提示已改写）。 */ rewritten: boolean }
@@ -105,7 +107,8 @@ export type RerankEndpointValidation =
  * 校验并规范化 rerank endpoint（KTD12）：
  * - 解析 URL（不可解析 → invalid_url）；
  * - host 为 `localhost` / `[::1]` → 自动改写 `127.0.0.1`（保留端口/路径，rewritten=true）；
- * - 最终必须 `scheme === 'http' && hostname === '127.0.0.1'`，否则拒绝（not_http / not_loopback）。
+ * - 白名单二选一，否则拒绝：`http + 127.0.0.1`（loopback）或 `https + api.siliconflow.cn`
+ *   （硅基流动云端；其他 https host 拒绝 not_loopback）。
  */
 export function validateRerankEndpoint(raw: string): RerankEndpointValidation {
   let url: URL;
@@ -119,8 +122,10 @@ export function validateRerankEndpoint(raw: string): RerankEndpointValidation {
     url.hostname = '127.0.0.1';
     rewritten = true;
   }
-  if (url.protocol !== 'http:') return { ok: false, reason: 'not_http' };
-  if (url.hostname !== '127.0.0.1') return { ok: false, reason: 'not_loopback' };
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: 'not_http' };
+  const loopback = url.protocol === 'http:' && url.hostname === '127.0.0.1';
+  const siliconflow = url.protocol === 'https:' && url.hostname === 'api.siliconflow.cn';
+  if (!loopback && !siliconflow) return { ok: false, reason: 'not_loopback' };
   return { ok: true, endpoint: url.href, rewritten };
 }
 

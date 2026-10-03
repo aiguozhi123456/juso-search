@@ -6,6 +6,7 @@ import {
   rerankDocuments,
   RerankError,
   testRerank,
+  validateRerankEndpoint,
   type RerankRequestBody,
 } from '@/lib/aggregate/rerank-client';
 import type { RerankConfig } from '@/lib/aggregate/types';
@@ -184,5 +185,21 @@ describe('rerank config helpers', () => {
     expect(normalizeRerankConfig('junk')).toEqual({ endpoint: '' });
     expect(normalizeRerankConfig({ endpoint: ' http://x ', model: '', apiKey: '' })).toEqual({ endpoint: 'http://x' });
     expect(normalizeRerankConfig({ endpoint: 'http://x', model: 'm', apiKey: 'k' })).toEqual({ endpoint: 'http://x', model: 'm', apiKey: 'k' });
+  });
+});
+
+describe('validateRerankEndpoint (KTD12 whitelist: loopback + siliconflow cloud)', () => {
+  it('accepts https api.siliconflow.cn and keeps host/path/query intact', () => {
+    expect(validateRerankEndpoint('https://api.siliconflow.cn/v1/rerank'))
+      .toEqual({ ok: true, endpoint: 'https://api.siliconflow.cn/v1/rerank', rewritten: false });
+  });
+
+  it('rejects other https hosts as not_loopback', () => {
+    expect(validateRerankEndpoint('https://evil.example.com/v1/rerank')).toEqual({ ok: false, reason: 'not_loopback' });
+    expect(validateRerankEndpoint('https://api.siliconflow.cn.evil.com/v1/rerank')).toEqual({ ok: false, reason: 'not_loopback' });
+  });
+
+  it('rejects plain-http siliconflow as not_loopback', () => {
+    expect(validateRerankEndpoint('http://api.siliconflow.cn/v1/rerank')).toEqual({ ok: false, reason: 'not_loopback' });
   });
 });

@@ -64,7 +64,16 @@ mini-reranker 的翻车样本：query「法国的首都」，文档对「巴黎�
 
 服务端返回的 `relevance_score` 是 sigmoid 压到 (0,1) 的概率型分数，越高越相关；客户端按服务端顺序取 `results`，调用方（`applyRerankOrdering`）按分数降序稳定排序后写入 `result.score`，UI 渲染为百分比。解读要点：这是**绝对相关度**不是排名分——0.9+ = 语义强匹配（web 摘要常客），0.4–0.6 = 弱匹配（标题较泛），0.00x = 无文本信号（如 '(无标题)' 笔记，见 [aggregate-rerank-metadata-snippet-sink](../logic-errors/aggregate-rerank-metadata-snippet-sink.md)）；跨 query 比较分数无意义，同 query 内看相对高低。另注意 sigmoid 两端饱和：无关对照不是 0 而是 0.0002 这类极小正数。
 
-## Why This Matters
+### ⑤ 云端白名单：硅基流动 rerank 端口
+
+KTD12 校验已从 loopback-only 扩为双分支白名单（`validateRerankEndpoint`，`lib/aggregate/rerank-client.ts`）：除 `http://127.0.0.1` 外，还接受 `https://api.siliconflow.cn`（host 精确匹配，其他 https host 一律拒绝 not_loopback）。硅基流动的 `/v1/rerank` 与本客户端的 Cohere/Jina 风格协议完全兼容，配置要点：
+
+- endpoint 填全 URL：`https://api.siliconflow.cn/v1/rerank`（同样不会自动补全路径，见 ①）；
+- apiKey 必填（云端 BYOK，Bearer 鉴权；本地服务才可留空）；
+- `model` 用户自行填写（如 BAAI 系 reranker），客户端不预设也不在 UI 提示；
+- manifest `host_permissions` 已声明 `https://api.siliconflow.cn/*`（wxt.config.ts）。
+
+
 
 - **endpoint 填法是第一大接入失败源**：404 的表象（`provider` 错误分型）不会指向「少填了路径」，hint 挡新用户，底因记录挡排查者。
 - **冷加载 × 硬败设计的交互是隐性定时炸弹**：10s 客户端超时 vs 34s 懒加载，单看两边都合理，组合起来保证首次必败且错误文案（timeout）误导向「服务没起」。预热一步是运维契约，写进文档才算完整。

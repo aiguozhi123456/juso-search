@@ -375,7 +375,7 @@
   "opts_aggregate_rerank_card_title": { "message": "Rerank service (global)" },
   "opts_aggregate_rerank_endpoint_label": { "message": "Endpoint" },
   "opts_aggregate_rerank_endpoint_placeholder": { "message": "http://127.0.0.1:8090/v1/rerank" },
-  "opts_aggregate_rerank_endpoint_hint": { "message": "Enter the full URL including the /v1/rerank path — it is not auto-appended. Example: http://127.0.0.1:8090/v1/rerank" },
+  "opts_aggregate_rerank_endpoint_hint": { "message": "Enter the full URL including the /v1/rerank path — it is not auto-appended. Example: http://127.0.0.1:8090/v1/rerank or https://api.siliconflow.cn/v1/rerank" },
   "opts_aggregate_rerank_model_label": { "message": "Model (optional)" },
   "opts_aggregate_rerank_api_key_label": { "message": "API Key (optional)" },
   "opts_aggregate_rerank_api_key_configured": { "message": "Configured" },

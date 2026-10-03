@@ -69,6 +69,7 @@ export default defineConfig({
       'https://open.feedcoopapi.com/*',
       'https://s.jina.ai/*',
       'https://api.parallel.ai/*',
+      'https://api.siliconflow.cn/*',
     ],
     // 静态 content script 不需要额外 host permission；engine 与 provider 的 favicon 在 SERP shadow root 内加载，需声明 web_accessible_resources。
     // 划词搜索弹窗在任意网页注入，favicon 需在所有页面可加载，故新增 <all_urls> 条目。

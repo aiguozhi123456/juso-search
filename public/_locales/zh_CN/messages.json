@@ -375,7 +375,7 @@
   "opts_aggregate_rerank_card_title": { "message": "重排服务（全局）" },
   "opts_aggregate_rerank_endpoint_label": { "message": "Endpoint" },
   "opts_aggregate_rerank_endpoint_placeholder": { "message": "http://127.0.0.1:8090/v1/rerank" },
-  "opts_aggregate_rerank_endpoint_hint": { "message": "需填完整接口地址（含 /v1/rerank 路径，不会自动补全）。示例：http://127.0.0.1:8090/v1/rerank" },
+  "opts_aggregate_rerank_endpoint_hint": { "message": "需填完整接口地址（含 /v1/rerank 路径，不会自动补全）。示例：http://127.0.0.1:8090/v1/rerank 或 https://api.siliconflow.cn/v1/rerank" },
   "opts_aggregate_rerank_model_label": { "message": "模型（可选）" },
   "opts_aggregate_rerank_api_key_label": { "message": "API Key（可选）" },
   "opts_aggregate_rerank_api_key_configured": { "message": "已配置" },
