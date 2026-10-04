@@ -19,8 +19,6 @@ WXT + React + TypeScript，Chrome/Firefox MV3（`wxt.config.ts` 按 browser 分�
 
 ## 架构
 
-详见 `docs/plans/2026-07-01-001-juso-search-plan.md`。
-
 - `CONCEPTS.md` — 项目领域词汇（实体、命名流程、状态概念），阅读代码前可先查阅
 - `docs/solutions/` — 已记录的问题解决方案，按类别组织，YAML frontmatter 含 module/tags/problem_type；在已记录领域实现、调试或决策时可检索
 - `lib/providers/` — 九个适配器（tavily/exa/brave/stepfun/stepfun-plan/jina/doubao/doubao-global/parallel）归一化为统一模型；共享 `http.ts`（REST）+ `mcp-client.ts`（Step Plan MCP）
@@ -44,3 +42,15 @@ API key 为 BYOK，仅存 `chrome.storage.local`，仅由 background worker 读�
 Vitest + jsdom。适配器 mock `fetch`（REST）/ MCP 端点（stepfun-plan），storage 用内存版 `browser.storage.local`。组件测试 mock `@/lib/messaging` 与 `@/lib/storage`。
 
 Python 测试（`npm run test:python`）覆盖 skill CLI、`juso_bridge` 单源与 drift 锁；MCP server 测试（`npm run test:mcp`，pytest）覆盖配置解析/退出码、工具 schema、dual-era 握手（真实子进程）与 stdout 纯净性。
+
+## Agent skills
+
+新增功能或调整产品范围、优先级时，先读 `STRATEGY.md`。
+
+### Issue tracker
+
+问题和任务使用 GitHub Issues（`aiguozhi123456/juso-search`）；操作前参阅 `docs/agents/issue-tracker.md`。
+
+### Domain docs
+
+采用 single-context 布局，术语以 `CONCEPTS.md` 为准；编写领域文档或架构决策前参阅 `docs/agents/domain.md`。
