@@ -35,6 +35,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,6 +49,7 @@ __all__ = [
     "DEFAULT_TIMEOUT_SECONDS",
     "EXTENSION_ID_RE",
     "RECOVERY_HINT",
+    "is_valid_bridge_url",
     "ERROR_INVALID_EXTENSION_ID",
     "ERROR_CHROME_NOT_FOUND",
     "ERROR_WAIT_FAILED",
@@ -88,6 +90,33 @@ SOCKET_TIMEOUT_SECONDS = 1.0
 # copy of the number.
 DEFAULT_TIMEOUT_SECONDS = 40.0
 EXTENSION_ID_RE = re.compile(r"^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\})$")
+
+
+def is_valid_bridge_url(bridge_url: str) -> bool:
+    """Whether ``bridge_url`` is a trusted extension bridge-page URL.
+
+    Mirrors the extension-side trusted-sender check (lib/agent-bridge.ts
+    ``isTrustedBridgeSender``): only ``chrome-extension://<id>/bridge.html`` or
+    ``moz-extension://<uuid>/bridge.html``, with no query, fragment, params,
+    userinfo, or port. run_bridge appends the bearer token as the URL fragment
+    (``#v=1&p=...&t=token``), so any other URL shape would leak that token to a
+    non-extension page, and a query/fragment on the input itself would shadow
+    the claim parameters the bridge page needs.
+    """
+    try:
+        parsed = urllib.parse.urlparse(bridge_url)
+    except ValueError:
+        return False
+    return (
+        parsed.scheme in ("chrome-extension", "moz-extension")
+        and bool(parsed.hostname)
+        and parsed.path == "/bridge.html"
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+        and "@" not in parsed.netloc  # userinfo（username/password）与扩展侧一致拒绝
+        and ":" not in parsed.netloc  # port 同上
+    )
 
 # Stable failure classifiers raised by run_bridge() via BridgeError.
 ERROR_INVALID_EXTENSION_ID = "invalid_extension_id"
@@ -234,6 +263,22 @@ def is_instance_list_reply(reply: Any) -> bool:
     )
 
 
+def _is_engine_result(result: Any) -> bool:
+    """Mirror the extension-side result guard (lib/engine-search.ts ``isResult``).
+
+    Each result is 3 keys {title,url,snippet}（snippet 为语义正文）或 4 键且第四键为
+    snippetKind:'metadata'（纯展示元数据标记，bilibili/douyin/xiaohongshu 抽取器每张卡都置位，
+    扩展侧反序列化守卫明确接受该形态）；其余键数或非法 snippetKind 值仍严格拒绝。
+    """
+    if not isinstance(result, dict):
+        return False
+    if set(result) not in ({"title", "url", "snippet"}, {"title", "url", "snippet", "snippetKind"}):
+        return False
+    if not all(isinstance(result[key], str) for key in ("title", "url", "snippet")):
+        return False
+    return "snippetKind" not in result or result["snippetKind"] == "metadata"
+
+
 def is_engine_search_reply(reply: Any) -> bool:
     if not isinstance(reply, dict) or set(reply) not in ({"engine", "query", "results"}, {"engine", "query", "error"}):
         return False
@@ -241,10 +286,7 @@ def is_engine_search_reply(reply: Any) -> bool:
     if not isinstance(engine, str) or not engine or not isinstance(reply.get("query"), str):
         return False
     if "results" in reply:
-        return isinstance(reply["results"], list) and all(
-            isinstance(result, dict) and set(result) == {"title", "url", "snippet"}
-            and all(isinstance(result[key], str) for key in result) for result in reply["results"]
-        )
+        return isinstance(reply["results"], list) and all(_is_engine_result(result) for result in reply["results"])
     return reply.get("error") in {
         "challenge",
         "consent",
@@ -476,20 +518,20 @@ def make_handler(state: BridgeState):
             return
 
         def do_GET(self) -> None:
-            self._error(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed")
+            self._reject(HTTPStatus.METHOD_NOT_ALLOWED, "method_not_allowed")
 
         def do_POST(self) -> None:
             if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}":
-                self._error(HTTPStatus.BAD_REQUEST, "invalid_host")
+                self._reject(HTTPStatus.BAD_REQUEST, "invalid_host")
                 return
             if not state.valid_token(self.headers.get("Authorization")):
-                self._error(HTTPStatus.UNAUTHORIZED, "unauthorized")
+                self._reject(HTTPStatus.UNAUTHORIZED, "unauthorized")
                 return
             if self.path == "/v1/claim":
                 self._claim()
             elif self.path == "/v1/complete":
                 if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
-                    self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "invalid_content_type")
+                    self._reject(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "invalid_content_type")
                     return
                 body = self._body()
                 if body is None:
@@ -497,19 +539,32 @@ def make_handler(state: BridgeState):
                 self._complete(body)
             elif self.path == "/v1/abort":
                 if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
-                    self._error(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "invalid_content_type")
+                    self._reject(HTTPStatus.UNSUPPORTED_MEDIA_TYPE, "invalid_content_type")
                     return
                 body = self._body()
                 if body is None:
                     return
                 self._abort(body)
             else:
-                self._error(HTTPStatus.NOT_FOUND, "not_found")
+                self._reject(HTTPStatus.NOT_FOUND, "not_found")
+
+        def _reject(self, status: HTTPStatus, code: str) -> None:
+            """Respond with an error and drop the connection.
+
+            These rejections happen before the request body is read; on an
+            HTTP/1.1 keep-alive connection the residual body bytes would
+            otherwise be parsed as the next request. Closing (announced to the
+            client via the Connection: close header in _json/_empty) is always
+            safe, and draining cannot be trusted when Content-Length itself is
+            the thing being rejected.
+            """
+            self.close_connection = True
+            self._error(status, code)
 
         def _body(self) -> dict[str, Any] | None:
             raw_length = self.headers.get("Content-Length")
             if raw_length is None or not raw_length.isdecimal() or int(raw_length) > MAX_BODY_BYTES:
-                self._error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "invalid_body_size")
+                self._reject(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "invalid_body_size")
                 return None
             try:
                 payload = json.loads(self.rfile.read(int(raw_length)).decode("utf-8"))
@@ -562,6 +617,9 @@ def make_handler(state: BridgeState):
         def _json(self, status: HTTPStatus, payload: Any) -> None:
             data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
             self.send_response(status)
+            if self.close_connection:
+                # 关闭意图必须通告（keep-alive 客户端否则会复用一条即将被关闭的连接）。
+                self.send_header("Connection", "close")
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-store")
@@ -570,6 +628,8 @@ def make_handler(state: BridgeState):
 
         def _empty(self, status: HTTPStatus) -> None:
             self.send_response(status)
+            if self.close_connection:
+                self.send_header("Connection", "close")
             self.send_header("Content-Length", "0")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
@@ -626,8 +686,9 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
                bridge_url: str | None = None, browser_type: str | None = None) -> dict[str, Any]:
     """Run one full bridge cycle and return the extension's reply dict.
 
-    Orchestrates: validate extension id → find browser → start loopback
-    server → build claim → launch browser → wait for complete → classify.
+    Orchestrates: validate bridge URL / extension id → find browser → start
+    loopback server → build claim → launch browser → wait for complete →
+    classify.
 
     Args:
         action: one of "search", "engine-search", "search-instance",
@@ -647,21 +708,27 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
         profile: optional profile name (--profile-directory for Chrome, -p for Firefox).
         timeout: Python-side total wait in seconds for the extension to
             complete the request (includes browser launch); bounds the
-            local wait loop only.
+            local wait loop only. When timeout_ms is set, the wait is
+            raised to ``max(timeout, clamped timeoutMs / 1000 + 1)`` so the
+            local wait always outlives the extension-side budget.
         timeout_ms: optional extension-side action budget carried in the
             claim as ``timeoutMs`` (milliseconds, defensively clamped to
             [7000, 300000]). None omits the field and keeps the claim
-            byte-identical to a default run. Callers should keep
-            ``timeout * 1000 >= timeout_ms + 1000`` so the local wait
-            outlives the extension-side budget.
+            byte-identical to a default run. The
+            ``timeout * 1000 >= timeout_ms + 1000`` invariant is enforced
+            here (the local wait is raised as needed), so callers no longer
+            have to maintain it themselves.
         cancel_event: optional threading.Event; when set before the
             extension completes, run_bridge stops waiting and raises
             BridgeError(kind=cancelled). Cleanup (loopback server shutdown,
             browser teardown) still runs before the error propagates.
-        bridge_url: full bridge URL base (e.g. chrome-extension://{id}/bridge.html
-            or moz-extension://{uuid}/bridge.html). When set, overrides URL
-            construction from extension_id (needed for Firefox where the host
-            is a per-install random UUID, not derivable from the gecko ID).
+        bridge_url: full bridge page URL base — only
+            chrome-extension://{id}/bridge.html or moz-extension://{uuid}/bridge.html
+            is accepted (no query/fragment/userinfo/port; format is validated
+            here because the URL is combined with the bearer token fragment).
+            When set, overrides URL construction from extension_id (needed
+            for Firefox where the host is a per-install random UUID, not
+            derivable from the gecko ID).
         browser_type: 'firefox' or 'chrome'; auto-detected from chrome_path if None.
 
     Returns:
@@ -672,8 +739,26 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
             the ERROR_* constants; ``error.message`` matches what the CLI
             prints; ``error.exit_status`` is the CLI exit code.
     """
+    if timeout_ms is not None:
+        # Enforce the documented wait/budget invariant here instead of trusting
+        # every caller: when a small explicit budget is clamped up to the
+        # extension's 7s floor, the local wait must be raised to match, or the
+        # extension aborts the action first and the caller misreads a
+        # slow-but-successful run as extension_did_not_complete.
+        timeout = max(timeout, clamp_timeout_ms(timeout_ms) / 1000.0 + 1.0)
     if bridge_url:
-        pass  # bridge_url is authoritative; skip extension_id validation (Firefox: host is per-install random UUID)
+        # bridge_url is authoritative (Firefox: host is a per-install random UUID),
+        # but it is combined with the bearer token fragment (#v=1&p=...&t=token), so
+        # its shape must be gated first: a mistyped or caller-controlled URL would
+        # otherwise hand the token to an arbitrary page.
+        if not is_valid_bridge_url(bridge_url):
+            raise BridgeError(
+                ERROR_INVALID_EXTENSION_ID,
+                "bridge URL must be a chrome-extension://<id>/bridge.html or "
+                "moz-extension://<uuid>/bridge.html URL without query, fragment, "
+                "userinfo, or port; override with --bridge-url or JUSO_BRIDGE_URL",
+                exit_status=2,
+            )
     elif not extension_id or not EXTENSION_ID_RE.fullmatch(extension_id):
         raise BridgeError(
             ERROR_INVALID_EXTENSION_ID,
@@ -710,7 +795,17 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
     server: BridgeHTTPServer | None = None
     process: subprocess.Popen | None = None
     try:
-        server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
+        try:
+            server = BridgeHTTPServer(("127.0.0.1", 0), make_handler(state))
+        except OSError as error:
+            # Loopback bind failure (sandboxed hosts may block socket binds) is not a
+            # browser-launch failure: classify it separately instead of the misleading
+            # chrome_launch_failed, and keep the original cause diagnosable.
+            raise BridgeError(
+                ERROR_WAIT_FAILED,
+                f"loopback bridge server failed to start: {error}",
+                exit_status=1,
+            ) from error
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()
         base_url = bridge_url or f"chrome-extension://{extension_id}/bridge.html"
@@ -723,7 +818,17 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
                 command.insert(2, profile)
             else:
                 command.insert(1, f"--profile-directory={profile}")
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as error:
+            # Only the browser launch raises browser-start OSError here; scoping the
+            # handler to this call keeps every other OSError out of the
+            # chrome_launch_failed classifier (and preserves the original traceback).
+            raise BridgeError(
+                ERROR_CHROME_LAUNCH_FAILED,
+                f"{error}; {RECOVERY_HINT}",
+                exit_status=1,
+            ) from error
         try:
             completed = _wait_for_completion(state, timeout, cancel_event)
         except BridgeError:
@@ -737,12 +842,6 @@ def run_bridge(action: str, query: str | None, *, provider_id: str | None = None
             kind = ERROR_EXTENSION_DID_NOT_COMPLETE if state.claimed.is_set() else ERROR_EXTENSION_DID_NOT_CLAIM
             raise BridgeError(kind, f"bridge aborted: {state.abort_reason}; {RECOVERY_HINT}", exit_status=1)
         return state.reply
-    except OSError as error:
-        raise BridgeError(
-            ERROR_CHROME_LAUNCH_FAILED,
-            f"{error}; {RECOVERY_HINT}",
-            exit_status=1,
-        )
     finally:
         if server is not None:
             server.shutdown()

@@ -297,6 +297,59 @@ class PureFunctionTests(unittest.TestCase):
         self.assertEqual(kwargs["timeout"], 40.0)
         self.assertIsNone(kwargs["timeout_ms"])
 
+    def test_run_bridge_url_precedence(self):
+        """bridge_url 仅显式提供（--bridge-url 或非空 JUSO_BRIDGE_URL）才透传；默认路径传 None。
+
+        回归锁：旧实现对默认值做 "://" 字符串判定，gen_skills 戳印后永真，导致
+        --bridge-url 分支不可达、--extension-id / JUSO_EXTENSION_ID 被权威的 bridge_url
+        静默忽略（自定义构建改 id 的唯一出路失效）。
+        """
+        # 默认：flag 与 env 均未提供 → bridge_url=None（run_bridge 从 extension_id 构造默认 URL）
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["--extension-id", "a" * 32, "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        self.assertIsNone(run_bridge.call_args.kwargs["bridge_url"])
+        self.assertEqual(run_bridge.call_args.kwargs["extension_id"], "a" * 32)
+        # 显式 --bridge-url → 透传
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["--bridge-url", "moz-extension://uuid1/bridge.html", "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        self.assertEqual(run_bridge.call_args.kwargs["bridge_url"], "moz-extension://uuid1/bridge.html")
+        # JUSO_BRIDGE_URL env 显式 → 透传（env 在 run() 里解析，mock 须在 env patch 内）
+        with (
+            patch.dict(os.environ, {"JUSO_BRIDGE_URL": "moz-extension://uuid2/bridge.html"}, clear=True),
+            patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge,
+        ):
+            args = juso_search.parser().parse_args(["list-providers"])
+            juso_search.run(args)
+        self.assertEqual(run_bridge.call_args.kwargs["bridge_url"], "moz-extension://uuid2/bridge.html")
+        # CLI flag 优先于 env
+        with (
+            patch.dict(os.environ, {"JUSO_BRIDGE_URL": "moz-extension://uuid2/bridge.html"}, clear=True),
+            patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge,
+        ):
+            args = juso_search.parser().parse_args(["--bridge-url", "moz-extension://uuid3/bridge.html", "list-providers"])
+            juso_search.run(args)
+        self.assertEqual(run_bridge.call_args.kwargs["bridge_url"], "moz-extension://uuid3/bridge.html")
+        # 空 env / 空白值视为未设置
+        for empty in ("", "   "):
+            with (
+                patch.dict(os.environ, {"JUSO_BRIDGE_URL": empty}, clear=True),
+                patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge,
+            ):
+                args = juso_search.parser().parse_args(["list-providers"])
+                juso_search.run(args)
+            self.assertIsNone(run_bridge.call_args.kwargs["bridge_url"])
+        # 显式 --extension-id（自定义构建）不携带 bridge_url，且 id 原样透传（旧缺陷的靶心场景）
+        with patch.dict(os.environ, {}, clear=True):
+            args = juso_search.parser().parse_args(["--extension-id", "b" * 32, "list-providers"])
+        with patch.object(juso_search.juso_bridge, "run_bridge", return_value={"providers": []}) as run_bridge:
+            juso_search.run(args)
+        self.assertIsNone(run_bridge.call_args.kwargs["bridge_url"])
+        self.assertEqual(run_bridge.call_args.kwargs["extension_id"], "b" * 32)
+
     def test_make_claim_timeout_ms(self):
         """不带 timeout_ms 时 claim 与既有形状完全一致；显式时携带并 clamp 到 [7000, 300000]。"""
         # 不传 timeout_ms：claim 逐字段等于旧形状（兼容不变量）

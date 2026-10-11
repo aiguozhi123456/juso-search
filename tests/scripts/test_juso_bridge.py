@@ -1,6 +1,7 @@
 import http.client
 import importlib.util
 import json
+import socket
 import threading
 import unittest
 from pathlib import Path
@@ -28,6 +29,14 @@ ENGINE_REPLY = {
     "engine": "google",
     "query": "hello",
     "results": [{"title": "T", "url": "https://example.com", "snippet": "S"}],
+}
+
+# bilibili/douyin/xiaohongshu 抽取器每张卡都带第四键 snippetKind:'metadata'（扩展侧
+# isResult 守卫明确接受），engine-search 回复校验必须放行（曾严格三键导致 400 invalid_reply）。
+ENGINE_METADATA_REPLY = {
+    "engine": "bilibili",
+    "query": "hello",
+    "results": [{"title": "T", "url": "https://example.com", "snippet": "S", "snippetKind": "metadata"}],
 }
 
 PROVIDERS_REPLY = {"providers": [{"id": "tavily", "supportsAnswer": True, "configured": True}]}
@@ -157,6 +166,19 @@ class RunBridgeTests(unittest.TestCase):
                 extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
             )
         self.assertEqual(reply, ENGINE_REPLY)
+        self.assertEqual(juso_bridge.result_status(reply), 0)
+
+    def test_run_bridge_engine_search_metadata_results_accepted(self):
+        """4 键 snippetKind:'metadata' 结果的 engine-search 全周期成功（回归锁：曾 400 invalid_reply）。"""
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(ENGINE_METADATA_REPLY)),
+        ):
+            reply = juso_bridge.run_bridge(
+                "engine-search", "hello", engine_id="bilibili",
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, ENGINE_METADATA_REPLY)
         self.assertEqual(juso_bridge.result_status(reply), 0)
 
     def test_run_bridge_engine_search_error_reply_is_returned_not_raised(self):
@@ -390,6 +412,31 @@ class ReplyValidatorTests(unittest.TestCase):
     def test_is_engine_list_reply_accepts_valid_reply(self):
         self.assertTrue(juso_bridge.is_engine_list_reply({"engines": [{"id": "google"}, {"id": "bing"}]}))
         self.assertTrue(juso_bridge.is_engine_list_reply({"engines": []}))
+
+    def test_is_engine_search_reply_accepts_metadata_snippet_results(self):
+        """与扩展侧 isResult 守卫对齐：3 键，或 4 键且第四键为 snippetKind:'metadata'。"""
+        self.assertTrue(juso_bridge.is_engine_search_reply(ENGINE_REPLY))
+        self.assertTrue(juso_bridge.is_engine_search_reply(ENGINE_METADATA_REPLY))
+        claim = juso_bridge.make_claim("engine-search", "hello", None, False, "request-1", "bilibili")
+        self.assertTrue(juso_bridge.is_valid_reply(claim, ENGINE_METADATA_REPLY))
+
+    def test_is_engine_search_reply_rejects_invalid_result_shapes(self):
+        base = {"title": "T", "url": "https://example.com", "snippet": "S"}
+        bad_results = [
+            {**base, "snippetKind": "semantic"},  # snippetKind 只接受 'metadata'
+            {**base, "snippetKind": None},
+            {**base, "extra": 1},  # 其他第四键
+            {**base, "title": 42},  # title 非字符串
+            {"title": "T", "url": "https://example.com"},  # 缺 snippet
+            {**base, "snippetKind": "metadata", "extra": 1},  # 五键
+        ]
+        for result in bad_results:
+            with self.subTest(result=result):
+                self.assertFalse(
+                    juso_bridge.is_engine_search_reply({"engine": "google", "query": "hello", "results": [result]}),
+                )
+        # 空结果列表仍合法
+        self.assertTrue(juso_bridge.is_engine_search_reply({"engine": "google", "query": "hello", "results": []}))
 
     def test_is_engine_list_reply_rejects_invalid_reply(self):
         self.assertFalse(juso_bridge.is_engine_list_reply({}))  # missing engines key
@@ -696,6 +743,242 @@ class SiteAggregateTests(unittest.TestCase):
             )
         self.assertEqual(reply, AGGREGATES_REPLY)
         self.assertEqual(capture["request"], {"action": "list-aggregates"})
+
+
+class BridgeUrlValidationTests(unittest.TestCase):
+    """run_bridge 对 bridge_url 的信任边界：与 bearer token 拼进 fragment 前，格式必须过闸。
+
+    扩展侧只接受 chrome-extension://<id>/bridge.html 或 moz-extension://<uuid>/bridge.html
+    （lib/agent-bridge.ts isTrustedBridgeSender）；被控/写错的 URL 会把 token 带去任意页面，
+    query/fragment 还会遮蔽 claim 参数。
+    """
+
+    def test_is_valid_bridge_url_accepts_trusted_shapes(self):
+        self.assertTrue(juso_bridge.is_valid_bridge_url(f"chrome-extension://{EXTENSION_ID}/bridge.html"))
+        self.assertTrue(juso_bridge.is_valid_bridge_url("moz-extension://daf44bf7-a45e-4450-979c-91cf07434c3d/bridge.html"))
+
+    def test_is_valid_bridge_url_rejects_untrusted_shapes(self):
+        bad_urls = [
+            "https://evil.example/bridge.html",  # 非 extension scheme：token 会泄漏给普通页面
+            "file:///C:/bridge.html",
+            "chrome-extension://id/other.html",  # path 不符
+            "chrome-extension://id",  # 缺 path
+            "chrome-extension://id/bridge.html/extra",  # path 前缀匹配但非精确
+            "moz-extension:///bridge.html",  # 缺 host
+            "chrome-extension://id/bridge.html?x=1",  # query
+            "chrome-extension://id/bridge.html#v=1",  # fragment（会遮蔽 claim 参数）
+            "chrome-extension://id/bridge.html;x=1",  # params
+            "chrome-extension://user@id/bridge.html",  # userinfo
+            "chrome-extension://id:8123/bridge.html",  # port
+            "not-a-url",
+        ]
+        for url in bad_urls:
+            with self.subTest(url=url):
+                self.assertFalse(juso_bridge.is_valid_bridge_url(url), url)
+
+    def test_invalid_bridge_url_fails_fast_before_browser_lookup(self):
+        for url in ("https://evil.example/bridge.html", "chrome-extension://id/bridge.html?x=1"):
+            with self.subTest(url=url):
+                with self.assertRaises(juso_bridge.BridgeError) as ctx:
+                    juso_bridge.run_bridge("list-providers", None, bridge_url=url)
+                self.assertEqual(ctx.exception.kind, "invalid_extension_id")
+                self.assertEqual(ctx.exception.exit_status, 2)
+                self.assertIn("--bridge-url", ctx.exception.message)
+
+    def test_valid_bridge_url_skips_extension_id_and_opens(self):
+        """合法 bridge_url 在未提供 extension_id 时照样可用（Firefox per-install UUID 路径）。"""
+        commands = []
+
+        def popen_capture(command, **_kwargs):
+            commands.append(command)
+            return _claim_and_complete(SEARCH_REPLY)(command, **_kwargs)
+
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=popen_capture),
+        ):
+            reply = juso_bridge.run_bridge(
+                "search", "hello", provider_id="tavily",
+                bridge_url="moz-extension://daf44bf7-a45e-4450-979c-91cf07434c3d/bridge.html",
+                chrome_path=FAKE_CHROME, timeout=2.0,
+            )
+        self.assertEqual(reply, SEARCH_REPLY)
+        self.assertTrue(commands[0][-1].startswith("moz-extension://daf44bf7-a45e-4450-979c-91cf07434c3d/bridge.html#"))
+
+
+class TimeoutInvariantTests(unittest.TestCase):
+    """run_bridge 强制 timeout*1000 >= clamp(timeout_ms) + 1000：本地等待不得早于扩展侧预算到期。
+
+    CLI/MCP 把过小的显式 timeout 钳成 7s 下限的 claim 预算；不变式若只在 docstring 里，
+    扩展会先行中止、调用方误报 extension_did_not_complete。
+    """
+
+    def _run_capture_wait(self, **kwargs):
+        waits = []
+
+        def fake_wait(state, timeout, cancel_event):
+            waits.append(timeout)
+            return False
+
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", return_value=None),
+            patch.object(juso_bridge, "_wait_for_completion", new=fake_wait),
+        ):
+            with self.assertRaises(juso_bridge.BridgeError) as ctx:
+                juso_bridge.run_bridge("list-providers", None, extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, **kwargs)
+        self.assertEqual(ctx.exception.kind, "extension_did_not_claim")
+        return waits
+
+    def test_small_timeout_raised_to_outlive_clamped_budget(self):
+        # clamp(5000) = 7000 → 本地等待 = 7 + 1
+        self.assertEqual(self._run_capture_wait(timeout=1.0, timeout_ms=5000), [8.0])
+
+    def test_large_timeout_untouched(self):
+        self.assertEqual(self._run_capture_wait(timeout=200.0, timeout_ms=120000), [200.0])
+
+    def test_no_timeout_ms_keeps_wait_untouched(self):
+        self.assertEqual(self._run_capture_wait(timeout=0.5), [0.5])
+
+    def test_claim_still_carries_clamped_budget(self):
+        capture: dict = {}
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=_claim_and_complete(SEARCH_REPLY, capture=capture)),
+        ):
+            juso_bridge.run_bridge(
+                "search", "hello", provider_id="tavily",
+                extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=1.0, timeout_ms=5000,
+            )
+        self.assertEqual(capture["request"]["timeoutMs"], 7000)
+
+
+class LaunchFailureClassificationTests(unittest.TestCase):
+    """OSError 分类收窄：只有浏览器启动归 chrome_launch_failed；bind 失败独立归类并保留原始栈。"""
+
+    def test_loopback_bind_failure_is_not_chrome_launch_failed(self):
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge, "BridgeHTTPServer", side_effect=OSError("bind refused")),
+        ):
+            with self.assertRaises(juso_bridge.BridgeError) as ctx:
+                juso_bridge.run_bridge(
+                    "list-providers", None,
+                    extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=2.0,
+                )
+        self.assertEqual(ctx.exception.kind, "wait_failed")
+        self.assertIn("bind refused", ctx.exception.message)
+        self.assertNotIn("JUSO_BROWSER_PATH", ctx.exception.message)
+        self.assertIsInstance(ctx.exception.__cause__, OSError)
+
+    def test_chrome_launch_failure_keeps_kind_and_cause(self):
+        launch_error = OSError("permission denied")
+        with (
+            patch.object(juso_bridge, "find_chrome", return_value=FAKE_CHROME),
+            patch.object(juso_bridge.subprocess, "Popen", side_effect=launch_error),
+        ):
+            with self.assertRaises(juso_bridge.BridgeError) as ctx:
+                juso_bridge.run_bridge(
+                    "list-providers", None,
+                    extension_id=EXTENSION_ID, chrome_path=FAKE_CHROME, timeout=0.4,
+                )
+        self.assertEqual(ctx.exception.kind, "chrome_launch_failed")
+        self.assertEqual(ctx.exception.exit_status, 1)
+        self.assertIn("permission denied", ctx.exception.message)
+        self.assertIs(ctx.exception.__cause__, launch_error)
+
+
+class HandlerRejectTests(unittest.TestCase):
+    """读 body 之前的拒绝路径必须关闭连接：HTTP/1.1 keep-alive 下残留 body 字节
+    会被解析为下一请求（通告 Connection: close，客户端自动重连）。"""
+
+    def setUp(self):
+        self.state = juso_bridge.BridgeState("a" * 43, "request-1")
+        self.state.claim = juso_bridge.make_claim("search", "hello", "tavily", False, "request-1")
+        self.server = juso_bridge.BridgeHTTPServer(("127.0.0.1", 0), juso_bridge.make_handler(self.state))
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def _send_and_read_all(self, raw_request: bytes) -> bytes:
+        connection = socket.create_connection(("127.0.0.1", self.server.server_port))
+        try:
+            connection.settimeout(5)
+            connection.sendall(raw_request)
+            response = b""
+            while True:
+                chunk = connection.recv(4096)
+                if not chunk:
+                    break  # 服务器关闭连接
+                response += chunk
+            return response
+        finally:
+            connection.close()
+
+    def _raw_post(self, path: str, content_length: str, body: str, token: str = "a" * 43, content_type: str = "application/json") -> bytes:
+        return (
+            f"POST {path} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{self.server.server_port}\r\n"
+            f"Authorization: Bearer {token}\r\n"
+            f"Content-Type: {content_type}\r\n"
+            f"Content-Length: {content_length}\r\n\r\n"
+            f"{body}"
+        ).encode()
+
+    def test_invalid_body_size_responds_then_closes(self):
+        response = self._send_and_read_all(self._raw_post("/v1/complete", "abc", "{}"))
+        self.assertIn(b"413", response)
+        self.assertIn(b"invalid_body_size", response)
+        self.assertIn(b"Connection: close", response)
+
+    def test_oversized_body_size_responds_then_closes(self):
+        response = self._send_and_read_all(self._raw_post("/v1/complete", str(juso_bridge.MAX_BODY_BYTES + 1), "{}"))
+        self.assertIn(b"413", response)
+        self.assertIn(b"invalid_body_size", response)
+        self.assertIn(b"Connection: close", response)
+
+    def test_unauthorized_with_body_responds_then_closes(self):
+        response = self._send_and_read_all(self._raw_post("/v1/claim", "2", "{}", token="wrong"))
+        self.assertIn(b"401", response)
+        self.assertIn(b"Connection: close", response)
+
+    def test_invalid_content_type_with_body_responds_then_closes(self):
+        response = self._send_and_read_all(self._raw_post("/v1/complete", "2", "{}", content_type="text/plain"))
+        self.assertIn(b"415", response)
+        self.assertIn(b"invalid_content_type", response)
+        self.assertIn(b"Connection: close", response)
+
+    def test_unknown_path_with_body_responds_then_closes(self):
+        response = self._send_and_read_all(self._raw_post("/nope", "2", "{}"))
+        self.assertIn(b"404", response)
+        self.assertIn(b"Connection: close", response)
+
+    def test_success_paths_stay_keep_alive(self):
+        """claim/complete 成功路径不携带 Connection: close（连接保持复用）。"""
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
+        try:
+            headers = {
+                "Host": f"127.0.0.1:{self.server.server_port}",
+                "Authorization": "Bearer " + "a" * 43,
+            }
+            connection.request("POST", "/v1/claim", headers=headers)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertIsNone(response.getheader("Connection"))
+            response.read()
+            claim = self.state.claim
+            complete = {"protocol": claim["protocol"], "requestId": claim["requestId"], "reply": SEARCH_REPLY}
+            headers["Content-Type"] = "application/json"
+            connection.request("POST", "/v1/complete", json.dumps(complete), headers)
+            response = connection.getresponse()
+            self.assertEqual(response.status, 204)
+            self.assertIsNone(response.getheader("Connection"))
+            response.read()
+        finally:
+            connection.close()
 
 
 if __name__ == "__main__":

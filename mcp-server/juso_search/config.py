@@ -18,7 +18,13 @@ message on **stderr** and a non-zero exit code. The server never guesses an
 extension id or a browser executable, so a wrong or unset value can never be
 silently used. (Browser auto-discovery lives in ``juso_bridge.find_chrome`` and
 is reserved for the CLI skill, where a human is in the loop to read the
-``chrome_not_found`` error.)
+``chrome_not_found`` error.) The same fail-fast gate covers ``JUSO_BRIDGE_URL``:
+it must be a full ``chrome-extension://<id>/bridge.html`` or
+``moz-extension://<uuid>/bridge.html`` URL (checked via the shared
+``juso_bridge.is_valid_bridge_url``, the same validator ``run_bridge`` enforces
+at the boundary) because the client appends the bearer token as the URL
+fragment — a malformed value must die at config load, not after a wasted
+browser launch.
 
 Stdout discipline (2026-07-28 gotcha #1): the only diagnostics this module
 emits go to stderr. Nothing here ever writes to stdout.
@@ -63,12 +69,20 @@ def load_config(env: Mapping[str, str] | None = None) -> Config:
         SystemExit: with code :data:`EXIT_CONFIG_ERROR` (after writing an
             explanatory message to stderr) when ``JUSO_BROWSER_PATH`` is
             missing/empty, when neither ``JUSO_EXTENSION_ID`` nor
-            ``JUSO_BRIDGE_URL`` is set (or the id is invalid), or when
-            ``JUSO_TIMEOUT`` is not a positive finite number.
+            ``JUSO_BRIDGE_URL`` is set (or the id is invalid), when
+            ``JUSO_BRIDGE_URL`` is set but not a trusted bridge-page URL, or
+            when ``JUSO_TIMEOUT`` is not a positive finite number.
     """
     env = os.environ if env is None else env
 
     bridge_url = (env.get("JUSO_BRIDGE_URL") or "").strip() or None
+    if bridge_url and not juso_bridge.is_valid_bridge_url(bridge_url):
+        _die(
+            "JUSO_BRIDGE_URL must be a chrome-extension://<id>/bridge.html or "
+            "moz-extension://<uuid>/bridge.html URL without query, fragment, "
+            "userinfo, or port (the client appends the claim fragment itself); "
+            f"got {bridge_url!r}"
+        )
 
     extension_id = (env.get("JUSO_EXTENSION_ID") or "").strip()
     if not extension_id and not bridge_url:

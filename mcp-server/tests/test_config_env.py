@@ -105,6 +105,46 @@ def test_invalid_extension_id_fails(capsys):
     assert "JUSO_EXTENSION_ID" in capsys.readouterr().err
 
 
+MOZ_BRIDGE_URL = "moz-extension://daf44bf7-a45e-4450-979c-91cf07434c3d/bridge.html"
+CHROME_BRIDGE_URL = "chrome-extension://" + "a" * 32 + "/bridge.html"
+
+
+def test_bridge_url_accepted_without_extension_id():
+    """JUSO_BRIDGE_URL（Firefox per-install UUID 路径）单独成立，无需 JUSO_EXTENSION_ID。"""
+    for url in (MOZ_BRIDGE_URL, CHROME_BRIDGE_URL):
+        config = load_config({"JUSO_CHROME_PATH": CHROME_PATH, "JUSO_BRIDGE_URL": url})
+        assert config.bridge_url == url
+        assert config.extension_id is None
+
+
+def test_bridge_url_is_stripped():
+    config = load_config({"JUSO_CHROME_PATH": CHROME_PATH, "JUSO_BRIDGE_URL": f"  {MOZ_BRIDGE_URL}  "})
+    assert config.bridge_url == MOZ_BRIDGE_URL
+
+
+def test_invalid_bridge_url_fails_fast(capsys):
+    """JUSO_BRIDGE_URL 只接受 trusted bridge-page URL 形态；畸形值在配置加载期即死（fail-fast 契约）。"""
+    bad_urls = [
+        "https://evil.example/bridge.html",  # 非 extension scheme：fragment token 会泄漏
+        "chrome-extension://id/other.html",  # path 不符
+        "chrome-extension://id",  # 缺 path
+        "moz-extension:///bridge.html",  # 缺 host
+        CHROME_BRIDGE_URL + "?x=1",  # query（会遮蔽 claim fragment）
+        CHROME_BRIDGE_URL + "#v=1",  # fragment
+        CHROME_BRIDGE_URL + ";x=1",  # params
+        "chrome-extension://user@id/bridge.html",  # userinfo
+        "chrome-extension://id:8123/bridge.html",  # port
+        "not-a-url",
+    ]
+    for raw in bad_urls:
+        with pytest.raises(SystemExit) as excinfo:
+            load_config({"JUSO_CHROME_PATH": CHROME_PATH, "JUSO_BRIDGE_URL": raw})
+        assert excinfo.value.code == EXIT_CONFIG_ERROR
+        captured = capsys.readouterr()
+        assert "JUSO_BRIDGE_URL" in captured.err
+        assert captured.out == ""  # nothing on stdout
+
+
 def test_config_passed_to_run_bridge(server, config, monkeypatch):
     """The resolved config flows into run_bridge exactly (extension_id etc.)."""
     with patch("juso_search.bridge_call.juso_bridge.run_bridge") as run_bridge:

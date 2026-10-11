@@ -25,7 +25,6 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding='utf-8')
 
 DEFAULT_EXTENSION_ID = "illmhdnglkjfcenboepdgopaeejdgoji"
-DEFAULT_BRIDGE_URL = "chrome-extension://illmhdnglkjfcenboepdgopaeejdgoji/bridge.html"
 
 
 def extension_id(value: str) -> str:
@@ -56,7 +55,11 @@ def parser() -> argparse.ArgumentParser:
     argument_parser.add_argument("--extension-id", type=extension_id, default=os.environ.get("JUSO_EXTENSION_ID") or DEFAULT_EXTENSION_ID)
     argument_parser.add_argument("--browser", default=os.environ.get("JUSO_BROWSER_PATH") or os.environ.get("JUSO_CHROME_PATH"))
     argument_parser.add_argument("--profile", default=os.environ.get("JUSO_BROWSER_PROFILE") or os.environ.get("JUSO_CHROME_PROFILE"))
-    argument_parser.add_argument("--bridge-url", default=os.environ.get("JUSO_BRIDGE_URL") or DEFAULT_BRIDGE_URL)
+    # None 哨兵 = 未显式传参；JUSO_BRIDGE_URL 在 run() 里单独解析（非空才算显式）。
+    # 显式性判定必须留在 argparse 层而非字符串特征（"://"）：内建默认值经 gen_skills
+    # 戳印后本身是 chrome-extension://<id>/bridge.html，字符串判定对默认值永真，
+    # 曾令 --extension-id / JUSO_EXTENSION_ID 被权威的 bridge_url 静默忽略。
+    argument_parser.add_argument("--bridge-url", default=None)
     # None 哨兵 = 未显式配置（无 --timeout 且 JUSO_TIMEOUT 未设/为空）：run() 回退
     # juso_bridge 默认等待并省略 timeoutMs（claim 字节不变）；非空 env 值仍经
     # positive_timeout 在 parse 阶段校验。
@@ -94,14 +97,17 @@ def parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace) -> tuple[int, Any]:
-    raw_bridge_url = args.bridge_url
-    # Pass bridge_url only if it's a real URL (not the unstamped "chrome-extension://illmhdnglkjfcenboepdgopaeejdgoji/bridge.html" placeholder).
-    # Using "://" check instead of placeholder string because gen_skills.py stamps the placeholder
-    # everywhere — including this check — which would make it always False after stamping.
-    bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None
+    # bridge_url 仅在显式提供（--bridge-url flag 或非空 JUSO_BRIDGE_URL env）时透传；默认路径
+    # 传 None，由 run_bridge 从 extension_id 构造 chrome-extension://<id>/bridge.html ——
+    # 显式覆盖的 --extension-id（自定义构建）因此保持有效。格式校验统一在 run_bridge 入口。
+    raw_bridge_url = args.bridge_url if args.bridge_url is not None else os.environ.get("JUSO_BRIDGE_URL")
+    bridge_url = (raw_bridge_url.strip() or None) if raw_bridge_url else None
     # An explicit timeout (flag or non-empty JUSO_TIMEOUT) doubles as the
     # extension-side budget; the None sentinel keeps the default-path claim
-    # free of timeoutMs (byte-identical to before).
+    # free of timeoutMs (byte-identical to before). Values below the
+    # extension's 7s floor are reconciled inside run_bridge (the local wait is
+    # raised to outlive the clamped claim budget), so both sides share one
+    # consistent budget.
     timeout = args.timeout if args.timeout is not None else juso_bridge.DEFAULT_TIMEOUT_SECONDS
     timeout_ms = juso_bridge.clamp_timeout_ms(args.timeout * 1000) if args.timeout is not None else None
     try:
