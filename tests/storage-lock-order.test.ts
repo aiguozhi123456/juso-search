@@ -2,11 +2,17 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   SOURCE_ORDER_KEY,
   PROVIDER_INSTANCES_KEY,
+  KEYS_KEY,
+  MAX_RESULTS_KEY,
   getSourceOrder,
   setSourceOrder,
   getProviderInstances,
   createProviderInstance,
+  clearKey,
+  setProviderMaxResults,
 } from '@/lib/storage';
+import { mergeImport, type ConfigExport } from '@/lib/config-io';
+import { CURRENT_SCHEMA_VERSION } from '@/lib/schema';
 
 /**
  * 锁序并发回归：拆分后 source 队列 → instances 队列的串行化不变量。
@@ -134,5 +140,58 @@ describe('storage lock order: source queue → instances queue', () => {
     expect(order[1]).toBe('google');
     expect(order[order.length - 1]).toBe(created.id);
     expect(order.filter((id) => id === created.id)).toHaveLength(1);
+  });
+});
+
+describe('storage lock order: maxResults queue nests under source (→ keys)', () => {
+  const maxResultsPayload: ConfigExport = {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    exportedAt: 1,
+    appVersion: 'test',
+    providerKeys: {},
+    activeProvider: null,
+    activeSource: null,
+    themePref: 'auto',
+    localePref: 'auto',
+    providerMaxResults: { tavily: 10 },
+  };
+
+  it('setProviderMaxResults waits behind a blocked clearKey set (source → keys → maxResults)', async () => {
+    const mock = installStorage();
+    mock.store.set(MAX_RESULTS_KEY, { tavily: 8 });
+    const gate = mock.blockNextSetOf(MAX_RESULTS_KEY);
+
+    // A：clearKey 读改写 KEYS_KEY + MAX_RESULTS_KEY，set 挂在测试 gate 上（队列未释放）。
+    const pA = clearKey('tavily');
+    await new Promise((r) => setTimeout(r, 20));
+    // B：setProviderMaxResults 须先取 source 队列（被 A 持有）→ mutation 体未开始。
+    const pB = setProviderMaxResults('exa', 5);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mock.writeLog.filter((keys) => keys.includes(MAX_RESULTS_KEY))).toHaveLength(1);
+
+    gate.resolve();
+    await Promise.all([pA, pB]);
+
+    // 两笔写按序落盘：clearKey 删 tavily 在前，setProviderMaxResults 读到删除后映射再写 exa。
+    expect(mock.store.get(MAX_RESULTS_KEY)).toEqual({ exa: 5 });
+  });
+
+  it('setProviderMaxResults waits behind a blocked mergeImport set and preserves the imported map', async () => {
+    const mock = installStorage();
+    const gate = mock.blockNextSetOf(KEYS_KEY);
+
+    // A：mergeImport（持 source 队列整写 MAX_RESULTS_KEY），set 挂 gate。
+    const pA = mergeImport(maxResultsPayload, { applyPrefs: true });
+    await new Promise((r) => setTimeout(r, 20));
+    const pB = setProviderMaxResults('exa', 5);
+    await new Promise((r) => setTimeout(r, 20));
+    // 仅 A 那笔被 gate 挂起的 set 在日志里（mock 先记 log 再挂起）；B 未开始，没有第二笔。
+    expect(mock.writeLog.filter((keys) => keys.includes(MAX_RESULTS_KEY))).toHaveLength(1);
+
+    gate.resolve();
+    await Promise.all([pA, pB]);
+
+    // setter 串行在导入之后：读到导入映射再追加，两笔都存活（无锁时 B 以陈旧读覆盖导入映射）。
+    expect(mock.store.get(MAX_RESULTS_KEY)).toEqual({ tavily: 10, exa: 5 });
   });
 });

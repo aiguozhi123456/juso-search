@@ -142,6 +142,28 @@ export function isSearchCacheIndex(value: unknown): value is SearchCacheIndex {
     && isPlainRecord(candidate.summaries);
 }
 
+/** 条目形状守卫（镜像 isSearchCacheIndex）：畸形条目按缺失处理，读侧据此自愈清引用，
+ *  而不是在 buildSearchCacheSummary 解引用 response 时反复抛错（持久性失败）。 */
+export function isSearchCacheEntry(value: unknown): value is SearchCacheEntry {
+  if (!isPlainRecord(value)) return false;
+  const candidate = value as {
+    id?: unknown; cacheKey?: unknown; query?: unknown; normalizedQuery?: unknown;
+    createdAt?: unknown; lastAccessedAt?: unknown; providerId?: unknown; response?: unknown;
+  };
+  if (typeof candidate.id !== 'string'
+    || typeof candidate.cacheKey !== 'string'
+    || typeof candidate.query !== 'string'
+    || typeof candidate.normalizedQuery !== 'string'
+    || typeof candidate.createdAt !== 'number'
+    || typeof candidate.lastAccessedAt !== 'number'
+    || typeof candidate.providerId !== 'string'
+    || !isPlainRecord(candidate.response)
+    || !Array.isArray(candidate.response.results)) return false;
+  // 聚合条目的 summary 读取会解引用 answers——聚合哨兵条目必须带 answers 数组。
+  if (candidate.providerId === AGGREGATE_CACHE_PROVIDER_ID && !Array.isArray(candidate.response.answers)) return false;
+  return true;
+}
+
 export function buildSearchCacheEntry(response: NormalizedSearchResponse, instanceId?: string, now = Date.now()): SearchCacheEntry {
   const id = createCacheId();
   const normalizedQuery = normalizeSearchQuery(response.query);
@@ -311,7 +333,8 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 //
 // 与 config 域的 ensureSchema 同构，三层短路：
 //   - 稳态：读 cacheSchemaVersion 单键 === 当前 → return，~0.1ms，不读缓存。
-//   - 首装：缺戳 → 写当前版本（缓存多半空，不读 entry 池）。
+//   - 缺戳：跑迁移链（空池短路为纯盖章，不读 entry 池；无戳旧条目按迁移语义处理——
+//     版本机制引入前的构建可能已写过 v1 格式条目，缺戳 ≠ 一定首装）。
 //   - 升级：落后 → 读 index + 全部 entry → 跑迁移链 → 写 diff（变更 entry + index + 版本戳）。
 //
 // 幂等：迁移函数须幂等；worker 被杀则下次重跑（版本戳未更新即重跑安全）。
@@ -355,7 +378,9 @@ export function migrateCachePool(
       ...idx,
       order: idx.order.filter((id) => !dropped.has(id)),
       summaries: omitKeys(idx.summaries, dropped),
-      byKey: omitKeys(idx.byKey, dropped),
+      // byKey 的键是 cacheKey 不是 entryId——须按值过滤（按键过滤永不命中，
+      // 孤儿映射会永久残留，读侧反复解析到失效条目）。
+      byKey: Object.fromEntries(Object.entries(idx.byKey).filter(([, entryId]) => !dropped.has(entryId))),
     };
   }
   return { index: idx, entries, dropEntryIds: [...dropped] };
@@ -379,8 +404,15 @@ export async function ensureCacheSchema(): Promise<void> {
   if (stored === CURRENT_CACHE_SCHEMA_VERSION) return;
   if (stored > CURRENT_CACHE_SCHEMA_VERSION) return; // 降级：向前兼容
   if (stored === 0) {
-    // 首装盖章：缓存多半空，不读 entry 池，仅写版本戳
-    await browser.storage.local.set({ [CACHE_SCHEMA_VERSION_KEY]: CURRENT_CACHE_SCHEMA_VERSION });
+    // 缺戳 ≠ 一定首装：版本机制引入前的构建已写过无戳缓存池（v1 格式 cacheKey）。
+    // 保守跑迁移链：runCacheMigration 对空池只盖章（不读 entry 池，首装开销不变）；
+    // 有旧格式条目则按迁移语义处理（v1→v2 清池重建——绝不让旧格式条目带着新版本戳被误命中）。
+    try {
+      await runCacheMigration(0, CURRENT_CACHE_SCHEMA_VERSION);
+    } catch {
+      // 兜底：丢弃整个缓存池 + 盖章
+      await recoverCacheSchemaByClear();
+    }
     return;
   }
   // 升级路径：读 index + 全部 entry → 迁移 → 写 diff

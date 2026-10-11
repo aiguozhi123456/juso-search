@@ -231,7 +231,8 @@ export async function handleSearchInstance(request: AgentSearchInstanceRequest, 
 
 // i18n 占位键名（同上方聚合占位键先例；词条落 lib/i18n.ts + _locales/{zh_CN,en}/messages.json）。
 const MSG_AGENT_SITE_INSTANCE_UNKNOWN = 'error_site_instance_unknown';
-const MSG_AGENT_ENGINE_SEARCH_DISABLED = 'error_agent_engine_search_disabled';
+// export 供 background.ts 的 agentBridgeClaim search-site 包装复用同一 i18n 键。
+export const MSG_AGENT_ENGINE_SEARCH_DISABLED = 'error_agent_engine_search_disabled';
 
 /** Agent bridge 的站点实例清单（脱敏）：id/名称/backing engine/目标站，无任何密钥。 */
 export async function handleListAgentSites(): Promise<AgentListSitesReply> {
@@ -692,10 +693,15 @@ export async function handleCreateProviderInstance(data: { baseProviderId: Provi
 
 export async function handleUpdateProviderInstance(data: { id: ProviderInstanceId; patch: { name?: string; options?: Record<string, unknown> } }): Promise<ProviderInstance | null> {
   await getSchemaReady();
+  // 缓存键不含实例 options（cache key 不随 options 变化），options 实际变更才会让旧条目过时
+  // ——镜像 handleUpdateAggregateInstance 的精确失效判定：name-only 改名不清缓存。
+  const before = (await getProviderInstances()).find((candidate) => candidate.id === data.id);
   const updated = await updateProviderInstance(data.id, data.patch);
-  // 实例 options 变更后，旧缓存条目的结果已过时（cache key 不含 options），
-  // 清空缓存避免命中返回旧 options 的响应（per-provider-config-worker-injection 先例）。
-  await clearSearchCache();
+  if (updated && before && JSON.stringify(before.options) !== JSON.stringify(updated.options)) {
+    // 实例 options 变更后，旧缓存条目的结果已过时——保守清空整个缓存池（可重生），
+    // 与 delete 先例一致，且避免索引扫描的复杂度（per-provider-config-worker-injection 先例）。
+    await clearSearchCache();
+  }
   return updated;
 }
 
@@ -892,7 +898,15 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
     downloadUrl = URL.createObjectURL(blob);
   }
   pendingFilenames.push(filename);
-  await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
+  try {
+    await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
+  } catch (e) {
+    // download 失败/取消时 onDeterminingFilename 永不触发——不移除会让 FIFO 队列永久错位，
+    // 之后每次下载都 suggest 到陈旧文件名。按值删最后一个同名入队项后原样上抛。
+    const idx = pendingFilenames.lastIndexOf(filename);
+    if (idx >= 0) pendingFilenames.splice(idx, 1);
+    throw e;
+  }
 }
 
 /** 执行一次已解析 provider 的搜索：缓存 → key → options（maxResults/providerSettings 均由
@@ -958,7 +972,7 @@ export async function resolveInstance(sourceId: SourceId | undefined): Promise<{
 
 /** 解析搜索所用 provider：UI 显式传入（可为实例 id，SourceId 边界）且已配置则采用，
  *  否则回退到 worker active 态。裸 provider id 有实例时路由到第一个（默认实例，KTD5）并注入其 options（R4）。 */
-async function resolveSearchSource(requested: ProviderId | undefined): Promise<{
+async function resolveSearchSource(requested: ProviderId | ProviderInstanceId | undefined): Promise<{
   providerId: ProviderId;
   providerSettings?: Record<string, unknown>;
   cacheKeyId: string;

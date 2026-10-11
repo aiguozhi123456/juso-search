@@ -260,9 +260,13 @@ describe('aggregate instance store: collection setter + rerank config', () => {
     await setRerankConfig({ endpoint: 'http://127.0.0.1:8000/v1/rerank', model: 'bge', apiKey: 'sk-local' });
     expect(await getRerankConfig()).toEqual({ endpoint: 'http://127.0.0.1:8000/v1/rerank', model: 'bge', apiKey: 'sk-local' });
 
-    // 畸形覆盖值归一兜底，不落垃圾。
+    // apiKey 字段缺省 = 保留已存值（UI「留空 = 保留」路径）；endpoint/model 照常覆盖。
     await setRerankConfig({ endpoint: '' });
-    expect(await getRerankConfig()).toEqual({ endpoint: '' });
+    expect(await getRerankConfig()).toEqual({ endpoint: '', apiKey: 'sk-local' });
+
+    // 显式空串 = 清除（normalizeRerankConfig 剥空串，与缺省可区分）。
+    await setRerankConfig({ endpoint: 'http://127.0.0.1:8000/v1/rerank', apiKey: '' });
+    expect(await getRerankConfig()).toEqual({ endpoint: 'http://127.0.0.1:8000/v1/rerank' });
   });
 
   it('keeps rerank config under its registered key', async () => {

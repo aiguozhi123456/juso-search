@@ -36,9 +36,11 @@ export async function getProviderInstances(): Promise<ProviderInstance[]> {
 }
 
 export async function setProviderInstances(list: ProviderInstance[]): Promise<void> {
-  await withProviderInstancesMutation(async () => {
+  // 整数组覆写共享键（mergeImport 同样整写）：按本文件既定锁序先取 source 队列、再取实例队列，
+  // 否则与导入并发时 read-modify-write 交错会静默丢实例（instance-crud-cross-queue-lock-order.md）。
+  await withSourceMutation(() => withProviderInstancesMutation(async () => {
     await browser.storage.local.set({ [PROVIDER_INSTANCES_KEY]: normalizeProviderInstances(list) });
-  });
+  }));
 }
 
 export async function createProviderInstance(baseProviderId: ProviderId, name: string, options: Record<string, unknown>): Promise<ProviderInstance> {

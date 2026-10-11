@@ -1,5 +1,4 @@
 import type { ProviderId } from '../providers/types';
-import { allProviders } from '../providers/registry';
 import type { SourceId } from '../sources';
 import { allKnownSourceIds, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource } from '../sources';
 import type { SiteInstanceDefinition } from '../site-instances';
@@ -39,7 +38,9 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
       ...(rerankConfig.model ? { model: rerankConfig.model } : {}),
     },
   };
-  const configuredProviderIds = allProviders().filter((p) => keys[p.id]).map((p) => p.id);
+  // configuredProviderIds 沿聚合投影单点计算（lib/storage/shared.ts），消除同表达式第二份派生，
+  // 保证 activeProviderId 回退与 eligibility 判定的「已配置」定义永远一致。
+  const configuredProviderIds = aggregateProjection.configuredProviderIds;
   const activeProviderId = isKnownProvider(got[ACTIVE_KEY]) && keys[got[ACTIVE_KEY]] ? got[ACTIVE_KEY] : configuredProviderIds[0] ?? null;
   const sourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteInstances, customEngines, providerInstances, aggregateProjection.instances);
   const sourceHidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteInstances, customEngines, providerInstances, aggregateProjection.instances), sourceOrder, keys, siteInstances, customEngines, providerInstances, aggregateProjection.sources);

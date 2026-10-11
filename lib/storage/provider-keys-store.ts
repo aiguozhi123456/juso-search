@@ -8,6 +8,7 @@ import { normalizeAggregateInstances } from '../aggregate-instances';
 import { KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY, CUSTOM_ENGINES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY } from './keys';
 import { buildAggregateProjection, ensureVisibleUsable } from './shared';
 import { withSourceMutation } from './source-graph-store';
+import { withProviderMaxResultsMutation } from './max-results-store';
 
 // providerKeys 的读改写串行队列：setKey/clearKey/mergeImport 共用，避免并发写丢失。
 let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
@@ -46,7 +47,9 @@ export async function setKey(id: ProviderId, key: string): Promise<void> {
 export async function clearKey(id: ProviderId): Promise<void> {
   // Always acquire source before provider keys when an operation touches both;
   // mergeImport follows this same order.
-  await withSourceMutation(() => withProviderKeysMutation(async () => {
+  // MAX_RESULTS_KEY 的删改还须再套 maxResults 专用队列：set/clearProviderMaxResults 只持该队列，
+  // 不套则并发保存的读改写会被这里的整体写回覆盖（锁序 source → keys → maxResults，与 mergeImport 同序）。
+  await withSourceMutation(() => withProviderKeysMutation(() => withProviderMaxResultsMutation(async () => {
     // 红线（source-graph-new-type-threading-data-loss）：聚合定义集穿透每次 order/hidden 重写；
     // eligibility 输入用**删除后**的 keys（与 snapshot 的 configuredProviderIds 同源语义）。
     const got = await browser.storage.local.get([KEYS_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY]);
@@ -68,5 +71,5 @@ export async function clearKey(id: ProviderId): Promise<void> {
     const setObj: Record<string, unknown> = { [KEYS_KEY]: keys, [SOURCE_HIDDEN_KEY]: hidden };
     if (maxChanged) setObj[MAX_RESULTS_KEY] = maxMap;
     await browser.storage.local.set(setObj);
-  }));
+  })));
 }

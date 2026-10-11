@@ -9,6 +9,7 @@ import {
   buildSearchCacheSummary,
   emptySearchCacheIndex,
   isAggregateCacheSummary,
+  isSearchCacheEntry,
   isSearchCacheIndex,
   makeSearchCacheKey,
   searchCacheEntryKey,
@@ -33,7 +34,10 @@ async function readSearchCacheIndex(): Promise<SearchCacheIndex> {
 
 async function readSearchCacheEntry(id: string): Promise<SearchCacheEntry | null> {
   const got = await browser.storage.local.get(searchCacheEntryKey(id));
-  return (got[searchCacheEntryKey(id)] ?? null) as SearchCacheEntry | null;
+  // 形状守卫（镜像索引读取的 isSearchCacheIndex）：畸形条目按缺失处理，
+  // 调用方（touchCachedSearchEntry）走 stale-reference 自愈，而不是下游解引用反复抛错。
+  const stored = got[searchCacheEntryKey(id)];
+  return isSearchCacheEntry(stored) ? stored : null;
 }
 
 export async function getSearchCacheSummaries(): Promise<SearchCacheSummary[]> {
@@ -187,7 +191,12 @@ async function removeStaleSearchCacheReference(index: SearchCacheIndex, id: stri
   if (summary && index.byKey[summary.cacheKey] === id) delete index.byKey[summary.cacheKey];
   delete index.summaries[id];
   index.order = index.order.filter((entryId) => entryId !== id);
-  await browser.storage.local.set({ [SEARCH_CACHE_INDEX_KEY]: index });
+  try {
+    await browser.storage.local.set({ [SEARCH_CACHE_INDEX_KEY]: index });
+  } catch {
+    // 自愈清理同为 best-effort（与上方 LRU touch 同理）：写失败时索引里的陈旧引用无害，
+    // 下次写入/未命中会再清理；绝不把缓存命中读路径降级成搜索失败。
+  }
 }
 
 async function removeSearchCacheEntries(ids: string[]): Promise<void> {

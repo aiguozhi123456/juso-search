@@ -35,6 +35,8 @@ export interface AggregateProjection {
   eligibility: Record<AggregateInstanceId, { eligible: boolean; validMembers: number }>;
   /** allSources / 可用性解析的投影输入（eligible 标志已按当前 keys/instances/rerank 计算）。 */
   sources: AggregateSourceDefinition[];
+  /** 已配置 key 的 provider id 集合（单点计算：与 snapshot.configuredProviderIds 同源，消除第二份派生）。 */
+  configuredProviderIds: ProviderId[];
 }
 
 /**
@@ -58,5 +60,5 @@ export function buildAggregateProjection(
     eligibility[instance.id] = { eligible: result.eligible, validMembers: result.validMembers.length };
     sources.push({ id: instance.id, name: instance.name, eligible: result.eligible });
   }
-  return { instances, eligibility, sources };
+  return { instances, eligibility, sources, configuredProviderIds };
 }

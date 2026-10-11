@@ -30,6 +30,7 @@ import {
   clampMaxResults,
   deleteAggregateCacheEntries,
   withProviderKeysMutation,
+  withProviderMaxResultsMutation,
   withSourceMutation,
 } from './storage';
 import { allProviders } from './providers/registry';
@@ -61,6 +62,10 @@ const DEFAULT_ENGINE_ID: EngineId = 'google';
 const MAX_IMPORT_BYTES = 256 * 1024;
 /** 导入可接受的最旧 schema 版本（v3 遗留，无 siteInstances/groupConfig）。与 CURRENT_SCHEMA_VERSION 构成连续支持区间。 */
 const MIN_SUPPORTED_SCHEMA_VERSION = 3;
+
+/** config 域精确读取键集：buildExportPayload / previewImport / mergeImport 三处共用同一份，
+ *  增删 config 键只改这里——三处读取集漂移会让 preview diff 出 merge 已不读（或漏读）的键。 */
+const CONFIG_IO_KEYS = [KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY] as const;
 
 /** 导出文件结构。schemaVersion 用 number（非字面量），避免版本升级后类型过度约束。 */
 export interface ConfigExport {
@@ -97,7 +102,7 @@ export interface ConfigExport {
 
 /** worker 端组装导出 payload。精确读 config 键，不读缓存池。 */
 export async function buildExportPayload(): Promise<ConfigExport> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([...CONFIG_IO_KEYS]);
   const siteInstances = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
   const customEngines = normalizeCustomEngineDefinitions(got[CUSTOM_ENGINES_KEY]);
   const providerInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
@@ -304,8 +309,10 @@ export function parseImportPayload(raw: unknown): ParseResult {
       flatLayoutFewSources: hasFlatLayoutFewSources ? flatLayoutFewSources as boolean : undefined,
       // KTD4/F2：定义集 = payload 聚合实例集（校验层已保证仅其成员可出现 agg id）——
       // normalize 直调保留（Lane C 折叠，withAggregateIdsPreserved 包裹已删除）。
-      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteInstances, customEngines, providerInstances, aggregateInstances ?? []) : undefined,
-      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteInstances, customEngines, providerInstances, aggregateInstances ?? []) : undefined,
+      // 定义集显式必传（?? []，与 aggregateInstances 同风格）：缺省参数会让 undefined
+      // 静默剥掉 site:/custom:/inst: 动态 id，造成「校验接受、归一化丢弃」的分裂。
+      sourceOrder: hasSourceOrder ? normalizeSourceOrder(sourceOrder, siteInstances ?? [], customEngines ?? [], providerInstances ?? [], aggregateInstances ?? []) : undefined,
+      sourceHidden: hasSourceHidden ? normalizeSourceHidden(sourceHidden, siteInstances ?? [], customEngines ?? [], providerInstances ?? [], aggregateInstances ?? []) : undefined,
       siteInstances,
       customEngines,
       providerInstances,
@@ -381,7 +388,7 @@ export interface ImportPreview {
  * 当 prefDiffs 非空时，UI 应弹出确认对话框；用户确认后调 mergeImport(payload, { applyPrefs: true })。
  */
 export async function previewImport(payload: ConfigExport): Promise<ImportPreview> {
-  const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  const got = await browser.storage.local.get([...CONFIG_IO_KEYS]);
   const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
   const written: ProviderId[] = [];
@@ -426,7 +433,8 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   }
   const currentKeys = normalizeProviderKeys(current);
   const mergedKeys = mergeProviderKeys(currentKeys, payload.providerKeys);
-  const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, currentKeys, mergedKeys, curActive);
+  // dry-run（previewImport）保持纯读：用存储中的 rerank 配置解析 eligibility——落盘语义由 mergeImport 负责。
+  const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, currentKeys, mergedKeys, curActive, normalizeRerankConfig(got[RERANK_CONFIG_KEY]));
   if (sourcePreferences.curActiveSource !== sourcePreferences.newActiveSource) {
     prefDiffs.push({ key: 'activeSource', from: sourcePreferences.curActiveSource, to: sourcePreferences.newActiveSource });
   }
@@ -503,9 +511,11 @@ export async function mergeImport(
   opts: { applyPrefs?: boolean } = {},
 ): Promise<ImportReport> {
   const applyPrefs = opts.applyPrefs === true;
-  // 串行化 providerKeys 的读改写，防止与 setKey/clearKey 并发写丢失。
-  return withSourceMutation(() => withProviderKeysMutation(async () => {
-const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, THEME_KEY, LOCALE_KEY, BAR_POSITION_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY]);
+  // 锁序 source → providerKeys → providerMaxResults：本函数整写 MAX_RESULTS_KEY，而
+  // set/clearProviderMaxResults 只持专用队列——不取第三重队列会与它们 lost-update
+  // （instance-crud-cross-queue-lock-order.md：mergeImport 覆写的键必须串行化于 source 队列之下）。
+  return withSourceMutation(() => withProviderKeysMutation(() => withProviderMaxResultsMutation(async () => {
+    const got = await browser.storage.local.get([...CONFIG_IO_KEYS]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
     const written: ProviderId[] = [];
@@ -549,8 +559,11 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
     let groupConfigOverridden = false;
     // rerankConfig（KTD13/F5）：apiKey 仅填空（providerKeys 同款，不依赖 applyPrefs）；
     // endpoint/model 随 pref——applyPrefs 且实际变更才写，并触发全部聚合缓存失效（KTD9 导入失效行）。
+    // effectiveRerank = 合并后的 rerank 配置（无论是否落盘）：applyPrefs 改 endpoint/model 时，
+    // 导入后聚合 eligibility 投影必须按它解析，否则新端点下才可用的聚合实例会被误判为不可用。
+    let effectiveRerank = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
     if (payload.rerankConfig !== undefined) {
-      const currentRerank = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
+      const currentRerank = effectiveRerank;
       const importedRerank = payload.rerankConfig;
       let nextEndpoint = currentRerank.endpoint;
       let nextModel = currentRerank.model;
@@ -560,12 +573,13 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
         rerankConfigOverridden = true;
       }
       const nextApiKey = currentRerank.apiKey ?? importedRerank.apiKey;
+      effectiveRerank = normalizeRerankConfig({
+        endpoint: nextEndpoint,
+        ...(nextModel ? { model: nextModel } : {}),
+        ...(nextApiKey ? { apiKey: nextApiKey } : {}),
+      });
       if (nextEndpoint !== currentRerank.endpoint || (nextModel ?? undefined) !== (currentRerank.model ?? undefined) || (nextApiKey ?? undefined) !== (currentRerank.apiKey ?? undefined)) {
-        setObj[RERANK_CONFIG_KEY] = normalizeRerankConfig({
-          endpoint: nextEndpoint,
-          ...(nextModel ? { model: nextModel } : {}),
-          ...(nextApiKey ? { apiKey: nextApiKey } : {}),
-        });
+        setObj[RERANK_CONFIG_KEY] = effectiveRerank;
       }
       // F5 用户裁决：仅 endpoint/model 实际变更触发失效；apiKey 仅填空不触发（不改 reranker 身份）。
       if (rerankConfigOverridden) aggregateCacheInvalidated = true;
@@ -576,7 +590,7 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       const currentInstances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
       const importedInstances = payload.providerInstances ?? currentInstances;
       const curActive = KNOWN_PROVIDER_IDS.has(got[ACTIVE_KEY] as ProviderId) ? (got[ACTIVE_KEY] as ProviderId) : null;
-      const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, normalizeProviderKeys(current), mergedKeys, curActive);
+      const sourcePreferences = resolveImportedSourcePreferences(payload, got, currentSites, currentCustoms, normalizeProviderKeys(current), mergedKeys, curActive, effectiveRerank);
       const { importedSites, importedCustoms, curActiveSource, newActiveSource, curSourceOrder, newSourceOrder, curSourceHidden, newSourceHidden } = sourcePreferences;
       if (payload.siteInstances !== undefined && !sameSiteInstances(currentSites, importedSites)) { setObj[SITE_INSTANCES_KEY] = importedSites; siteInstancesOverridden = true; }
       if (payload.customEngines !== undefined && !sameCustomEngines(currentCustoms, importedCustoms)) { setObj[CUSTOM_ENGINES_KEY] = importedCustoms; customEnginesOverridden = true; }
@@ -689,7 +703,7 @@ const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE
       providerMaxResultsOverridden,
       groupConfigOverridden,
     };
-  }));
+  })));
 }
 
 function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {
@@ -731,6 +745,7 @@ function resolveImportedSourcePreferences(
   currentKeys: Record<string, string>,
   mergedKeys: Record<string, string>,
   currentActive: ProviderId | null,
+  importedRerank: RerankConfig,
 ) {
   // A missing collection is the v3 sentinel; unlike v4's explicit [], it
   // preserves local Site Engines and all dependent preferences.
@@ -764,8 +779,10 @@ function resolveImportedSourcePreferences(
   // 本地 agg id（eligibility 抖动不影响保留判定——可用性是派生视图，导入合并以保留本地状态优先）。
   const preserveAggregate = payload.aggregateInstances === undefined && !!rawActiveSource && currentAggregates.some((instance) => instance.id === rawActiveSource);
   const preferredActiveSource = (preserveSite || preserveCustom || preserveAggregate) ? curActiveSource : payload.activeSource;
-  // KTD13：eligibility 输入用本地 rerankConfig（apiKey 仅填空，不改 endpoint → 不改 eligibility）。
-  const { sources: importedAggregateSources } = buildAggregateProjection(importedAggregates, got[RERANK_CONFIG_KEY], mergedKeys, importedInstances);
+  // KTD13：eligibility 输入用合并后的 rerank 配置（mergeImport 传 effectiveRerank：applyPrefs
+  // 改 endpoint/model 时导入后的可用性须按新端点解析；preview 传存储值保持 dry-run 纯读；
+  // apiKey 仅填空不影响 endpoint 判定，与 KTD13/F5 语义一致）。
+  const { sources: importedAggregateSources } = buildAggregateProjection(importedAggregates, importedRerank, mergedKeys, importedInstances);
   const newActiveSource = preserveAggregate && rawActiveSource
     ? rawActiveSource
     : resolveEffectiveActiveSource(
@@ -781,14 +798,20 @@ function resolveImportedSourcePreferences(
   const newSourceOrder = normalizeSourceOrder(orderInput, importedSites, importedCustoms, importedInstances, importedAggregates);
   const curSourceHidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], currentSites, currentCustoms, currentInstances, currentAggregates);
   const importedHidden = payload.sourceHidden === undefined ? got[SOURCE_HIDDEN_KEY] : payload.sourceHidden;
-  // legacy（site/custom 集合缺失）合并分支：本地 hidden 中的动态 id 一并并入输入。
-  const hiddenBase = payload.siteInstances === undefined && payload.customEngines === undefined
-    ? [...(Array.isArray(importedHidden) ? importedHidden : []), ...curSourceHidden.filter((id) => isSiteInstanceId(id) || isCustomEngineId(id))]
-    : importedHidden;
+  // 部分导出合并分支（per-type 对称，对照上方 preserveSite/preserveCustom/preserveAggregate）：
+  // payload 缺某动态定义集 = 本地集合保留，其隐藏状态也必须并入输入——否则导入文件未列出的
+  // 本地隐藏动态源会因 normalize 剥落而重新出现在快切栏（inst: 同理：旧备份无实例集，
+  // 不并入会整体取消隐藏本地实例）。normalize 去重保首现，重复并入无副作用。
+  const hiddenBase = [
+    ...(Array.isArray(importedHidden) ? importedHidden : []),
+    ...(payload.siteInstances === undefined ? curSourceHidden.filter((id) => isSiteInstanceId(id)) : []),
+    ...(payload.customEngines === undefined ? curSourceHidden.filter((id) => isCustomEngineId(id)) : []),
+    ...(payload.providerInstances === undefined ? curSourceHidden.filter((id) => isProviderInstanceId(id)) : []),
+  ];
   // F3 ②（payload 缺聚合实例集）：本地 hidden 中的 agg id 一并并入输入——否则导入文件未列出的
   // 本地隐藏聚合实例会因 normalize 而剥落（原 withAggregateIdsPreserved 额外保留源语义，
   // 对全部导入形态生效，不限于 legacy 合并分支）。normalize 去重保首现，重复并入无副作用。
-  const hiddenInput = payload.aggregateInstances === undefined && Array.isArray(hiddenBase)
+  const hiddenInput = payload.aggregateInstances === undefined
     ? [...hiddenBase, ...curSourceHidden.filter((id) => isAggregateInstanceId(id))]
     : hiddenBase;
   const newSourceHidden = ensureVisibleUsable(

@@ -82,6 +82,12 @@ describe('CONFIG_KEYS whitelist', () => {
     expect(CONFIG_KEYS).toContain('aggregateInstances');
     expect(CONFIG_KEYS).toContain('rerankConfig');
   });
+
+  // 回归（L1）：stylePref 是持久化 UI pref，曾漏注册——第一个需要读写它的迁移会静默观察到
+  // undefined。Default-by-Getter（getStylePref 兜底 classic），注册不 bump 版本。
+  it('includes stylePref in the config whitelist', () => {
+    expect(CONFIG_KEYS).toContain('stylePref');
+  });
 });
 
 describe('ensureSchema: stamping (first install)', () => {

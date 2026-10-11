@@ -21,7 +21,7 @@ export const CURRENT_SCHEMA_VERSION = 10;
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它（教训 L1）。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
 // aggregateInstances / rerankConfig 同为 Default-by-Getter（KTD10：缺键 = 未启用/未配置，getter 归一兜底），不 bump 版本。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'aggregateInstances', 'rerankConfig', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'stylePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'aggregateInstances', 'rerankConfig', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
 
 // 迁移函数签名：从 `version` 迁移到 `version + 1`。必须是纯函数 + 幂等。
 export type Migration = {

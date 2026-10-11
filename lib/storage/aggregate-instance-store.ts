@@ -31,7 +31,7 @@ import {
 import type { RerankConfig } from '../aggregate/types';
 import { normalizeRerankConfig } from '../aggregate/rerank-client';
 import { AGGREGATE_INSTANCES_KEY, ACTIVE_SOURCE_KEY, CUSTOM_ENGINES_KEY, KEYS_KEY, PROVIDER_INSTANCES_KEY, RERANK_CONFIG_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
-import { DEFAULT_ENGINE_ID, buildAggregateProjection } from './shared';
+import { DEFAULT_ENGINE_ID, buildAggregateProjection, ensureVisibleUsable } from './shared';
 import { withSourceMutation } from './source-graph-store';
 
 // aggregateInstances 的读改写串行队列：create/update/delete/setAggregateInstances 共用，避免并发写丢失。
@@ -130,14 +130,16 @@ export async function deleteAggregateInstance(id: AggregateInstanceId): Promise<
     // 定义集 = 删除后的实例集合 → normalize 剥落被删 id、保住同集合其他聚合 id（KTD4/F2：
     // 剥落看定义集，与 eligibility 无关——即使 rerank 已未配置，兄弟实例的 order/hidden 也不动）。
     const order = normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteDefinitions, customDefinitions, providerInstances, instances);
-    const hidden = normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteDefinitions, customDefinitions, providerInstances, instances);
+    // 镜像兄弟 delete 路径（provider-instance-store.ts 等）：hidden 经 ensureVisibleUsable 修复，
+    // 避免删掉唯一可见可用源后 hidden 覆盖一切、activeSource 回退到被隐藏的默认引擎。
+    const { sources: aggregateSources } = buildAggregateProjection(instances, got[RERANK_CONFIG_KEY], keys, providerInstances);
+    const hidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteDefinitions, customDefinitions, providerInstances, instances), order, keys, siteDefinitions, customDefinitions, providerInstances, aggregateSources);
     const set: Record<string, unknown> = { [AGGREGATE_INSTANCES_KEY]: instances, [SOURCE_ORDER_KEY]: order, [SOURCE_HIDDEN_KEY]: hidden };
     if (got[ACTIVE_SOURCE_KEY] === id) {
       // activeSource 回退是派生视图的持久化点（hidden-source-still-active 教训：回退本身
       // 是派生视图，此处是被删定义强制的一次性重解析）。聚合无 base provider，**不双写
       // activeProvider**——与 provider/site 实例 delete 的显式分歧（KTD5）。
       // 回退解析受理兄弟聚合实例的 eligibility（KTD5：lane C 后 agg id 是合法可用源）。
-      const { sources: aggregateSources } = buildAggregateProjection(instances, got[RERANK_CONFIG_KEY], keys, providerInstances);
       const fallback = visibleUsableSource(order as SourceId[], hidden as SourceId[], keys, siteDefinitions, customDefinitions, providerInstances, aggregateSources);
       set[ACTIVE_SOURCE_KEY] = fallback ?? DEFAULT_ENGINE_ID;
     }
@@ -146,8 +148,9 @@ export async function deleteAggregateInstance(id: AggregateInstanceId): Promise<
 }
 
 // === rerank 全局配置（KTD10） ===
-// 独立键，与实例集合无共享读改写，不进实例队列；写时失效（rerankConfig 变更 → 删全部聚合
-// 缓存条目）由 gateway 的 setRerankConfig handler 编排（KTD9），不在此处。
+// 与实例集合无共享读改写，不进实例队列；但 rerankConfig 是 mergeImport 的读改写键
+// （apiKey 仅填空），写前须先取 source 队列（instance-crud-cross-queue-lock-order.md）。
+// 写时失效（rerankConfig 变更 → 删全部聚合缓存条目）由 gateway 的 setRerankConfig handler 编排（KTD9），不在此处。
 // endpoint 的 loopback 校验/规范化（KTD12）属 worker 边界（handleSetRerankConfig + config-io），
 // 存储层只做形状归一。
 
@@ -157,5 +160,14 @@ export async function getRerankConfig(): Promise<RerankConfig> {
 }
 
 export async function setRerankConfig(config: RerankConfig): Promise<void> {
-  await browser.storage.local.set({ [RERANK_CONFIG_KEY]: normalizeRerankConfig(config) });
+  await withSourceMutation(async () => {
+    const got = await browser.storage.local.get(RERANK_CONFIG_KEY);
+    const current = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
+    const next = normalizeRerankConfig(config);
+    // 合并语义（UI 契约「apiKey 输入留空 = 保留已存值」）：apiKey 字段缺省 = 保留已存 key；
+    // 显式空串 = 清除（normalizeRerankConfig 已剥空串）。页面永不回读已存 key（BYOK），
+    // 保留只能在 worker/storage 层实现。
+    const merged = config.apiKey === undefined && current.apiKey ? { ...next, apiKey: current.apiKey } : next;
+    await browser.storage.local.set({ [RERANK_CONFIG_KEY]: merged });
+  });
 }

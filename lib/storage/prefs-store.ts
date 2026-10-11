@@ -49,10 +49,22 @@ export async function setBarPositionPref(pref: BarPositionPref): Promise<void> {
   await browser.storage.local.set({ [BAR_POSITION_KEY]: pref });
 }
 
-/** AI engine 自动回车开关：默认 true（stored !== false 才 true）。
- *  控制注入型 AI engine（ChatGPT/DeepSeek/豆包/Gemini）的 URL 是否追加 enter=1 参数。 */
+/** AI engine 自动回车开关读取：默认 true（stored !== false 才 true）。
+ *  契约：docs/solutions/architecture-patterns/ai-engine-enter-param-auto-submit-contract.md。 */
+export async function getAiAutoEnter(): Promise<boolean> {
+  const got = await browser.storage.local.get(AI_AUTO_ENTER_KEY);
+  return got[AI_AUTO_ENTER_KEY] !== false;
+}
+
+/** AI engine 自动回车开关：控制注入型 AI engine（ChatGPT/DeepSeek/豆包/Gemini）的 URL 是否追加 enter=1 参数。 */
 export async function setAiAutoEnter(v: boolean): Promise<void> {
   await browser.storage.local.set({ [AI_AUTO_ENTER_KEY]: v });
+}
+
+/** 少量来源自动平铺开关读取：默认 true（stored !== false 才 true）。 */
+export async function getFlatLayoutFewSources(): Promise<boolean> {
+  const got = await browser.storage.local.get(FLAT_LAYOUT_FEW_SOURCES_KEY);
+  return got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false;
 }
 
 export async function setFlatLayoutFewSources(v: boolean): Promise<void> {
