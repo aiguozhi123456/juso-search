@@ -147,6 +147,7 @@ export const MSG = {
   history_delete: 'history_delete',
   history_delete_item: 'history_delete_item',
   history_close: 'history_close',
+  history_action_failed: 'history_action_failed',
   cache_hit_notice: 'cache_hit_notice',
   cache_refresh: 'cache_refresh',
   answer_heading: 'answer_heading',
@@ -285,7 +286,22 @@ export const MSG = {
   opts_pref_providerMaxResults: 'opts_pref_providerMaxResults',
   opts_pref_groupConfig: 'opts_pref_groupConfig',
   opts_pref_serpBarPosition: 'opts_pref_serpBarPosition',
+  // PrefDiff 其余 6 键（config-io.ts 全量 pref 面；缺了会在确认清单渲染裸键名。
+  // sourceHidden/siteInstances 两个键已在前文定义，不在此重复）
+  opts_pref_aiAutoEnter: 'opts_pref_aiAutoEnter',
+  opts_pref_flatLayoutFewSources: 'opts_pref_flatLayoutFewSources',
+  opts_pref_customEngines: 'opts_pref_customEngines',
+  opts_pref_providerInstances: 'opts_pref_providerInstances',
+  opts_pref_aggregateInstances: 'opts_pref_aggregateInstances',
+  opts_pref_rerankConfig: 'opts_pref_rerankConfig',
   opts_config_import_invalid: 'opts_config_import_invalid',
+  // 配置导入 worker 校验失败 token（parseImportPayload 产出）→ 本地化文案（IMPORT_ 前缀）
+  IMPORT_invalid_format: 'IMPORT_invalid_format',
+  IMPORT_import_too_large: 'IMPORT_import_too_large',
+  IMPORT_schema_version_mismatch: 'IMPORT_schema_version_mismatch',
+  IMPORT_invalid_provider_keys: 'IMPORT_invalid_provider_keys',
+  IMPORT_invalid_theme: 'IMPORT_invalid_theme',
+  IMPORT_unknown: 'IMPORT_unknown',
   opts_config_import_report_keys: 'opts_config_import_report_keys',
   opts_config_import_report_prefs: 'opts_config_import_report_prefs',
   opts_config_export_failed: 'opts_config_export_failed',
@@ -425,6 +441,9 @@ export const MSG = {
   opts_instance_status_failed: 'opts_instance_status_failed',
   opts_instance_default: 'opts_instance_default',
   opts_instance_cannot_delete_default: 'opts_instance_cannot_delete_default',
+  opts_instance_load_failed: 'opts_instance_load_failed',
+  opts_instance_retry: 'opts_instance_retry',
+  opts_instance_no_options: 'opts_instance_no_options',
   // Exa 实例参数表单（自 feat/exa-settings 移植，Phase 1 唯一带 options 的 provider）
   opts_exa_search_type: 'opts_exa_search_type',
   opts_exa_type_auto: 'opts_exa_type_auto',
@@ -447,6 +466,7 @@ export const MSG = {
   opts_exa_text_max_chars: 'opts_exa_text_max_chars',
   opts_exa_highlights_max_chars: 'opts_exa_highlights_max_chars',
   opts_exa_optional: 'opts_exa_optional',
+  opts_exa_number_invalid: 'opts_exa_number_invalid',
   // Doubao 实例参数表单（Custom 版 web 搜索可配置字段，Phase 2 加入实例选项）
   opts_doubao_time_range: 'opts_doubao_time_range',
   opts_doubao_time_unlimited: 'opts_doubao_time_unlimited',
@@ -457,6 +477,7 @@ export const MSG = {
   opts_doubao_time_custom: 'opts_doubao_time_custom',
   opts_doubao_time_start: 'opts_doubao_time_start',
   opts_doubao_time_end: 'opts_doubao_time_end',
+  opts_doubao_time_invalid: 'opts_doubao_time_invalid',
   opts_doubao_need_content: 'opts_doubao_need_content',
   opts_doubao_need_url: 'opts_doubao_need_url',
   opts_doubao_only_authoritative: 'opts_doubao_only_authoritative',
@@ -484,6 +505,9 @@ export const MSG = {
   error_http_rate_limit: 'error_http_rate_limit',
   error_http_server: 'error_http_server',
   error_http_generic: 'error_http_generic',
+  // 豆包业务错误码（HTTP 200 + ResponseMetadata.Error）：语义是服务业务码而非 HTTP 状态，
+  // 不能复用 error_http_generic（"$1：HTTP $2"）。
+  error_doubao_business: 'error_doubao_business',
   error_mcp_network: 'error_mcp_network',
   error_mcp_unauthorized: 'error_mcp_unauthorized',
   error_mcp_rate_limit: 'error_mcp_rate_limit',
@@ -614,6 +638,9 @@ export const MSG = {
   onboarding_next: 'onboarding_next',
   onboarding_finish: 'onboarding_finish',
   opts_show_onboarding: 'opts_show_onboarding',
+  // bridge.html 状态页（Agent Bridge 临时标签）：claim 完成 / 失败两态文案。
+  bridge_status_completed: 'bridge_status_completed',
+  bridge_status_failed: 'bridge_status_failed',
 } as const;
 
 export type MessageName = (typeof MSG)[keyof typeof MSG];
