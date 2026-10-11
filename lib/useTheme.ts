@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getThemePref, setThemePref as persistPref } from './storage';
 import type { ThemePref } from './storage';
 import { isUiPrefChangedMessage } from './ui-pref-sync';
@@ -38,16 +38,31 @@ export function useTheme(): UseTheme {
   const [pref, setPrefState] = useState<ThemePref>('auto');
   // 系统深色偏好作为独立状态，便于 auto 模式下 matchMedia 变化时触发派生重算
   const [systemDark, setSystemDark] = useState<boolean>(() => systemPrefersDark());
+  // 初始读取在途期间任何更新的写入（setPref / 广播）都会使迟到的 stored 值失效。
+  const hydratedRef = useRef(false);
+  // DOM 写入门控：挂载读取落地前不写 <html data-theme>（见下方 effect 注释）。
+  const [hydrated, setHydrated] = useState(false);
 
   // 初始读取 + 监听 worker 广播的脱敏变更（多页/多标签同步）
   useEffect(() => {
     let alive = true;
-    void getThemePref().then((stored) => {
-      if (!alive) return;
-      setPrefState(stored);
-    });
+    void getThemePref()
+      .then((stored) => {
+        if (!alive || hydratedRef.current) return; // 迟到的读取不得覆盖更新的本地/广播值
+        hydratedRef.current = true;
+        setPrefState(stored);
+      })
+      .catch(() => {
+        // 读取失败：保留 theme-init 按系统偏好/auto 预写的值，避免 unhandled rejection。
+      })
+      .finally(() => {
+        if (alive) setHydrated(true);
+      });
     const onMessage = (message: unknown) => {
-      if (isUiPrefChangedMessage(message) && message.key === 'themePref') setPrefState(message.value);
+      if (isUiPrefChangedMessage(message) && message.key === 'themePref') {
+        hydratedRef.current = true;
+        setPrefState(message.value);
+      }
     };
     browser.runtime.onMessage.addListener(onMessage);
     return () => {
@@ -70,13 +85,17 @@ export function useTheme(): UseTheme {
   // resolved 单一派生路径：pref + systemDark → ResolvedTheme
   const resolved = useMemo(() => resolve(pref, systemDark), [pref, systemDark]);
 
-  // 把解析结果写到 <html data-theme>
+  // 把解析结果写到 <html data-theme>；hydrated 前不写——theme-init module 已在挂载前按
+  // 已存偏好预写正确值，挂载即写 resolve('auto', systemDark) 会在「显式偏好 ≠ 系统默认」时
+  // 先翻转成错误值、等存储读取落地再翻回来，产生一次可见的主题闪烁。
   useEffect(() => {
+    if (!hydrated) return;
     document.documentElement.dataset.theme = resolved;
-  }, [resolved]);
+  }, [hydrated, resolved]);
 
   const setPref = (next: ThemePref) => {
     const prev = pref;
+    hydratedRef.current = true; // 本地新写入比在途挂载读取新
     setPrefState(next); // 乐观更新，立即响应 UI
     void persistPref(next).catch(() => {
       // persist 失败（配额/争用）→ 回滚，避免状态与存储长期不一致

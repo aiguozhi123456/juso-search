@@ -11,10 +11,12 @@ export function isUiPrefChangedMessage(message: unknown): message is UiPrefChang
   if (!message || typeof message !== 'object') return false;
   const candidate = message as Partial<UiPrefChangedMessage>;
   if (candidate.type !== 'uiPrefChanged') return false;
-  if (candidate.key === 'themePref') return candidate.value === 'auto' || candidate.value === 'light' || candidate.value === 'dark';
-  if (candidate.key === 'localePref') return candidate.value === 'auto' || candidate.value === 'zh_CN' || candidate.value === 'en';
-  if (candidate.key === 'stylePref') return candidate.value === 'classic' || candidate.value === 'colorful';
-  if (candidate.key === 'serpBarPosition') return candidate.value === 'auto' || candidate.value === 'top' || candidate.value === 'inline' || candidate.value === 'bottom';
+  // 枚举校验复用下方各 pref 的守卫（单一定义点）：广播侧（background）与接收侧
+  // （本函数）必须对同一 pref 的合法值集保持一致，内联重写字面量枚举会静默漂移。
+  if (candidate.key === 'themePref') return isThemePref(candidate.value);
+  if (candidate.key === 'localePref') return isLocalePref(candidate.value);
+  if (candidate.key === 'stylePref') return isStylePref(candidate.value);
+  if (candidate.key === 'serpBarPosition') return isBarPositionPref(candidate.value);
   if (candidate.key === 'selectionSearchEnabled') return typeof candidate.value === 'boolean';
   return false;
 }

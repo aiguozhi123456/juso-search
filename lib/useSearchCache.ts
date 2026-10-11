@@ -36,6 +36,11 @@ export function useSearchCache(open: boolean): {
       try {
         const next = await sendMessage('getSearchCacheSummaries', undefined);
         if (alive && requestId === requestIdRef.current) setSummaries(next);
+      } catch (error) {
+        // 初始加载失败：worker handler reject（存储不可用等）→ 清 loading、保留旧列表，
+        // 不留 unhandled rejection。带 await 的 loadEntry/clear/deleteEntry/refresh 保持
+        // 向外 reject——调用侧（SearchCachePanel）以其 rejection 渲染 actionError 反馈。
+        console.warn('[useSearchCache] initial summaries load failed', error);
       } finally {
         if (alive && requestId === requestIdRef.current) setLoading(false);
       }

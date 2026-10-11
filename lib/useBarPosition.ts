@@ -22,10 +22,14 @@ export function useBarPosition(): { pref: BarPositionPref; setPref: (pref: BarPo
 
   useEffect(() => {
     let alive = true;
-    void getBarPositionPref().then((stored) => {
-      if (!alive) return;
-      setPrefState(stored);
-    });
+    void getBarPositionPref()
+      .then((stored) => {
+        if (!alive) return;
+        setPrefState(stored);
+      })
+      .catch(() => {
+        // 读取失败（存储后端异常等）：保留默认 auto，避免 unhandled rejection。
+      });
     const onMessage = (message: unknown) => {
       if (isUiPrefChangedMessage(message) && message.key === 'serpBarPosition') setPrefState(message.value);
     };
@@ -40,8 +44,12 @@ export function useBarPosition(): { pref: BarPositionPref; setPref: (pref: BarPo
     setPrefState(next);
     void persistPref(next).catch(async () => {
       // 回滚前重读 storage：若另一标签页已写入更新，采纳它而非盲目回退旧值。
-      const current = await getBarPositionPref();
-      setPrefState(current);
+      try {
+        const current = await getBarPositionPref();
+        setPrefState(current);
+      } catch {
+        // 重读失败：保留乐观值（与初始读取失败语义一致）。
+      }
     });
   };
 

@@ -17,7 +17,7 @@
 import { getProviderConfigSnapshot } from './storage';
 import { aggregateSourcesOf, allSources, sourceLabel, type SearchSource } from './sources';
 import { projectLayout, resolveEffectiveLayout, groupLabelText } from './source-groups';
-import { resolveSerpHandoff } from './serp-handoff';
+import { resolveCurrentCustomEngineHandoff, resolveCurrentSiteInstanceHandoff, resolveSerpHandoff, type SerpHandoff } from './serp-handoff';
 import { buildSafeSearchUrl } from './search-page-url';
 import { applyLocalePref, t } from './i18n';
 import { isLocalePref } from './ui-pref-sync';
@@ -153,13 +153,15 @@ async function rebuildMenuOnce(): Promise<void> {
 }
 
 /**
- * contextMenus.onClicked 处理器：从菜单项 id 解析 sourceId，用选中文本
- * resolveSerpHandoff 解析跳转，在新标签页打开。
+ * contextMenus.onClicked 处理器：从菜单项 id 解析 sourceId，用选中文本解析跳转，
+ * 在新标签页打开。
  *  - navigate → tabs.create({url})
  *  - openSearchPage → buildSafeSearchUrl(deepLink) 后 tabs.create
  *
  * S1：先读一次配置快照（M3 的 aiAutoEnter 偏好 + 回退自解析共用同一份），
  * map 未命中时从快照按同参投影解析 source，保证 worker 唤醒后的首次点击有效。
+ * 整体 try/catch：前置的快照读取/解析任一 reject 都不能悬空（调用方 void 派发，
+ * 未捕获即静默无响应），与 rebuildMenuOnce 的错误处理同标准。
  */
 export async function handleContextMenuClick(
   info: { menuItemId: string | number; selectionText?: string },
@@ -170,25 +172,37 @@ export async function handleContextMenuClick(
   const query = info.selectionText?.trim();
   if (!query) return;
 
-  const snapshot = await getProviderConfigSnapshot();
-  const source = sourceById.get(sourceId) ?? resolveSourceFromSnapshot(snapshot, sourceId);
-  if (!source) return;
-
-  // M3：AI 注入引擎的 enter 自动提交行为跟随用户偏好（快切栏/搜索页同源）。
-  const handoff = resolveSerpHandoff(source, query, { aiAutoEnter: snapshot.aiAutoEnter });
-  if (!handoff) return;
-
-  let url: string | null;
-  if (handoff.kind === 'navigate') {
-    url = handoff.url;
-  } else {
-    url = buildSafeSearchUrl(handoff.deepLink);
-  }
-  if (!url) return;
   try {
+    const snapshot = await getProviderConfigSnapshot();
+    const source = sourceById.get(sourceId) ?? resolveSourceFromSnapshot(snapshot, sourceId);
+    if (!source) return;
+
+    // 动态源（site-instance / custom-engine）的定义可能已在 Options 被编辑/删除，而
+    // sourceById 内嵌的是上次菜单重建时的定义快照（sourceById 仅整菜单重建时整体替换）。
+    // 点击时必须用新鲜快照重新解析（dynamic-source-stale-navigation-guard，与搜索页
+    // resolveCurrent*Handoff 同源）：已删除 → null → 不导航。静态源（engine/ai-engine/
+    // provider 族深链）不受定义漂移影响，走 resolveSerpHandoff。
+    let handoff: SerpHandoff | null;
+    if (source.kind === 'site-instance') {
+      handoff = resolveCurrentSiteInstanceHandoff(source.id, query, snapshot.siteInstances);
+    } else if (source.kind === 'custom-engine') {
+      handoff = resolveCurrentCustomEngineHandoff(source.id, query, snapshot.customEngines);
+    } else {
+      // M3：AI 注入引擎的 enter 自动提交行为跟随用户偏好（快切栏/搜索页同源）。
+      handoff = resolveSerpHandoff(source, query, { aiAutoEnter: snapshot.aiAutoEnter });
+    }
+    if (!handoff) return;
+
+    let url: string | null;
+    if (handoff.kind === 'navigate') {
+      url = handoff.url;
+    } else {
+      url = buildSafeSearchUrl(handoff.deepLink);
+    }
+    if (!url) return;
     await browser.tabs.create({ url });
   } catch (error) {
-    console.warn('[contextMenu] tabs.create failed', error);
+    console.warn('[contextMenu] click handling failed', error);
   }
 }
 
