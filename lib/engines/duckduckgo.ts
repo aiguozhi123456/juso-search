@@ -3,7 +3,7 @@
 // DuckDuckGo 主站为 React 渲染：结果由客户端 hydration 异步挂载，
 // 结果抽取的异步等待由 engine-extractor 的 waitAndExtract 轮询循环负责，本适配器只管导航。
 import type { AnchorStrategy, SearchEngine } from './types';
-import { isDuckDuckGoSerpHostname } from './scopes';
+import { isDuckDuckGoSerpHostname, isSerpUrl } from './scopes';
 
 const SERP_URL_TEMPLATE = 'https://duckduckgo.com/?q={q}';
 const SERP_ORIGIN = new URL(SERP_URL_TEMPLATE).origin;
@@ -31,11 +31,7 @@ export const duckduckgoEngine: SearchEngine = {
   matches(url: string): boolean {
     try {
       // DuckDuckGo canonical SERP 路径为根 /（与 google/bing 的 /search 不同）。
-      const parsed = new URL(url);
-      return parsed.protocol === 'https:'
-        && parsed.port === ''
-        && isDuckDuckGoSerpHostname(parsed.hostname)
-        && parsed.pathname === '/';
+      return isSerpUrl(new URL(url), isDuckDuckGoSerpHostname, '/');
     } catch {
       return false;
     }

@@ -1,5 +1,6 @@
-import { extractEngineSearch } from '@/lib/engines/extractors';
-import { matchEngineByUrl } from '@/lib/engines/registry';
+import { ENGINE_EXTRACTION_MESSAGE_TYPE, extractEngineSearch } from '@/lib/engines/extractors';
+import type { EngineExtractionMessage as Request } from '@/lib/engines/extractors';
+import { allEngines, matchEngineByUrl } from '@/lib/engines/registry';
 import {
   BAIDU_SERP_HOSTS,
   BILIBILI_SERP_HOSTS,
@@ -16,7 +17,8 @@ import {
 } from '@/lib/engines/scopes';
 import type { EngineId } from '@/lib/engines/types';
 
-type Request = { type: 'juso:extract-engine-results'; requestId: string; engineId: EngineId; query: string; maxResults?: number; matchQuery?: string };
+// 引擎白名单从 registry 推导（与 EngineId union / engines 表单源）——新增引擎不再需要记得改这里。
+const ENGINE_ID_SET: ReadonlySet<EngineId> = new Set(allEngines().map((engine) => engine.id));
 
 export default defineContentScript({
   matches: ENGINE_EXTRACTOR_CONTENT_MATCH_PATTERNS,
@@ -64,9 +66,9 @@ async function waitAndExtract(request: Request) {
 }
 
 function isRequest(value: unknown): value is Request {
-  return typeof value === 'object' && value !== null && (value as Request).type === 'juso:extract-engine-results'
+  return typeof value === 'object' && value !== null && (value as Request).type === ENGINE_EXTRACTION_MESSAGE_TYPE
     && typeof (value as Request).requestId === 'string' && typeof (value as Request).query === 'string'
-    && ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin'].includes((value as Request).engineId)
+    && ENGINE_ID_SET.has((value as Request).engineId)
     && ((value as Request).maxResults === undefined || (Number.isInteger((value as Request).maxResults) && (value as Request).maxResults! >= 1 && (value as Request).maxResults! <= 20))
     && ((value as Request).matchQuery === undefined || typeof (value as Request).matchQuery === 'string');
 }

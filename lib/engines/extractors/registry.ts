@@ -22,6 +22,8 @@ const extractors: Record<EngineId, EngineExtractor> = {
   weixin: weixinExtractor,
 };
 
-export function getEngineExtractor(engine: EngineId): EngineExtractor {
-  return extractors[engine];
+export function getEngineExtractor(engine: EngineId): EngineExtractor | null {
+  // 普通对象字面量继承 Object.prototype——'toString' 等键会命中继承函数（truthy），
+  // 让调用方的 `!= null` 漂移守卫失效。按 own property 判定，非本表键返回 null。
+  return Object.prototype.hasOwnProperty.call(extractors, engine) ? extractors[engine] : null;
 }

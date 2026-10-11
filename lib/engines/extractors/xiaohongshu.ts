@@ -1,5 +1,5 @@
 import type { EngineExtractor, EngineExtractionErrorKind, EngineResult } from './types';
-import { absoluteHttpUrl, titleText } from './shared';
+import { absoluteHttpUrl, isChallenge, isRenderedElement, SOCIAL_CHALLENGE_SELECTOR, SOCIAL_LOGIN_MODAL_SELECTOR, titleText } from './shared';
 
 // 小红书搜索结果抽取器（www.xiaohongshu.com/search_result?keyword=…）。
 // 真机 DevTools 复核（2026-07-31）：笔记瀑布流 SPA，卡片根 .note-item（.feeds-container 内）。
@@ -26,11 +26,13 @@ function buildSnippet(item: Element): string {
 }
 
 export const xiaohongshuExtractor: EngineExtractor = {
-  pageState(document): EngineExtractionErrorKind | null {
-    // 验证码 / 风控挑战。
-    if (document.querySelector('.captcha, #captcha, .geetest, #geetest-wrap, [class*="verify" i]')) return 'challenge';
-    // 全屏登录遮罩（未登录时小红书常弹登录拦截）。
-    if (document.querySelector('.login-container, #login-container, [class*="login" i][class*="modal" i], [class*="login" i][class*="mask" i]')) return 'consent';
+  pageState(document, pageUrl): EngineExtractionErrorKind | null {
+    // 验证码 / 风控挑战：复用共享 isChallenge（URL 路径 + captcha 表单/iframe）+ 社媒共享容器选择器。
+    // [class*="verify" i] 会误伤笔记卡作者认证徽章（verify 类），已从选择器集移除。
+    if (isChallenge(document, pageUrl) || document.querySelector(SOCIAL_CHALLENGE_SELECTOR)) return 'challenge';
+    // 全屏登录遮罩（未登录时小红书常弹登录拦截）；SPA 常驻隐藏节点不算。
+    const loginWall = document.querySelector(SOCIAL_LOGIN_MODAL_SELECTOR);
+    if (loginWall && isRenderedElement(loginWall)) return 'consent';
     return null;
   },
   hasNaturalResultsArea: (document) => document.querySelector(`${CARD_SELECTOR}, .feeds-container`) !== null,

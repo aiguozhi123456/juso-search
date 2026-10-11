@@ -13,6 +13,8 @@ export const BING_SERP_HOSTS = ['www.bing.com', 'cn.bing.com'] as const;
 export const BAIDU_SERP_HOSTS = ['www.baidu.com'] as const;
 /** zhannei.baidu.com 是 baidu 站内搜索的独立 host（合成 surface，不注册裸 EngineId）。 */
 export const ZHANNEI_SERP_HOSTS = ['zhannei.baidu.com'] as const;
+/** zhannei canonical 站内搜索路由：manifest match pattern、surface matches 与站点实例构造/识别共用单源。 */
+export const ZHANNEI_SERP_PATHNAME = '/cse/site';
 export const DOUYIN_SERP_HOSTS = ['www.douyin.com'] as const;
 export const XIAOHONGSHU_SERP_HOSTS = ['www.xiaohongshu.com'] as const;
 export const BILIBILI_SERP_HOSTS = ['search.bilibili.com'] as const;
@@ -37,7 +39,7 @@ export const SERP_CONTENT_MATCH_PATTERNS = [
   ...GOOGLE_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BING_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...BAIDU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/s')),
-  ...ZHANNEI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/cse/site')),
+  ...ZHANNEI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, ZHANNEI_SERP_PATHNAME)),
   ...DOUYIN_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search')),
   ...XIAOHONGSHU_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/search_result')),
   ...BILIBILI_SERP_HOSTS.map((host) => serpContentMatchPattern(host, '/all')),

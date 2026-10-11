@@ -39,13 +39,16 @@ export const geminiInjector: AiEngineInjector = {
     const el = await waitForElement(INPUT_SELECTORS, opts?.timeoutMs);
     if (!el) return; // 静默降级
 
-    // rich-textarea 内部的 contenteditable div
-    const editor = (el as HTMLElement).querySelector('div[contenteditable="true"]')
-      ?? (el as HTMLElement);
-    const htmlEl = editor as HTMLElement;
-
-    htmlEl.focus();
+    const outer = el as HTMLElement;
+    outer.focus();
     await sleep(300);
+
+    // 渲染稳定后再解析内嵌 editor：rich-textarea（自定义元素）刚出现时内嵌 contenteditable
+    // div 可能尚未挂载（异步 upgrade/render 竞态）——提前解析会拿 null 回退外层，
+    // innerText 写到外层会覆盖稍后挂载的真编辑器（且读回同一节点、校验失效）。settle 后
+    // 仍未挂载才回退外层（部分 A/B 变体无内嵌 div）。
+    const htmlEl = (outer.querySelector('div[contenteditable="true"]') ?? outer) as HTMLElement;
+    htmlEl.focus();
 
     // Gemini 属 MutationObserver 同步型——直接设 innerText + input 事件
     htmlEl.innerText = query;
@@ -68,8 +71,13 @@ export const geminiInjector: AiEngineInjector = {
     // 避免 React 重渲染替换按钮节点后对 detached 节点 click() 静默无效
     await waitForElement(SEND_BUTTON_SELECTORS, 5000);
     const ready = await pollUntil(() => {
-      const btn = document.querySelector(SEND_BUTTON_SELECTORS.join(', '));
-      return btn ? clickIfEnabled(btn) : false;
+      // 按选择器优先级逐个查询：join 后的 querySelector 按文档序返回首个匹配，
+      // 低优先级按钮在 DOM 中更靠前时会破坏声明的优先级语义。
+      for (const sel of SEND_BUTTON_SELECTORS) {
+        const btn = document.querySelector(sel);
+        if (btn && clickIfEnabled(btn)) return true;
+      }
+      return false;
     }, 10_000, 500);
     if (ready) {
       clearUrlQuery();

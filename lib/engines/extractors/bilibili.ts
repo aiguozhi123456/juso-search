@@ -1,5 +1,5 @@
 import type { EngineExtractor, EngineExtractionErrorKind, EngineResult } from './types';
-import { absoluteHttpUrl, titleText } from './shared';
+import { absoluteHttpUrl, isRenderedElement, SOCIAL_CHALLENGE_SELECTOR, SOCIAL_LOGIN_MODAL_SELECTOR, titleText } from './shared';
 
 // 白空格规整（与 shared.normalizeText 同语义，但这些数字/作者字段都很短，无需截断长度参数）。
 const clean = (value: string | null | undefined): string => (value ?? '').replace(/\s+/g, ' ').trim();
@@ -47,10 +47,11 @@ function buildSnippet(item: Element): string {
 
 export const bilibiliExtractor: EngineExtractor = {
   pageState(document): EngineExtractionErrorKind | null {
-    // 极验验证码 / 风控挑战。
-    if (document.querySelector('.geetest, #geetest-wrap, .captcha, #captcha, [class*="verify" i]')) return 'challenge';
-    // 全屏登录遮罩（搜索本身不强制登录，此检测主要捕获风控/拦截态）。
-    if (document.querySelector('.bili-mini-login-warp, .login-panel, [class*="login" i][class*="mask" i]')) return 'consent';
+    // 极验验证码 / 风控挑战（共享社媒选择器，一处维护）。
+    if (document.querySelector(SOCIAL_CHALLENGE_SELECTOR)) return 'challenge';
+    // 全屏登录遮罩（搜索本身不强制登录，此检测主要捕获风控/拦截态）；SPA 常驻隐藏节点不算。
+    const loginWall = document.querySelector(`${SOCIAL_LOGIN_MODAL_SELECTOR}, .bili-mini-login-warp, .login-panel`);
+    if (loginWall && isRenderedElement(loginWall)) return 'consent';
     return null;
   },
   hasNaturalResultsArea: (document) => document.querySelector(`${CARD_SELECTOR}, .search-content`) !== null,

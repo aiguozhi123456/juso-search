@@ -101,6 +101,17 @@ describe('engine natural-result extractors', () => {
     });
   });
 
+  it('unwraps DuckDuckGo /l/ uddg redirect shells only when hosted by DuckDuckGo', () => {
+    expect(extract('duckduckgo', 'duckduckgo-uddg.html')).toEqual({
+      engine: 'duckduckgo', query: 'test query', results: [
+        // duckduckgo.com 自身的 /l/?uddg= 壳解包为真实落地 URL（agent 需要目标站地址）。
+        { title: 'Shell title', url: 'https://example.com/target', snippet: 'Shell snippet' },
+        // 站外伪造的 /l/ 路径不展开（与 google/bing 的宿主校验一致），按原样返回。
+        { title: 'Forged title', url: 'https://evil.example/l/?uddg=https%3A%2F%2Fexample.com%2Fevil', snippet: 'Forged snippet' },
+      ],
+    });
+  });
+
   it('extracts Weixin article results with redirect-wrapper URLs and rich snippet fallback', () => {
     const document = new DOMParser().parseFromString(fixture('weixin-basic.html'), 'text/html');
     const result = extractEngineSearch({ document, engine: 'weixin', query: 'test query', pageUrl: 'https://weixin.sogou.com/weixin?type=2&query=test&ie=utf8' });

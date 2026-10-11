@@ -1,5 +1,20 @@
 import type { EngineId } from '../types';
 
+/**
+ * worker（lib/engine-search.ts 构造）→ extractor content script（entrypoints/engine-extractor.content.ts
+ * 守卫）的抽取消息信封。单源声明，两侧共用——字段增删/改名在两侧同时编译报错，替代手工镜像。
+ */
+export const ENGINE_EXTRACTION_MESSAGE_TYPE = 'juso:extract-engine-results';
+
+export interface EngineExtractionMessage {
+  type: typeof ENGINE_EXTRACTION_MESSAGE_TYPE;
+  requestId: string;
+  engineId: EngineId;
+  query: string;
+  maxResults?: number;
+  matchQuery?: string;
+}
+
 export interface EngineResult {
   title: string;
   url: string;

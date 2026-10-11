@@ -71,6 +71,10 @@ export const chatgptInjector: AiEngineInjector = {
         );
       }
       await sleep(300); // 等 ProseMirror 状态同步
+      // 落盘校验（对齐 deepseek/gemini 降级语义）：execCommand 布尔与 input 事件都不代表
+      // 文本真的进了编辑器——校验失败则静默 return 且不清 URL，保留 ?q= 供用户刷新重试
+      //（clearUrlQuery 后 SPA 状态丢失，query 将彻底不可恢复）。
+      if (!(editor.textContent ?? '').includes(query)) return;
     }
 
     if (!autoSubmit) {
@@ -78,8 +82,9 @@ export const chatgptInjector: AiEngineInjector = {
       return;
     }
 
-    // 提交：优先点击发送按钮（ProseMirror 最可靠路径）
-    await waitForElement(SEND_BUTTON_SELECTORS, 3000);
+    // 提交：优先点击发送按钮（ProseMirror 最可靠路径）。
+    // pollUntil 每轮重新 querySelector，同时覆盖「按钮出现」与「按钮可用」——
+    // 先 waitForElement 与之重复，且按钮永不出现时会把最坏提交延迟从 3s 拉长到 6s。
     const ready = await pollUntil(() => {
       const btn = document.querySelector(SEND_BUTTON_SELECTORS.join(', '));
       return btn ? clickIfEnabled(btn) : false;

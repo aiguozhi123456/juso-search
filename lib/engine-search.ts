@@ -1,6 +1,8 @@
 import { getEngine } from './engines/registry';
 import type { EngineId } from './engines/types';
 import type { EngineExtractionErrorKind, EngineExtractionResult } from './engines/extractors';
+// 深引用 types（纯声明 + 单常量），避免为取常量把整个 extractor barrel 拉进 worker 运行时包。
+import { ENGINE_EXTRACTION_MESSAGE_TYPE, type EngineExtractionMessage } from './engines/extractors/types';
 
 export type EngineSearchRequest = {
   query: string;
@@ -64,20 +66,15 @@ export async function runEngineSearch(request: EngineSearchRequest, signal: Abor
     const deadline = Date.now() + (deps.completeTimeoutMs ?? COMPLETE_TIMEOUT_MS);
     await waitForComplete(tab, deps.tabs, signal, deadline);
     if (closedByUser) return extractionError(request, 'tab-closed');
-    const reply = await sendWithRetry(
-      tabId,
-      {
-        type: 'juso:extract-engine-results',
-        requestId,
-        engineId: request.engineId,
-        query: request.query,
-        ...(request.maxResults === undefined ? {} : { maxResults: request.maxResults }),
-        ...(request.matchQuery === undefined ? {} : { matchQuery: request.matchQuery }),
-      },
-      deps,
-      signal,
-      deadline,
-    );
+    const message: EngineExtractionMessage = {
+      type: ENGINE_EXTRACTION_MESSAGE_TYPE,
+      requestId,
+      engineId: request.engineId,
+      query: request.query,
+      ...(request.maxResults === undefined ? {} : { maxResults: request.maxResults }),
+      ...(request.matchQuery === undefined ? {} : { matchQuery: request.matchQuery }),
+    };
+    const reply = await sendWithRetry(tabId, message, deps, signal, deadline, () => closedByUser);
     return isExtractionReply(reply, request, requestId) ? stripRequestId(reply) : extractionError(request, 'extract-failed');
   } catch (error) {
     if (closedByUser) return extractionError(request, 'tab-closed');
@@ -157,13 +154,17 @@ function waitForComplete(tab: { id?: number; status?: string; url?: string }, ta
 // Retries the extraction handshake until the content script answers or the shared deadline
 // passes. Covers both a slow-injecting content script and the permission-hidden about:blank
 // race (no receiver exists on about:blank, so retries continue until the SERP commits).
-async function sendWithRetry(tabId: number, message: object, deps: EngineSearchDeps, signal: AbortSignal | undefined, deadline: number): Promise<unknown> {
+// isTabGone（绑定 runEngineSearch 的 closedByUser）在每轮循环顶与重试前检查——用户关掉
+// SERP tab 后立即以 tab-closed 退出，不再对已死 receiver 白耗剩余预算。
+async function sendWithRetry(tabId: number, message: object, deps: EngineSearchDeps, signal: AbortSignal | undefined, deadline: number, isTabGone: () => boolean): Promise<unknown> {
   const retryDelayMs = deps.retryDelayMs ?? RETRY_DELAY_MS;
   for (;;) {
+    if (isTabGone()) throw new Error('tab closed');
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     try {
       return await deps.tabs.sendMessage(tabId, message);
     } catch (error) {
+      if (isTabGone()) throw new Error('tab closed', { cause: error });
       if (Date.now() >= deadline) throw new Error('extractor handshake timeout', { cause: error });
       await delay(retryDelayMs, signal);
     }

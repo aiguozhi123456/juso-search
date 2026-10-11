@@ -98,6 +98,31 @@ describe('gemini fillAndSubmit 填充校验（S2 语义）', () => {
   });
 });
 
+describe('chatgpt 自填路径落盘校验（对齐 deepseek/gemini 降级语义）', () => {
+  it('编辑器拒绝写入（textContent 恒空）时提前 return，且不清 URL 的 q', async () => {
+    const editor = document.createElement('div');
+    editor.setAttribute('contenteditable', 'true');
+    editor.setAttribute('role', 'textbox');
+    // 模拟 ProseMirror 拒绝程序化写入：set 为 no-op、get 恒空 → 落盘校验失败
+    Object.defineProperty(editor, 'textContent', {
+      configurable: true,
+      get() {
+        return '';
+      },
+      set() {
+        // 拒绝写入
+      },
+    });
+    document.body.appendChild(editor);
+    window.history.pushState({}, '', '/?q=keep-me');
+
+    await chatgptInjector.fillAndSubmit('你好 Juso', { timeoutMs: 50 });
+
+    const url = new URL(window.location.href);
+    expect(url.searchParams.get('q')).toBe('keep-me'); // 校验失败不清参 → 保留 ?q= 供刷新重试
+  });
+});
+
 describe('fillAndSubmit autoSubmit 门控（enter=1 缺失场景）', () => {
   it('autoSubmit:false 时 deepseek 仅预填不派发 Enter，并清 URL 参数', async () => {
     document.body.innerHTML = '<textarea id="chat-input"></textarea>';

@@ -11,7 +11,7 @@
 //   合法搜索。全仓调用点均经 registry getEngine 或按 source kind 分派，surface
 //   不可达；throw 把「非引擎」从注释约定升级为运行时契约，防未来重构误接导航路径。
 import type { AnchorStrategy, SearchEngine } from './types';
-import { isSerpUrl, isZhanneiSerpHostname } from './scopes';
+import { isSerpUrl, isZhanneiSerpHostname, ZHANNEI_SERP_PATHNAME } from './scopes';
 
 const QUERY_PARAM = 'q';
 // 真机确认（用户 devtools 探针）：结果页骨架为
@@ -36,7 +36,7 @@ export const baiduZhanneiSurface: SearchEngine = {
   },
   matches(url: string): boolean {
     try {
-      return isSerpUrl(new URL(url), isZhanneiSerpHostname, '/cse/site');
+      return isSerpUrl(new URL(url), isZhanneiSerpHostname, ZHANNEI_SERP_PATHNAME);
     } catch {
       return false;
     }

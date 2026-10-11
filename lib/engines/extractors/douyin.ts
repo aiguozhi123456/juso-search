@@ -1,5 +1,5 @@
 import type { EngineExtractor, EngineExtractionErrorKind, EngineResult } from './types';
-import { normalizeText } from './shared';
+import { isRenderedElement, normalizeText, SOCIAL_CHALLENGE_SELECTOR, SOCIAL_LOGIN_MODAL_SELECTOR } from './shared';
 
 // 抖音搜索结果抽取器（www.douyin.com/search/{keyword}，query 在 path 段）。
 // 真机 DevTools 复核（2026-07-31、2026-09-13）：重 SPA + 强反爬，与 B站/小红书 本质不同。
@@ -34,7 +34,8 @@ function awemeId(item: Element): string | null {
 interface CardFields { kind: 'video' | 'note'; likes: string; author: string; body: string }
 
 const DURATION_LEAF = /^\d{1,2}:\d{2}$/;
-const LIKE_COUNT_LEAF = /^[\d.]+万?$/;
+// 亿：抖音确有「3.3亿获赞」级计数（见 douyin-basic fixture 用户聚合卡），缺单位会整字段丢失。
+const LIKE_COUNT_LEAF = /^[\d.]+[万亿]?$/;
 const NOTE_MARKER = '图文';
 
 // 尾部「@作者 · 时间」拆分（时间可为「9小时前/32分钟前/6月25日/2025-12-08」等）。
@@ -64,10 +65,12 @@ function parseCardFromLeaves(card: Element): CardFields | null {
   else return null; // 用户聚合 / 相关搜索 / 直播 / 百科 —— 非结果卡
   const likes = texts.find((t) => LIKE_COUNT_LEAF.test(t)) ?? '';
   const caption = texts.reduce((a, b) => (b.length > a.length ? b : a), '');
-  const tail = splitAuthorTail(caption);
   // 作者：优先「@」叶子的下一兄弟元素（作者名紧跟其后），退化用文案内尾拆分。
   const atLeaf = leaves[texts.indexOf('@')];
   const name = clean(atLeaf?.nextElementSibling?.textContent ?? null);
+  // 作者已从叶子结构解析出时，caption 即完整文案本体（@ 尾是独立叶子）——
+  // 不得再对 caption 跑 splitAuthorTail：文案自含「@某人 · …」中段提及会被误截甚至清空。
+  const tail = name ? { body: caption, author: '' } : splitAuthorTail(caption);
   return { kind, likes, author: name ? `@${name}` : tail.author, body: tail.body };
 }
 
@@ -87,7 +90,7 @@ function parseCardFromText(text: string): CardFields | null {
     return null;
   }
   let likes = '';
-  const likeMatch = rest.match(/^\s*([\d.]+万?)/);
+  const likeMatch = rest.match(/^\s*([\d.]+[万亿]?)/);
   if (likeMatch) {
     likes = likeMatch[1]!;
     rest = rest.slice(likeMatch[0].length);
@@ -111,10 +114,11 @@ function parseCard(card: Element): CardFields | null {
 
 export const douyinExtractor: EngineExtractor = {
   pageState(document): EngineExtractionErrorKind | null {
-    // 验证码 / 滑块 / 风控挑战。
-    if (document.querySelector('.captcha, #captcha, .geetest, #geetest-wrap, [class*="verify" i], [class*="slider" i]')) return 'challenge';
-    // 全屏登录遮罩。
-    if (document.querySelector('[class*="login" i][class*="modal" i], [class*="login" i][class*="mask" i], #login-container')) return 'consent';
+    // 验证码 / 滑块 / 风控挑战（共享社媒选择器 + 抖音特有 slider 滑块 token）。
+    if (document.querySelector(`${SOCIAL_CHALLENGE_SELECTOR}, [class*="slider" i]`)) return 'challenge';
+    // 全屏登录遮罩；SPA 常驻隐藏节点不算。
+    const loginWall = document.querySelector(SOCIAL_LOGIN_MODAL_SELECTOR);
+    if (loginWall && isRenderedElement(loginWall)) return 'consent';
     return null;
   },
   hasNaturalResultsArea: (document) => document.querySelector(`${WATERFALL_SELECTOR}, #search-result-container`) !== null,

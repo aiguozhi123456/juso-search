@@ -110,6 +110,19 @@ describe('runEngineSearch', () => {
     expect(api.remove).not.toHaveBeenCalled();
   });
 
+  it('exits the extractor handshake as tab-closed as soon as the tab is removed mid-retry (no budget burn)', async () => {
+    // 握手期间 receiver 一直不存在，且 tab 被用户关闭：sendWithRetry 必须检查 closedByUser
+    // 立即退出（错误分类快速 tab-closed），而不是对死 tab 重试到完整预算耗尽——
+    // 无守卫时本用例会烧满默认 30s 预算并被 vitest 5s 超时击杀。
+    const api = tabs('complete', 'https://www.google.com/search?q=hello');
+    api.sendMessage.mockRejectedValue(new Error('Could not establish connection. Receiving end does not exist.'));
+    const promise = runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id', retryDelayMs: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    api.emitRemoved(7);
+    await expect(promise).resolves.toEqual({ engine: 'google', query: 'hello', error: 'tab-closed' });
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+
   it('rechecks tab status after registering the completion listener', async () => {
     const api = tabs('loading');
     api.get.mockResolvedValue({ id: 7, status: 'complete', url: 'https://www.google.com/search?q=hello' });

@@ -33,8 +33,12 @@ export const weixinExtractor: EngineExtractor = {
       // 搜狗跳转壳 URL（weixin.sogou.com/link?url=…），解析为绝对地址。
       const url = anchor ? absoluteHttpUrl(anchor.getAttribute('href'), pageUrl) : null;
       if (!title || !url) return [];
-      const snippet = snippetText(item.querySelector(SNIPPET_SELECTOR)) || buildWeixinSnippet(item);
-      return [{ title, url, snippet }];
+      // p.txt-info 为语义正文摘要（保持缺省 snippetKind）；缺失时的降级拼接（公众号/时间）
+      // 是纯展示元数据——标记 snippetKind:'metadata'，聚合重排据此剔除出 rerank 文档
+      //（buildRerankDocument 契约，与 bilibili/douyin/xiaohongshu 一致）。
+      const snippet = snippetText(item.querySelector(SNIPPET_SELECTOR));
+      if (snippet) return [{ title, url, snippet }];
+      return [{ title, url, snippet: buildWeixinSnippet(item), snippetKind: 'metadata' }];
     });
   },
 };

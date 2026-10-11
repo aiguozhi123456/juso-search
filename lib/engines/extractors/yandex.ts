@@ -15,7 +15,9 @@ function yandexUrl(item: Element, pageUrl: string): string | null {
 export const yandexExtractor: EngineExtractor = {
   pageState(document, pageUrl): EngineExtractionErrorKind | null {
     if (isChallenge(document, pageUrl)) return 'challenge';
-    if (/\/(?:showcaptcha|captcha)(?:\/|$)/i.test(new URL(pageUrl, 'https://invalid.local').pathname)) return 'challenge';
+    // 注：/showcaptcha 重定向页不在 scopes.isEngineChallengeOrConsentUrl 的白名单内，
+    // 消息层直接丢弃——此处枚举 showcaptcha 是不可达分支，不徒劳重复；
+    // 要支持须先扩 scopes 的 alternation（见 docs/solutions/architecture-patterns/adding-search-engine.md BUG-1）。
     if (document.querySelector('div[class*="captcha" i], form[action*="captcha" i]')) return 'challenge';
     return null;
   },
@@ -24,7 +26,9 @@ export const yandexExtractor: EngineExtractor = {
     const root = document.querySelector('#search-result, .serp-list');
     if (!root) return [];
     return [...root.querySelectorAll('li.serp-item')].flatMap((item) => {
-      if (item.matches(YANDEX_SPECIAL_BLOCKS)) return [];
+      // YANDEX_SPECIAL_BLOCKS 混有容器级选择器（[data-type="ads"] 等）——标记打在 li 的
+      // 祖先包装层时 item.matches() 匹配不到，须补 closest()（与 bing/duckduckgo 同款守卫）。
+      if (item.matches(YANDEX_SPECIAL_BLOCKS) || item.closest(YANDEX_SPECIAL_BLOCKS)) return [];
       const url = yandexUrl(item, pageUrl);
       // 标题文本候选：CamelCase → lowercase → h2。
       const titleEl = item.querySelector('.OrganicTitle-LinkText, h2, .organic__title');
