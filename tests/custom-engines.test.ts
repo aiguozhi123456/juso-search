@@ -122,6 +122,13 @@ describe('normalizeCustomEngineUrlTemplate', () => {
   it('rejects uppercase %S placeholder', () => {
     expect(normalizeCustomEngineUrlTemplate('https://example.com/?q=%S')).toBeNull();
   });
+
+  it('rejects templates containing the internal sentinel literal (String.replace swaps only the first occurrence)', () => {
+    // %s→哨兵 后会出现两处哨兵，回程单次 replace 只换第一处，占位符会静默迁移到别的
+    // URL 部位——含哨兵字面量的输入必须在解析前整体拒绝。
+    expect(normalizeCustomEngineUrlTemplate('https://example.com/JUSOQUERYPLACEHOLDER?q=%s')).toBeNull();
+    expect(normalizeCustomEngineUrlTemplate('https://example.com/search?q=%s&x=JUSOQUERYPLACEHOLDER')).toBeNull();
+  });
 });
 
 describe('normalizeCustomEngineDefinition', () => {

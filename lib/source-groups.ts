@@ -355,7 +355,12 @@ export function projectLayout(
   activeId: SourceId | null,
 ): ProjectedLayout {
   // 防御：非法/缺失配置回退默认（保证渲染不崩，如存储迁移中或测试部分 mock）。
-  const safeConfig = config && typeof config === 'object' && Array.isArray(config.layout)
+  // 必须覆盖函数体实际解引用的全部字段：layout（遍历）、groups（.map 取组定义）、
+  // assignments（resolveGroupId 直取下标）——只验 layout 会让部分缺失的值照样抛 TypeError。
+  const safeConfig = config && typeof config === 'object'
+      && Array.isArray(config.layout)
+      && Array.isArray(config.groups)
+      && !!config.assignments && typeof config.assignments === 'object'
     ? config
     : defaultGroupConfig(sources.map((s) => s.id));
   const pinned = pinnedSourceIds(safeConfig.layout);

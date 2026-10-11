@@ -37,6 +37,13 @@ describe('Site Instance targets', () => {
     expect(normalizeSiteTarget('localhost:3000/docs')).toBeNull();
   });
 
+  it('rejects non-default ports: no construction mode can express a port in the site scope', () => {
+    // 带协议与不带协议两种形态都要拒绝；默认端口（https:443）被 URL 解析器归一化掉，不受影响。
+    expect(normalizeSiteTarget('https://example.com:8080')).toBeNull();
+    expect(normalizeSiteTarget('example.com:8080/docs')).toBeNull();
+    expect(normalizeSiteTarget('https://example.com')).not.toBeNull();
+  });
+
   it.each(['127.0.0.1', '8.8.8.8', '10.0.0.1', '192.168.1.1', '169.254.1.1', 'foo.local', 'service.internal', 'printer', '[::1]', '[::ffff:127.0.0.1]', '[::ffff:8.8.8.8]', 'localhost.', 'api.localhost.', 'foo.local.', 'host.home.arpa.', 'service.test', 'service.invalid', 'service.example'])('rejects non-public target %s', (target) => {
     expect(normalizeSiteTarget(target)).toBeNull();
   });

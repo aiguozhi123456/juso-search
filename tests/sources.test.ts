@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allSources, allKnownSourceIds, isEngineId, isProviderId, isKnownCustomEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, sourceLabel } from '@/lib/sources';
+import { allSources, allKnownSourceIds, isEngineId, isProviderId, isKnownCustomEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource, sourceLabel, visibleUsableSource } from '@/lib/sources';
 import type { SiteInstanceDefinition } from '@/lib/site-instances';
 import type { CustomEngineDefinition } from '@/lib/custom-engines';
 import type { ProviderInstance } from '@/lib/provider-instances';
@@ -382,5 +382,32 @@ describe('resolveEffectiveActiveSource', () => {
     expect(resolveEffectiveActiveSource(null, {}, [], [], [])).toBeUndefined();
     expect(resolveEffectiveActiveSource('tavily', {}, [], [], [])).toBeUndefined();
     expect(resolveEffectiveActiveSource(undefined, {}, [], [], [])).toBeUndefined();
+  });
+});
+
+describe('visibleUsableSource', () => {
+  const instances: ProviderInstance[] = [
+    { id: 'inst:exa:ai-research', baseProviderId: 'exa', name: 'AI 研究', options: {} },
+  ];
+
+  it('skips the bare provider id when the provider has instances (only instance pills are projected)', () => {
+    // normalizeSourceOrder 把裸 provider id 排在实例 id 之前；有实例的 provider 不投影裸 pill，
+    // 谓词必须跳过裸 id，让 delete* 回退解析到首个实例 pill 而非一个永不投影的 id。
+    expect(visibleUsableSource(['exa', 'inst:exa:ai-research', 'google'], [], { exa: 'key' }, [], [], instances)).toBe('inst:exa:ai-research');
+  });
+
+  it('still returns the bare provider id when no instances exist', () => {
+    expect(visibleUsableSource(['exa', 'google'], [], { exa: 'key' }, [], [], [])).toBe('exa');
+  });
+
+  it('treats an instance as unusable while its base provider id is hidden (mirrors allSources projection)', () => {
+    // 裸 provider id 被（历史遗留的）显式隐藏时，allSources 连带不投影其任何实例；
+    // 谓词必须与该投影一致，否则 delete* 回退会持久化一个无 pill 的 active id。
+    expect(visibleUsableSource(['inst:exa:ai-research', 'google'], ['exa'], { exa: 'key' }, [], [], instances)).toBe('google');
+    expect(visibleUsableSource(['inst:exa:ai-research'], ['exa'], { exa: 'key' }, [], [], instances)).toBeUndefined();
+  });
+
+  it('still honors the instance id itself being hidden', () => {
+    expect(visibleUsableSource(['inst:exa:ai-research', 'google'], ['inst:exa:ai-research'], { exa: 'key' }, [], [], instances)).toBe('google');
   });
 });

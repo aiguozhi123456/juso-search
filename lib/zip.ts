@@ -2,6 +2,10 @@
 // worker / Node API 依赖。产出最小但合法的归档：local file header + central
 // directory + EOCD（APPNOTE 4.3.7 / 4.3.12 / 4.3.16），全部小端字节序。
 // 中间目录自动以「/ 结尾、空数据」的 entry 插入。
+//
+// 条目名按 UTF-8 编码（TextEncoder），local header（offset 6）与 central directory
+// （offset 8）的 general purpose flag 都必须置 bit 11（EFS / 0x0800，APPNOTE 4.4.4）——
+// 缺位时按规范的读者以 CP437 解码文件名，非 ASCII 条目名（中文等）会乱码。
 
 export type ZipEntry = { path: string; data: Uint8Array };
 
@@ -81,6 +85,7 @@ export function createStoreZip(entries: ZipEntry[]): Uint8Array {
     const data = all[i].data;
     setU32(buf, p, 0x04034b50);
     setU16(buf, p + 4, 20); // version needed
+    setU16(buf, p + 6, 0x0800); // general purpose flag: bit 11 = EFS（条目名 UTF-8）
     setU16(buf, p + 8, 0); // compression method: STORE
     setU16(buf, p + 12, 0x21); // last mod date: 1980-01-01（time at p+10 stays 0 = 00:00）
     setU32(buf, p + 14, crcs[i]);
@@ -101,6 +106,7 @@ export function createStoreZip(entries: ZipEntry[]): Uint8Array {
     setU32(buf, p, 0x02014b50);
     setU16(buf, p + 4, 20); // version made by
     setU16(buf, p + 6, 20); // version needed
+    setU16(buf, p + 8, 0x0800); // general purpose flag: bit 11 = EFS（条目名 UTF-8）
     setU16(buf, p + 10, 0); // compression method: STORE
     setU16(buf, p + 14, 0x21); // last mod date: 1980-01-01（time at p+12 stays 0 = 00:00）
     setU32(buf, p + 16, crcs[i]);

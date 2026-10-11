@@ -22,7 +22,7 @@ function crc32(data: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-type ReadEntry = { path: string; data: Uint8Array; crc: number; method: number };
+type ReadEntry = { path: string; data: Uint8Array; crc: number; method: number; localFlags: number; centralFlags: number };
 
 /** 极简 ZIP 读取器：EOCD → central directory → local header → STORE 数据。 */
 function readZip(buf: Uint8Array): ReadEntry[] {
@@ -37,6 +37,7 @@ function readZip(buf: Uint8Array): ReadEntry[] {
   const out: ReadEntry[] = [];
   for (let i = 0; i < count; i++) {
     if (view.getUint32(pos, true) !== 0x02014b50) throw new Error('bad central directory record');
+    const centralFlags = view.getUint16(pos + 8, true);
     const nameLen = view.getUint16(pos + 28, true);
     const extraLen = view.getUint16(pos + 30, true);
     const commentLen = view.getUint16(pos + 32, true);
@@ -44,6 +45,7 @@ function readZip(buf: Uint8Array): ReadEntry[] {
     const path = new TextDecoder().decode(buf.subarray(pos + 46, pos + 46 + nameLen));
 
     if (view.getUint32(localOffset, true) !== 0x04034b50) throw new Error('bad local file header');
+    const localFlags = view.getUint16(localOffset + 6, true);
     const method = view.getUint16(localOffset + 8, true);
     const crc = view.getUint32(localOffset + 14, true);
     const compSize = view.getUint32(localOffset + 18, true);
@@ -52,7 +54,7 @@ function readZip(buf: Uint8Array): ReadEntry[] {
     const dataStart = localOffset + 30 + lNameLen + lExtraLen;
     const data = buf.slice(dataStart, dataStart + compSize);
 
-    out.push({ path, data, crc, method });
+    out.push({ path, data, crc, method, localFlags, centralFlags });
     pos += 46 + nameLen + extraLen + commentLen;
   }
   return out;
@@ -114,5 +116,26 @@ describe('createStoreZip', () => {
     expect(paths).toContain('a/SKILL.md');
     expect(paths).toContain('a/scripts/x.py');
     expect(paths).toContain('a/scripts/');
+  });
+
+  it('sets the UTF-8 (EFS, bit 11) flag in both the local header and the central directory', () => {
+    // 条目名按 UTF-8 写入；不置 EFS 时按 APPNOTE 4.4.4 读者须以 CP437 解码非 ASCII 名称。
+    // local header（offset 6）与 central directory（offset 8）两处都要置位——只查 central
+    // directory 的读者同样依赖它。
+    const entries = readZip(createStoreZip(files));
+    expect(entries.length).toBeGreaterThan(0);
+    for (const e of entries) {
+      expect(e.localFlags & 0x0800).toBe(0x0800);
+      expect(e.centralFlags & 0x0800).toBe(0x0800);
+    }
+  });
+
+  it('round-trips a non-ASCII entry name as UTF-8', () => {
+    const entries = readZip(createStoreZip([
+      { path: '参考/技能说明.md', data: encode('# 说明\n') },
+    ]));
+    expect(entries.map((e) => e.path)).toEqual(['参考/', '参考/技能说明.md']);
+    const doc = entries.find((e) => e.path === '参考/技能说明.md')!;
+    expect(bytes(doc.data)).toEqual(bytes(encode('# 说明\n')));
   });
 });

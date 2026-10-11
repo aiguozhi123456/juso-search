@@ -1,3 +1,28 @@
+import { serializedSize } from './serialized-size';
+
+/**
+ * 动态 source id 的 token 规则——inst:/site:/custom:/agg: 四族共享的单一定义点
+ * （worker 生成的 UUID 满足此形态）。收紧/放宽 id 规则只需改这一处，
+ * 否则四条实例管线会静默漂移。
+ */
+export const INSTANCE_ID_TOKEN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+/**
+ * 由固定前缀 + token 构造 id 形态守卫（site:/custom:/agg: 三族同构；
+ * inst: 前缀内嵌 provider id，结构不同，仅复用 token）。
+ */
+export function makeInstanceIdGuard(prefix: string): (id: string) => boolean {
+  return (id) => id.startsWith(prefix) && INSTANCE_ID_TOKEN.test(id.slice(prefix.length));
+}
+
+/**
+ * 不可信导入/配置载荷的严格上界守卫（数量 + 序列化字节）——四条实例管线的
+ * isBounded*Collection 共用实现，仅常量不同。
+ */
+export function isBoundedInstanceCollection(value: unknown, max: number, maxBytes: number): value is unknown[] {
+  return Array.isArray(value) && value.length <= max && serializedSize(value) <= maxBytes;
+}
+
 /**
  * 防御式存储归一化的共享实现——site / provider / aggregate / custom-engine 四类集合共用
  * 同一条管线（normalizeItem → 丢弃非法/非对象 → 按 id 去重保留首现 → 上限截断）。

@@ -106,6 +106,34 @@ export function isProviderId(id: string): id is ProviderId {
 }
 
 /**
+ * known-id 校验谓词（normalizeSourceOrder / normalizeSourceHidden 共用，单一定义点）：
+ * 裸 provider / engine / AI engine id 按注册表存在性受理；动态四族 id 需形态合法
+ * 且存在于对应定义集。
+ */
+function isKnownSourceId(
+  id: unknown,
+  sets: { siteIds: Set<string>; customIds: Set<string>; instanceIds: Set<string>; aggregateIds: Set<string> },
+): id is SourceId {
+  return typeof id === 'string' && (
+    isProviderId(id) || isEngineId(id) || isRegisteredAiEngineId(id) ||
+    (isSiteInstanceId(id) && sets.siteIds.has(id)) ||
+    (isCustomEngineId(id) && sets.customIds.has(id)) ||
+    (isProviderInstanceId(id) && sets.instanceIds.has(id)) ||
+    (isAggregateInstanceId(id) && sets.aggregateIds.has(id))
+  );
+}
+
+/** 两个 normalize 循环共享的定义集快查表。 */
+function knownIdSets(siteDefinitions: readonly SiteInstanceDefinition[], customDefinitions: readonly CustomEngineDefinition[], providerInstances: readonly ProviderInstance[], aggregateInstances: readonly { id: AggregateInstanceId }[]) {
+  return {
+    siteIds: new Set(siteDefinitions.map((site) => site.id)),
+    customIds: new Set(customDefinitions.map((c) => c.id)),
+    instanceIds: new Set(providerInstances.map((instance) => instance.id)),
+    aggregateIds: new Set(aggregateInstances.map((instance) => instance.id)),
+  };
+}
+
+/**
  * 规范化用户保存的完整来源顺序：保留已知 id 的首次出现，遗漏项按默认 registry 顺序补尾。
  * 聚合实例定义集（KTD4/F2）= 全部已定义实例，与 eligibility 无关：eligibility 抖动
  * （如 rerank 短暂未配置）期间重写 order 绝不剥落 agg id。
@@ -117,17 +145,14 @@ export function normalizeSourceOrder(
   providerInstances: readonly ProviderInstance[] = [],
   aggregateInstances: readonly { id: AggregateInstanceId }[] = [],
 ): SourceId[] {
-  const siteIds = new Set(siteDefinitions.map((site) => site.id));
-  const customIds = new Set(customDefinitions.map((c) => c.id));
-  const instanceIds = new Set(providerInstances.map((instance) => instance.id));
-  const aggregateIds = new Set(aggregateInstances.map((instance) => instance.id));
+  const sets = knownIdSets(siteDefinitions, customDefinitions, providerInstances, aggregateInstances);
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   const sourceOrder = Array.isArray(order) ? order : [];
   for (const id of sourceOrder) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id)) && !(isAggregateInstanceId(id) && aggregateIds.has(id))) || seen.has(id as SourceId)) continue;
-    seen.add(id as SourceId);
-    normalized.push(id as SourceId);
+    if (!isKnownSourceId(id, sets) || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
   }
   for (const id of DEFAULT_SOURCE_ORDER) {
     if (!seen.has(id)) normalized.push(id);
@@ -149,17 +174,14 @@ export function normalizeSourceOrder(
 
 /** 规范化快切栏隐藏来源清单：仅保留已知 source id，去重并保留首次出现顺序。聚合定义集语义同 normalizeSourceOrder（KTD4/F2）。 */
 export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], aggregateInstances: readonly { id: AggregateInstanceId }[] = []): SourceId[] {
-  const siteIds = new Set(siteDefinitions.map((site) => site.id));
-  const customIds = new Set(customDefinitions.map((c) => c.id));
-  const instanceIds = new Set(providerInstances.map((instance) => instance.id));
-  const aggregateIds = new Set(aggregateInstances.map((instance) => instance.id));
+  const sets = knownIdSets(siteDefinitions, customDefinitions, providerInstances, aggregateInstances);
   const list = Array.isArray(ids) ? ids : [];
   const seen = new Set<SourceId>();
   const normalized: SourceId[] = [];
   for (const id of list) {
-    if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id)) && !(isAggregateInstanceId(id) && aggregateIds.has(id))) || seen.has(id as SourceId)) continue;
-    seen.add(id as SourceId);
-    normalized.push(id as SourceId);
+    if (!isKnownSourceId(id, sets) || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
   }
   return normalized;
 }
@@ -387,9 +409,14 @@ export function visibleUsableSource(
     isRegisteredAiEngineId(id) ||
     isKnownSiteInstanceId(id, siteDefinitions) ||
     isKnownCustomEngineId(id, customDefinitions) ||
-    (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId])) ||
+    // 实例可用性必须镜像 allSources 的实例投影：base provider 有 key，且 base provider
+    // 未被显式 hidden（allSources 在裸 provider id 被隐藏时连带不投影其任何实例）。
+    (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId] && !hiddenSet.has(instance.baseProviderId))) ||
     (isAggregateInstanceId(id) && aggregateSources.some((aggregate) => aggregate.id === id && aggregate.eligible)) ||
-    (isProviderId(id) && !!keys[id])
+    // 有实例的 provider 不投影裸 provider pill（仅实例 pill，见 allSources）——镜像
+    // resolveEffectiveActiveSource 的裸→首实例映射，跳过裸 id，否则 delete* 回退会持久化
+    // 一个快切栏没有任何 pill 的 id，「至少一个可见可用源」保证被破坏。
+    (isProviderId(id) && !!keys[id] && !instances.some((instance) => instance.baseProviderId === id))
   ));
 }
 
