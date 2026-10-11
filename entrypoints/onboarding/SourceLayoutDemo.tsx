@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { allSources, resolveIconUrl, sourceLabel, type SearchSource } from '@/lib/sources';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import { ChevronDownIcon, ChevronUpIcon, GripIcon, PlusIcon } from '@/components/icons';
+import { CursorGlyph } from './CursorRipple';
 
 // 开箱演示的两枚分组与成员 id：与开箱快切栏一致——「API 搜索」（providers）与
 // 「搜索引擎」（传统引擎）；AI 对话引擎默认隐藏、站点/自定义默认为空组不渲染。
@@ -135,19 +136,14 @@ function GroupHead({
   );
 }
 
-/** 鼠标指针（装饰）：经典箭头造型，图形左上角对准坐标热点。 */
-function CursorGlyph() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5.5 2.5 L18.8 12.2 L12.6 13.3 L16.2 20.2 L13.4 21.6 L10 14.6 L5.5 18.2 Z"
-        fill="#fff"
-        stroke="#333"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+/** FLIP 后拍单元素：反向位移先无过渡生效（强制 reflow），再统一 360ms 过渡归零。
+ *  成员芯片 / 平铺行 / 新建分组区三处动画共用，时长与缓动单一来源。 */
+function flipTranslate(el: HTMLElement, dx: number, dy: number) {
+  el.style.transition = 'none';
+  el.style.transform = `translate(${dx}px, ${dy}px)`;
+  void el.offsetHeight; // 强制 reflow：反向位移先生效，随后过渡归零
+  el.style.transition = 'transform 360ms var(--ease-out)';
+  el.style.transform = '';
 }
 
 /**
@@ -194,7 +190,6 @@ export function SourceLayoutDemo() {
   const [menu, setMenu] = useState(false);
   const [menuHover, setMenuHover] = useState(false);
   const [menuPos, setMenuPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
-  const orderRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const membersRef = useRef<HTMLDivElement>(null);
   const pinnedRowRef = useRef<HTMLDivElement>(null);
@@ -269,7 +264,7 @@ export function SourceLayoutDemo() {
     // 时间轴（tick=300ms，循环 65 tick ≈ 19.5s）：
     //   1 指针隐藏待命 → 3 现身于 Baidu → 6 按下 → 7 按住拖向首位（chip 同步跟随）
     //   → 13 松手重排（FLIP）→ 15 移到「置顶」按钮 → 19 点击 → 20 浮现平铺行
-    //   → 23 移到新建输入框 → 27 点击聚焦 → 28–31 逐字输入分组名
+    //   → 23 移到新建输入框 → 27 点击聚焦（28 松开）→ 28–31 逐字输入分组名
     //   → 33 移到「新建分组」→ 37 点击 → 38 出现「常用」空组（输入框清空）
     //   → 41 移到平铺行「收入分组」select → 45 按下展开下拉（真实交互第一步）
     //   → 46 移到「常用」选项 → 48 悬停高亮 → 50 点击选中
@@ -309,7 +304,6 @@ export function SourceLayoutDemo() {
           setDropId(null);
           setDrag(null);
           captureMembers();
-          orderRef.current = true;
           setOrder(true);
           break;
         case 15:
@@ -332,6 +326,11 @@ export function SourceLayoutDemo() {
         case 27:
           press('input');
           setInputFocus(true);
+          break;
+        case 28:
+          // 点击输入框后即刻松手（其余单击同样一拍松开）：否则按压态持续到
+          // 下一拍 press('new') 才被覆写，指针带着按压样式滑向「新建分组」按钮。
+          release();
           break;
         case 33:
           moveToEl(rootRef.current?.querySelector<HTMLElement>('.source-layout-new .layout-btn--primary') ?? null, 520);
@@ -413,7 +412,6 @@ export function SourceLayoutDemo() {
               ?.getBoundingClientRect() ?? null;
           captureBar();
           captureMembers();
-          orderRef.current = false;
           setOrder(false);
           setFolded(false);
           setNewGroup(false);
@@ -444,11 +442,7 @@ export function SourceLayoutDemo() {
       const dx = before.left - after.left;
       const dy = before.top - after.top;
       if (dx === 0 && dy === 0) continue;
-      el.style.transition = 'none';
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
-      void el.offsetHeight; // 强制 reflow：反向位移先生效，随后过渡归零
-      el.style.transition = 'transform 360ms var(--ease-out)';
-      el.style.transform = '';
+      flipTranslate(el, dx, dy);
     }
     // 「常用」组行：平铺行卸下后整行上移一格，FLIP 消除跳变。
     const rowFrom = newGroupRowFromRef.current;
@@ -457,13 +451,7 @@ export function SourceLayoutDemo() {
       const row = root.querySelector<HTMLElement>('[data-demo-enter]');
       if (row) {
         const dy = rowFrom.top - row.getBoundingClientRect().top;
-        if (dy !== 0) {
-          row.style.transition = 'none';
-          row.style.transform = `translateY(${dy}px)`;
-          void row.offsetHeight;
-          row.style.transition = 'transform 360ms var(--ease-out)';
-          row.style.transform = '';
-        }
+        if (dy !== 0) flipTranslate(row, 0, dy);
       }
     }
     // 「新建分组」区：常用行卸载后上移，同样 FLIP 平滑接力。
@@ -473,23 +461,17 @@ export function SourceLayoutDemo() {
       const bar = root.querySelector<HTMLElement>('.source-layout-new');
       if (bar) {
         const dy = barFrom.top - bar.getBoundingClientRect().top;
-        if (dy !== 0) {
-          bar.style.transition = 'none';
-          bar.style.transform = `translateY(${dy}px)`;
-          void bar.offsetHeight;
-          bar.style.transition = 'transform 360ms var(--ease-out)';
-          bar.style.transform = '';
-        }
+        if (dy !== 0) flipTranslate(bar, 0, dy);
       }
     }
   }, [order, pinned, newGroup, folded]);
 
   // 「搜索引擎」成员：置顶/收入期间 Baidu 不在；其余按当前顺序渲染。
-  const searchIds = pinned || folded
-    ? GROUP_B_IDS.filter((id) => id !== DRAG_ID)
-    : order
-      ? [DRAG_ID, ...GROUP_B_IDS.filter((id) => id !== DRAG_ID)]
-      : GROUP_B_IDS;
+  const engineIdsWithoutDrag = GROUP_B_IDS.filter((id) => id !== DRAG_ID);
+  let searchIds: string[];
+  if (pinned || folded) searchIds = engineIdsWithoutDrag;
+  else if (order) searchIds = [DRAG_ID, ...engineIdsWithoutDrag];
+  else searchIds = GROUP_B_IDS;
   const source = DEMO_SOURCES.get(DRAG_ID);
 
   return (
@@ -546,17 +528,22 @@ export function SourceLayoutDemo() {
           <div className="layout-actions">
             <label className="layout-fold">
               <span className="sr-only">{t(MSG.opts_group_unpin_into)}</span>
-              <select
-                className={pressTarget === 'select' ? 'onboarding-el-pressed' : undefined}
-                value="__pinned__"
-                tabIndex={-1}
-                onChange={() => undefined}
-              >
-                <option value="__pinned__">{t(MSG.opts_group_pin_source)}</option>
-                <option value="ai-search">{t(MSG.group_ai_search)}</option>
-                <option value="engines">{t(MSG.group_engines)}</option>
-                <option value="new">{newGroupLabel()}</option>
-              </select>
+              {/* 与真实编辑器同构：select 外的 .select-wrap 包层（箭头 mask 由它的
+                  ::after 绘制，见 SourceGroupEditor）；.options 作用域样式不命中
+                  本页，观感补齐规则见本页 styles.css */}
+              <span className="select-wrap">
+                <select
+                  className={pressTarget === 'select' ? 'onboarding-el-pressed' : undefined}
+                  value="__pinned__"
+                  tabIndex={-1}
+                  onChange={() => undefined}
+                >
+                  <option value="__pinned__">{t(MSG.opts_group_pin_source)}</option>
+                  <option value="ai-search">{t(MSG.group_ai_search)}</option>
+                  <option value="engines">{t(MSG.group_engines)}</option>
+                  <option value="new">{newGroupLabel()}</option>
+                </select>
+              </span>
             </label>
             <div className="layout-move">
               <button type="button" className="layout-btn layout-btn--icon" tabIndex={-1}>

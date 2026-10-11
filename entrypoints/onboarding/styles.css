@@ -301,6 +301,39 @@
   50%, 100% { opacity: 0; }
 }
 
+/* 收入分组 select 的真实观感补齐：设置页的 select 外观来自 .options select
+   （appearance:none / border / font-family）与 .options .select-wrap::after 的
+   mask 箭头（options/styles.css「原生控件定制」节）——两者都限定 .options 根类，
+   本页根是 .onboarding 不命中；而 .layout-fold select 为箭头预留的右内距
+   （0 var(--space-8) 0 var(--space-2)）照常生效，缺了这两条会露出 UA 原生箭头
+   且左侧空出箭头位。此处按演示作用域复刻同值（DOM 侧 SourceLayoutDemo 同样补
+   .select-wrap 包层），保证与设置页所见一致。 */
+.onboarding-layout-demo .layout-fold select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.onboarding-layout-demo .select-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.onboarding-layout-demo .select-wrap::after {
+  content: '';
+  position: absolute;
+  top: 50%; right: var(--space-3);
+  width: 16px; height: 16px;
+  transform: translateY(-50%);
+  background-color: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") center / contain no-repeat;
+  pointer-events: none;
+}
+
 /* 收入分组的下拉模拟：select 展开后的选项面板（向上弹出）。
    当前项（置顶）按原生 select 选中态用品牌实色高亮；悬停项用 brand 浅底。 */
 .onboarding-select-menu {
@@ -360,7 +393,7 @@
     真实页由 .switcher-indicator 承载实色（依赖 JS 测量注入 CSS 变量），演示无
     JS 测量，恰好落在 search/styles.css 自带的 no-indicator fallback 分支，
     观感等价（见该文件 fallback 注释）。
-    时间轴：0–14% 逐字输入 → 16–19% 芯片就位 → 20–31% 鼠标移到「搜索」钮、点击
+    时间轴：0–14% 逐字输入 → 16–25% 芯片错峰 pop 就位 → 20–31% 鼠标移到「搜索」钮、点击
     → 31–38% 骨架 → 41–49% 回答卡/结果卡错峰 rise → 84–96% 淡出循环。
     本节所有规则以 .onboarding-wb-demo 前缀作用域限定，只补动画与演示层，
     绝不裸写 .search-box 之类全局覆盖。 */
@@ -972,7 +1005,7 @@
     浮层点选 Google（hover 高亮 + 按压 + 涟漪）→ 浮层收起、trigger 复位 →
     置顶激活源 pill 原地换内容（Tavily → Google，favicon + 标签同步换）→
     结果行闪骨架 → 换 Google 结果（「切源即换结果，免重输」）。
-    时间轴（% × 0.1 = 秒）：2.2–9.3% 芯片错峰 pop 就位（one-shot，靠 qb-fade 的
+    时间轴（% × 0.1 = 秒）：2.2–10% 芯片错峰 pop 就位（one-shot，靠 qb-fade 的
     animationiteration 重挂子树重播）→ 11–14% Tavily 结果行浮现 → 14–17% 光标淡入
     → 17–23% 移到「搜索引擎」trigger → 23–24.5% trigger 高亮 → 24.5–30% hover 停留
     节拍（真实 hover 展开的延迟感）→ 30–32.5% 成员浮层 pop 展开 → 34–40% 光标
@@ -1098,8 +1131,10 @@
 }
 
 /* 「搜索引擎」trigger：hover / 展开期高亮（真实 .switcher-group.open >
-   .group-trigger = brand 字 + brand-soft 底，边框保持透明），点选后复位 */
-.onboarding-qb-demo .switcher-group .group-trigger {
+   .group-trigger = brand 字 + brand-soft 底，边框保持透明），点选后复位。
+   相位动画只挂「搜索引擎」那枚（TSX 侧演示专用类 qb-hover-group）：
+   不限定的话全部分组 trigger 会同时点亮，与逐组叙事不符 */
+.onboarding-qb-demo .switcher-group .group-trigger.qb-hover-group {
   animation: qb-trigger 10s var(--ease-out) infinite;
 }
 

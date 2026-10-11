@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { allSources, resolveIconUrl, sourceLabel, type SearchSource } from '@/lib/sources';
-import { getCurrentLocale, t, MSG } from '@/lib/i18n';
+import { DEFAULT_GROUPS, groupLabelText } from '@/lib/source-groups';
+import { getCurrentLocale, t } from '@/lib/i18n';
+import { DemoCursor } from './CursorRipple';
 
 // 快切栏切换示意：结构与样式直接建在真实 SourceSwitcher 的类上（search/styles.css，
 // main.tsx 引入）——.source-switcher > .switcher-track 胶囊轨道 + 真实 pill；成员
@@ -114,18 +116,17 @@ export function QuickbarDemo() {
                     {google ? sourceLabel(google, t) : null}
                   </span>
                 </button>
-                {(
-                  [
-                    [MSG.group_engines, '0.29s'],
-                    [MSG.group_sites, '0.36s'],
-                    [MSG.group_ai_engines, '0.43s'],
-                    [MSG.group_ai_search, '0.5s'],
-                    [MSG.group_custom, '0.57s'],
-                  ] as const
-                ).map(([msg, delay], i) => (
-                  <div key={msg} className="switcher-group" style={{ animationDelay: delay }}>
-                    <button type="button" className="group-trigger" tabIndex={-1}>
-                      <span className="group-label">{t(msg)}</span>
+                {/* 分组 pill 由 DEFAULT_GROUPS 投影（含 aggregate 组），顺序与真实
+                    快切栏（规范化 group config）一致，registry 扩组时自动同步；
+                    错峰延迟 0.29s 起每枚 +0.07s（末枚 pop 收在 10% 内）。 */}
+                {DEFAULT_GROUPS.map((g, i) => (
+                  <div key={g.id} className="switcher-group" style={{ animationDelay: `${(0.29 + i * 0.07).toFixed(2)}s` }}>
+                    <button
+                      type="button"
+                      className={`group-trigger${i === 0 ? ' qb-hover-group' : ''}`}
+                      tabIndex={-1}
+                    >
+                      <span className="group-label">{groupLabelText(g.label, t)}</span>
                     </button>
                     {/* 引擎分组成员浮层（真实 .group-flyout：hover 展开、点选成员；
                         常驻 DOM，开合由 qb-menu 相位控制） */}
@@ -201,19 +202,7 @@ export function QuickbarDemo() {
               </article>
             </div>
 
-            <span className="onboarding-qb-cursor">
-              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M5.5 2.5 L18.8 12.2 L12.6 13.3 L16.2 20.2 L13.4 21.6 L10 14.6 L5.5 18.2 Z"
-                  fill="#fff"
-                  stroke="#333"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="onboarding-qb-ripple" />
-              <span className="onboarding-qb-ripple onboarding-qb-ripple--lag" />
-            </span>
+            <DemoCursor cursorClass="onboarding-qb-cursor" rippleClass="onboarding-qb-ripple" />
           </div>
         </div>
       </div>

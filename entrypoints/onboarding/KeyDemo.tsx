@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { t, MSG } from '@/lib/i18n';
+import { DemoCursor } from './CursorRipple';
 
 // 配置密钥示意：结构与样式直接建在设置页真实 .key-row 上（options/styles.css，
 // main.tsx 引入；DOM 镜像 KeyInput.tsx 的行结构）——provider 标签 + 已配置徽章
@@ -63,19 +64,7 @@ export function KeyDemo() {
               <span className="status ok onboarding-kd-status__ok">{t(MSG.status_saved)}</span>
             </div>
 
-            <span className="onboarding-kd-cursor">
-              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M5.5 2.5 L18.8 12.2 L12.6 13.3 L16.2 20.2 L13.4 21.6 L10 14.6 L5.5 18.2 Z"
-                  fill="#fff"
-                  stroke="#333"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="onboarding-kd-ripple" />
-              <span className="onboarding-kd-ripple onboarding-kd-ripple--lag" />
-            </span>
+            <DemoCursor cursorClass="onboarding-kd-cursor" rippleClass="onboarding-kd-ripple" />
           </div>
         </div>
       </div>

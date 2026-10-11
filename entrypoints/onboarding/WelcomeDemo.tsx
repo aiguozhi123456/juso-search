@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { allSources, resolveIconUrl } from '@/lib/sources';
+import { DEFAULT_GROUPS, groupLabelText } from '@/lib/source-groups';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import { BrandMark, SearchIcon } from '@/components/icons';
+import { DemoCursor } from './CursorRipple';
 
 // 欢迎页示意：结构与样式直接建在搜索页真实类上（search/styles.css，main.tsx
 // 引入）——.search-box 胶囊输入框 + 品牌色「搜索」按钮、.source-switcher >
@@ -65,12 +67,19 @@ const DEMO_SOURCES = new Map<string, ReturnType<typeof allSources>[number]>(
 );
 const tavily = DEMO_SOURCES.get('tavily');
 
+// 打字窗口与 styles.css 时间轴对齐：0.7s 起、1.6s 前收尾（打字窗口 0–14% × 12s
+// = 1.68s，不能撞上 16% / 1.92s 起的芯片 pop）。步长按 query 长度推导——
+// zh 8 字 ≈ 0.129s/字、en 11 字符 0.09s/字，两种语言的末字都落在窗口内。
+const TYPE_START = 0.7;
+const TYPE_END = 1.6;
+
 export function WelcomeDemo() {
   // 每轮循环边界（wb2-fade 迭代）重挂子树：one-shot 动画（打字/芯片 pop）
   // 随之从头重播，与 infinite 动画天然同相（同一挂载起点 + 相同 12s 周期）。
   const [cycle, setCycle] = useState(0);
   const copy = COPY();
   const queryChars = Array.from(copy.query);
+  const typeStep = queryChars.length > 1 ? (TYPE_END - TYPE_START) / (queryChars.length - 1) : 0;
 
   return (
     <div
@@ -92,7 +101,7 @@ export function WelcomeDemo() {
                 <input type="text" tabIndex={-1} readOnly />
                 <span className="wb-type">
                   {queryChars.map((ch, i) => (
-                    <span key={i} className="onboarding-wb-char" style={{ animationDelay: `${0.7 + i * 0.12}s` }}>
+                    <span key={i} className="onboarding-wb-char" style={{ animationDelay: `${(TYPE_START + i * typeStep).toFixed(3)}s` }}>
                       {ch === ' ' ? '\u00A0' : ch}
                     </span>
                   ))}
@@ -107,7 +116,7 @@ export function WelcomeDemo() {
 
             {/* 快切栏：真实 .switcher-track 胶囊轨道。置顶激活源 pill 走
                 button.active fallback（brand 实色；指示器依赖 JS 测量，见组件头注释）
-                + 全部五个默认分组 pill（顺序同 defaultGroupConfig 布局） */}
+                + 全部内置分组 pill（DEFAULT_GROUPS 投影，顺序同真实快切栏） */}
             <div className="source-switcher">
               <div className="switcher-track">
                 <button
@@ -122,18 +131,10 @@ export function WelcomeDemo() {
                   )}
                   <span className="source-label">{copy.chipActive}</span>
                 </button>
-                {(
-                  [
-                    [MSG.group_engines, '2.02s'],
-                    [MSG.group_sites, '2.14s'],
-                    [MSG.group_ai_engines, '2.26s'],
-                    [MSG.group_ai_search, '2.38s'],
-                    [MSG.group_custom, '2.5s'],
-                  ] as const
-                ).map(([msg, delay]) => (
-                  <div key={msg} className="switcher-group" style={{ animationDelay: delay }}>
+                {DEFAULT_GROUPS.map((g, i) => (
+                  <div key={g.id} className="switcher-group" style={{ animationDelay: `${(2.02 + i * 0.12).toFixed(2)}s` }}>
                     <button type="button" className="group-trigger" tabIndex={-1}>
-                      <span className="group-label">{t(msg)}</span>
+                      <span className="group-label">{groupLabelText(g.label, t)}</span>
                     </button>
                   </div>
                 ))}
@@ -190,19 +191,7 @@ export function WelcomeDemo() {
               </div>
             </div>
 
-            <span className="onboarding-wb-cursor">
-              <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M5.5 2.5 L18.8 12.2 L12.6 13.3 L16.2 20.2 L13.4 21.6 L10 14.6 L5.5 18.2 Z"
-                  fill="#fff"
-                  stroke="#333"
-                  strokeWidth="1.4"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="onboarding-wb-ripple" />
-              <span className="onboarding-wb-ripple onboarding-wb-ripple--lag" />
-            </span>
+            <DemoCursor cursorClass="onboarding-wb-cursor" rippleClass="onboarding-wb-ripple" />
           </div>
         </div>
       </div>
