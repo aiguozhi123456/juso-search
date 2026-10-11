@@ -146,12 +146,35 @@ def render(variant_key: str) -> dict[str, str]:
     return out
 
 
+def _stale_files(variant_key: str) -> list[str]:
+    """Files present in the published dir but no longer produced by the template.
+
+    The forward check below only sees generated ⊆ tracked; without this reverse
+    scan, removing/renaming a template file leaves a stale published copy that
+    --check never flags and regeneration never deletes.
+    """
+    cfg = VARIANTS[variant_key]
+    generated = set(render(variant_key))
+    stale: list[str] = []
+    for path in sorted(cfg["target_dir"].rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            rel = path.relative_to(cfg["target_dir"]).as_posix()
+            if rel not in generated:
+                stale.append(rel)
+    return stale
+
+
 def write_variant(variant_key: str) -> None:
     cfg = VARIANTS[variant_key]
     for rel, text in render(variant_key).items():
         target = cfg["target_dir"] / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8", newline="")
+    # Regeneration is authoritative: prune files the template no longer produces
+    # so a template removal converges instead of leaving a stale drift-lock copy.
+    for rel in _stale_files(variant_key):
+        (cfg["target_dir"] / rel).unlink()
+        print(f"gen_skills: pruned stale {variant_key}:{rel}")
 
 
 def render_mcp() -> dict[str, str]:
@@ -180,6 +203,8 @@ def check() -> list[str]:
                 continue
             if tracked.read_text(encoding="utf-8", newline="") != gen_text:
                 diffs.append(f"{variant_key}:{rel}")
+        for rel in _stale_files(variant_key):
+            diffs.append(f"{variant_key}:{rel} (stale)")
     for rel, gen_text in render_mcp().items():
         tracked = MCP_SERVER_DIR / rel
         if not tracked.is_file():

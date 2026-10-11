@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,10 +23,40 @@ class GenSkillsTests(unittest.TestCase):
     def setUpClass(cls):
         cls.gen = _load_gen()
 
+    def _with_tmp_variant(self, name: str) -> Path:
+        """Register a scratch variant rendered into a temp dir; restores VARIANTS on teardown."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        target = Path(tmp.name)
+        orig = dict(self.gen.VARIANTS)
+        self.gen.VARIANTS[name] = {"extension_id": "test-extension-id", "target_dir": target}
+        self.addCleanup(lambda: (self.gen.VARIANTS.clear(), self.gen.VARIANTS.update(orig)))
+        return target
+
     def test_generated_dirs_match_tracked(self):
         """The two published skill dirs must equal generator output (drift lock)."""
         diffs = self.gen.check()
         self.assertEqual(diffs, [], f"Tracked skill dirs drifted from generator output: {diffs}")
+
+    def test_check_flags_stale_file_in_published_dir(self):
+        """tracked ⊆ generated: a published file absent from the template must fail --check."""
+        target = self._with_tmp_variant("test-variant")
+        for rel, text in self.gen.render("test-variant").items():
+            path = target / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8", newline="")
+        (target / "SKILL.md.bak").write_text("stale", encoding="utf-8", newline="")
+        self.assertIn("test-variant:SKILL.md.bak (stale)", self.gen.check())
+
+    def test_write_variant_prunes_stale_files(self):
+        """Regeneration must delete published files the template no longer produces."""
+        target = self._with_tmp_variant("test-variant")
+        self.gen.write_variant("test-variant")
+        stale = target / "SKILL.md.bak"
+        stale.write_text("stale", encoding="utf-8", newline="")
+        self.gen.write_variant("test-variant")
+        self.assertFalse(stale.exists())
+        self.assertEqual(self.gen._stale_files("test-variant"), [])
 
     def test_no_placeholder_remains_in_rendered_output(self):
         for key in self.gen.VARIANTS:

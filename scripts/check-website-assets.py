@@ -9,7 +9,10 @@ diff (filename + which side differs) if any pair has drifted.
   · Icons —— website/static/icons/*.svg  ↔  public/icons/*.svg
     The website mirrors the extension's engine icons 1:1 by filename (the
     pair count is emergent). Any new or renamed icon must be copied to
-    BOTH directories.
+    BOTH directories. Extension-only icons (ICON_EXCLUSIONS below) have
+    no website counterpart and are exempt from the 1:1 requirement — but
+    if a copy of one ever does appear on the website side, it must still
+    be byte-identical to the extension icon.
 
   · Screenshots —— website/static/img/screenshot-*.png  ↔  docs/assets/screens/*.png
     The website build needs its own copies of the marketing screenshots, so
@@ -44,6 +47,13 @@ SCREENSHOT_PAIRS = [
     ("screenshot-agent-bridge.png", "settings-general-clean.png"),
 ]
 
+# Extension-only icons with no website counterpart: the website's icon wall is
+# driven by website/data/sources.yaml, not by website/static/icons/, so these
+# (e.g. the aggregate-instance pill favicon, used only inside the extension)
+# are not expected to be mirrored. Only exempts the extension→website
+# direction; a website-side copy, once it exists, is byte-locked as usual.
+ICON_EXCLUSIONS = {"aggregate.svg"}
+
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -55,6 +65,8 @@ def _check_icon_pairs() -> list[str]:
     ext = {p.name: p for p in EXT_ICONS.glob("*.svg")}
     diffs: list[str] = []
     for name in sorted(set(site) | set(ext)):
+        if name not in site and name in ICON_EXCLUSIONS:
+            continue
         if name not in site:
             diffs.append(f"icons/{name}: MISSING in website/static/icons/")
         elif name not in ext:

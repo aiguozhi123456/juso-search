@@ -23,6 +23,12 @@ jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The wheel version comes from mcp-server/juso_search/__init__.py, not the
+    # release tag: an extension Release whose MCP version line did not advance
+    # would re-upload an existing version and 400 on PyPI, and prereleases must
+    # never reach the production index. Manual dispatch bypasses both gates.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     steps:
       - uses: actions/checkout@v4
 
@@ -44,6 +50,9 @@ jobs:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Same gate as build: a skipped build must not leave publish eligible.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     # MUST match the environment name registered on PyPI. Required reviewers can
     # be added to this environment in GitHub settings for a manual approval gate.
     environment:
@@ -61,4 +70,6 @@ jobs:
 
       - name: Publish to PyPI
         # PEP 740 Sigstore supply-chain attestations are generated automatically.
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # 版本以 commit SHA 固定（本仓库最特权的第三方 action，持 id-token: write）；
+        # 升级时同步更新注释。
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
