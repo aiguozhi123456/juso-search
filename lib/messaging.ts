@@ -13,8 +13,11 @@ import type { AggregateInstance } from './aggregate-instances';
 export type SearchRequest = {
   query: string;
   forceRefresh?: boolean;
-  /** UI 选定/缓存归属的 provider 快照；worker 优先采用，使搜索绑定到 UI 视图而非可能漂移的 worker active 态。 */
-  providerId?: ProviderId;
+  /** UI 选定/缓存归属的来源快照；worker 优先采用，使搜索绑定到 UI 视图而非可能漂移的 worker active 态。
+   *  可为裸 ProviderId 或 ProviderInstanceId（SourceId 边界）——worker 在 resolveSearchSource 边界
+   *  解析为 base provider + per-instance options，此后只有 ProviderId 流入 getAdapter/getKey（KTD2/R8）。
+   *  聚合实例 id 不走本字段（由 aggregateSearch 消息族承载，KTD16）。 */
+  providerId?: ProviderId | ProviderInstanceId;
 };
 
 // 跨消息用 ok/error 判别联合返回，不抛异常（错误对象跨 message 序列化会丢类信息）。
@@ -80,17 +83,16 @@ export type ProviderConfigReply = {
   groupConfig: GroupConfig;
   /**
    * 用户定义的 provider 实例；UI/SERP-bar 宿主据此把实例投影进快切栏。
-   * 当前为可选：IU2 的 `getProviderConfigSnapshot` 落地填充前，worker 快照暂不携带该字段。
-   * IU2/IU4 落地后应收紧为必填（`ProviderInstance[]`）。
+   * IU2 的 `getProviderConfigSnapshot` 已恒定填充（worker 唯一生产者原样返回），必填。
    */
-  providerInstances?: ProviderInstance[];
+  providerInstances: ProviderInstance[];
   /** 聚合搜索脱敏配置（KTD5）：实例定义集 + per-instance eligibility + rerank 配置状态。
    *  ⚠️ 永不携带 apiKey——UI 凭此投影聚合 pill（eligible 过滤）与渲染配置面。 */
-  aggregate?: AggregateConfigSnapshot;
+  aggregate: AggregateConfigSnapshot;
   /** AI engine 自动回车开关（默认 true）。注入型 AI engine 的 URL 是否追加 enter=1。 */
-  aiAutoEnter?: boolean;
+  aiAutoEnter: boolean;
   /** 少量来源自动平铺开关（默认 true）。开启后源 ≤4 或单组且 ≤6 时平铺到顶层。 */
-  flatLayoutFewSources?: boolean;
+  flatLayoutFewSources: boolean;
 };
 
 export type ConfigIoError = { kind: 'invalid' | 'download_failed'; message: string };

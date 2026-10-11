@@ -910,6 +910,49 @@ describe('search page', () => {
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'inst:exa:research'));
   });
 
+  it('cache replay of a since-deleted provider instance falls back to the base provider id (invalid_source 防 wall)', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+          // 实例已在 Options 删除（快照定义集为空）→ 缓存条目的 instanceId 不再受理。
+          providerInstances: [],
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'inst:exa:deleted:cached query', query: 'cached query', normalizedQuery: 'cached query', providerId: 'exa', instanceId: 'inst:exa:deleted', createdAt: 1, lastAccessedAt: 1, resultPreviews: [{ title: 'Cached result', url: 'https://cached.test' }], resultCount: 1 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'cache-1',
+          cacheKey: 'inst:exa:deleted:cached query',
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'exa',
+          instanceId: 'inst:exa:deleted',
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: { query: 'cached query', provider: 'exa', results: [{ title: 'Cached result', url: 'https://cached.test', snippet: 'cached snippet' }] },
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    // 历史面板行预览同样渲染 resultPreviews.title，等待唯一属于完整条目的 snippet 出现
+    // （面板随选择关闭，避免断言命中已卸载的面板节点）。
+    expect(await screen.findByText('cached snippet')).toBeInTheDocument();
+    // 已删实例 id 绝不发给 worker（selectActiveSourceId 会 reject invalid_source）：
+    // 回退 base provider id 恢复激活态。
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
+    expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', 'inst:exa:deleted');
+  });
+
   it('refresh uses the instance id when the active source is a provider instance (BUG-2)', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
@@ -1132,6 +1175,45 @@ describe('search page', () => {
       }));
       expect(spy).not.toHaveBeenCalled();
       expect(configReads).toBeGreaterThanOrEqual(3);
+    } finally {
+      restore();
+    }
+  });
+
+  it('falls back to a provider-instance pill via handleSearch when the deleted Site Engine fallback is an instance (BUG: 2/7 kind)', async () => {
+    const { spy, restore } = stubLocation();
+    let configReads = 0;
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        configReads += 1;
+        return Promise.resolve(configReads === 1
+          ? configReply({
+              configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa',
+              providerInstances: [{ id: 'inst:exa:r1', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+              siteInstances: [{ id: 'site:docs', name: 'Docs', target: 'https://docs.example.com', engineId: 'google' }],
+              groupConfig: pinnedGroupConfig(['inst:exa:r1', 'site:docs', 'google']),
+            })
+          : configReply({
+              configuredProviderIds: ['exa'], activeProviderId: 'exa', activeSourceId: 'exa',
+              providerInstances: [{ id: 'inst:exa:r1', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+              siteInstances: [],
+              groupConfig: pinnedGroupConfig(['inst:exa:r1', 'google']),
+            }));
+      }
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'install', provider: 'exa', results: [] }, cache: { hit: false } });
+    }) as never);
+    try {
+      render(<App />);
+      fireEvent.change(screen.getByLabelText('搜索词'), { target: { value: 'install' } });
+      fireEvent.click(await screen.findByRole('button', { name: /Docs/ }));
+      // 删除的 site chip 的兜底首个可见源是 provider 实例 pill：必须以实例 id 走 handleSearch
+      // （resolveSerpHandoff 对实例返回 openSearchPage 而非 navigate，旧代码在此误报「搜索失败」）。
+      await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('search', {
+        query: 'install', forceRefresh: undefined, providerId: 'inst:exa:r1',
+      }));
+      expect(configReads).toBe(2);
+      expect(spy).not.toHaveBeenCalled();
     } finally {
       restore();
     }

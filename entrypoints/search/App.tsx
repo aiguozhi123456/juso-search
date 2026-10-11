@@ -70,6 +70,36 @@ function aggregateInstanceName(instanceId: AggregateInstanceId, aggregate: Aggre
   return aggregate?.instances.find((instance) => instance.id === instanceId)?.name ?? instanceId;
 }
 
+/** 7 参 allSources 投影的文件内单点展开（本文件曾有 8 个逐字调用点并已漂移）：
+ *  worker reply 与页面 state 两种形状均可传入（allSources 尾参自带缺省）。 */
+function projectSources(input: {
+  configuredProviderIds: ProviderId[];
+  sourceOrder?: readonly SourceId[];
+  sourceHidden?: readonly SourceId[];
+  siteInstances?: readonly SiteInstanceDefinition[];
+  customEngines?: readonly CustomEngineDefinition[];
+  providerInstances?: readonly ProviderInstance[];
+  aggregate?: AggregateConfigSnapshot | null;
+}): SearchSource[] {
+  return allSources(
+    input.configuredProviderIds,
+    input.sourceOrder,
+    input.sourceHidden,
+    input.siteInstances,
+    input.customEngines,
+    input.providerInstances,
+    aggregateSourcesOf(input.aggregate),
+  );
+}
+
+/** 激活源在投影中不可见（被隐藏/删除）时回退首个可见源；active 未解析时保持 null
+ *  （让 handleSearch 走 loadSourceSnapshot 兜底）。 */
+function firstVisibleSource(active: SourceId | null, sources: readonly SearchSource[]): SourceId | null {
+  if (active == null) return null;
+  if (sources.some((source) => source.id === active)) return active;
+  return sources[0]?.id ?? null;
+}
+
 /** 聚合成员徽标（R4/R5）：provider 实例成员 = 实例名 + base provider favicon；engine 成员 =
  *  engine 标签 + favicon；裸 provider 成员 = provider 标签 + favicon。 */
 function aggregateMemberBadge(
@@ -143,15 +173,7 @@ export default function App() {
         ? link.provider
         : null;
       const initialSource = linkProvider ?? config.activeSourceId;
-      const initialSources = allSources(
-        config.configuredProviderIds,
-        config.sourceOrder ?? [],
-        config.sourceHidden ?? [],
-        config.siteInstances ?? [],
-        config.customEngines ?? [],
-        config.providerInstances ?? [],
-        aggregateSourcesOf(config.aggregate),
-      );
+      const initialSources = projectSources(config);
       // Query-only links honor the persisted source unless it is hidden from
       // the current projection. This executes a visible fallback without
       // overwriting the user's persisted hidden selection.
@@ -163,9 +185,11 @@ export default function App() {
       if (link.query) {
         setQuery(link.query);
         if (ignore) return;
+        // aiAutoEnter 显式透传：本 effect 闭包捕获的是 useState(true) 初始值，
+        // state 尚未反映刚读到的配置（首渲染闭包教训）。
         await handleSearch(link.query, linkProvider
-          ? { providerId: linkProvider, selectedSource: initialSelectedSource }
-          : { sourceId: initialExecutionSource, selectedSource: initialSelectedSource });
+          ? { providerId: linkProvider, selectedSource: initialSelectedSource, aiAutoEnter: config.aiAutoEnter }
+          : { sourceId: initialExecutionSource, selectedSource: initialSelectedSource, aiAutoEnter: config.aiAutoEnter });
       }
     })();
     return () => {
@@ -174,9 +198,12 @@ export default function App() {
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
   }, []);
 
-  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId | AggregateInstanceId; sourceId?: SourceId; selectedSource?: SearchSource } = {}) {
+  async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId | AggregateInstanceId; sourceId?: SourceId; selectedSource?: SearchSource; aiAutoEnter?: boolean } = {}) {
     const query = rawQuery.trim();
     if (!query) return;
+    // aiAutoEnter 优先取调用方显式透传值（mount effect 首搜时 state 还是 useState(true)
+    // 初始值，不能信任闭包里的 state）；用户交互路径未透传 → state 已是最新配置。
+    const aiAutoEnterPref = opts.aiAutoEnter ?? aiAutoEnter;
     let source: SourceId | null;
     try {
       source = opts.providerId ?? opts.sourceId ?? visibleActive ?? active;
@@ -204,15 +231,7 @@ export default function App() {
     if (isManualSiteInstanceSubmit || isManualCustomEngineSubmit) {
       try {
         const refreshed = await loadSourceSnapshot();
-        const refreshedSources = allSources(
-          refreshed.configuredProviderIds,
-          refreshed.sourceOrder ?? [],
-          refreshed.sourceHidden ?? [],
-          refreshed.siteInstances ?? [],
-          refreshed.customEngines ?? [],
-          refreshed.providerInstances ?? [],
-          aggregateSourcesOf(refreshed.aggregate),
-        );
+        const refreshedSources = projectSources(refreshed);
         const freshSelectedSource = refreshedSources.find((candidate) => candidate.id === source);
         // If the selected Site Engine disappeared (or is no longer visible), run
         // the first source from the fresh projection. This is execution-only:
@@ -226,21 +245,20 @@ export default function App() {
     }
     // A stale dynamic source id must not fall through as an undefined provider.
     // Reload once so edits made in Options while this page was open are honored.
+    // 持久化 active 可能已隐藏/删除（resolveEffectiveActiveSource 不看 sourceHidden）：
+    // 查不到时与上方手动提交块同款回退到首个可见源，绝不静默落空。
     if (source && !selectedSource && !isProviderId(source)) {
-      const refreshed = await loadSourceSnapshot();
-      const refreshedSources = allSources(
-        refreshed.configuredProviderIds,
-        refreshed.sourceOrder ?? [],
-        refreshed.sourceHidden ?? [],
-        refreshed.siteInstances ?? [],
-        refreshed.customEngines ?? [],
-        refreshed.providerInstances ?? [],
-        aggregateSourcesOf(refreshed.aggregate),
-      );
-      selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId);
-      source = selectedSource?.id ?? null;
+      try {
+        const refreshed = await loadSourceSnapshot();
+        const refreshedSources = projectSources(refreshed);
+        selectedSource = refreshedSources.find((candidate) => candidate.id === refreshed.activeSourceId) ?? refreshedSources[0];
+        source = selectedSource?.id ?? null;
+      } catch {
+        setError({ message: t(MSG.search_failed_retry), needKey: false });
+        return;
+      }
     }
-    const handoff = selectedSource && resolveSerpHandoff(selectedSource, query, { aiAutoEnter });
+    const handoff = selectedSource && resolveSerpHandoff(selectedSource, query, { aiAutoEnter: aiAutoEnterPref });
     if (handoff?.kind === 'navigate') {
       location.assign(handoff.url);
       return;
@@ -287,10 +305,19 @@ export default function App() {
       }
       return;
     }
-    if (!source || (!isProviderId(source) && !isProviderInstanceId(source))) return;
-    // 实例 id 走 SourceId 边界透传给 worker（gateway 在边界解析为 base provider + options），
-    // wire 字段仍为 ProviderId 类型——与 SearchRequest.providerId 承载实例 id 的既定约定一致。
-    const providerId = source as ProviderId;
+    if (!source) {
+      setError({ message: t(MSG.search_failed_retry), needKey: false });
+      return;
+    }
+    if (!isProviderId(source) && !isProviderInstanceId(source)) {
+      // 走到这里只剩「无源可执行」（回退后投影为空 / 动态定义 URL 构建失败）：
+      // 显式报错，不再静默吞掉提交。
+      setError({ message: t(MSG.search_failed_retry), needKey: false });
+      return;
+    }
+    // 实例 id 走 SourceId 边界透传给 worker（gateway 在边界解析为 base provider + options，
+    // 此后只有 ProviderId 流入 getAdapter/getKey，KTD2/R8）。
+    const providerId = source;
     const isRefresh = opts.forceRefresh === true;
     const hadResponse = response !== null;
     const reqId = ++reqIdRef.current;
@@ -325,6 +352,31 @@ export default function App() {
     }
   }
 
+  /** 陈旧动态 chip 的执行期兜底（site/custom 引擎 pre/post-write 四处共用）：
+   *  从新鲜快照投影取首个可见源执行——engine 族直接 navigate；provider 族（裸 provider /
+   *  provider 实例 / 聚合实例，resolveSerpHandoff 对其返回 openSearchPage 而非 navigate）以
+   *  该源发起 handleSearch（实例/聚合 id 走 SourceId 边界）。仅执行，绝不代替用户持久化 active。 */
+  async function runFallbackSource(config: ProviderConfigReply, nextQuery: string, switchReqId: number): Promise<void> {
+    if (!nextQuery) return;
+    const fallback = projectSources(config)[0];
+    if (!fallback) {
+      setError({ message: t(MSG.search_failed_retry), needKey: false });
+      return;
+    }
+    const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
+    if (fallbackHandoff?.kind === 'navigate') {
+      if (switchReqId !== switchReqIdRef.current) return;
+      location.assign(fallbackHandoff.url);
+      return;
+    }
+    if (isProviderId(fallback.id) || isProviderInstanceId(fallback.id) || isAggregateInstanceId(fallback.id)) {
+      if (switchReqId !== switchReqIdRef.current) return;
+      await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
+      return;
+    }
+    setError({ message: t(MSG.search_failed_retry), needKey: false });
+  }
+
   /** 统一快切：选 provider → 序列化写 + 重搜（沿用 v1）；选 engine → 当前 tab 跳转 SERP。 */
   async function handleSelectSource(source: SearchSource) {
     if (source.kind === 'site-instance') {
@@ -349,33 +401,7 @@ export default function App() {
           // Drop the stale chip from local UI. Execution-only fallback: do not
           // persist a new active source on the user's behalf.
           applySourceSnapshot(config);
-          if (!nextQuery) return;
-          const fallbackSources = allSources(
-            config.configuredProviderIds,
-            config.sourceOrder ?? [],
-            config.sourceHidden ?? [],
-            config.siteInstances ?? [],
-            config.customEngines ?? [],
-            config.providerInstances ?? [],
-            aggregateSourcesOf(config.aggregate),
-          );
-          const fallback = fallbackSources[0];
-          if (!fallback) {
-            setError({ message: t(MSG.search_failed_retry), needKey: false });
-            return;
-          }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
-          if (fallbackHandoff?.kind === 'navigate') {
-            if (switchReqId !== switchReqIdRef.current) return;
-            location.assign(fallbackHandoff.url);
-            return;
-          }
-          if (isProviderId(fallback.id)) {
-            if (switchReqId !== switchReqIdRef.current) return;
-            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
-            return;
-          }
-          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          await runFallbackSource(config, nextQuery, switchReqId);
           return;
         }
         try {
@@ -405,33 +431,7 @@ export default function App() {
         if (!postWriteHandoff || postWriteHandoff.kind !== 'navigate') {
           // Deleted between write and re-read: apply snapshot + execution-only fallback.
           applySourceSnapshot(config);
-          if (!nextQuery) return;
-          const fallbackSources = allSources(
-            config.configuredProviderIds,
-            config.sourceOrder ?? [],
-            config.sourceHidden ?? [],
-            config.siteInstances ?? [],
-            config.customEngines ?? [],
-            config.providerInstances ?? [],
-            aggregateSourcesOf(config.aggregate),
-          );
-          const fallback = fallbackSources[0];
-          if (!fallback) {
-            setError({ message: t(MSG.search_failed_retry), needKey: false });
-            return;
-          }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
-          if (fallbackHandoff?.kind === 'navigate') {
-            if (switchReqId !== switchReqIdRef.current) return;
-            location.assign(fallbackHandoff.url);
-            return;
-          }
-          if (isProviderId(fallback.id)) {
-            if (switchReqId !== switchReqIdRef.current) return;
-            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
-            return;
-          }
-          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          await runFallbackSource(config, nextQuery, switchReqId);
           return;
         }
         applySourceSnapshot(config);
@@ -470,33 +470,7 @@ export default function App() {
           // Drop the stale chip from local UI. Execution-only fallback: do not
           // persist a new active source on the user's behalf.
           applySourceSnapshot(config);
-          if (!nextQuery) return;
-          const fallbackSources = allSources(
-            config.configuredProviderIds,
-            config.sourceOrder ?? [],
-            config.sourceHidden ?? [],
-            config.siteInstances ?? [],
-            config.customEngines ?? [],
-            config.providerInstances ?? [],
-            aggregateSourcesOf(config.aggregate),
-          );
-          const fallback = fallbackSources[0];
-          if (!fallback) {
-            setError({ message: t(MSG.search_failed_retry), needKey: false });
-            return;
-          }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
-          if (fallbackHandoff?.kind === 'navigate') {
-            if (switchReqId !== switchReqIdRef.current) return;
-            location.assign(fallbackHandoff.url);
-            return;
-          }
-          if (isProviderId(fallback.id)) {
-            if (switchReqId !== switchReqIdRef.current) return;
-            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
-            return;
-          }
-          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          await runFallbackSource(config, nextQuery, switchReqId);
           return;
         }
         try {
@@ -527,33 +501,7 @@ export default function App() {
         if (!postWriteDefined) {
           // Deleted between write and re-read: apply snapshot + execution-only fallback.
           applySourceSnapshot(config);
-          if (!nextQuery) return;
-          const fallbackSources = allSources(
-            config.configuredProviderIds,
-            config.sourceOrder ?? [],
-            config.sourceHidden ?? [],
-            config.siteInstances ?? [],
-            config.customEngines ?? [],
-            config.providerInstances ?? [],
-            aggregateSourcesOf(config.aggregate),
-          );
-          const fallback = fallbackSources[0];
-          if (!fallback) {
-            setError({ message: t(MSG.search_failed_retry), needKey: false });
-            return;
-          }
-          const fallbackHandoff = resolveSerpHandoff(fallback, nextQuery, { aiAutoEnter });
-          if (fallbackHandoff?.kind === 'navigate') {
-            if (switchReqId !== switchReqIdRef.current) return;
-            location.assign(fallbackHandoff.url);
-            return;
-          }
-          if (isProviderId(fallback.id)) {
-            if (switchReqId !== switchReqIdRef.current) return;
-            await handleSearch(nextQuery, { providerId: fallback.id, selectedSource: fallback });
-            return;
-          }
-          setError({ message: t(MSG.search_failed_retry), needKey: false });
+          await runFallbackSource(config, nextQuery, switchReqId);
           return;
         }
         applySourceSnapshot(config);
@@ -592,12 +540,20 @@ export default function App() {
       if (source.id === active) return;
       const switchReqId = ++switchReqIdRef.current;
       setSwitching(true);
+      const previousActive = active;
       setActive(source.id);
       try {
         await sendMessage('setActiveSource', source.id);
         if (switchReqId !== switchReqIdRef.current) return;
         const nextQuery = query.trim();
         if (nextQuery) await handleSearch(nextQuery, { providerId: source.id });
+      } catch {
+        // selectActiveSourceId 可 reject invalid_source（实例不再 eligible 等）：
+        // 回滚乐观高亮并暴露错误，避免 chip 停在从未持久化的源上且无任何反馈。
+        if (switchReqId === switchReqIdRef.current) {
+          setActive(previousActive);
+          setError({ message: t(MSG.search_failed_retry), needKey: false });
+        }
       } finally {
         if (switchReqId === switchReqIdRef.current) setSwitching(false);
       }
@@ -611,12 +567,19 @@ export default function App() {
     if (id === active) return;
     const switchReqId = ++switchReqIdRef.current;
     setSwitching(true);
+    const previousActive = active;
     setActive(id);
     try {
       await sendMessage('setActiveSource', id);
       if (switchReqId !== switchReqIdRef.current) return;
       const nextQuery = query.trim();
       if (nextQuery) await handleSearch(nextQuery, { providerId: id });
+    } catch {
+      // 与聚合 chip 同款：写失败（worker 重启 / invalid_source）回滚乐观高亮并暴露错误。
+      if (switchReqId === switchReqIdRef.current) {
+        setActive(previousActive);
+        setError({ message: t(MSG.search_failed_retry), needKey: false });
+      }
     } finally {
       if (switchReqId === switchReqIdRef.current) setSwitching(false);
     }
@@ -649,6 +612,10 @@ export default function App() {
           .then(() => {
             if (switchReqId === switchReqIdRef.current) setActive(instanceId);
           })
+          .catch(() => {
+            // 写失败（worker 重启 / 实例刚变为 ineligible）：chip 保持原值，暴露错误而非静默。
+            if (switchReqId === switchReqIdRef.current) setRefreshError(t(MSG.search_failed_retry));
+          })
           .finally(() => {
             if (switchReqId === switchReqIdRef.current) setSwitching(false);
           });
@@ -661,13 +628,21 @@ export default function App() {
     setError(null);
     setRefreshError(null);
     // 缓存条目可能是实例搜索的产物：激活态恢复优先用 instanceId，裸 provider 搜索回退 providerId。
-    const activeId = (entry.instanceId ?? entry.providerId) as SourceId;
+    // 实例 id 须仍在当前快照定义集中（Options 可能已删除该实例）——已删则回退 base provider id，
+    // 否则 setActiveSource 会被 worker 拒绝（invalid_source）。
+    const instanceStillDefined = !entry.instanceId
+      || providerInstances.some((candidate) => candidate.id === entry.instanceId);
+    const activeId = (instanceStillDefined ? entry.instanceId ?? entry.providerId : entry.providerId) as SourceId;
     if (configuredProviderIds.includes(entry.providerId) && activeId !== active) {
       const switchReqId = ++switchReqIdRef.current;
       setSwitching(true);
       void sendMessage('setActiveSource', activeId)
         .then(() => {
           if (switchReqId === switchReqIdRef.current) setActive(activeId);
+        })
+        .catch(() => {
+          // 同聚合分支：写失败时 chip 保持原值，经缓存命中条的错误位暴露。
+          if (switchReqId === switchReqIdRef.current) setRefreshError(t(MSG.search_failed_retry));
         })
         .finally(() => {
           if (switchReqId === switchReqIdRef.current) setSwitching(false);
@@ -676,13 +651,23 @@ export default function App() {
   }
 
   async function handleRefresh() {
-    // 实例搜索的响应 provider 是 base ProviderId；刷新必须回到产出该结果的实例，
-    // 否则会路由到默认实例（KTD5）而非用户选择的那一个（BUG-2）。
-    // 聚合视图：active 即 agg 实例 id → 用实例 id + forceRefresh 刷新（R8）。
-    const providerId = active && isAggregateInstanceId(active)
-      ? active
-      : (active && isProviderInstanceId(active)) ? active : response?.provider;
-    await handleSearch(aggregateResponse?.query ?? response?.query ?? query, { forceRefresh: true, providerId });
+    // 刷新目标必须绑定当前屏上 displayed 的响应，而非 active：AE7 历史回放路径里旧聚合
+    // 实例未通过 usable gate 时 active 仍是 engine/provider，直接用 active 会把用户导航到
+    // 第三方 SERP 或悄悄换成 solo 结果（与 solo 路径 isActiveSourceForProvider 隐藏刷新
+    // 按钮同源的不一致）。
+    if (aggregateResponse) {
+      if (!isAggregateInstanceUsable(aggregateResponse.instanceId, aggregate)) {
+        setRefreshError(t(MSG.search_failed_retry));
+        return;
+      }
+      await handleSearch(aggregateResponse.query, { forceRefresh: true, providerId: aggregateResponse.instanceId });
+      return;
+    }
+    if (!response) return;
+    // 实例搜索的响应 provider 是 base ProviderId；刷新回到产出该结果的实例（KTD5/BUG-2），
+    // 裸 provider 响应回退响应自身 provider。
+    const providerId = active && isProviderInstanceId(active) ? active : response.provider;
+    await handleSearch(response.query, { forceRefresh: true, providerId });
   }
 
   async function loadSourceSnapshot() {
@@ -710,16 +695,12 @@ export default function App() {
   }
 
   const isStart = !loading && !error && !response && !aggregateResponse;
-  const sources = allSources(configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregateSourcesOf(aggregate));
+  const sources = projectSources({ configuredProviderIds, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregate });
   // 激活源被隐藏时（如隐藏当前 engine），快切栏渲染与搜索回退都改用首个可见源，
   // 避免无高亮目标 / 搜索仍跳隐藏 engine 的结果页。active 本身不改动——
   // 取消隐藏后自动恢复用户原激活偏好（最小惊讶）。仅在 active 已解析时回退，
   // 否则保持 null 让 handleSearch 走 loadSourceSnapshot 兜底（首次渲染未拿到配置）。
-  const visibleActive = active == null
-    ? null
-    : sources.some((s) => s.id === active)
-      ? active
-      : sources[0]?.id ?? null;
+  const visibleActive = firstVisibleSource(active, sources);
   // 聚合历史条目 label 解析（Oracle F4）：SearchCachePanel 的 'aggregate' 哨兵 → 「聚合 · 实例名」。
   const aggNameById: Record<string, string> = {};
   for (const instance of aggregate?.instances ?? []) aggNameById[instance.id] = instance.name;

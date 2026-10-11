@@ -431,6 +431,55 @@ describe('search page: aggregate view (Lane D)', () => {
     expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
   });
 
+  it('binds force refresh to the displayed aggregate response and errors instead of re-targeting active when the replayed instance is unusable (AE7)', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['tavily', 'exa'],
+          activeProviderId: 'tavily',
+          activeSourceId: 'tavily',
+          // 实例不再 eligible（如成员失效/rerank 被清）→ 回放 usable gate 不过，active 不写。
+          aggregate: aggregateSnapshot({ eligibility: { [AGG]: { eligible: false, validMembers: 0 } } }),
+        }));
+      }
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'agg-cache-1', cacheKey: `${AGG}:cached query`, query: 'cached query', normalizedQuery: 'cached query', providerId: 'aggregate', instanceId: AGG, createdAt: 1, lastAccessedAt: 1, answerPreview: 'tavily answer', resultPreviews: [{ title: 'Dedup', url: 'https://x.test/a' }], resultCount: 2 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.resolve({
+          id: 'agg-cache-1',
+          cacheKey: `${AGG}:cached query`,
+          query: 'cached query',
+          normalizedQuery: 'cached query',
+          providerId: 'aggregate',
+          instanceId: AGG,
+          createdAt: 1,
+          lastAccessedAt: 1,
+          response: aggregateResponse({ query: 'cached query' }),
+        });
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '历史' }));
+    fireEvent.click((await screen.findByText('cached query')).closest('button') as HTMLButtonElement);
+
+    // 回放 gate 不过：聚合响应仍完整渲染，active 保持 tavily（不代替用户持久化）。
+    expect(await screen.findByRole('heading', { level: 2, name: '全家桶' })).toBeInTheDocument();
+    expect(mockedSend).not.toHaveBeenCalledWith('setActiveSource', AGG);
+    mockedSend.mockClear();
+
+    // 强制刷新绑定屏上聚合响应而非 active：实例不可用 → 只暴露 refreshError，
+    // 绝不以 active（tavily）发起 solo 搜索或导航到第三方 SERP。
+    fireEvent.click(screen.getByRole('button', { name: '强制全新搜索' }));
+    expect(await screen.findByText('搜索失败，请稍后重试')).toBeInTheDocument();
+    expect(mockedSend).not.toHaveBeenCalledWith('aggregateSearch', expect.anything());
+    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+  });
+
   it('clears the aggregate view and runs a solo search when switching to a provider chip (切源卫生)', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {

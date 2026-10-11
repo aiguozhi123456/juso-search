@@ -11,7 +11,10 @@
 import type { SearchSource } from './sources';
 import type { SourceId } from './sources';
 import { isEngineId, isProviderId } from './sources';
+import type { ProviderId } from './providers/types';
+import type { ProviderInstanceId } from './provider-instances';
 import { isProviderInstanceId } from './provider-instances';
+import type { AggregateInstanceId } from './aggregate-instances';
 import { isAggregateInstanceId } from './aggregate-instances';
 import type { SearchEngine } from './engines/types';
 import { getEngine } from './engines/registry';
@@ -95,6 +98,16 @@ function withEnterParam(baseUrl: string, value: string): string {
   }
 }
 
+// /search.html 空查询回退字面量：原先在三个分支逐字重复（单点收敛；lib/search-page-url.ts
+// 与 lib/deep-link.ts 另有自己的字面量，搜索页改名时仍需各自同步）。
+const SEARCH_PAGE_DEEP_LINK = '/search.html';
+
+/** provider 族（裸 provider / provider 实例 / 聚合实例）共用的 openSearchPage 意图：
+ *  有查询 → 携源深链；空查询 → 裸搜索页。 */
+function openSearchPageHandoff(id: ProviderId | ProviderInstanceId | AggregateInstanceId, query: string): SerpHandoff {
+  return { kind: 'openSearchPage', deepLink: query ? buildSearchDeepLink(id, query) : SEARCH_PAGE_DEEP_LINK };
+}
+
 /** 解析 chip 选中后的跳转意图；不识别的源返回 null。
  *  opts.aiAutoEnter：AI engine 自动回车开关（默认 true）。注入型 AI engine 仅在开关
  *  开启时追加 enter=1（url-only 型原生自动提交，无需 enter=1）。 */
@@ -133,24 +146,15 @@ export function resolveSerpHandoff(
   if (source.kind === 'aggregate-instance' && isAggregateInstanceId(source.id)) {
     // 聚合实例（KTD16）：与 provider 实例同语义——委托 background 打开搜索页深链
     // （搜索页按实例定义存在 && eligible 受理，KTD16 fresh-config 重解析由页面负责）。
-    return {
-      kind: 'openSearchPage',
-      deepLink: trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html',
-    };
+    return openSearchPageHandoff(source.id, trimmed);
   }
   if (source.kind === 'provider-instance' && isProviderInstanceId(source.id)) {
     // 实例与裸 provider 同语义：委托 background 打开搜索页深链，deep link 携带实例 id
     // （搜索页按 base provider 做 configured 检查并透传给 worker 解析，KTD2/R8）。
-    return {
-      kind: 'openSearchPage',
-      deepLink: trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html',
-    };
+    return openSearchPageHandoff(source.id, trimmed);
   }
   if (isProviderId(source.id)) {
-    return {
-      kind: 'openSearchPage',
-      deepLink: trimmed ? buildSearchDeepLink(source.id, trimmed) : '/search.html',
-    };
+    return openSearchPageHandoff(source.id, trimmed);
   }
   return null;
 }
