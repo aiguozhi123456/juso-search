@@ -119,16 +119,18 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-feature-settings: "kern", "liga";
-  overflow-x: hidden;
+  /* clip 不产生滚动容器（hidden 会把 visible 轴按规范算成 auto，使 body 成为滚动容器，
+     页面实际滚动在 html 上 → 全站 position:sticky 静默失效）。 */
+  overflow-x: clip;
 }
 img, svg, video { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; cursor: pointer; }
 :lang(zh), :lang(zh-CN) { font-feature-settings: "palt"; }
-:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(200,55,45,.32); border-radius: 4px; }
-@media (prefers-color-scheme: dark) {
-  :focus-visible { box-shadow: 0 0 0 3px rgba(255,107,91,.38); }
-}
+/* 焦点环用 outline 实现：独立于 box-shadow 绘制，不会被更高特异性的 hover/focus
+   box-shadow 规则（如 .btn--primary:hover）覆盖掉；outline 跟随元素自身 border-radius，
+   var(--brand) 随下方暗色方案自动切换。 */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* ---------- 排版 ---------- */
 .display, h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.08; letter-spacing: -.02em; }
@@ -368,7 +370,7 @@ p { color: var(--fg); }
 }
 .carousel__dot:hover { background: var(--faint); }
 .carousel__dot.is-active { width: 18px; background: var(--brand); }
-.carousel__dot:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 999px; }
+/* 焦点指示由全局 :focus-visible outline 提供（圆点自带 border-radius，outline 随之为圆形）。 */
 
 /* ---------- 能力矩阵（双面对称） ---------- */
 .matrix {
@@ -539,6 +541,9 @@ p { color: var(--fg); }
 }
 .fact h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
 .fact p { color: var(--muted); font-size: .94rem; line-height: 1.6; }
+/* data/security.yaml 的 body_zh/body_en 内嵌 <code>，经 safeHTML 直通渲染；
+   与 .capcard code / .step code / .guide-mini-grid code 同一套行内代码视觉。 */
+.fact code { font-family: var(--font-mono); font-size: .85em; background: var(--bg-sunk); padding: 1px 6px; border-radius: 4px; color: var(--brand-ink); }
 
 .opensource {
   border: 1px solid var(--border); border-radius: 16px; padding: clamp(24px, 3vw, 34px);
@@ -621,6 +626,14 @@ p { color: var(--fg); }
   justify-content: center;
   gap: 1.5rem;
 }
+/* 居中与间距需显式声明：.wrap width:100% 占满 flex 行（align-items 无可居中对象），
+   全局 * { margin: 0 } 剥掉 h1/p 默认 margin，而 .not-found 的 gap 只作用于
+   直接子元素（唯一子元素是 .wrap），内部各块需自带间距。 */
+.not-found__inner { text-align: center; }
+.not-found .eyebrow { margin-bottom: 20px; }
+.not-found h1 { margin-bottom: 16px; }
+.not-found .lead { margin-bottom: 30px; }
+.not-found__cta { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
 
 /* ---------- 动效：载入编排 + 滚动揭示 ---------- */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }

@@ -187,6 +187,10 @@ footer_code:
   other: "Code"
 footer_releases:
   other: "Releases"
+footer_cws:
+  other: "Chrome Web Store"
+footer_cws_release:
+  other: "GitHub release"
 footer_agent_access:
   other: "Agent access"
 footer_license:
@@ -406,6 +410,12 @@ human_doc_customize_title:
   other: "Turn sites, tools, and AI Engines into sources"
 human_doc_customize_body:
   other: "Site Instances scope searches to a public site (Baidu can search it in-site, Bing offers a q1 parameter, all support site: prefixes); Custom Engines use a URL template with one %s placeholder; AI Engines add the AI chat websites you are already signed into as sources."
+human_doc_site_card_title:
+  other: "Site Instance"
+human_doc_custom_card_title:
+  other: "Custom Engine"
+human_doc_custom_card_body:
+  other: "URL template"
 human_doc_ai_engine_title:
   other: "AI Engine · no API key"
 human_doc_ai_engine_card:

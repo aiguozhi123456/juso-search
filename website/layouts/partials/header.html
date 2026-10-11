@@ -35,7 +35,8 @@
           {{ end }}
         {{ end }}
       </nav>
-      <a class="btn btn--primary btn--sm" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener">
+      {{/* aria-label：≤560px 时 .lbl-full 被隐藏、icon aria-hidden，按钮需保证可访问名 */}}
+      <a class="btn btn--primary btn--sm" href="{{ .Site.Params.cwsURL }}" target="_blank" rel="noopener" aria-label="{{ i18n "nav_install" }}">
         {{ partial "icon/chrome.svg" . }}<span class="lbl-full">{{ i18n "nav_install" }}</span>
       </a>
     </div>

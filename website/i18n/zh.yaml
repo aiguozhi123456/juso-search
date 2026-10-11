@@ -187,6 +187,10 @@ footer_code:
   other: "代码"
 footer_releases:
   other: "版本发布"
+footer_cws:
+  other: "Chrome 应用商店"
+footer_cws_release:
+  other: "GitHub 发布"
 footer_agent_access:
   other: "智能体接入"
 footer_license:
@@ -406,6 +410,12 @@ human_doc_customize_title:
   other: "把站点、工具与 AI Engine 都变成来源"
 human_doc_customize_body:
   other: "站外搜索把检索限定到公开站点（百度可选站内搜索，必应可选 q1 参数，也可用 site: 前缀）；Custom Engine 使用带一个 %s 占位符的 URL 模板；AI Engine 则把你已登录的 AI 对话网站直接加入来源列表。"
+human_doc_site_card_title:
+  other: "站点实例"
+human_doc_custom_card_title:
+  other: "自定义引擎"
+human_doc_custom_card_body:
+  other: "URL 模板"
 human_doc_ai_engine_title:
   other: "AI Engine · 无需 API Key"
 human_doc_ai_engine_card:

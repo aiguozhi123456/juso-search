@@ -3,11 +3,11 @@
 
 {{ define "main" }}
 <section class="section not-found">
-  <div class="wrap">
+  <div class="wrap not-found__inner">
     <div class="eyebrow reveal"><span class="dot"></span>404</div>
     <h1 class="wordmark reveal">404</h1>
     <p class="lead reveal">{{ i18n "not_found_text" }}</p>
-    <div class="reveal">
+    <div class="reveal not-found__cta">
       <a class="btn btn--primary" href="{{ "" | relLangURL }}">{{ i18n "not_found_home" }}</a>
       <a class="btn btn--ghost" href="{{ "agents/" | relLangURL }}">{{ i18n "nav_agent" }}</a>
     </div>
