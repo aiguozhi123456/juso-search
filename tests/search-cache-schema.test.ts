@@ -4,6 +4,7 @@ import {
   readCacheSchemaVersion,
   migrateCachePool,
   makeSearchCacheKey,
+  isSearchCacheEntry,
   CURRENT_CACHE_SCHEMA_VERSION,
   CACHE_SCHEMA_VERSION_KEY,
   SEARCH_CACHE_INDEX_KEY,
@@ -90,13 +91,31 @@ describe('ensureCacheSchema: stamping (first install)', () => {
     expect(await readCacheSchemaVersion()).toBe(CURRENT_CACHE_SCHEMA_VERSION);
   });
 
-  it('stamps without reading the entry pool when version missing', async () => {
-    // 首装路径应只读版本键，不读 index/entry（缓存多半空）
+  it('missing stamp + empty pool: reads version then index, stamps without touching entries', async () => {
+    // 缺戳 ≠ 一定首装（版本机制前的构建写过无戳池）：空池时读 index 确认为空后直接盖章，不读 entry 池。
     installStorage({ searchCacheIndex: emptySearchCacheIndex() });
     const getSpy = vi.spyOn(browser.storage.local, 'get');
     await ensureCacheSchema();
-    // 第一次读版本键；不应有读 index 的大批量调用
+    // 第一次读版本键，第二次读 index；不应有读 entry 的大批量调用
     expect(getSpy.mock.calls[0][0]).toBe(CACHE_SCHEMA_VERSION_KEY);
+    expect(getSpy.mock.calls[1][0]).toBe(SEARCH_CACHE_INDEX_KEY);
+  });
+
+  it('missing stamp with a legacy pool migrates instead of stamping over old entries', async () => {
+    // 版本机制引入前的构建写过无戳 v1 缓存池：缺戳 + 有条目必须走迁移链（v1→v2 清池），
+    // 绝不让旧格式条目带着新版本戳被误命中。回归到「缺戳=盖章放行」旧实现时此测试变红。
+    const legacy = entry('a');
+    installStorage({
+      searchCacheIndex: indexWith([legacy]),
+      [searchCacheEntryKey('a')]: legacy,
+      // 注意：不写 CACHE_SCHEMA_VERSION_KEY
+    });
+    await ensureCacheSchema();
+    expect(await readCacheSchemaVersion()).toBe(CURRENT_CACHE_SCHEMA_VERSION);
+    const idxGot = await browser.storage.local.get(SEARCH_CACHE_INDEX_KEY);
+    expect((idxGot[SEARCH_CACHE_INDEX_KEY] as SearchCacheIndex | undefined)?.order ?? []).toEqual([]);
+    const entryGot = await browser.storage.local.get(searchCacheEntryKey('a'));
+    expect(entryGot[searchCacheEntryKey('a')]).toBeUndefined();
   });
 });
 
@@ -146,6 +165,9 @@ describe('migrateCachePool (pure migration runner)', () => {
     const out = migrateCachePool({ index: indexWith([entry('a'), entry('b')]), entries: [entry('a'), entry('b')] }, 1, 2, chain);
     expect(out.entries.map((e) => e.id)).toEqual(['a']);
     expect(out.dropEntryIds).toEqual(['b']);
+    // byKey 按 entryId（值）过滤：被 drop 的条目不得残留 byKey→entryId 映射。
+    // 回归到按键（cacheKey）过滤的 omitKeys 旧实现时，'b' 的映射会幸存，此断言变红。
+    expect(Object.values(out.index.byKey)).toEqual(['a']);
   });
 
   it('is idempotent when migrations are pure', () => {
@@ -259,3 +281,55 @@ function omit<T extends Record<string, unknown>>(obj: T, key: string): T {
   delete (out as Record<string, unknown>)[key];
   return out;
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// isSearchCacheEntry 条目形状守卫（镜像 isSearchCacheIndex）：畸形条目按缺失处理，
+// 读侧（touchCachedSearchEntry）据此走 stale-reference 自愈，而不是在
+// buildSearchCacheSummary 解引用 response 时反复抛错。
+// ────────────────────────────────────────────────────────────────────────────
+describe('isSearchCacheEntry: entry shape guard', () => {
+  it('accepts a well-formed solo entry', () => {
+    expect(isSearchCacheEntry(entry('a'))).toBe(true);
+  });
+
+  it('accepts a well-formed aggregate entry (providerId sentinel + answers array)', () => {
+    const aggregate = {
+      ...entry('a'),
+      providerId: 'aggregate' as const,
+      instanceId: 'agg:x',
+      response: {
+        instanceId: 'agg:x', query: 'a', kind: 'aggregate' as const,
+        answers: [], results: [], members: [], dedupedCount: 0, rerank: {},
+      },
+    };
+    expect(isSearchCacheEntry(aggregate)).toBe(true);
+  });
+
+  it('rejects an entry whose response.results is missing or not an array', () => {
+    const missing = entry('a', {
+      response: { query: 'a', provider: 'tavily' } as unknown as SoloSearchCacheEntry['response'],
+    });
+    expect(isSearchCacheEntry(missing)).toBe(false);
+
+    const nonArray = entry('a', {
+      response: { query: 'a', provider: 'tavily', results: 'nope' } as unknown as SoloSearchCacheEntry['response'],
+    });
+    expect(isSearchCacheEntry(nonArray)).toBe(false);
+  });
+
+  it('rejects an aggregate-sentinel entry without an answers array', () => {
+    const brokenAgg = {
+      ...entry('a'),
+      providerId: 'aggregate' as const,
+      // 聚合条目的 summary 读取会解引用 answers——缺 answers 数组必须判畸形。
+      response: { query: 'a', kind: 'aggregate', results: [{ title: 'T', url: 'https://t.test', snippet: 's' }] },
+    };
+    expect(isSearchCacheEntry(brokenAgg)).toBe(false);
+  });
+
+  it('rejects non-object values', () => {
+    expect(isSearchCacheEntry(null)).toBe(false);
+    expect(isSearchCacheEntry('entry')).toBe(false);
+    expect(isSearchCacheEntry([])).toBe(false);
+  });
+});

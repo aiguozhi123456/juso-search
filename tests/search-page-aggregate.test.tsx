@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/search/App';
 import { sendMessage } from '@/lib/messaging';
 import type { AggregateInstanceId, AggregateSearchResponse } from '@/lib/aggregate/types';
@@ -334,6 +334,42 @@ describe('search page: aggregate view (Lane D)', () => {
     // 写序在搜序之前（教训：先写 activeSource 再搜当前词）。
     const calls = mockedSend.mock.calls.map(([type]) => type);
     expect(calls.indexOf('setActiveSource')).toBeLessThan(calls.indexOf('aggregateSearch'));
+  });
+
+  it('rolls back the optimistic aggregate chip highlight and shows the retry error when setActiveSource rejects', async () => {
+    // selectActiveSourceId 可 reject（实例不再 eligible 等）：聚合 chip 回滚乐观高亮并暴露错误。
+    let rejectWrite!: (e: unknown) => void;
+    const pendingWrite = new Promise<never>((_, reject) => { rejectWrite = reject; });
+    pendingWrite.catch(() => undefined); // 组件侧会捕获，这里仅防测试进程 unhandled rejection
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        return Promise.resolve(configReply({
+          configuredProviderIds: ['tavily', 'exa'],
+          activeProviderId: 'tavily',
+          activeSourceId: 'tavily',
+          aggregate: aggregateSnapshot(),
+        }));
+      }
+      if (type === 'setActiveSource') return pendingWrite;
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'x', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+
+    const aggChip = await screen.findByRole('button', { name: /全家桶/ });
+    expect(aggChip).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(aggChip);
+    // 写在途：乐观高亮已切到聚合 chip。
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', AGG));
+    await waitFor(() => expect(aggChip).toHaveAttribute('aria-pressed', 'true'));
+
+    await act(async () => { rejectWrite(new Error('invalid_source')); });
+
+    // 回滚：aria-pressed 回到之前的源（tavily），错误提示渲染，且不发搜索。
+    await waitFor(() => expect(aggChip).toHaveAttribute('aria-pressed', 'false'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tavily/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(await screen.findByText('搜索失败，请稍后重试')).toBeInTheDocument();
+    expect(mockedSend).not.toHaveBeenCalledWith('aggregateSearch', expect.anything());
   });
 
   it('accepts a deep link to an eligible aggregate instance and auto-searches it (KTD16)', async () => {

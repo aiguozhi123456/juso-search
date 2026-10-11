@@ -237,6 +237,47 @@ describe('S1 回退路径：内存 map 未命中时从快照自解析', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
+// 新鲜快照重解析（dynamic-source-stale-navigation-guard）：sourceById 内嵌的是上次
+// 菜单重建时的定义快照——site-instance/custom-engine 的定义可能已在 Options 被编辑/
+// 删除。点击时必须用新鲜快照重新解析：已删除 → null → 不导航；已编辑 → 打开新 URL。
+// ────────────────────────────────────────────────────────────────────────────
+describe('handleContextMenuClick — 新鲜快照重解析', () => {
+  const siteDocs = (target: string): Snapshot => ({
+    ...baseSnapshot,
+    siteInstances: [{ id: 'site:docs', name: 'Docs', target, engineId: 'google' }],
+  });
+
+  it('已删除的站点实例 chip（快照 siteInstances 为空）→ tabs.create 不被调用', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(siteDocs('https://docs.example.com'));
+    await setupContextMenu();
+    expect(menuCreate.mock.calls.some(([props]) => props.id === 'juso-src:site:docs')).toBe(true);
+    vi.clearAllMocks();
+
+    // 菜单构建后定义被删除：点击时快照里已无 site:docs
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue({ ...baseSnapshot, siteInstances: [] });
+
+    await handleContextMenuClick({ menuItemId: 'juso-src:site:docs', selectionText: 'hello' });
+
+    expect(tabsCreate).not.toHaveBeenCalled();
+  });
+
+  it('定义已编辑 → 打开新鲜快照的新 URL，而非 sourceById 缓存的旧 URL', async () => {
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(siteDocs('https://old.example.com'));
+    await setupContextMenu();
+    vi.clearAllMocks();
+
+    vi.mocked(getProviderConfigSnapshot).mockResolvedValue(siteDocs('https://new.example.com'));
+
+    await handleContextMenuClick({ menuItemId: 'juso-src:site:docs', selectionText: 'hello' });
+
+    expect(tabsCreate).toHaveBeenCalledTimes(1);
+    const url = tabsCreate.mock.calls[0][0].url as string;
+    expect(url).toContain('new.example.com');
+    expect(url).not.toContain('old.example.com');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
 // 聚合 chip 场景（Lane G 回归锁 / KTD16）：聚合实例增删、改成员（eligibility 变化）、
 // rerank 配置变化 → 菜单重建后 chip 集同步。REBUILD_KEYS 登记已在上文锁定；
 // 这里锁「重建后的菜单内容与快照投影一致」——菜单与快切栏无漂移（plan Verification 3）。

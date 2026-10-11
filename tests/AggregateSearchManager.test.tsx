@@ -214,6 +214,29 @@ describe('AggregateSearchManager — rerank 卡保存链路（KTD12/AE8）', () 
     expect(screen.getByLabelText('Endpoint')).toHaveValue('http://127.0.0.1:9999/draft');
     expect(screen.getByLabelText('模型（可选）')).toHaveValue('draft-model');
   });
+
+  it('renders the worker failure message when clearing the api key returns ok:false (no fake success)', async () => {
+    // setRerankConfig 是 ok/error 判别联合：清除失败必须按失败渲染（role="alert"），
+    // 绝不落到「已清除 API Key」的假成功，也不触发 onChange 回流。
+    const onChange = vi.fn();
+    mockedSend.mockResolvedValue({ ok: false, error: { kind: 'invalid', message: '端点无效' } });
+    render(
+      <AggregateSearchManager
+        aggregate={{ ...SNAPSHOT, rerank: { ...SNAPSHOT.rerank, hasApiKey: true } }}
+        configuredProviderIds={['tavily', 'exa']}
+        providerInstances={PROVIDER_INSTANCES}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '清除' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('端点无效');
+    expect(screen.queryByText('已清除 API Key。')).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+    // 失败后忙态解除：清除按钮回到可用（非永久 saving）。
+    expect(screen.getByRole('button', { name: '清除' })).toBeEnabled();
+  });
 });
 
 describe('AggregateSearchManager — 测试连接分型（KTD6）', () => {

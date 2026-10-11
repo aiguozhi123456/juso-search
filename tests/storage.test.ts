@@ -50,7 +50,7 @@ import {
   deleteProviderInstance,
   ensureDefaultInstance,
 } from '@/lib/storage';
-import { SEARCH_CACHE_CAP } from '@/lib/search-cache';
+import { SEARCH_CACHE_CAP, SEARCH_CACHE_INDEX_KEY, searchCacheEntryKey } from '@/lib/search-cache';
 import type { NormalizedSearchResponse } from '@/lib/providers/types';
 
 // 5 个预置 AI engine（registry 顺序固定），sourceOrder 归一化补尾追加在 duckduckgo 之后。
@@ -1089,5 +1089,45 @@ describe('storage: local search cache', () => {
     expect(summaries).toHaveLength(SEARCH_CACHE_CAP);
     expect(summaries[0].query).toBe(`q-${SEARCH_CACHE_CAP}`);
     expect(await getCachedSearch('tavily', 'q-0')).toBeNull();
+  });
+
+  it('treats a malformed entry (missing response.results) as a miss and heals the stale index reference', async () => {
+    // isSearchCacheEntry 守卫（镜像索引读取）：畸形条目按缺失处理 → 读侧走
+    // removeStaleSearchCacheReference 自愈，而不是在 buildSearchCacheSummary 解引用时抛错。
+    const malformed = {
+      id: 'broken-1',
+      cacheKey: 'tavily:broken',
+      query: 'broken',
+      normalizedQuery: 'broken',
+      providerId: 'tavily',
+      createdAt: 1000,
+      lastAccessedAt: 1000,
+      response: { query: 'broken', provider: 'tavily' }, // 缺 response.results
+    };
+    const index = {
+      version: 1 as const,
+      order: ['broken-1'],
+      byKey: { 'tavily:broken': 'broken-1' },
+      summaries: {
+        'broken-1': {
+          id: 'broken-1', cacheKey: 'tavily:broken', query: 'broken', normalizedQuery: 'broken',
+          providerId: 'tavily', createdAt: 1000, lastAccessedAt: 1000, resultCount: 0, resultPreviews: [],
+        },
+      },
+    };
+    await browser.storage.local.set({
+      [SEARCH_CACHE_INDEX_KEY]: index,
+      [searchCacheEntryKey('broken-1')]: malformed,
+    });
+
+    expect(await getCachedSearch('tavily', 'broken')).toBeNull();
+    expect(await getCachedSearchEntry('broken-1')).toBeNull();
+
+    // stale 引用已被清理：order/summaries/byKey 均不再引用畸形条目。
+    const got = await browser.storage.local.get(SEARCH_CACHE_INDEX_KEY);
+    const cleaned = got[SEARCH_CACHE_INDEX_KEY] as { order: string[]; summaries: Record<string, unknown>; byKey: Record<string, unknown> };
+    expect(cleaned.order).toEqual([]);
+    expect(cleaned.summaries).toEqual({});
+    expect(cleaned.byKey).toEqual({});
   });
 });

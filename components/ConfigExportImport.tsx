@@ -80,7 +80,9 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
     if (fileRef.current) fileRef.current.value = '';
     // 容量护栏：真实导出 < 1KB，给 256KB 余量即可挡住恶意大文件 OOM。
     if (file.size > 256 * 1024) {
-      setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, 'file_too_large') });
+      // 与 worker 侧 lib/config-io.ts 的同一阈值共用 importErrorText 映射，
+      // 绝不把裸 token 渲染给用户（本组件的 importErrorText 契约）。
+      setStatus({ kind: 'error', message: importErrorText('import_too_large') });
       return;
     }
     setStatus({ kind: 'busy' });

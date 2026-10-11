@@ -1297,6 +1297,41 @@ describe('search page', () => {
     }
   });
 
+  it('rolls back the optimistic instance-chip highlight and shows the retry error when setActiveSource rejects', async () => {
+    // 实例 chip 与聚合 chip 同款 catch：写失败（worker 重启 / invalid_source）→
+    // aria-pressed 回滚到之前的源 + search_failed_retry 文案，绝不发起实例搜索。
+    let rejectWrite!: (e: unknown) => void;
+    const pendingWrite = new Promise<never>((_, reject) => { rejectWrite = reject; });
+    pendingWrite.catch(() => undefined); // 组件侧会捕获，这里仅防测试进程 unhandled rejection
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') return Promise.resolve(configReply({
+        configuredProviderIds: ['tavily', 'exa'],
+        activeProviderId: 'tavily',
+        activeSourceId: 'tavily',
+        providerInstances: [{ id: 'inst:exa:r1', baseProviderId: 'exa', name: 'AI 研究', options: {} }],
+        groupConfig: pinnedGroupConfig(['tavily', 'exa', 'inst:exa:r1', 'google', 'bing', 'baidu']),
+      }));
+      if (type === 'setActiveSource') return pendingWrite;
+      if (type === 'getSearchCacheSummaries') return Promise.resolve([]);
+      return Promise.resolve({ ok: true, response: { query: 'x', provider: 'tavily', results: [] }, cache: { hit: false } });
+    }) as never);
+    render(<App />);
+
+    const instanceChip = await screen.findByRole('button', { name: /AI 研究/ });
+    expect(instanceChip).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(instanceChip);
+    // 写在途：乐观高亮已切到实例 chip。
+    await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'inst:exa:r1'));
+    await waitFor(() => expect(instanceChip).toHaveAttribute('aria-pressed', 'true'));
+
+    await act(async () => { rejectWrite(new Error('invalid_source')); });
+
+    await waitFor(() => expect(instanceChip).toHaveAttribute('aria-pressed', 'false'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tavily/ })).toHaveAttribute('aria-pressed', 'true'));
+    expect(await screen.findByText('搜索失败，请稍后重试')).toBeInTheDocument();
+    expect(mockedSend).not.toHaveBeenCalledWith('search', expect.anything());
+  });
+
   it('disables concurrent source switching while a Site Engine selection is pending', async () => {
     const { spy, restore } = stubLocation();
     const siteWrite = deferred<void>();

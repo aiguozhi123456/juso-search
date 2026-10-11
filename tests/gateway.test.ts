@@ -1026,6 +1026,29 @@ describe('Provider Instance gateway handlers', () => {
     expect(mockedUpdateProviderInstance).toHaveBeenCalledWith(created.id, { name: 'Renamed' });
   });
 
+  it('does not clear the search cache for a name-only patch (options unchanged)', async () => {
+    // KTD9 镜像判定：改名不使缓存失效（cache key 不含实例名）。
+    mockedGetProviderInstances.mockResolvedValue([created]);
+    const updated = { ...created, name: 'Renamed' }; // options 引用/内容不变
+    mockedUpdateProviderInstance.mockResolvedValue(updated);
+    mockedClearSearchCache.mockResolvedValue(undefined);
+
+    await handleUpdateProviderInstance({ id: created.id, patch: { name: 'Renamed' } });
+
+    expect(mockedClearSearchCache).not.toHaveBeenCalled();
+  });
+
+  it('clears the search cache exactly once when the options actually change', async () => {
+    mockedGetProviderInstances.mockResolvedValue([created]);
+    const updated = { ...created, options: { category: 'news' } };
+    mockedUpdateProviderInstance.mockResolvedValue(updated);
+    mockedClearSearchCache.mockResolvedValue(undefined);
+
+    await handleUpdateProviderInstance({ id: created.id, patch: { options: { category: 'news' } } });
+
+    expect(mockedClearSearchCache).toHaveBeenCalledTimes(1);
+  });
+
   it('deletes an instance and clears the search cache', async () => {
     mockedDeleteProviderInstance.mockResolvedValue(undefined);
     mockedClearSearchCache.mockResolvedValue(undefined);
@@ -1234,5 +1257,40 @@ describe('installDownloadFilenameGuard', () => {
     const suggestSpy = vi.fn();
     filenameListener!({ byExtensionId: 'other-extension-id', filename: 'whatever.txt' }, suggestSpy);
     expect(suggestSpy).toHaveBeenCalledWith(); // 无参 = 放行
+  });
+
+  it('splices the FIFO entry when a download fails so the next download suggests its own filename', async () => {
+    const suggestSpy = vi.fn();
+    // 两个不同 exportedAt（跨月）→ 两次导出文件名必然不同（与本地时区无关）。
+    const payloadFor = (exportedAt: number): ConfigExport => ({
+      schemaVersion: 1, exportedAt, appVersion: '1.0.0',
+      providerKeys: {}, activeProvider: null, activeSource: 'google',
+      themePref: 'auto', localePref: 'auto', siteInstances: [],
+    });
+    mockedBuildExportPayload
+      .mockResolvedValueOnce(payloadFor(new Date('2026-01-01T10:00:00Z').getTime()))
+      .mockResolvedValueOnce(payloadFor(new Date('2026-02-01T10:00:00Z').getTime()));
+    // 第一次 download 拒绝（onDeterminingFilename 永不触发）；第二次成功并模拟 Chrome 触发监听器。
+    vi.mocked(browser.downloads.download)
+      .mockImplementationOnce(() => Promise.reject(new Error('user cancelled')))
+      .mockImplementation(() => {
+        filenameListener!({ byExtensionId: 'abcdefghijklmnopabcdefghijklmnop', filename: 'download.json' }, suggestSpy);
+        return Promise.resolve(2);
+      });
+
+    // 第一次导出失败：download_failed 透传。
+    const failed = await handleExportConfig();
+    expect(failed).toEqual({ ok: false, error: { kind: 'download_failed', message: 'user cancelled' } });
+
+    // 第二次导出成功：守卫 suggest 的是**第二个**文件名——失败项已被 splice，
+    // 队首不再滞留第一个（陈旧）文件名。
+    const ok = await handleExportConfig();
+    expect(ok.ok).toBe(true);
+    const [firstCall, secondCall] = vi.mocked(browser.downloads.download).mock.calls;
+    expect(firstCall[0].filename).toMatch(/^juso-config-20260101-\d{4}\.json$/);
+    expect(secondCall[0].filename).toMatch(/^juso-config-20260201-\d{4}\.json$/);
+    expect(suggestSpy).toHaveBeenCalledTimes(1);
+    expect(suggestSpy).toHaveBeenCalledWith({ filename: secondCall[0].filename });
+    expect(suggestSpy).not.toHaveBeenCalledWith({ filename: firstCall[0].filename });
   });
 });

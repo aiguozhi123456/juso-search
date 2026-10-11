@@ -122,7 +122,7 @@ describe('ConfigExportImport', () => {
     // 构造一个 > 256KB 的文件（size 由 File 构造器的内容长度决定，这里用大字符串）
     const big = new File([new Array(300 * 1024).fill('x').join('')], 'huge.json', { type: 'application/json' });
     fireEvent.change(input, { target: { files: [big] } });
-    expect(await screen.findByText(/导入失败：文件格式无效/)).toBeInTheDocument();
+    expect(await screen.findByText(/导入失败：文件过大/)).toBeInTheDocument();
     expect(mockedSend).not.toHaveBeenCalled();
   });
 

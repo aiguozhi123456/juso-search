@@ -241,11 +241,35 @@ export function normalizeSiteInstanceDefinition(value: unknown): SiteInstanceDef
     || typeof candidate.name !== 'string'
     || typeof candidate.engineId !== 'string' || !isSiteInstanceEngineId(candidate.engineId)) return null;
   const target = normalizeSiteTarget(candidate.target);
+  if (!target) warnDroppedPortTarget(candidate.target);
   const name = candidate.name.trim();
   const options = normalizeSiteInstanceOptions(candidate.engineId, candidate.options);
   return target && name && name.length <= MAX_INSTANCE_NAME_LENGTH
     ? { id: candidate.id, name, target: target.canonicalUrl, engineId: candidate.engineId, ...(options ? { options } : {}) }
     : null;
+}
+
+/** 已告警过的遗留端口 target（同一 target 只告警一次，避免读取路径刷屏）。 */
+const warnedPortTargets = new Set<string>();
+
+/**
+ * 端口拒绝只加在写入/导入校验上（normalizeSiteTarget 的 `|| url.port`），但读取路径共用同一
+ * 归一化器：版本升级前存下的 host:port 记录会在每次读取时静默蒸发，且后续任一实例变更会把
+ * 剔除后的集合固化回 storage。这里不做语义放行（是否 grandfather 属产品决策），只保证不静默：
+ * 其余拒绝原因（scheme/凭证/私有主机名等）一直如此，不在此告警。
+ */
+function warnDroppedPortTarget(rawTarget: unknown): void {
+  if (typeof rawTarget !== 'string' || warnedPortTargets.has(rawTarget)) return;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(rawTarget) ? rawTarget : `https://${rawTarget}`);
+    // 默认端口已被 URL 解析器归一化掉，非空 url.port 必为非默认端口——即唯一的新增拒绝原因。
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname && !url.username && !url.password && url.port) {
+      warnedPortTargets.add(rawTarget);
+      console.warn(`[juso] site instance target with non-default port is no longer supported and was dropped: ${url.hostname}:${url.port} (${rawTarget})`);
+    }
+  } catch {
+    // 非 URL 形态：其他既有拒绝原因，不在此告警。
+  }
 }
 
 /** 去重键（KTD6）：(engineId, 有效构造模式, scope, zhannei 筛选指纹)。无效 target 返回 null。 */

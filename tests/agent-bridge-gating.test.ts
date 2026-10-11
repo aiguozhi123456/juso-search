@@ -9,6 +9,12 @@ import { runAgentBridge } from '@/lib/agent-bridge';
 import type { AgentEngineSearchRequest, AgentSiteSearchReply } from '@/lib/agent-bridge';
 import type { EngineExtractionResult } from '@/lib/engines/extractors';
 import type { SearchReply } from '@/lib/messaging';
+import { MSG_AGENT_ENGINE_SEARCH_DISABLED } from '@/lib/gateway';
+import { t } from '@/lib/i18n';
+
+// gateway 经 lib/skill-variant 引用构建期 define（__SKILL_VARIANT__），vitest 下需显式钉住
+// （沿 tests/aggregate-gateway.test.ts 先例）。
+vi.mock('@/lib/skill-variant', () => ({ SKILL_VARIANT: 'prod' }));
 
 // 这些测试锁定 background.ts 的 agentBridgeClaim handler 双层门控契约。
 // handler 本身包在 defineBackground 闭包里无法直接 import，所以这里复刻其决策序列
@@ -192,12 +198,13 @@ describe('agent bridge gating: search-site sub-switch (background wrapper mirror
   const siteClaim = { protocol: 2, requestId: 'site', request: { action: 'search-site', query: 'hello', siteId: 'site:abc123' } };
 
   // 复刻 background.ts 的 handleSearchSite 包装：子开关 off → ok:false envelope，不代 agent 加载第三方页。
+  // 文案与 background.ts 同源（t(MSG_AGENT_ENGINE_SEARCH_DISABLED)），避免镜像与真实实现漂移后各自断言。
   async function gatedSearchSite(
     request: { action: 'search-site'; query: string; siteId: string },
     runReal: () => Promise<AgentSiteSearchReply>,
   ): Promise<AgentSiteSearchReply> {
     if (!(await getEngineSearchEnabled())) {
-      return { ok: false, error: { kind: 'unknown' as const, message: 'engine-search sub-switch is off.' } };
+      return { ok: false, error: { kind: 'unknown' as const, message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } };
     }
     return runReal();
   }
@@ -221,7 +228,7 @@ describe('agent bridge gating: search-site sub-switch (background wrapper mirror
     );
     expect(realSiteSearch).not.toHaveBeenCalled();
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
-      reply: { ok: false, error: { kind: 'unknown', message: 'engine-search sub-switch is off.' } },
+      reply: { ok: false, error: { kind: 'unknown', message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } },
     });
   });
 

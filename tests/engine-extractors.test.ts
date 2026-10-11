@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import { extractEngineSearch } from '@/lib/engines/extractors';
+import { uniqueResults } from '@/lib/engines/extractors/shared';
 import type { EngineId } from '@/lib/engines/types';
 
 const fixture = (name: string) => readFileSync(join(process.cwd(), 'tests/fixtures/engines', name), 'utf8');
@@ -272,5 +273,82 @@ describe('engine natural-result extractors', () => {
     expect(extractEngineSearch({ document, engine: 'google', query: 'test', pageUrl: 'https://www.google.com/search?q=test' })).toEqual({
       engine: 'google', query: 'test', error: 'unsupported-layout',
     });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// 社媒 SPA consent 可见性门（shared.isRenderedElement）：SPA 外壳常把登录遮罩节点
+// 常驻 DOM（display:none），querySelector 不区分可见性——只有**实际渲染**的墙才算
+// consent，否则已登录且有结果的页被误报 consent、静默丢弃全部结果。
+// 注意：DOMParser 解析出的文档 defaultView 为 null（getComputedStyle 不可用），
+// 因此这里走 jsdom 全局 document（body.innerHTML）而非 fixture。
+// ────────────────────────────────────────────────────────────────────────────
+describe('social SPA consent visibility gate (isRenderedElement)', () => {
+  const cases = [
+    { engine: 'bilibili', pageUrl: 'https://search.bilibili.com/all?keyword=test', resultArea: '<div class="search-content"></div>' },
+    { engine: 'douyin', pageUrl: 'https://www.douyin.com/search/test', resultArea: '<div id="search-result-container"></div>' },
+    { engine: 'xiaohongshu', pageUrl: 'https://www.xiaohongshu.com/search_result?keyword=test', resultArea: '<div class="feeds-container"></div>' },
+  ] as const;
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it.each(cases)('$engine: a display:none login wall is NOT consent (hidden SPA shell)', ({ engine, pageUrl, resultArea }) => {
+    document.body.innerHTML = `${resultArea}<div class="login-container" style="display:none"></div>`;
+    // 结果区健康：pageState 为 null → 走正常抽取（空结果 → no-results），绝不是 consent。
+    expect(extractEngineSearch({ document, engine, query: 'test query', pageUrl })).toEqual({
+      engine, query: 'test query', error: 'no-results',
+    });
+  });
+
+  it.each(cases)('$engine: a rendered login wall reports consent', ({ engine, pageUrl, resultArea }) => {
+    document.body.innerHTML = `${resultArea}<div class="login-container"></div>`;
+    expect(extractEngineSearch({ document, engine, query: 'test query', pageUrl })).toEqual({
+      engine, query: 'test query', error: 'consent',
+    });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// uniqueResults 去重语义（九个抽取器共用）：URL 去重 + 内容去重（title+snippet，
+// 与 URL 无关）+ maxResults 截断。contentKey 曾混入 URL 导致内容去重形同死代码。
+// ────────────────────────────────────────────────────────────────────────────
+describe('uniqueResults dedup semantics', () => {
+  const result = (title: string, url: string, snippet: string) => ({ title, url, snippet });
+
+  it('collapses same title+snippet at different URLs to one (content dedup is URL-independent)', () => {
+    const out = uniqueResults([
+      result('Mirror', 'https://a.test/1', 'identical text'),
+      result('Mirror', 'https://b.test/2', 'identical text'),
+    ], 10);
+    expect(out).toHaveLength(1);
+    expect(out[0].url).toBe('https://a.test/1');
+  });
+
+  it('keeps results with the same title but different snippets', () => {
+    const out = uniqueResults([
+      result('Same title', 'https://a.test/1', 'snippet one'),
+      result('Same title', 'https://b.test/2', 'snippet two'),
+    ], 10);
+    expect(out).toHaveLength(2);
+  });
+
+  it('collapses repeated URLs even when title/snippet differ (seenUrls path)', () => {
+    const out = uniqueResults([
+      result('First', 'https://a.test/x', 'one'),
+      result('Second', 'https://a.test/x', 'two'),
+    ], 10);
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe('First');
+  });
+
+  it('still truncates to maxResults after dedup', () => {
+    const out = uniqueResults([
+      result('T1', 'https://a.test/1', 'a'),
+      result('T2', 'https://b.test/2', 'b'),
+      result('T3', 'https://c.test/3', 'c'),
+    ], 2);
+    expect(out.map((r) => r.title)).toEqual(['T1', 'T2']);
   });
 });
