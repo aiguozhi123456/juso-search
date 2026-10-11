@@ -70,8 +70,12 @@ export class ProviderError extends Error {
   }
 }
 
-/** 传输层抽象：把 REST / MCP 统一成「给我 query/opts/key，还我原始响应，失败抛 ProviderError」。
- *  send() 必须在任何失败情形（network/auth/parse/provider）抛 ProviderError；normalize 永远拿不到错误。 */
+/** 传输层抽象：把 REST / MCP 统一成「给我 query/opts/key，还我原始响应」。
+ *  send() 负责传输期失败（network/auth/HTTP 状态），失败一律抛 ProviderError；REST 路径在
+ *  send() 内解析响应体，解析失败也映射为 'parse' 抛出。注意：MCP 传输只回原始工具文本，
+ *  响应体解析与 'parse' 映射发生在 ProviderDefinition.normalize（见 base.ts，normalize 允许
+ *  抛 ProviderError）——所以「normalize 拿到的 TRaw 不保证已解析」不能理解为「normalize
+ *  永远拿不到错误」。 */
 export interface ProviderTransport<TRaw> {
   send(query: string, opts: SearchOptions, apiKey: string): Promise<TRaw>;
 }

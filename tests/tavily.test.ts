@@ -46,6 +46,25 @@ describe('tavilyAdapter', () => {
     expect(out.results[0].snippet).toBe('s');
   });
 
+  it('falls back to the URL when the API omits a result title (result + answer citations)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        res(200, {
+          answer: 'answer text',
+          results: [
+            { url: 'https://no-title.com', content: 's' },
+          ],
+        }),
+      ),
+    );
+    const out = await tavilyAdapter.search('q', {}, 'k');
+    expect(out.results[0].title).toBe('https://no-title.com');
+    expect(out.answer?.citations).toEqual([
+      { url: 'https://no-title.com', title: 'https://no-title.com' },
+    ]);
+  });
+
   it('sends Bearer auth and request body', async () => {
     const fetchMock = vi.fn(async () => res(200, { results: [] }));
     vi.stubGlobal('fetch', fetchMock);

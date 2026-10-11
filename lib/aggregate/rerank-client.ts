@@ -85,7 +85,7 @@ export function normalizeRerankConfig(value: unknown): RerankConfig {
   const candidate = value as Record<string, unknown>;
   const endpoint = typeof candidate.endpoint === 'string' ? candidate.endpoint.trim() : '';
   const model = typeof candidate.model === 'string' && candidate.model.trim() !== '' ? candidate.model.trim() : undefined;
-  const apiKey = typeof candidate.apiKey === 'string' && candidate.apiKey !== '' ? candidate.apiKey : undefined;
+  const apiKey = typeof candidate.apiKey === 'string' && candidate.apiKey.trim() !== '' ? candidate.apiKey : undefined;
   return { endpoint, ...(model ? { model } : {}), ...(apiKey ? { apiKey } : {}) };
 }
 
@@ -105,6 +105,9 @@ export type RerankEndpointValidation =
 /**
  * 校验并规范化 rerank endpoint（KTD12）：
  * - 解析 URL（不可解析 → invalid_url）；
+ * - 携带 userinfo 凭据（user:pass@）→ invalid_url：url.href 会把凭据持久化并回显进
+ *   page-facing snapshot（credential-exposure），且 UA 可能据 userinfo 注入与 Bearer apiKey
+ *   竞争的 Authorization: Basic 头；
  * - host 为 `localhost` / `[::1]` → 自动改写 `127.0.0.1`（保留端口/路径，rewritten=true）；
  * - 白名单二选一，否则拒绝：`http + 127.0.0.1`（loopback）或 `https + api.siliconflow.cn`
  *   （硅基流动云端；其他 https host 拒绝 not_loopback）。
@@ -122,6 +125,7 @@ export function validateRerankEndpoint(raw: string): RerankEndpointValidation {
     rewritten = true;
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: 'not_http' };
+  if (url.username !== '' || url.password !== '') return { ok: false, reason: 'invalid_url' };
   const loopback = url.protocol === 'http:' && url.hostname === '127.0.0.1';
   const siliconflow = url.protocol === 'https:' && url.hostname === 'api.siliconflow.cn';
   if (!loopback && !siliconflow) return { ok: false, reason: 'not_loopback' };
@@ -167,15 +171,20 @@ export async function rerankDocuments(config: RerankConfig, request: RerankReque
       signal: controller.signal,
       ...(options.fetch ? { fetch: options.fetch } : {}),
     });
-    const statusError = mapStatus(response.status, RERANK_LABEL, response.errorDetail);
-    if (statusError) throw statusError;
+    if (!response.ok) {
+      // mapStatus 对一切非 2xx 抛错；?? 分支仅为类型收窄的兜底。
+      const statusError = mapStatus(response.status, RERANK_LABEL, response.errorDetail)
+        ?? new ProviderError('provider', `Rerank: HTTP ${response.status}`, response.status);
+      throw statusError;
+    }
     return validateRerankResults(response.data);
   } catch (e) {
     if (e instanceof RerankError) throw e;
     // 超时优先于通用 network 文案，便于上层区分「服务没起」与「起了但 10s 没回」。
     if (timedOut) throw new RerankError('network', `rerank request timed out after ${timeoutMs}ms`);
     if (e instanceof ProviderError) throw new RerankError(e.kind, e.message, e.status);
-    if (e instanceof Error && e.name === 'AbortError') throw new RerankError('network', 'rerank request aborted');
+    // 注意不能加 instanceof Error 收窄：jsdom / 部分运行时的 DOMException 不继承 Error。
+    if ((e as { name?: string } | null)?.name === 'AbortError') throw new RerankError('network', 'rerank request aborted');
     throw new RerankError('provider', e instanceof Error ? e.message : String(e));
   } finally {
     clearTimeout(timer);

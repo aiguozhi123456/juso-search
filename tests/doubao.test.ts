@@ -171,6 +171,23 @@ describe('doubaoAdapter', () => {
     await expect(doubaoAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'rateLimit' });
   });
 
+  it('maps unmapped business codes with the dedicated doubao template (not the HTTP-status wording)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        res(200, {
+          ResponseMetadata: { Error: { CodeN: 500003, Message: 'InternalError' } },
+          Result: null,
+        }),
+      ),
+    );
+    await expect(doubaoAdapter.search('q', {}, 'k')).rejects.toMatchObject({
+      kind: 'provider',
+      // error_doubao_business：业务码语义，不得渲染成「HTTP 500003」。
+      message: expect.stringContaining('服务返回错误 500003'),
+    });
+  });
+
   it('maps 401 to unauthorized ProviderError', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => res(401, { detail: { error: 'Unauthorized' } })));
     await expect(doubaoAdapter.search('q', {}, 'bad')).rejects.toBeInstanceOf(ProviderError);

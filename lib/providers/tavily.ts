@@ -5,7 +5,7 @@ import { restTransport } from './http';
 // POST https://api.tavily.com/search (Bearer)
 // include_answer=true -> answer 字符串；results[].content 是短摘要（snippet）。
 interface TavilyResult {
-  title: string;
+  title?: string;
   url: string;
   content: string;
   score?: number;
@@ -38,7 +38,7 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
   }),
   normalize(query, data): NormalizedBody {
     const results: NormalizedResult[] = (data.results ?? []).map((r) => ({
-      title: r.title,
+      title: r.title ?? r.url,
       url: r.url,
       snippet: r.content ?? '',
       score: r.score,

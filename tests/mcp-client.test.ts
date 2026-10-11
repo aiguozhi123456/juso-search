@@ -28,7 +28,7 @@ describe('mcpWebSearch', () => {
     expect(text).toBe('{"results":[]}');
   });
 
-  it('passes an optional cancellation signal to both MCP requests', async () => {
+  it('passes an optional cancellation signal to all three MCP requests (initialize, notification, tools/call)', async () => {
     const controller = new AbortController();
     const fetchMock = mockMcp(
       { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
@@ -38,9 +38,69 @@ describe('mcpWebSearch', () => {
 
     await mcpWebSearch('https://x/mcp', 'k', 'q', controller.signal);
 
-    expect(fetchMock.mock.calls).toHaveLength(2);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
-    expect(fetchMock.mock.calls[1][1]).toMatchObject({ signal: controller.signal });
+    expect(fetchMock.mock.calls).toHaveLength(3);
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]).toMatchObject({ signal: controller.signal });
+    }
+  });
+
+  it('sends notifications/initialized between initialize and tools/call (MCP lifecycle)', async () => {
+    const fetchMock = mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: 'ok' }] } },
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const text = await mcpWebSearch('https://x/mcp', 'k', 'q');
+
+    expect(text).toBe('ok');
+    const methods = fetchMock.mock.calls.map(
+      (call) => (JSON.parse(String((call[1] as RequestInit).body)) as { method: string }).method,
+    );
+    expect(methods).toEqual(['initialize', 'notifications/initialized', 'tools/call']);
+    // 通知无 id（JSON-RPC notification 形状）。
+    const notification = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body)) as { id?: unknown };
+    expect('id' in notification).toBe(false);
+  });
+
+  it('throws parse when the JSON-RPC response id does not match the request id', async () => {
+    vi.stubGlobal('fetch', mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      { jsonrpc: '2.0', id: 99, result: { content: [{ type: 'text', text: 'wrong reply' }] } },
+    ));
+    await expect(mcpWebSearch('https://x/mcp', 'k', 'q')).rejects.toMatchObject({ kind: 'parse' });
+  });
+
+  it('picks the id-matching event out of an interleaved SSE stream (notifications must not be taken as the reply)', async () => {
+    const sse = [
+      'event: message',
+      'data: {"jsonrpc":"2.0","method":"notifications/message","params":{"progress":50}}',
+      '',
+      'event: message',
+      'data: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"MATCHED"}]}}',
+      '',
+    ].join('\n');
+    vi.stubGlobal('fetch', mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      sse,
+      'text/event-stream',
+    ));
+    const text = await mcpWebSearch('https://x/mcp', 'k', 'q');
+    expect(text).toBe('MATCHED');
+  });
+
+  it('throws parse when no SSE event carries the matching id', async () => {
+    const sse = [
+      'event: message',
+      'data: {"jsonrpc":"2.0","id":42,"result":{"content":[{"type":"text","text":"OTHER"}]}}',
+      '',
+    ].join('\n');
+    vi.stubGlobal('fetch', mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      sse,
+      'text/event-stream',
+    ));
+    await expect(mcpWebSearch('https://x/mcp', 'k', 'q')).rejects.toMatchObject({ kind: 'parse' });
   });
 
   it('parses an SSE tools/call response', async () => {
@@ -117,5 +177,16 @@ describe('mcpWebSearch', () => {
       { jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: '' }] } },
     ));
     await expect(mcpWebSearch('https://x/mcp', 'k', 'q')).rejects.toMatchObject({ kind: 'parse' });
+  });
+
+  it('throws provider carrying the tool error text when result.isError is set', async () => {
+    vi.stubGlobal('fetch', mockMcp(
+      { jsonrpc: '2.0', id: 1, result: { capabilities: {} } },
+      { jsonrpc: '2.0', id: 2, result: { isError: true, content: [{ type: 'text', text: 'quota exceeded for plan' }] } },
+    ));
+    await expect(mcpWebSearch('https://x/mcp', 'k', 'q')).rejects.toMatchObject({
+      kind: 'provider',
+      message: expect.stringContaining('quota exceeded for plan'),
+    });
   });
 });

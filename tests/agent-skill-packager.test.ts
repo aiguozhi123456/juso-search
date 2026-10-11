@@ -46,13 +46,11 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url.endsWith('agent-skill/SKILL.md')) return { text: async () => SKILL_MD_FIXTURE };
-      if (url.endsWith('agent-skill/scripts/juso_search.py'))
-        return { text: async () => PY_FIXTURE };
-      if (url.endsWith('agent-skill/scripts/juso_bridge.py'))
-        return { text: async () => BRIDGE_PY_FIXTURE };
-      if (url.includes('/agent-skill/reference/'))
-        return { text: async () => REFERENCE_FIXTURE };
+      const template = (text: string): Response => ({ ok: true, status: 200, text: async () => text }) as unknown as Response;
+      if (url.endsWith('agent-skill/SKILL.md')) return template(SKILL_MD_FIXTURE);
+      if (url.endsWith('agent-skill/scripts/juso_search.py')) return template(PY_FIXTURE);
+      if (url.endsWith('agent-skill/scripts/juso_bridge.py')) return template(BRIDGE_PY_FIXTURE);
+      if (url.includes('/agent-skill/reference/')) return template(REFERENCE_FIXTURE);
       throw new Error(`unexpected fetch url: ${url}`);
     }),
   );
@@ -181,6 +179,23 @@ describe('packageAgentSkill', () => {
       /invalid extension id "not-a-valid-id"/,
     );
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    expect(createStoreZip).not.toHaveBeenCalled();
+  });
+
+  it('throws when a template fetch returns a non-2xx response (404 body must not be zipped silently)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.endsWith('agent-skill/SKILL.md')) {
+          return { ok: false, status: 404, text: async () => 'Not Found' } as unknown as Response;
+        }
+        return { ok: true, status: 200, text: async () => PY_FIXTURE } as unknown as Response;
+      }),
+    );
+
+    await expect(packageAgentSkill('prod')).rejects.toThrow(
+      /agent skill template fetch failed: .*agent-skill\/SKILL\.md \(HTTP 404\)/,
+    );
     expect(createStoreZip).not.toHaveBeenCalled();
   });
 

@@ -29,5 +29,7 @@ export function mapDoubaoError(error: DoubaoError | undefined, label: string): P
   if (code === 700429 || code === 10406 || code === 10412) {
     return new ProviderError('rateLimit', appendProviderErrorDetail(t(MSG.error_http_rate_limit, label), message));
   }
-  return new ProviderError('provider', appendProviderErrorDetail(t(MSG.error_http_generic, [label, String(code ?? 'unknown')]), message));
+  // 兜底分支：code 是火山引擎业务错误码（HTTP 200 + ResponseMetadata.Error），不是 HTTP 状态码，
+  // 不能用 error_http_generic（"$1：HTTP $2"）——用豆包专用模板，避免「豆包：HTTP 500003」这种误导。
+  return new ProviderError('provider', appendProviderErrorDetail(t(MSG.error_doubao_business, [label, String(code ?? 'unknown')]), message));
 }

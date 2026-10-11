@@ -186,6 +186,12 @@ describe('rerank config helpers', () => {
     expect(normalizeRerankConfig({ endpoint: ' http://x ', model: '', apiKey: '' })).toEqual({ endpoint: 'http://x' });
     expect(normalizeRerankConfig({ endpoint: 'http://x', model: 'm', apiKey: 'k' })).toEqual({ endpoint: 'http://x', model: 'm', apiKey: 'k' });
   });
+
+  it('normalizeRerankConfig drops a whitespace-only apiKey (would otherwise fake hasApiKey and send a bad header)', () => {
+    expect(normalizeRerankConfig({ endpoint: 'http://x', apiKey: '   ' })).toEqual({ endpoint: 'http://x' });
+    expect(normalizeRerankConfig({ endpoint: 'http://x', apiKey: '\t\n' })).toEqual({ endpoint: 'http://x' });
+    expect(normalizeRerankConfig({ endpoint: 'http://x', apiKey: ' k ' })).toEqual({ endpoint: 'http://x', apiKey: ' k ' });
+  });
 });
 
 describe('validateRerankEndpoint (KTD12 whitelist: loopback + siliconflow cloud)', () => {
@@ -201,5 +207,11 @@ describe('validateRerankEndpoint (KTD12 whitelist: loopback + siliconflow cloud)
 
   it('rejects plain-http siliconflow as not_loopback', () => {
     expect(validateRerankEndpoint('http://api.siliconflow.cn/v1/rerank')).toEqual({ ok: false, reason: 'not_loopback' });
+  });
+
+  it('rejects embedded userinfo credentials as invalid_url (leak into the page-facing snapshot + Basic header competition)', () => {
+    expect(validateRerankEndpoint('http://user:pass@127.0.0.1:8080/v1/rerank')).toEqual({ ok: false, reason: 'invalid_url' });
+    expect(validateRerankEndpoint('http://user@127.0.0.1:8080/v1/rerank')).toEqual({ ok: false, reason: 'invalid_url' });
+    expect(validateRerankEndpoint('https://user:pass@api.siliconflow.cn/v1/rerank')).toEqual({ ok: false, reason: 'invalid_url' });
   });
 });

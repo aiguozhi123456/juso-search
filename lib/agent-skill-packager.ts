@@ -40,6 +40,15 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/** 读取模板资源：非 2xx 直接抛错——模板缺失/改名时 404 错误页不能被静默打进 skill zip。 */
+async function fetchTemplate(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`agent skill template fetch failed: ${url} (HTTP ${res.status})`);
+  }
+  return res.text();
+}
+
 /**
  * 读取模板 → 盖章 runtime extension id → STORE zip → data URL + 文件名。
  *
@@ -66,15 +75,15 @@ export async function packageAgentSkill(
   // Python 侧用此 URL 作为 base，追加 #v=1&p={port}&t={token} fragment。
   const bridgeUrl = getUrl('bridge.html');
 
-  const skillMd = await (await fetch(getUrl('agent-skill/SKILL.md'))).text();
-  const py = await (await fetch(getUrl('agent-skill/scripts/juso_search.py'))).text();
+  const skillMd = await fetchTemplate(getUrl('agent-skill/SKILL.md'));
+  const py = await fetchTemplate(getUrl('agent-skill/scripts/juso_search.py'));
   // juso_bridge.py 是共享/不 patch 的 sibling 源（无 __JUSO_EXTENSION_ID__ 占位符），
   // 与 juso_search.py 一同进 zip 的 scripts/ 子结构（单源模块，见 plan KTD2/IU2）。
-  const bridgePy = await (await fetch(getUrl('agent-skill/scripts/juso_bridge.py'))).text();
+  const bridgePy = await fetchTemplate(getUrl('agent-skill/scripts/juso_bridge.py'));
 
   const referenceEntries = await Promise.all(
     REFERENCE_FILES.map(async (name) => {
-      const text = await (await fetch(getUrl(`agent-skill/reference/${name}`))).text();
+      const text = await fetchTemplate(getUrl(`agent-skill/reference/${name}`));
       return { name, text };
     }),
   );
