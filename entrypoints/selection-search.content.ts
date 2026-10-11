@@ -105,6 +105,10 @@ export default defineContentScript({
     });
 
     function dismissPopup() {
+      // 作废挂起中的 showPopup：await Promise.all 期间发生的 dismiss（Escape/点外/
+      // 开关关/onInvalidated）会让挂起的挂载在 epoch 校验处放弃，弹窗不再以
+      // 陈旧坐标复活。showPopup 入口的 dismiss 也会递增，但其后立即自增新 epoch，不受影响。
+      showEpoch++;
       if (ui.mounted) {
         try { ui.remove(); } catch { /* WXT remove 失败时仍清本地句柄 */ }
       }

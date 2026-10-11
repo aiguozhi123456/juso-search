@@ -1,8 +1,7 @@
 // 划词搜索弹窗样式（自包含，注入进 shadow root）。
 // shadow root 隔离了宿主页 CSS，也意味着读不到扩展 tokens.css —— 此处把
-// 需要的令牌按 data-theme 内联，保证弹窗在 light/dark 下都有可读底色。
-//
-// 令牌取值与 entrypoints/shared/serp-bar-styles.ts 对齐（仅取弹窗用到的子集）。
+// 需要的令牌按 data-theme 内联（取值逐一抄自 entrypoints/shared/tokens.css 的当前值，
+// 仅取弹窗用到的子集）。tokens.css 是唯一调色板源；改那里的令牌必须同步这里。
 export const selectionSearchStyles = `
 /* WXT 注入 :host { all: initial !important } 会覆盖 host 的 inline 样式。
    保持 host 零尺寸 + static + overflow:visible，让内部 wrapper（position:absolute）
@@ -15,19 +14,20 @@ export const selectionSearchStyles = `
   position: static !important;
 }
 :host, :host([data-theme="light"]) {
-  --bg: #ffffff; --bg-soft: #f5f5f5; --fg: #1a1a1a; --muted: #666;
+  --bg: #ffffff; --bg-soft: #fafafa; --fg: #1a1a1a; --muted: #666;
   --border: #e3e3e3; --border-soft: #eee;
   --brand: #c8372d; --brand-on: #ffffff; --brand-soft: #fdf3f1;
   --radius: 8px; --radius-sm: 4px;
-  --shadow: 0 4px 16px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08);
+  --shadow: 0 4px 12px rgba(0,0,0,0.08);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
 }
 :host([data-theme="dark"]) {
-  --bg: #1c1c1c; --bg-soft: #2a2a2a; --fg: #eaeaea; --muted: #9aa0a6;
-  --border: #3c4043; --border-soft: #333;
+  --bg: #1a1a1a; --bg-soft: #141414; --fg: #e8e8e8; --muted: #9aa0a6;
+  --border: #3c4043; --border-soft: #2a2a2a;
   --brand: #ff6b5b; --brand-on: #1a0a08; --brand-soft: #2a1816;
   --radius: 8px; --radius-sm: 4px;
-  --shadow: 0 4px 16px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.3);
+  --shadow: 0 4px 12px rgba(0,0,0,0.40);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -64,7 +64,7 @@ export const selectionSearchStyles = `
   color: var(--muted) !important;
   border-radius: var(--radius-sm) !important;
   cursor: pointer !important;
-  transition: background 120ms var(--ease-out), color 120ms var(--ease-out) !important;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out) !important;
 }
 .juso-sel-primary:hover { background: var(--bg-soft) !important; color: var(--fg) !important; }
 
@@ -95,7 +95,7 @@ export const selectionSearchStyles = `
   cursor: pointer !important;
   border-radius: var(--radius-sm) !important;
   padding: 0 !important;
-  transition: background 120ms var(--ease-out), color 120ms var(--ease-out) !important;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out) !important;
 }
 .juso-sel-expand:hover { background: var(--bg-soft) !important; color: var(--fg) !important; }
 .juso-sel-expand svg { width: 14px !important; height: 14px !important; display: block !important; }
@@ -148,7 +148,7 @@ export const selectionSearchStyles = `
   font-size: 13px !important;
   white-space: nowrap !important;
   color: var(--fg) !important;
-  transition: background 100ms var(--ease-out) !important;
+  transition: background var(--duration-fast) var(--ease-out) !important;
 }
 .juso-sel-group-row svg {
   width: 10px !important;
@@ -222,7 +222,7 @@ export const selectionSearchStyles = `
   font-family: inherit !important;
   text-align: left !important;
   white-space: nowrap !important;
-  transition: background 100ms var(--ease-out) !important;
+  transition: background var(--duration-fast) var(--ease-out) !important;
 }
 .juso-sel-source-item:hover { background: var(--bg-soft) !important; }
 .juso-sel-source-item span {

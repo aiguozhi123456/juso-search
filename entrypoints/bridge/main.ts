@@ -1,6 +1,8 @@
 import { extractLooseBridgeCredentials, parseBridgeFragment } from '@/lib/agent-bridge';
 import type { BridgeCredentials } from '@/lib/agent-bridge';
 import { sendMessage } from '@/lib/messaging';
+import { applyLocalePref, t, MSG } from '@/lib/i18n';
+import { getLocalePref } from '@/lib/storage';
 
 const root = document.getElementById('root');
 const fragment = window.location.hash;
@@ -11,7 +13,18 @@ void browser.tabs.getCurrent().then((tab) => {
   if (tab?.id !== undefined) return browser.tabs.update(tab.id, { active: false });
 }).catch(() => undefined);
 
-void connect();
+void run();
+
+async function run(): Promise<void> {
+  // 状态文案走 t()：先应用扩展的语言偏好再进入 claim 流程，避免 connect() 在
+  // 偏好到位前用浏览器语言渲染状态页。读偏好失败时保持 i18n 的惰性播种语言。
+  try {
+    applyLocalePref(await getLocalePref());
+  } catch {
+    // 保持默认 locale。
+  }
+  await connect();
+}
 
 async function connect(): Promise<void> {
   const credentials = parseBridgeFragment(fragment);
@@ -19,7 +32,7 @@ async function connect(): Promise<void> {
     // Fragment 解析失败（如版本不匹配）时，尽力通知 Python 快速失败，
     // 避免 skill 卡到超时。宽松提取 port+token，向 /v1/abort 发信号。
     await notifyAbort(fragment);
-    setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+    setStatus(t(MSG.bridge_status_failed));
     return closeTab();
   }
   try {
@@ -29,18 +42,22 @@ async function connect(): Promise<void> {
       // 通知 Python 快速失败，避免 skill 卡到 40 秒超时。
       await abortBridge(credentials.value, 'claim_rejected');
     }
-    setStatus(
-      result.ok ? '请求已完成。' : '连接失败。请从 Juso Agent 重新发起。',
-      result.ok ? 'Request completed.' : 'Connection failed. Start again from Juso Agent.',
-    );
+    setStatus(t(result.ok ? MSG.bridge_status_completed : MSG.bridge_status_failed));
   } catch {
     await abortBridge(credentials.value, 'send_failed');
-    setStatus('连接失败。请从 Juso Agent 重新发起。', 'Connection failed. Start again from Juso Agent.');
+    setStatus(t(MSG.bridge_status_failed));
   }
   closeTab();
 }
 
+// /v1/abort 的唯一截止：对端是常驻 loopback 进程，正常应答为毫秒级；对端冻结、
+// 被安全软件拦截或 handler 耗尽时不能让 abort 挂死——三条失败路径都在 await 本函数
+// 之后才 setStatus/closeTab，无界等待会留下永不关闭的孤儿 bridge 标签页。
+const ABORT_DEADLINE_MS = 2_000;
+
 async function abortBridge(credentials: BridgeCredentials, reason: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ABORT_DEADLINE_MS);
   try {
     await fetch(`http://127.0.0.1:${credentials.port}/v1/abort`, {
       method: 'POST',
@@ -48,9 +65,12 @@ async function abortBridge(credentials: BridgeCredentials, reason: string): Prom
       body: JSON.stringify({ reason }),
       redirect: 'error',
       cache: 'no-store',
+      signal: controller.signal,
     });
   } catch {
     // Python server 可能已关闭或凭据不可读——忽略，skill 会走自己的超时路径
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -60,8 +80,9 @@ async function notifyAbort(fragment: string): Promise<void> {
   await abortBridge(loose, 'invalid_fragment');
 }
 
-function setStatus(chinese: string, english: string): void {
-  if (root) root.innerHTML = `${chinese}<br />${english}`;
+function setStatus(message: string): void {
+  // 文案来自构建期打包的 locale 表，非页面输入；textContent 避免任何 HTML 组合。
+  if (root) root.textContent = message;
 }
 
 function closeTab(): void {

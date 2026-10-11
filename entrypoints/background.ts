@@ -23,6 +23,7 @@ import {
   handleGetProviderConfig,
   handleGetSearchCacheSummaries,
   handleImportConfig,
+  MSG_AGENT_ENGINE_SEARCH_DISABLED,
   handleListAgentInstances,
   handleListAgentEngines,
   handleListAgentSites,
@@ -47,6 +48,7 @@ import {
   installDownloadFilenameGuard,
 } from '@/lib/gateway';
 import { isBarPositionPref, isLocalePref, isStylePref, isThemePref, type UiPrefChangedMessage } from '@/lib/ui-pref-sync';
+import { t } from '@/lib/i18n';
 import { buildSafeSearchUrl } from '@/lib/search-page-url';
 import { getSchemaReady } from '@/lib/gateway';
 import { engineInnerBudgetMs, isTrustedBridgeSender, runAgentBridge } from '@/lib/agent-bridge';
@@ -188,9 +190,10 @@ export default defineBackground(() => {
       listAggregates: handleListAgentAggregates,
       handleSearchAggregate: handleSearchAggregate,
       // search-site 与 engine-search 同门槛：子开关 off 落 ok:false（envelope），不代 agent 加载第三方页。
+      // 与 lib/gateway.ts 的聚合引擎成员门控共用同一 i18n 键，避免同条件两套文案。
       handleSearchSite: async (request, signal, deadline) => {
         if (!(await getEngineSearchEnabled())) {
-          return { ok: false, error: { kind: 'unknown' as const, message: 'engine-search sub-switch is off.' } };
+          return { ok: false, error: { kind: 'unknown' as const, message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } };
         }
         // 内层预算 = 外层截止 - 余量：保证 runEngineSearch 的 timeout 先于桥接层的 aborted 判定。
         return handleSearchSiteInstance(request, signal, engineInnerBudgetMs(deadline, Date.now()));

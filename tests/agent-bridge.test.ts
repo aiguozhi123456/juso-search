@@ -365,12 +365,11 @@ describe('agent bridge v2 site / aggregate actions (parse)', () => {
 describe('agent bridge v2 site / aggregate dispatch', () => {
   const baseDeps = { fetch: vi.fn(), handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn() };
 
-  it('returns the Service unavailable fallback when a site/aggregate dep is missing', async () => {
+  it('returns the Service unavailable fallback when a search-family dep is missing (reply shape the peer accepts)', async () => {
     for (const request of [
+      { action: 'search-instance', query: 'x', instanceId: 'inst:exa:abc123' },
       { action: 'search-site', query: 'x', siteId: 'site:abc' },
-      { action: 'list-sites' },
       { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc' },
-      { action: 'list-aggregates' },
     ]) {
       const fetchMock = vi.fn()
         .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request })))
@@ -378,6 +377,44 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
       await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock })).resolves.toEqual({ ok: true });
       expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
     }
+  });
+
+  it('aborts (no complete POST) when a list-* dep is missing: the peer validator rejects ok:false envelopes', async () => {
+    for (const action of ['list-instances', 'list-engines', 'list-sites', 'list-aggregates']) {
+      const fetchMock = vi.fn()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request: { action } })))
+        .mockResolvedValue(new Response(null, { status: 204 }));
+      await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock })).resolves.toEqual({ ok: false });
+      expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/abort');
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reason: `${action} failed: dependency unavailable` });
+      // 不发 complete：清单动作的 ok:false 信封会被对端 400 invalid_reply 拒收。
+      expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/v1/complete'))).toBe(false);
+    }
+  });
+
+  it('aborts with the real error when a list-* handler throws, instead of posting a reply the peer rejects', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request: { action: 'list-sites' } })))
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    const listSites = vi.fn().mockRejectedValue(new Error('storage read failed'));
+    await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock, listSites })).resolves.toEqual({ ok: false });
+    expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/abort');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reason: 'list-sites failed: storage read failed' });
+  });
+
+  it('completes list-* successes unchanged and search-family handler throws as the ok:false envelope', async () => {
+    // list-* 成功仍走 complete。
+    const listFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request: { action: 'list-sites' } })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: listFetch, listSites: vi.fn().mockResolvedValue({ sites: [] }) });
+    expect(listFetch.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/complete');
+    // search 族 handler 抛错仍回 ok:false 信封（对端校验器接受该形态）。
+    const searchFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 1, requestId: 'r', request: { action: 'search', query: 'x', providerId: 'tavily' } })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: searchFetch, handleSearch: vi.fn().mockRejectedValue(new Error('boom')) })).resolves.toEqual({ ok: true });
+    expect(JSON.parse(searchFetch.mock.calls[1][1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
   });
 
   it('dispatches search-site to handleSearchSite with signal and deadline', async () => {

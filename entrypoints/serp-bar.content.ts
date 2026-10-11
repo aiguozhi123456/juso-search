@@ -169,6 +169,10 @@ export default defineContentScript({
       state.query = nextQueryAfterSerpContext(context, rawQuery, state.query);
       state.activeSiteId = context.matchingSiteId;
       state.activeId = context.activeId;
+      // 分组布局与少量来源平铺同样是快照字段：只刷新 sources 会让 fresh config
+      // 生效一半（sources 新、groupConfig 旧），与 search 页 applySourceSnapshot 对齐。
+      state.groupConfig = config.groupConfig;
+      state.flatLayoutFewSources = config.flatLayoutFewSources ?? true;
       state.aiAutoEnter = config.aiAutoEnter ?? true;
       // Hidden backing engine with no visible matching site: tear the bar down.
       if (!shouldMountForEngine(state.engine.id, state.sourceHidden, state.activeSiteId)) {
@@ -195,6 +199,22 @@ export default defineContentScript({
           }
         }
       })();
+    };
+
+    /** 卸载 React root 并清全部挂载句柄/页面样式。onRemove 与 safeRemove 的 catch 共用，避免两路径漂移。 */
+    const resetMountedHandles = () => {
+      try {
+        mountedRoot?.unmount();
+      } catch {
+        // React 卸载失败不阻塞句柄清理。
+      }
+      mountedRoot = null;
+      mountedHost = null;
+      mountedAnchorIndex = -1;
+      lastScrollY = 0;
+      removePageStyles();
+      removeBottomPadStyles();
+      removeTopPadStyles();
     };
 
     const ui = await createShadowRootUi<{ root: Root }>(ctx, {
@@ -269,15 +289,9 @@ export default defineContentScript({
         render(root, state, selectSource, selecting);
         return { root };
       },
-      onRemove(mounted) {
-        mountedRoot = null;
-        mountedHost = null;
-        mountedAnchorIndex = -1;
-        lastScrollY = 0;
-        removePageStyles();
-        removeBottomPadStyles();
-        removeTopPadStyles();
-        mounted?.root.unmount();
+      onRemove() {
+        // mounted.root 与 mountedRoot 同源（onMount 返回 { root }），统一走一个清理路径。
+        resetMountedHandles();
       },
     });
 
@@ -313,14 +327,9 @@ export default defineContentScript({
       try {
         if (ui.mounted) ui.remove();
       } catch {
-        // WXT remove 失败时仍清本地句柄，避免假 mounted 态。
-        mountedRoot = null;
-        mountedHost = null;
-        mountedAnchorIndex = -1;
-        lastScrollY = 0;
-        removePageStyles();
-        removeBottomPadStyles();
-        removeTopPadStyles();
+        // WXT remove 抛错时到不了 onRemove：此处必须自己卸载 React root + 清句柄，
+        // 否则 React root 与孤儿 shadow host 存活到 content script 结束。
+        resetMountedHandles();
       }
     };
 
@@ -337,11 +346,15 @@ export default defineContentScript({
           safeRemove();
         }
         // 覆盖层（顶/底栏）挂 document.body，与 engine 锚点无关：document.body 在就立即挂，
-        // 不受 remountBudget/engine 锚点是否存在限制（避免位置翻面后预算耗尽导致栏消失）。
+        // 但重挂同样消耗预算（共享 inline 的 remountBudget），防止敌对 SPA 反复拆 body
+        // 子节点导致无限 mount/remove 空转；预算在 syncLocation/位置翻面时补充。
         if (state.resolvedPosition !== 'inline') {
           if (!document.body) return false;
+          // 预算耗尽即停：等待下一次 locationRevision 或翻面补充。
+          if (remountBudget <= 0) return false;
           // revision 竞态兜底，与下方 engine 锚点路径一致。
           if (revision !== locationRevision) return false;
+          remountBudget = consumeRemountBudget(remountBudget);
           try {
             ui.mount();
           } catch {
@@ -429,9 +442,9 @@ export default defineContentScript({
           detachRemountTimer = null;
           if (revision !== locationRevision) return;
           safeRemove();
-          // 覆盖层（顶/底栏）挂 body，重挂不依赖 engine 锚点/预算（见 mountIfReady 覆盖层快路径）；
-          // 内联仍受预算限制，防止敌对 SPA 无限重建拖垮扩展。
-          const canRemount = state.resolvedPosition !== 'inline' || remountBudget > 0;
+          // 两路重挂共用 remountBudget 门控：覆盖层与内联都在 mountIfReady 消耗，
+          // 防止敌对 SPA 反复拆 body/引擎锚点导致无限重建拖垮扩展。
+          const canRemount = remountBudget > 0;
           if (revision === locationRevision && canRemount) {
             mountWhenAnchorReady(revision);
           }
@@ -443,6 +456,11 @@ export default defineContentScript({
     const syncLocation = async (url: string) => {
       const revision = ++locationRevision;
       remountBudget = DEFAULT_REMOUNT_BUDGET;
+      // SPA 导航使 in-flight 的 chip 选择失效：否则导航前开始的点击在 await 后仍会
+      // location.assign / openNewTab，用旧 URL 的 query 把用户从新页面拽走。
+      // selecting 一并复位：in-flight finally 的 gen 失配分支不会清它，不复位会永久禁栏。
+      selectGen++;
+      selecting = false;
       stopWaitingForAnchor();
       stopWatchingDetach();
       stopWatchingUpgrade();
@@ -463,6 +481,9 @@ export default defineContentScript({
       state.activeSiteId = refreshed.activeSiteId;
       state.barPositionPref = refreshed.barPositionPref;
       state.resolvedPosition = refreshed.resolvedPosition;
+      // aiAutoEnter 也是快照字段（applyConfigSnapshot 同样会更新）：SPA 导航后
+      // onSelect 必须用最新值，否则 Options 里的开关在本页生命周期内失效。
+      state.aiAutoEnter = refreshed.aiAutoEnter;
       // SPA 导航可能带回更新后的分组配置（设置页改过 layout）。
       if (refreshed.groupConfig) state.groupConfig = refreshed.groupConfig;
       state.flatLayoutFewSources = refreshed.flatLayoutFewSources;
@@ -514,6 +535,9 @@ export default defineContentScript({
           if (wasInline !== willInline) {
             // 跨 body/引擎锚点边界：物理挂载位置变了，必须 teardown + 重挂。
             if (ui.mounted) safeRemove();
+            // 用户主动翻面不是 SPA 拆栏：补一份新预算，否则同一 locationRevision 下
+            // 反复翻面（或翻面 + SPA 拆栏）耗尽预算后栏永久消失。
+            remountBudget = DEFAULT_REMOUNT_BUDGET;
             mountWhenAnchorReady(locationRevision);
           } else {
             // top↔bottom：都挂 body，仅换 data-position + pad + re-render，无需重挂。
@@ -547,6 +571,8 @@ export default defineContentScript({
       if (!mountedHost) return;
       if (wasInline !== willInline) {
         if (ui.mounted) safeRemove();
+        // 同 resize 翻面路径：翻面是用户主动行为，补一份新预算。
+        remountBudget = DEFAULT_REMOUNT_BUDGET;
         mountWhenAnchorReady(locationRevision);
       } else {
         applyPositionChrome(next);
@@ -762,7 +788,10 @@ async function onSelect(
     }
     // Intentionally no setActiveSource: consistent with built-in engines, the SERP
     // bar does not persist the active source for custom engines.
-    void sendMessage('openNewTab', handoff.url);
+    sendMessage('openNewTab', handoff.url).catch(() => {
+      // worker 不可达/拒绝：无 UI 反馈可用，至少避免 unhandled rejection。
+      console.warn('[juso-serp-bar] openNewTab failed');
+    });
     return;
   }
   if (source.kind === 'ai-engine') {
@@ -771,7 +800,9 @@ async function onSelect(
     if (!isCurrent()) return;
     const handoff = resolveSerpHandoff(source, query, { aiAutoEnter });
     if (handoff?.kind === 'navigate') {
-      void sendMessage('openNewTab', handoff.url);
+      sendMessage('openNewTab', handoff.url).catch(() => {
+        console.warn('[juso-serp-bar] openNewTab failed');
+      });
     }
     return;
   }
@@ -782,7 +813,9 @@ async function onSelect(
     location.assign(handoff.url);
     return;
   }
-  void sendMessage('openSearchPage', handoff.deepLink);
+  sendMessage('openSearchPage', handoff.deepLink).catch(() => {
+    console.warn('[juso-serp-bar] openSearchPage failed');
+  });
 }
 
 function resolveTheme(pref: 'auto' | 'light' | 'dark'): 'light' | 'dark' {

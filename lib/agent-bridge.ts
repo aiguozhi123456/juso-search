@@ -169,7 +169,7 @@ export function isTrustedBridgeSender(sender: { id?: string; url?: string }, ext
   }
 }
 
-export function buildAgentEndpoint(port: number, pathname: '/v1/claim' | '/v1/complete'): string | null {
+export function buildAgentEndpoint(port: number, pathname: '/v1/claim' | '/v1/complete' | '/v1/abort'): string | null {
   return parsePort(String(port)) === null ? null : `http://127.0.0.1:${port}${pathname}`;
 }
 
@@ -208,6 +208,111 @@ function claimTimeoutMs(request: AgentRequest): number | undefined {
   return request.timeoutMs;
 }
 
+/** 可选 timeoutMs 字段的统一校验：缺省返回 undefined（parsed request 不产生该字段）；
+ *  数值且落在 [MIN, MAX] 内返回原值；其余（非数值/非整数/越界）返回 null，parse 据此拒绝 claim。 */
+function parseOptionalTimeoutMs(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'number' ? clampTimeoutMs(value) : null;
+}
+
+/** 把已校验的 timeoutMs 展开进 request 字面量；undefined 不产生字段，parsed claim 与不带 timeoutMs 的旧客户端同形。 */
+function timeoutFields(timeoutMs: number | undefined): { timeoutMs?: number } {
+  return timeoutMs === undefined ? {} : { timeoutMs };
+}
+
+/**
+ * list-* 动作的对端校验器（juso_bridge.py `is_valid_reply`）只接受清单形态
+ * （`{providers|instances|engines|sites|aggregates: [...]}`），SearchReply 式的
+ * ok:false 错误信封会被 400 invalid_reply 拒收。因此这些动作的 handler 抛错或缺依赖时
+ * 不能回 complete，改走 /v1/abort 把真实原因交给 skill（`bridge aborted: <reason>`）快速失败。
+ */
+const LIST_ACTIONS = new Set<string>(['list-providers', 'list-instances', 'list-engines', 'list-sites', 'list-aggregates']);
+
+// search 族（search / search-instance / search-site / search-aggregate）缺依赖时的统一回包：
+// 其对端校验器接受 ok:false 信封。
+const SERVICE_UNAVAILABLE = { ok: false as const, error: { kind: 'unknown' as const, message: 'Service unavailable.' } };
+
+/** list-* 失败原因：带 action 名与底层错误消息（截断），供 skill 的 abort 通道展示。 */
+function listFailureReason(action: string, error: unknown): string {
+  const detail = error instanceof Error && error.message ? error.message : String(error);
+  return `${action} failed: ${detail.slice(0, 500)}`;
+}
+
+/** list-* 依赖缺失：抛错走统一的 abort 通道，而不是回对端会拒收的错误信封。 */
+function requireListDep<T>(dep: T | undefined): T {
+  if (dep === undefined) throw new Error('dependency unavailable');
+  return dep;
+}
+
+/** worker 侧主动 abort（fire-and-forget，限时）：仅用于无法以合法回包形态完成的动作。 */
+async function abortClaim(credentials: BridgeCredentials, reason: string, fetchFn: typeof fetch): Promise<void> {
+  const abortUrl = buildAgentEndpoint(credentials.port, '/v1/abort');
+  if (!abortUrl) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AGENT_BRIDGE_COMPLETE_DEADLINE_MS);
+  try {
+    await fetchFn(abortUrl, {
+      ...requestOptions(credentials.token, controller.signal),
+      body: JSON.stringify({ reason }),
+    });
+  } catch {
+    // 尽力而为：abort 失败时 skill 走自己的超时路径。
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+type ActionOutcome = { kind: 'reply'; reply: AgentComplete['reply'] } | { kind: 'abort'; reason: string };
+
+/** 按 action 分派执行；错误按「对端校验器接受什么回包形态」分流：search 族落 ok:false 信封，
+ *  engine-search 落 EngineExtractionResult，list-* 无法表达错误、走 abort 通道。 */
+async function executeAgentAction(request: AgentRequest, deps: AgentBridgeDeps, signal: AbortSignal, deadline: number): Promise<ActionOutcome> {
+  try {
+    switch (request.action) {
+      case 'search':
+        return { kind: 'reply', reply: await deps.handleSearch(request, signal) };
+      case 'engine-search':
+        return { kind: 'reply', reply: await deps.handleEngineSearch(request, signal, deadline) };
+      case 'search-instance':
+        return { kind: 'reply', reply: (await deps.handleSearchInstance?.(request, signal)) ?? SERVICE_UNAVAILABLE };
+      case 'list-providers':
+        return { kind: 'reply', reply: await deps.listProviders() };
+      case 'list-instances':
+        return { kind: 'reply', reply: await requireListDep(deps.listInstances)() };
+      case 'list-engines':
+        return { kind: 'reply', reply: await requireListDep(deps.listEngines)() };
+      case 'search-site':
+        return { kind: 'reply', reply: (await deps.handleSearchSite?.(request, signal, deadline)) ?? SERVICE_UNAVAILABLE };
+      case 'list-sites':
+        return { kind: 'reply', reply: await requireListDep(deps.listSites)() };
+      case 'search-aggregate':
+        return { kind: 'reply', reply: (await deps.handleSearchAggregate?.(request, signal)) ?? SERVICE_UNAVAILABLE };
+      case 'list-aggregates':
+        return { kind: 'reply', reply: await requireListDep(deps.listAggregates)() };
+      default: {
+        // parseSearchRequest 只放行上列 action；default 防御未来新增 action 时的隐式错路由。
+        const exhaustive: never = request;
+        return { kind: 'abort', reason: `unknown agent action: ${JSON.stringify(exhaustive)}` };
+      }
+    }
+  } catch (error) {
+    if (request.action === 'engine-search') {
+      return {
+        kind: 'reply',
+        reply: {
+          engine: request.engineId,
+          query: request.query,
+          error: error instanceof DOMException && error.name === 'AbortError' ? 'aborted' : 'extract-failed',
+        },
+      };
+    }
+    if (LIST_ACTIONS.has(request.action)) {
+      return { kind: 'abort', reason: listFailureReason(request.action, error) };
+    }
+    return { kind: 'reply', reply: SERVICE_UNAVAILABLE };
+  }
+}
+
 export async function runAgentBridge(credentials: BridgeCredentials, deps: AgentBridgeDeps): Promise<{ ok: boolean }> {
   const claimUrl = buildAgentEndpoint(credentials.port, '/v1/claim');
   if (!claimUrl || !isBase64UrlToken(credentials.token)) return { ok: false };
@@ -235,37 +340,16 @@ export async function runAgentBridge(credentials: BridgeCredentials, deps: Agent
     clearTimeout(actionTimeout);
     actionTimeout = setTimeout(() => actionController.abort(), actionDurationMs);
     const actionDeadline = Date.now() + actionDurationMs;
-    let reply: AgentComplete['reply'];
-    try {
-      reply = claim.value.request.action === 'search' ? await deps.handleSearch(claim.value.request, actionController.signal)
-        : claim.value.request.action === 'engine-search' ? await deps.handleEngineSearch(claim.value.request, actionController.signal, actionDeadline)
-          : claim.value.request.action === 'search-instance'
-            ? (await deps.handleSearchInstance?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-            : claim.value.request.action === 'list-instances'
-              ? (await deps.listInstances?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-              : claim.value.request.action === 'list-engines'
-                ? (await deps.listEngines?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                : claim.value.request.action === 'search-site'
-                  ? (await deps.handleSearchSite?.(claim.value.request, actionController.signal, actionDeadline)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                  : claim.value.request.action === 'list-sites'
-                    ? (await deps.listSites?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                    : claim.value.request.action === 'search-aggregate'
-                      ? (await deps.handleSearchAggregate?.(claim.value.request, actionController.signal)) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                      : claim.value.request.action === 'list-aggregates'
-                        ? (await deps.listAggregates?.()) ?? { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } }
-                        : await deps.listProviders();
-    } catch (error) {
-      reply = claim.value.request.action === 'engine-search'
-        ? {
-            engine: claim.value.request.engineId,
-            query: claim.value.request.query,
-            error: error instanceof DOMException && error.name === 'AbortError' ? 'aborted' : 'extract-failed',
-          }
-        : { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } };
-    }
+    const outcome = await executeAgentAction(claim.value.request, deps, actionController.signal, actionDeadline);
     clearTimeout(actionTimeout);
+    if (outcome.kind === 'abort') {
+      // 无法以合法回包完成的动作（list-* 失败 / 未知 action）：不 POST /v1/complete，
+      // 走 abort 通道把原因交给 skill 并快速失败。
+      await abortClaim(credentials, outcome.reason, deps.fetch);
+      return { ok: false };
+    }
     const completeUrl = buildAgentEndpoint(credentials.port, '/v1/complete')!;
-    const complete: AgentComplete = { protocol: claim.value.protocol, requestId: claim.value.requestId, reply };
+    const complete: AgentComplete = { protocol: claim.value.protocol, requestId: claim.value.requestId, reply: outcome.reply };
     const completeController = new AbortController();
     const completeTimeout = setTimeout(() => completeController.abort(), AGENT_BRIDGE_COMPLETE_DEADLINE_MS);
     try {
@@ -326,66 +410,75 @@ function parseSearchRequest(value: unknown): ParseResult<AgentRequest> {
     return { ok: false, error: 'invalid search request' };
   }
   if (value.action === 'list-providers') {
-    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list providers request' };
-    return { ok: true, value: { action: 'list-providers', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || timeoutMs === null) return { ok: false, error: 'invalid list providers request' };
+    return { ok: true, value: { action: 'list-providers', ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'engine-search') {
     if (!hasOnlyKeys(value, ['action', 'query', 'engineId', 'maxResults', 'timeoutMs']) || typeof value.query !== 'string' || typeof value.engineId !== 'string' || !isEngineId(value.engineId)) return { ok: false, error: 'invalid engine search request' };
     const query = value.query.trim();
-    if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20))) return { ok: false, error: 'invalid engine search request' };
-    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid engine search request' };
-    return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!query || query.length > 8192 || (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20)) || timeoutMs === null) return { ok: false, error: 'invalid engine search request' };
+    return { ok: true, value: { action: 'engine-search', query, engineId: value.engineId as EngineId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'list-instances') {
-    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list instances request' };
-    return { ok: true, value: { action: 'list-instances', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || timeoutMs === null) return { ok: false, error: 'invalid list instances request' };
+    return { ok: true, value: { action: 'list-instances', ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'list-engines') {
-    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list engines request' };
-    return { ok: true, value: { action: 'list-engines', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || timeoutMs === null) return { ok: false, error: 'invalid list engines request' };
+    return { ok: true, value: { action: 'list-engines', ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'search-instance') {
     if (!hasOnlyKeys(value, ['action', 'query', 'instanceId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid search instance request' };
     const query = value.query.trim();
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
     if (!query || query.length > 8192 || typeof value.instanceId !== 'string' || !isProviderInstanceId(value.instanceId)) return { ok: false, error: 'invalid search instance request' };
     if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search instance request' };
-    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid search instance request' };
-    return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    if (timeoutMs === null) return { ok: false, error: 'invalid search instance request' };
+    return { ok: true, value: { action: 'search-instance', query, instanceId: value.instanceId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'list-sites') {
-    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list sites request' };
-    return { ok: true, value: { action: 'list-sites', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || timeoutMs === null) return { ok: false, error: 'invalid list sites request' };
+    return { ok: true, value: { action: 'list-sites', ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'search-site') {
     if (!hasOnlyKeys(value, ['action', 'query', 'siteId', 'maxResults', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid site search request' };
     const query = value.query.trim();
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
     if (!query || query.length > 8192 || typeof value.siteId !== 'string' || !isSiteInstanceId(value.siteId)) return { ok: false, error: 'invalid site search request' };
     if (value.maxResults !== undefined && (typeof value.maxResults !== 'number' || !Number.isInteger(value.maxResults) || value.maxResults < 1 || value.maxResults > 20)) return { ok: false, error: 'invalid site search request' };
-    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid site search request' };
-    return { ok: true, value: { action: 'search-site', query, siteId: value.siteId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    if (timeoutMs === null) return { ok: false, error: 'invalid site search request' };
+    return { ok: true, value: { action: 'search-site', query, siteId: value.siteId, ...(value.maxResults === undefined ? {} : { maxResults: value.maxResults as number }), ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'list-aggregates') {
-    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null))) return { ok: false, error: 'invalid list aggregates request' };
-    return { ok: true, value: { action: 'list-aggregates', ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
+    if (!hasOnlyKeys(value, ['action', 'timeoutMs']) || timeoutMs === null) return { ok: false, error: 'invalid list aggregates request' };
+    return { ok: true, value: { action: 'list-aggregates', ...timeoutFields(timeoutMs) } };
   }
   if (value.action === 'search-aggregate') {
     if (!hasOnlyKeys(value, ['action', 'query', 'aggregateId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') return { ok: false, error: 'invalid aggregate search request' };
     const query = value.query.trim();
+    const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
     if (!query || query.length > 8192 || typeof value.aggregateId !== 'string' || !isAggregateInstanceId(value.aggregateId)) return { ok: false, error: 'invalid aggregate search request' };
     if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid aggregate search request' };
-    if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid aggregate search request' };
-    return { ok: true, value: { action: 'search-aggregate', query, aggregateId: value.aggregateId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+    if (timeoutMs === null) return { ok: false, error: 'invalid aggregate search request' };
+    return { ok: true, value: { action: 'search-aggregate', query, aggregateId: value.aggregateId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...timeoutFields(timeoutMs) } };
   }
   if (value.action !== 'search' || !hasOnlyKeys(value, ['action', 'query', 'providerId', 'forceRefresh', 'timeoutMs']) || typeof value.query !== 'string') {
     return { ok: false, error: 'invalid search request' };
   }
   const query = value.query.trim();
+  const timeoutMs = parseOptionalTimeoutMs(value.timeoutMs);
   if (!query || query.length > 8192 || typeof value.providerId !== 'string' || !isProviderId(value.providerId)) {
     return { ok: false, error: 'invalid search request' };
   }
   if (value.forceRefresh !== undefined && typeof value.forceRefresh !== 'boolean') return { ok: false, error: 'invalid search request' };
-  if (value.timeoutMs !== undefined && (typeof value.timeoutMs !== 'number' || clampTimeoutMs(value.timeoutMs) === null)) return { ok: false, error: 'invalid search request' };
-  return { ok: true, value: { action: 'search', query, providerId: value.providerId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...(value.timeoutMs === undefined ? {} : { timeoutMs: value.timeoutMs as number }) } };
+  if (timeoutMs === null) return { ok: false, error: 'invalid search request' };
+  return { ok: true, value: { action: 'search', query, providerId: value.providerId, ...(value.forceRefresh === undefined ? {} : { forceRefresh: value.forceRefresh }), ...timeoutFields(timeoutMs) } };
 }
 
 function parsePort(value: string): number | null {
