@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SearchSource, SourceId, SourceLabel } from '@/lib/sources';
 import { resolveIconUrl, sourceLabel } from '@/lib/sources';
 import type { GroupConfig } from '@/lib/source-groups';
 import { projectLayout, defaultGroupConfig, groupLabelText, resolveEffectiveLayout } from '@/lib/source-groups';
 import { scrollChildToCenter } from '@/lib/scroll-child-to-center';
+import { useSlidingIndicator } from '@/components/useSlidingIndicator';
 import { t, MSG } from '@/lib/i18n';
 
 interface Props {
@@ -29,13 +30,6 @@ interface Props {
   autoFlatFewSources?: boolean;
 }
 
-interface IndicatorMetrics {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 interface FlyoutAnchor {
   left: number;
   bottom?: number;
@@ -50,7 +44,8 @@ interface FlyoutAnchor {
  * 签名交互：滑动指示器（segmented control 风格）。
  *   · 激活态由 absolute 定位的 .switcher-indicator 块承载 brand 实色；
  *   · 指示器只跟随激活的置顶 source；组内 source 的分类状态仅由 trigger 小圆点表达；
- *   · useLayoutEffect 重新测量目标 pill 的 offset*，CSS transition 完成"滑动"动画；
+ *   · 共享 useSlidingIndicator 测量目标 pill 的 offset*（重测时机见 hook），CSS transition
+ *     完成"滑动"动画；
  *   · 分组 trigger hover 进入时展开浮层（.group-flyout），离开关闭；键盘 onFocus/Blur 同步；
  *   · 分组 trigger 点击固定展开（两模式一致）：收起→打开并固定；瞬态展开中点击→转为固定；
  *     固定后 hover 移出不收起，仅再点/Escape/外部点击/选中组内源时关闭；
@@ -65,7 +60,6 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   // overlayPosition 非 null 即覆盖层模式（top/bottom 共用横滑轨道、active 居中与 fixed flyout）。
   const isOverlay = overlayPosition !== null;
   const trackRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<IndicatorMetrics | null>(null);
   // 当前展开的分组 id（hover/focus/click 控制）；null 表示全部收起。
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   // 点击固定的分组 id：固定后不因 hover 移出而收起，仅显式关闭（再点/Escape/外部点击/选中组内源）。
@@ -90,6 +84,14 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     return null;
   }, [activeId, layout]);
 
+  // 滑动指示器共享机制。测量根用 track（覆盖层模式横滑时与 pill 同滚动上下文）；
+  // 内联/搜索页 track 不滚动，等价于原 container。selector 按 data-key 命中目标 pill，
+  // 无激活源时为 null（指示器不渲染）。
+  const { style, isReady } = useSlidingIndicator(
+    indicatorKey == null ? null : `[data-key="${CSS.escape(indicatorKey)}"]`,
+    trackRef,
+  );
+
   // 居中目标：置顶 active pill，或含 active 的分组 trigger（组内不重排 DOM）。
   const centerKey = useMemo(() => {
     if (activeId == null) return null;
@@ -99,26 +101,6 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     }
     return null;
   }, [activeId, layout]);
-
-  useLayoutEffect(() => {
-    // 指示器相对 track（覆盖层模式横滑时与 pill 同滚动上下文）；内联/搜索页 track 不滚动，等价于原 container。
-    const measureRoot = trackRef.current ?? containerRef.current;
-    if (!measureRoot || indicatorKey == null) {
-      setIndicator(null);
-      return;
-    }
-    const target = measureRoot.querySelector<HTMLElement>(`[data-key="${CSS.escape(indicatorKey)}"]`);
-    if (!target) {
-      setIndicator(null);
-      return;
-    }
-    setIndicator({
-      x: target.offsetLeft,
-      y: target.offsetTop,
-      w: target.offsetWidth,
-      h: target.offsetHeight,
-    });
-  }, [indicatorKey, layout, overlayPosition]);
 
   useLayoutEffect(() => {
     if (!isOverlay || centerKey == null) return;
@@ -157,15 +139,6 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     return () => obs.disconnect();
   }, [overlayPosition]);
 
-  const isReady = indicator != null && indicator.w > 0;
-  const style = isReady
-    ? ({
-        '--indicator-x': `${indicator!.x}px`,
-        '--indicator-y': `${indicator!.y}px`,
-        '--indicator-w': `${indicator!.w}px`,
-        '--indicator-h': `${indicator!.h}px`,
-      } as React.CSSProperties)
-    : undefined;
   // 指示器锚定的那个 pill 的 data-key。CSS 用 [data-indicator-target="true"]
   // 精确清除「该 pill 自身的 .active/.open 底色」，避免指示器实色与按钮底色叠加。
   // 此前用 [style*="--indicator-w"] 全局清除所有 .active 按钮底色，会误伤浮层内
@@ -260,13 +233,16 @@ function SourceButton({
   /** 该 pill 是否为指示器锚定目标（仅置顶源可能为 true；浮层内项恒为 false）。 */
   indicatorTarget?: boolean;
 }) {
-  const tooltip = source.kind === 'ai-engine'
-    ? t(MSG.tooltip_ai_engine)
-    : source.kind === 'site-instance'
-      ? t(MSG.tooltip_site_instance)
-      : source.supportsAnswer
-        ? t(MSG.tooltip_supports_answer)
-        : t(MSG.tooltip_no_answer);
+  let tooltip: string;
+  if (source.kind === 'ai-engine') {
+    tooltip = t(MSG.tooltip_ai_engine);
+  } else if (source.kind === 'site-instance') {
+    tooltip = t(MSG.tooltip_site_instance);
+  } else if (source.supportsAnswer) {
+    tooltip = t(MSG.tooltip_supports_answer);
+  } else {
+    tooltip = t(MSG.tooltip_no_answer);
+  }
   const label = sourceLabel(source, t);
   return (
     <button
@@ -344,62 +320,95 @@ function GroupPill({
   // 改为延迟关闭：离开后留一个短窗口，期间重新进入（到 trigger 或浮层）即取消关闭。
   // 点击固定的分组不受延迟关闭影响（pinnedRef 读取最新固定态）。
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // pinnedRef 在 commit 阶段同步：渲染期写 ref 会在 StrictMode/中断渲染下留脏值，
+  // 而延迟关闭定时器异步读取它，陈旧值会错误地抑制/放行关闭。
   const pinnedRef = useRef(pinned);
-  pinnedRef.current = pinned;
-  const cancelClose = () => {
+  useEffect(() => {
+    pinnedRef.current = pinned;
+  }, [pinned]);
+  // onClose 最新值 ref：父组件每次渲染传入新的内联闭包，经 ref 解引用让 handleClose
+  // 身份稳定——文档级 capture listener（下方 effect）不随渲染拆卸重订。
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  const cancelClose = useCallback(() => {
     if (closeTimerRef.current != null) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-  };
+  }, []);
   // onClose 的本地包装：显式关闭路径（Escape/外部 pointerdown/blur/选中组内源）
   // 都先取消挂起的 hover-intent 延迟关闭，避免旧定时器到期后再触发幂等 onClose。
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     cancelClose();
-    onClose();
-  };
-  const scheduleClose = () => {
+    onCloseRef.current();
+  }, [cancelClose]);
+  const scheduleClose = useCallback(() => {
     if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
       closeTimerRef.current = null;
       if (!pinnedRef.current) handleClose();
     }, 120);
-  };
+  }, [handleClose]);
   // 卸载时清掉未触发的延迟关闭，避免回调作用到已卸载组件。
-  useEffect(() => () => cancelClose(), []);
+  useEffect(() => () => cancelClose(), [cancelClose]);
 
   // 覆盖层 fixed flyout：按 trigger 视口盒锚定到上方（bottom）或下方（top）
   // （host 无 backdrop-filter 时 fixed 相对 viewport）。
+  // 内联模式：flyout 绝对定位于 .switcher-group 内（CSS left:0），trigger 靠近视口右缘时
+  // 右侧会超出视口被 body 的 overflow-x: clip 裁掉（无滚动恢复路径）——按 trigger 视口盒
+  // 与实测浮层宽度把 left 偏移夹紧进视口。
   useLayoutEffect(() => {
-    if (!open || !isOverlay) {
+    if (!open) {
       setFlyoutAnchor(null);
       return;
     }
     const trigger = triggerRef.current;
     if (!trigger) return;
+    if (isOverlay) {
+      const update = () => {
+        const rect = trigger.getBoundingClientRect();
+        let left = rect.left;
+        // 粗略右缘夹紧，避免 flyout 贴出视口（flyout 宽度未知时用 200 作下限估计）。
+        const maxLeft = Math.max(0, window.innerWidth - 200);
+        if (left > maxLeft) left = maxLeft;
+        if (left < 0) left = 0;
+        if (overlayPosition === 'top') {
+          // 顶部覆盖层：flyout 从 trigger 下缘向下展开。
+          setFlyoutAnchor({ left, top: rect.bottom + 4 });
+        } else {
+          // 底部覆盖层：flyout 从 trigger 上缘向上展开。
+          setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
+        }
+      };
+      update();
+      window.addEventListener('resize', update);
+      window.addEventListener('scroll', update, true);
+      return () => {
+        window.removeEventListener('resize', update);
+        window.removeEventListener('scroll', update, true);
+      };
+    }
+    // 内联（absolute）模式：浮层与 trigger 同随页面滚动，只需响应视口宽度变化。
     const update = () => {
+      const group = groupRef.current;
+      if (!group) return;
       const rect = trigger.getBoundingClientRect();
-      let left = rect.left;
-      // 粗略右缘夹紧，避免 flyout 贴出视口（flyout 宽度未知时用 200 作下限估计）。
-      const maxLeft = Math.max(0, window.innerWidth - 200);
-      if (left > maxLeft) left = maxLeft;
-      if (left < 0) left = 0;
-      if (overlayPosition === 'top') {
-        // 顶部覆盖层：flyout 从 trigger 下缘向下展开。
-        setFlyoutAnchor({ left, top: rect.bottom + 4 });
-      } else {
-        // 底部覆盖层：flyout 从 trigger 上缘向上展开。
-        setFlyoutAnchor({ left, bottom: window.innerHeight - rect.top + 4 });
-      }
+      const groupLeft = group.getBoundingClientRect().left;
+      // useLayoutEffect 在绘制前运行，浮层已挂载，可实测宽度；异常时退回 200 估计。
+      const flyoutWidth = flyoutRef.current?.offsetWidth || 200;
+      const margin = 8;
+      const minLeftVp = margin;
+      const maxLeftVp = Math.max(minLeftVp, window.innerWidth - margin - flyoutWidth);
+      const leftVp = Math.min(Math.max(rect.left, minLeftVp), maxLeftVp);
+      // CSS left:0 对齐 group 左缘；偏移量 = 期望视口 left − group 视口 left。
+      setFlyoutAnchor({ left: leftVp - groupLeft });
     };
     update();
     window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [open, overlayPosition]);
+    return () => window.removeEventListener('resize', update);
+  }, [open, isOverlay, overlayPosition]);
 
   // 点外部关闭（各模式统一）：触屏无可靠 hover-out（覆盖层主路径），
   // 内联/搜索页固定态同理。监听 document（capture），页面（shadow 外）的点击
@@ -418,23 +427,40 @@ function GroupPill({
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [open, handleClose]);
 
-  const flyoutStyle: React.CSSProperties | undefined = isOverlay && flyoutAnchor
-    ? overlayPosition === 'top'
-      ? {
-          position: 'fixed',
-          left: flyoutAnchor.left,
-          top: flyoutAnchor.top,
-          bottom: 'auto',
-          right: 'auto',
-        }
-      : {
-          position: 'fixed',
-          left: flyoutAnchor.left,
-          bottom: flyoutAnchor.bottom,
-          top: 'auto',
-          right: 'auto',
-        }
-    : undefined;
+  let flyoutStyle: React.CSSProperties | undefined;
+  if (isOverlay && flyoutAnchor) {
+    if (overlayPosition === 'top') {
+      // 顶部覆盖层：flyout 从 trigger 下缘向下展开。
+      flyoutStyle = {
+        position: 'fixed',
+        left: flyoutAnchor.left,
+        top: flyoutAnchor.top,
+        bottom: 'auto',
+        right: 'auto',
+      };
+    } else {
+      // 底部覆盖层：flyout 从 trigger 上缘向上展开。
+      flyoutStyle = {
+        position: 'fixed',
+        left: flyoutAnchor.left,
+        bottom: flyoutAnchor.bottom,
+        top: 'auto',
+        right: 'auto',
+      };
+    }
+  } else if (flyoutAnchor) {
+    // 内联模式：只覆盖 left（position/top 仍走 CSS 的 absolute / top:100%）。
+    flyoutStyle = { left: flyoutAnchor.left };
+  } else {
+    flyoutStyle = undefined;
+  }
+
+  let flyoutVariant = '';
+  if (overlayPosition === 'bottom') {
+    flyoutVariant = ' group-flyout--fixed-up';
+  } else if (overlayPosition === 'top') {
+    flyoutVariant = ' group-flyout--fixed-down';
+  }
 
   return (
     <div
@@ -502,7 +528,7 @@ function GroupPill({
       {open && (
         <div
           ref={flyoutRef}
-          className={`group-flyout${overlayPosition === 'bottom' ? ' group-flyout--fixed-up' : overlayPosition === 'top' ? ' group-flyout--fixed-down' : ''}`}
+          className={`group-flyout${flyoutVariant}`}
           id={groupId}
           style={flyoutStyle}
           onMouseEnter={cancelClose}

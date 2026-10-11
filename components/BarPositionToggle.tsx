@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useBarPosition, type BarPositionPref } from '@/lib/useBarPosition';
+import { useSlidingIndicator } from '@/components/useSlidingIndicator';
 import { t, MSG } from '@/lib/i18n';
 import { MonitorIcon } from '@/components/icons';
 
@@ -75,58 +75,20 @@ const OPTIONS: { value: BarPositionPref; Icon: IconComponent; labelKey: keyof ty
   { value: 'bottom', Icon: BottomIcon, labelKey: 'bar_position_bottom' },
 ];
 
-interface IndicatorMetrics {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 /**
  * 4 态快切栏栏位切换器：自动 / 顶栏（覆盖）/ 内联 / 底栏。
  *
  * 指示器语言：用位置图标（显示器 / 顶栏框 / 底栏框）替代文字，更直观地表达栏位。
- * 复用 StyleToggle 的滑动指示器机制：
- *   - useLayoutEffect 在激活段切换时测量其 offsetLeft/Top/Width/Height；
- *   - 通过 CSS 变量 --indicator-x/y/w/h 把位置喂给 .bar-position-toggle-indicator；
- *   - 测量失败（jsdom 0 offset）→ 不渲染指示器，回退到 active 段直接实色 bg。
+ * 滑动指示器走共享 useSlidingIndicator（六处分段控件的单一实现）：
+ *   - 测量激活段 offsetLeft/Top/Width/Height，经 CSS 变量喂给 .bar-position-toggle-indicator；
+ *   - 测量失败（jsdom 0 offset）→ 不渲染指示器，回退 active 段直接实色 bg。
  *
  * 与 ThemeToggle 平行：role="group" + aria-label + aria-pressed，仅用图标
  * （文字标签保留在 title / aria-label 供无障碍与 tooltip）。
  */
 export function BarPositionToggle() {
   const { pref, setPref } = useBarPosition();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<IndicatorMetrics | null>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      setIndicator(null);
-      return;
-    }
-    const activeBtn = container.querySelector<HTMLButtonElement>('[data-active="true"]');
-    if (!activeBtn) {
-      setIndicator(null);
-      return;
-    }
-    setIndicator({
-      x: activeBtn.offsetLeft,
-      y: activeBtn.offsetTop,
-      w: activeBtn.offsetWidth,
-      h: activeBtn.offsetHeight,
-    });
-  }, [pref]);
-
-  const isReady = indicator != null && indicator.w > 0;
-  const style = isReady
-    ? ({
-        '--indicator-x': `${indicator!.x}px`,
-        '--indicator-y': `${indicator!.y}px`,
-        '--indicator-w': `${indicator!.w}px`,
-        '--indicator-h': `${indicator!.h}px`,
-      } as CSSProperties)
-    : undefined;
+  const { containerRef, style, isReady } = useSlidingIndicator('[data-active="true"]');
 
   return (
     <div

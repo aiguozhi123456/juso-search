@@ -37,8 +37,17 @@
   color: var(--brand-on);
 }
 
-/* 风格切换器（经典 / 彩色）：2 态滑动指示器。 */
-.style-toggle {
+/* 滑动指示器分段控件（segmented control 共用机制）：
+   style / ai-auto-enter / flat-layout（26px 文本钮）+ bar-position（30px 图标钮）/
+   selection-search（30px 文本钮，选项页专属尺寸见 options/styles.css）。
+   机制约定：容器 relative；*-indicator 绝对定位，几何由 --indicator-x/y/w/h 驱动；
+   [style*="--indicator-w"] 存在时 active 按钮自身 bg 透明，测量失败（变量缺失）
+   回退 .active 实色兜底。 */
+.style-toggle,
+.ai-auto-enter-toggle,
+.flat-layout-toggle,
+.bar-position-toggle,
+.selection-search-toggle {
   position: relative;
   display: inline-flex;
   padding: var(--space-1);
@@ -46,7 +55,11 @@
   border-radius: var(--radius-full);
   background: var(--bg-soft);
 }
-.style-toggle-indicator {
+.style-toggle-indicator,
+.ai-auto-enter-toggle-indicator,
+.flat-layout-toggle-indicator,
+.bar-position-toggle-indicator,
+.selection-search-toggle-indicator {
   position: absolute;
   left: var(--indicator-x, 0);
   top: var(--indicator-y, 0);
@@ -61,84 +74,58 @@
   z-index: 0;
   pointer-events: none;
 }
-.style-toggle button {
+.style-toggle button,
+.ai-auto-enter-toggle button,
+.flat-layout-toggle button,
+.bar-position-toggle button,
+.selection-search-toggle button {
   position: relative;
   z-index: 1;
-  height: 26px;
-  padding: 0 var(--space-3);
   border: 1px solid transparent;
   background: transparent;
   border-radius: var(--radius-full);
   color: var(--muted);
   cursor: pointer;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  transition: color var(--duration-fast) var(--ease-out),
-              background var(--duration-fast) var(--ease-out);
 }
-.style-toggle button:hover:not([data-active="true"]) {
-  color: var(--brand);
-  background: var(--brand-soft);
-}
-.style-toggle button[data-active="true"] { color: var(--brand-on); font-weight: 700; }
-.style-toggle button.active { background: var(--brand); color: var(--brand-on); }
-.style-toggle[style*="--indicator-w"] button.active { background: transparent; }
-
-/* AI 自动回车切换器（开 / 关）：2 态滑动指示器。 */
-.ai-auto-enter-toggle,
-.flat-layout-toggle {
-  position: relative;
-  display: inline-flex;
-  padding: var(--space-1);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-full);
-  background: var(--bg-soft);
-}
-.ai-auto-enter-toggle-indicator,
-.flat-layout-toggle-indicator {
-  position: absolute;
-  left: var(--indicator-x, 0);
-  top: var(--indicator-y, 0);
-  width: var(--indicator-w, 0);
-  height: var(--indicator-h, 0);
-  background: var(--brand);
-  border-radius: var(--radius-full);
-  transition: left var(--duration-normal) var(--ease-out),
-              top var(--duration-normal) var(--ease-out),
-              width var(--duration-normal) var(--ease-out),
-              height var(--duration-normal) var(--ease-out);
-  z-index: 0;
-  pointer-events: none;
-}
+/* 文本钮组（26px）：style / ai-auto-enter / flat-layout。 */
+.style-toggle button,
 .ai-auto-enter-toggle button,
 .flat-layout-toggle button {
-  position: relative;
-  z-index: 1;
   height: 26px;
   padding: 0 var(--space-3);
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: var(--radius-full);
-  color: var(--muted);
-  cursor: pointer;
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 500;
   transition: color var(--duration-fast) var(--ease-out),
               background var(--duration-fast) var(--ease-out);
 }
+.style-toggle button:hover:not([data-active="true"]),
 .ai-auto-enter-toggle button:hover:not([data-active="true"]),
-.flat-layout-toggle button:hover:not([data-active="true"]) {
+.flat-layout-toggle button:hover:not([data-active="true"]),
+.bar-position-toggle button:hover:not([data-active="true"]),
+.selection-search-toggle button:hover:not([data-active="true"]) {
   color: var(--brand);
   background: var(--brand-soft);
 }
-.ai-auto-enter-toggle button[data-active="true"] { color: var(--brand-on); font-weight: 700; }
+.style-toggle button[data-active="true"],
+.ai-auto-enter-toggle button[data-active="true"],
 .flat-layout-toggle button[data-active="true"] { color: var(--brand-on); font-weight: 700; }
-.ai-auto-enter-toggle button.active { background: var(--brand); color: var(--brand-on); }
-.flat-layout-toggle button.active { background: var(--brand); color: var(--brand-on); }
-.ai-auto-enter-toggle[style*="--indicator-w"] button.active { background: transparent; }
-.flat-layout-toggle[style*="--indicator-w"] button.active { background: transparent; }
+/* bar-position 纯图标钮 / selection-search 文本钮 active 不加粗（保持原视觉）。 */
+.bar-position-toggle button[data-active="true"],
+.selection-search-toggle button[data-active="true"] { color: var(--brand-on); }
+.style-toggle button.active,
+.ai-auto-enter-toggle button.active,
+.flat-layout-toggle button.active,
+.bar-position-toggle button.active,
+.selection-search-toggle button.active {
+  background: var(--brand);
+  color: var(--brand-on);
+}
+.style-toggle[style*="--indicator-w"] button.active,
+.ai-auto-enter-toggle[style*="--indicator-w"] button.active,
+.flat-layout-toggle[style*="--indicator-w"] button.active,
+.bar-position-toggle[style*="--indicator-w"] button.active,
+.selection-search-toggle[style*="--indicator-w"] button.active { background: transparent; }
 
 /* 设置页语言切换：正文里的长条形分段控件 */
 .locale-toggle {
@@ -206,4 +193,34 @@
 [data-style="colorful"] .style-toggle button:hover:not([data-active="true"]) {
   background: var(--color-violet-soft);
   color: var(--color-violet);
+}
+/* AI 自动回车（AI 行为语义 → teal）：与 .style-toggle 同构的指示器/active/hover 覆盖组。 */
+[data-style="colorful"] .ai-auto-enter-toggle-indicator,
+[data-style="colorful"] .ai-auto-enter-toggle button.active {
+  background: var(--color-teal);
+}
+[data-style="colorful"] .ai-auto-enter-toggle[style*="--indicator-w"] button.active {
+  background: transparent;
+}
+[data-style="colorful"] .ai-auto-enter-toggle button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .ai-auto-enter-toggle button:hover:not([data-active="true"]) {
+  background: var(--color-teal-soft);
+  color: var(--color-teal);
+}
+/* 少量来源平铺（来源布局语义 → cyan）：同构覆盖组。 */
+[data-style="colorful"] .flat-layout-toggle-indicator,
+[data-style="colorful"] .flat-layout-toggle button.active {
+  background: var(--color-cyan);
+}
+[data-style="colorful"] .flat-layout-toggle[style*="--indicator-w"] button.active {
+  background: transparent;
+}
+[data-style="colorful"] .flat-layout-toggle button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .flat-layout-toggle button:hover:not([data-active="true"]) {
+  background: var(--color-cyan-soft);
+  color: var(--color-cyan);
 }
