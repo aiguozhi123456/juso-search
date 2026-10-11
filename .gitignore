@@ -18,3 +18,6 @@ secrets.*
 # Python test cache
 __pycache__/
 *.py[cod]
+
+# 本地评审报告（带日期 tag，不入库）
+OCR-REPORT-*.md
