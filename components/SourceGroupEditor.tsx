@@ -216,13 +216,15 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   }
 
   function handleMemberDrop(e: React.DragEvent, groupId: SourceGroupId, sourceId: SourceId) {
+    const from = dragFromMemberRef.current;
+    // 顶层行拖拽落入成员芯片：不消费事件（不 preventDefault），交回分组行的 onDrop 处理顶层排序。
+    if (!from) return;
     e.preventDefault();
     e.stopPropagation();
-    const from = dragFromMemberRef.current;
     dragFromMemberRef.current = null;
     setDraggingMember(null);
     setDropTargetMember(null);
-    if (!from || from.groupId !== groupId) return;
+    if (from.groupId !== groupId) return;
     const base = groupOrderOf(allSourceIds, cfg, groupId);
     const fromIndex = base.indexOf(from.sourceId);
     const toIndex = base.indexOf(sourceId);

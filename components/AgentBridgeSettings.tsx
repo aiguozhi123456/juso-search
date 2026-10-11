@@ -26,20 +26,38 @@ export function AgentBridgeSettings() {
   const [skillStatus, setSkillStatus] = useState<SkillStatus>({ kind: 'idle' });
 
   useEffect(() => {
+    let alive = true;
     void (async () => {
-      setBridgeEnabledState(await getAgentBridgeEnabled());
-      setEngineEnabledState(await getEngineSearchEnabled());
+      try {
+        const [bridge, engine] = await Promise.all([
+          getAgentBridgeEnabled(),
+          getEngineSearchEnabled(),
+        ]);
+        if (!alive) return;
+        setBridgeEnabledState(bridge);
+        setEngineEnabledState(engine);
+      } catch {
+        // 读失败（扩展上下文失效 / storage 不可用）保留默认值 false，不写 state，
+        // 也不让 rejection 悬空成为 unhandled promise rejection。
+      }
     })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  async function onToggleBridge(next: boolean) {
+  function onToggleBridge(next: boolean) {
+    const previous = bridgeEnabled;
+    // 乐观更新 + 写入失败回滚（镜像 useTheme/useStyle/useLocale 惯例）：安全门控开关
+    // 最坏的方向是「UI 显示已关、worker 仍读旧值开」，失败必须弹回真实状态。
     setBridgeEnabledState(next);
-    await setAgentBridgeEnabled(next);
+    void setAgentBridgeEnabled(next).catch(() => setBridgeEnabledState(previous));
   }
 
-  async function onToggleEngine(next: boolean) {
+  function onToggleEngine(next: boolean) {
+    const previous = engineEnabled;
     setEngineEnabledState(next);
-    await setEngineSearchEnabled(next);
+    void setEngineSearchEnabled(next).catch(() => setEngineEnabledState(previous));
   }
 
   async function handleDownload() {

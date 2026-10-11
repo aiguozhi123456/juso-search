@@ -1,6 +1,7 @@
 import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
 import { useEffect, useRef, useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
+import { MAX_RESULTS_MAX, MAX_RESULTS_MIN } from '@/lib/storage';
 import { t, MSG } from '@/lib/i18n';
 import { MinusIcon, PlusIcon, TrashIcon } from './icons';
 
@@ -36,9 +37,13 @@ export function KeyInput({
   }, [maxResults]);
 
   async function save() {
+    // 粘贴件常见尾随换行/空格：先 trim 再持久化，纯空白与空串同样视为无效，
+    // 避免「保存成功」实际存进一个不可用的 key。
+    const key = val.trim();
+    if (!key) return;
     setStatus({ kind: 'saving', message: '' });
     try {
-      await sendMessage('saveProviderKey', { providerId: provider.id, key: val });
+      await sendMessage('saveProviderKey', { providerId: provider.id, key });
       onConfigured?.(provider.id);
       setVal(''); // 明文用完即清，缩短在页面中的留存
       setStatus({ kind: 'ok', message: t(MSG.status_saved) });
@@ -94,7 +99,7 @@ export function KeyInput({
       return;
     }
     const n = Number.parseInt(trimmed, 10);
-    if (!Number.isInteger(n) || n < 1 || n > 20) return;
+    if (!Number.isInteger(n) || n < MAX_RESULTS_MIN || n > MAX_RESULTS_MAX) return;
     maxSavingRef.current = true;
     setMaxStatus({ kind: 'saving', message: '' });
     try {
@@ -108,13 +113,13 @@ export function KeyInput({
     }
   }
 
-  /** 步进按钮 ±1，clamp 到 1–20 后立即保存。onMouseDown preventDefault 已阻止
-   *  input 失焦，故此处直接用新值调用 saveMaxResults，避免读到陈旧 state。 */
+  /** 步进按钮 ±1，clamp 到合法区间（MAX_RESULTS_MIN–MAX_RESULTS_MAX，单一来源 lib/storage）后立即保存。
+   *  onMouseDown preventDefault 已阻止 input 失焦，故此处直接用新值调用 saveMaxResults，避免读到陈旧 state。 */
   function stepBy(delta: number) {
     const trimmed = maxVal.trim();
     const parsed = trimmed === '' ? NaN : Number.parseInt(trimmed, 10);
     const base = Number.isInteger(parsed) ? parsed : 0;
-    const next = Math.min(20, Math.max(1, base + delta));
+    const next = Math.min(MAX_RESULTS_MAX, Math.max(MAX_RESULTS_MIN, base + delta));
     const nextStr = next.toString();
     setMaxVal(nextStr);
     saveMaxResults(nextStr);
@@ -122,21 +127,22 @@ export function KeyInput({
 
   const busy = status.kind === 'saving' || status.kind === 'testing' || status.kind === 'deleting';
   // 有未保存的输入时不允许"测试"（测试只校验已存储的 key）
-  const testDisabled = !configured || !!val || busy;
+  const testDisabled = !configured || !!val.trim() || busy;
   const maxBusy = maxStatus.kind === 'saving';
-  // 步进边界：留空或 ≤1 时禁用「−」，≥20 时禁用「+」
+  // 步进边界：留空或 ≤MIN 时禁用「−」，≥MAX 时禁用「+」
   const maxNum = maxVal.trim() === '' ? NaN : Number.parseInt(maxVal.trim(), 10);
   const hasMaxNum = Number.isInteger(maxNum);
-  const atMin = !hasMaxNum || maxNum <= 1;
-  const atMax = hasMaxNum && maxNum >= 20;
+  const atMin = !hasMaxNum || maxNum <= MAX_RESULTS_MIN;
+  const atMax = hasMaxNum && maxNum >= MAX_RESULTS_MAX;
 
   return (
     <div className="key-row">
-      <label>
+      <label htmlFor={`key-${provider.id}`}>
         {t(provider.label)}
         {configured && <span className="configured">{t(MSG.configured_badge)}</span>}
       </label>
       <input
+        id={`key-${provider.id}`}
         type="password"
         value={val}
         onChange={(e) => setVal(e.target.value)}
@@ -144,7 +150,7 @@ export function KeyInput({
         autoComplete="new-password"
         spellCheck={false}
       />
-      <button onClick={save} disabled={!val || busy}>
+      <button onClick={save} disabled={!val.trim() || busy}>
         {t(MSG.btn_save)}
       </button>
       <button onClick={test} disabled={testDisabled}>
@@ -182,8 +188,8 @@ export function KeyInput({
           <input
             id={`max-results-${provider.id}`}
             type="number"
-            min={1}
-            max={20}
+            min={MAX_RESULTS_MIN}
+            max={MAX_RESULTS_MAX}
             step={1}
             value={maxVal}
             onChange={(e) => setMaxVal(e.target.value)}

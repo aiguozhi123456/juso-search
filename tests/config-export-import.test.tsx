@@ -126,6 +126,47 @@ describe('ConfigExportImport', () => {
     expect(mockedSend).not.toHaveBeenCalled();
   });
 
+  it('maps worker validation tokens to localized text and resets the file input on failure', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'previewImport') {
+        return Promise.resolve({ ok: false, error: { kind: 'invalid', message: 'schema_version_mismatch' } });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<ConfigExportImport onImported={() => {}} />);
+    const input = screen.getByDisplayValue('') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
+    // 机器 token（schema_version_mismatch）不得裸渲染，映射为本地化文案。
+    expect(await screen.findByText('导入失败：配置文件 schema 版本不兼容，请更新扩展后重试')).toBeInTheDocument();
+    // 失败路径同样复位 file input：重选同一文件能再次触发 onChange 重试。
+    expect(input.value).toBe('');
+  });
+
+  it('reports all overridden prefs including the six dynamic-collection flags', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'previewImport') {
+        return Promise.resolve({ ok: true, preview: { written: [], skipped: [], prefDiffs: [] } });
+      }
+      if (type === 'importConfig') {
+        return Promise.resolve({
+          ok: true,
+          report: {
+            written: [], skipped: [], activeProviderOverridden: false, activeSourceOverridden: false,
+            themePrefOverridden: false, localePrefOverridden: false, serpBarPositionOverridden: false,
+            sourceOrderOverridden: false, sourceHiddenOverridden: false, siteInstancesOverridden: false,
+            customEnginesOverridden: true, providerInstancesOverridden: true, aggregateInstancesOverridden: true,
+            rerankConfigOverridden: true, providerMaxResultsOverridden: false, groupConfigOverridden: false,
+          },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<ConfigExportImport onImported={() => {}} />);
+    const input = screen.getByDisplayValue('') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['{"schemaVersion":1}'], 'config.json', { type: 'application/json' })] } });
+    expect(await screen.findByText(/已覆盖：自定义引擎 \/ Provider 实例 \/ 聚合实例 \/ 重排服务配置/)).toBeInTheDocument();
+  });
+
   it('confirms and reports when site engines are the only preference diff', async () => {
     const onImported = vi.fn();
     mockedSend.mockImplementation(((type: string) => {

@@ -22,6 +22,9 @@ vi.mock('@/lib/useBarPosition', () => ({
 }));
 // AgentBridgeSettings 直接读 storage；页面测试隔离掉，避免依赖 browser.storage.local
 vi.mock('@/lib/storage', () => ({
+  // KeyInput 经 barrel 导入 maxResults 合法区间常量（与 lib/storage/max-results-store 同值）
+  MAX_RESULTS_MIN: 1,
+  MAX_RESULTS_MAX: 20,
   getAgentBridgeEnabled: vi.fn().mockResolvedValue(false),
   setAgentBridgeEnabled: vi.fn().mockResolvedValue(undefined),
   getEngineSearchEnabled: vi.fn().mockResolvedValue(false),
@@ -617,6 +620,30 @@ describe('options page', () => {
     expect(screen.getByText('限定站点')).toBeInTheDocument();
   });
 
+  it('blocks saving an exa instance when an optional number is out of range', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getProviderConfig') {
+        // 仅 exa 已配置 → 默认 base provider 即 exa。
+        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      }
+      return Promise.resolve({ ok: true });
+    }) as never);
+    render(<App />);
+    openTab('密钥');
+    const addBtn = await screen.findByRole('button', { name: '新增实例' });
+    await waitFor(() => expect(addBtn).not.toBeDisabled());
+    fireEvent.click(addBtn);
+    // 越界数值（读侧 normalizeExaSettings 会钳回 null）：submit 必须拒绝并提示，不静默保存。
+    fireEvent.change(screen.getByLabelText('正文长度上限'), { target: { value: '20000' } });
+    fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: 'Exa 越界' } });
+    const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
+    fireEvent.click(within(section).getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(screen.getByText('可选项需为 1–10000 的整数', { selector: '.status.fail' })).toBeInTheDocument(),
+    );
+    expect(mockedSend).not.toHaveBeenCalledWith('createProviderInstance', expect.anything());
+  });
+
   it('creates a doubao provider instance via the createProviderInstance message', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
@@ -722,7 +749,7 @@ describe('options page', () => {
     );
   });
 
-  it('saves empty timeRange when a custom range has only a start date', async () => {
+  it('blocks save with a hint when a custom range has only a start date', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
@@ -738,20 +765,18 @@ describe('options page', () => {
     fireEvent.change(screen.getByLabelText('开始日期'), { target: { value: '2026-01-01' } });
     // 结束日期下限 = 开始日期，防倒置区间。
     expect(screen.getByLabelText('结束日期')).toHaveAttribute('min', '2026-01-01');
-    // 结束日期留空：API 无半区间，保存必须落 ''（不限），不得拼出半区间。
     fireEvent.change(screen.getByPlaceholderText('如「AI 研究」'), { target: { value: '豆包半区间' } });
+    // 区间不完整：显式提示且拒绝保存，不再静默落 ''（= 不限）造成「保存了却读不回」的假象。
+    expect(screen.getByRole('alert')).toHaveTextContent('自定义时间区间不完整或起止倒置');
     const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
     fireEvent.click(within(section).getByRole('button', { name: '保存' }));
     await waitFor(() =>
-      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
-        baseProviderId: 'doubao',
-        name: '豆包半区间',
-        options: expect.objectContaining({ timeRange: '' }),
-      }),
+      expect(screen.getByText('自定义时间区间不完整或起止倒置', { selector: '.status.fail' })).toBeInTheDocument(),
     );
+    expect(mockedSend).not.toHaveBeenCalledWith('createProviderInstance', expect.anything());
   });
 
-  it('saves empty timeRange when a custom range is inverted (start > end)', async () => {
+  it('blocks save with a hint when a custom range is inverted (start > end)', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
@@ -771,12 +796,9 @@ describe('options page', () => {
     const section = screen.getByRole('heading', { name: 'Provider 实例' }).closest('section') as HTMLElement;
     fireEvent.click(within(section).getByRole('button', { name: '保存' }));
     await waitFor(() =>
-      expect(mockedSend).toHaveBeenCalledWith('createProviderInstance', {
-        baseProviderId: 'doubao',
-        name: '豆包倒置',
-        options: expect.objectContaining({ timeRange: '' }),
-      }),
+      expect(screen.getByText('自定义时间区间不完整或起止倒置', { selector: '.status.fail' })).toBeInTheDocument(),
     );
+    expect(mockedSend).not.toHaveBeenCalledWith('createProviderInstance', expect.anything());
   });
 
   it('disables the base provider dropdown while editing an existing instance', async () => {

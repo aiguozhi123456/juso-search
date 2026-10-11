@@ -178,53 +178,62 @@ export default function App() {
 
   function syncConfig() {
     void (async () => {
-      const requestEpoch = ++configRequestEpoch.current;
-      const orderRevisionAtRequest = sourceOrderRevision.current;
-      const hiddenRevisionAtRequest = sourceHiddenRevision.current;
-      const activeRevisionAtRequest = activeSourceRevision.current;
-      const groupRevisionAtRequest = groupConfigRevision.current;
-      const config = await sendMessage('getProviderConfig', undefined);
-      // Stale guard: if a newer config request was made while this one was in flight,
-      // ignore the entire response so older data doesn't clobber newer optimistic state
-      // (siteInstances / configured providers) or optimistic revisions (order / hidden).
-      if (requestEpoch !== configRequestEpoch.current) return;
-      // active 由 choose()/toggleHidden() 重选乐观推进 revision：仅当请求期间没有发生
-      // 本地激活态变更时才采纳响应中的 activeSourceId，避免在途的旧配置覆盖较新的本地态。
-      if (activeRevisionAtRequest === activeSourceRevision.current) {
-        setActive(config.activeSourceId);
+      try {
+        const requestEpoch = ++configRequestEpoch.current;
+        const orderRevisionAtRequest = sourceOrderRevision.current;
+        const hiddenRevisionAtRequest = sourceHiddenRevision.current;
+        const activeRevisionAtRequest = activeSourceRevision.current;
+        const groupRevisionAtRequest = groupConfigRevision.current;
+        const config = await sendMessage('getProviderConfig', undefined);
+        // Stale guard: if a newer config request was made while this one was in flight,
+        // ignore the entire response so older data doesn't clobber newer optimistic state
+        // (siteInstances / configured providers) or optimistic revisions (order / hidden).
+        if (requestEpoch !== configRequestEpoch.current) return;
+        // active 由 choose()/toggleHidden() 重选乐观推进 revision：仅当请求期间没有发生
+        // 本地激活态变更时才采纳响应中的 activeSourceId，避免在途的旧配置覆盖较新的本地态。
+        if (activeRevisionAtRequest === activeSourceRevision.current) {
+          setActive(config.activeSourceId);
+        }
+        setConfiguredProviderIds(config.configuredProviderIds);
+        // 运行时兜底 ?? []：老 worker / 测试 mock 可能缺字段（类型层已必填）。
+        setProviderMaxResults(config.providerMaxResults ?? {});
+        setAiAutoEnterState(config.aiAutoEnter ?? true);
+        setFlatLayoutFewSourcesState(config.flatLayoutFewSources ?? true);
+        // Site Engines 完全由 worker 持有真相：每次 config 刷新直接覆盖本地副本，
+        // 让 SiteInstanceManager 在 create/update/delete 后看到最新结果。
+        const engines = config.siteInstances ?? [];
+        setSiteInstances(engines);
+        const customs = config.customEngines ?? [];
+        setCustomEngines(customs);
+        const instances = config.providerInstances ?? [];
+        setProviderInstances(instances);
+        setAggregate(config.aggregate);
+        // 与 sourceOrder/sourceHidden 同构：仅当请求期间没有本地 groupConfig 乐观变更时才采纳响应，
+        // 避免在途的旧配置覆盖 SourceGroupEditor.persist 刚写入的乐观态。
+        if (groupRevisionAtRequest === groupConfigRevision.current) {
+          setGroupConfig(config.groupConfig);
+        }
+        // sourceOrder 必须与同一份快照的全量定义集一起规范化，否则对应 id 会被误判为未知而
+        // 剥落到列表尾部：site:/custom:/inst:/agg: 四类动态定义缺一不可。
+        if (orderRevisionAtRequest === sourceOrderRevision.current) {
+          setSourceOrder(normalizeSourceOrder(config.sourceOrder, engines, customs, instances, aggregateSourcesOf(config.aggregate)));
+        }
+        if (hiddenRevisionAtRequest === sourceHiddenRevision.current) {
+          setSourceHiddenState(config.sourceHidden ?? []);
+        }
+        // 划词搜索开关与固定源不在 ProviderConfigReply 中，直接从 storage 读取。
+        const [enabled, source] = await Promise.all([
+          getSelectionSearchEnabled(),
+          getSelectionSearchSource(),
+        ]);
+        if (requestEpoch !== configRequestEpoch.current) return;
+        setSelectionSearchEnabledState(enabled);
+        setSelectionSearchSourceState(source);
+      } catch (e) {
+        // worker 不可用（MV3 service worker 未唤起）或 handler/storage 抛错：不能让
+        // rejection 悬空，页面保持既有状态并留下诊断日志。
+        console.warn('[options] sync config failed', e);
       }
-      setConfiguredProviderIds(config.configuredProviderIds);
-      setProviderMaxResults(config.providerMaxResults ?? {});
-      setAiAutoEnterState(config.aiAutoEnter ?? true);
-      setFlatLayoutFewSourcesState(config.flatLayoutFewSources ?? true);
-      // Site Engines 完全由 worker 持有真相：每次 config 刷新直接覆盖本地副本，
-      // 让 SiteInstanceManager 在 create/update/delete 后看到最新结果。
-      const engines = config.siteInstances ?? [];
-      setSiteInstances(engines);
-      const customs = config.customEngines ?? [];
-      setCustomEngines(customs);
-      setProviderInstances(config.providerInstances ?? []);
-      setAggregate(config.aggregate);
-      // 与 sourceOrder/sourceHidden 同构：仅当请求期间没有本地 groupConfig 乐观变更时才采纳响应，
-      // 避免在途的旧配置覆盖 SourceGroupEditor.persist 刚写入的乐观态。
-      if (groupRevisionAtRequest === groupConfigRevision.current) {
-        setGroupConfig(config.groupConfig);
-      }
-      // sourceOrder 必须与同一份 siteInstances 快照一起规范化，否则 site: id 会被误判为未知而丢弃。
-      if (orderRevisionAtRequest === sourceOrderRevision.current) {
-        setSourceOrder(normalizeSourceOrder(config.sourceOrder, engines, customs));
-      }
-      if (hiddenRevisionAtRequest === sourceHiddenRevision.current) {
-        setSourceHiddenState(config.sourceHidden ?? []);
-      }
-      // 划词搜索开关与固定源不在 ProviderConfigReply 中，直接从 storage 读取。
-      const [enabled, source] = await Promise.all([
-        getSelectionSearchEnabled(),
-        getSelectionSearchSource(),
-      ]);
-      if (requestEpoch !== configRequestEpoch.current) return;
-      setSelectionSearchEnabledState(enabled);
-      setSelectionSearchSourceState(source);
     })();
   }
 
@@ -292,7 +301,6 @@ export default function App() {
   }
 
   async function toggleHidden(sourceId: SourceId) {
-    const previous = sourceHidden;
     const isHidden = sourceHidden.includes(sourceId);
     const next = isHidden ? sourceHidden.filter((id) => id !== sourceId) : [...sourceHidden, sourceId];
 
@@ -311,21 +319,24 @@ export default function App() {
       setActive(reselectTo);
     }
     setSavingSourceHidden(true);
+    let writeFailed = false;
     try {
       await sendMessage('setSourceHidden', next);
       if (reselectTo) await sendMessage('setActiveSource', reselectTo);
     } catch {
-      sourceHiddenRevision.current += 1;
-      setSourceHiddenState(previous);
-      if (reselectTo) {
-        // 回滚激活态同样推进 revision，避免在途响应再次覆盖。
-        activeSourceRevision.current += 1;
-        setActive(sourceId);
-      }
+      writeFailed = true;
     } finally {
+      if (writeFailed) {
+        // 两步顺序写可能部分成功（第一步已持久化、第二步失败）：盲目回滚本地态会与
+        // worker 已写入的真相分裂。推进修订后从 worker 重新拉取收敛；在 finally 内
+        // 推进修订，保证随后 syncConfig() 的响应不被修订守卫丢弃。
+        sourceHiddenRevision.current += 1;
+        activeSourceRevision.current += 1;
+      }
       sourceHiddenRevision.current += 1;
       setSavingSourceHidden(false);
     }
+    if (writeFailed) syncConfig();
   }
 
   return (
@@ -521,7 +532,9 @@ export default function App() {
 
           <section data-section="provider-instances">
             <h2>{t(MSG.opts_instances_heading)}</h2>
-            <ProviderInstanceManager />
+            {/* 与 SiteInstanceManager/CustomEngineManager/AggregateSearchManager 同构：
+                写操作后 syncConfig 刷新 App 级快照（providerInstances）。 */}
+            <ProviderInstanceManager onChange={syncConfig} />
           </section>
           </>
           )}

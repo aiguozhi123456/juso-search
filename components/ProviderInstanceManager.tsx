@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import { allProviders, getAdapter } from '@/lib/providers/registry';
 import type { ProviderInstance, ProviderInstanceId } from '@/lib/provider-instances';
@@ -7,6 +7,8 @@ import { sendMessage } from '@/lib/messaging';
 import { t, MSG } from '@/lib/i18n';
 import {
   DEFAULT_EXA_SETTINGS,
+  EXA_MAX_CHARACTERS_MAX,
+  EXA_MAX_CHARACTERS_MIN,
   EXA_SEARCH_TYPES,
   EXA_CATEGORIES,
   normalizeExaSettings,
@@ -17,6 +19,8 @@ import {
 import {
   DOUBAO_TIME_RANGES,
   DOUBAO_INDUSTRIES,
+  MAX_DOUBAO_BLOCK_HOSTS,
+  MAX_DOUBAO_SITES,
   normalizeDoubaoSettings,
   type DoubaoSettings,
   type DoubaoIndustry,
@@ -85,15 +89,31 @@ function exaDraftFromInstance(instance: ProviderInstance): ExaDraft {
   };
 }
 
-/** 保存时把草稿组装成 ExaSettings（textarea 按行拆分、空数值 → null）。 */
-function exaSettingsFromDraft(draft: ExaDraft): ExaSettings {
+/**
+ * 可选数值草稿 → 存储值：按适配器契约（normalizeExaSettings 的 clamp 区间）校验。
+ * 越界/非数值返回 'invalid' 由 submit 阻止保存并提示——绝不把越界值静默存进去
+ * （读侧会被钳回 null，形成「保存成功但设置丢失」的假象）；小数按读侧同款四舍五入，
+ * 保证「表单显示值 = 存储值」。
+ */
+function parseExaMaxCharacters(raw: string): number | null | 'invalid' {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return 'invalid';
+  const rounded = Math.round(n);
+  if (rounded < EXA_MAX_CHARACTERS_MIN || rounded > EXA_MAX_CHARACTERS_MAX) return 'invalid';
+  return rounded;
+}
+
+/** 保存时把草稿组装成 ExaSettings（textarea 按行拆分；数值草稿已经 parseExaMaxCharacters 校验）。 */
+function exaSettingsFromDraft(draft: ExaDraft, textMaxCharacters: number | null, highlightsMaxCharacters: number | null): ExaSettings {
   return {
     searchType: draft.searchType,
     category: draft.category,
     includeDomains: draft.includeText.split('\n').map((d) => d.trim()).filter(Boolean),
     excludeDomains: draft.excludeText.split('\n').map((d) => d.trim()).filter(Boolean),
-    textMaxCharacters: draft.textMaxStr.trim() ? Number(draft.textMaxStr) : null,
-    highlightsMaxCharacters: draft.highlightsMaxStr.trim() ? Number(draft.highlightsMaxStr) : null,
+    textMaxCharacters,
+    highlightsMaxCharacters,
   };
 }
 
@@ -138,6 +158,7 @@ function doubaoSettingsFromDraft(draft: DoubaoDraft): DoubaoSettings {
     // 枚举值（OneDay/OneWeek/OneMonth/OneYear）原样透传；仅 custom 需要拼区间。
     // 区间必须两端齐全（API 无半区间，缺端落 '' = 不限）且 start <= end
     // （ISO 串字典序可比；date input 的 min 只是引导，手输/后改 start 仍可倒置）。
+    // submit 对 custom 区间的完整性做了前置校验（opts_doubao_time_invalid），此处兜底。
     timeRange: draft.timeRange === 'custom'
       ? (draft.timeStart && draft.timeEnd && draft.timeStart <= draft.timeEnd
           ? `${draft.timeStart}..${draft.timeEnd}`
@@ -145,13 +166,18 @@ function doubaoSettingsFromDraft(draft: DoubaoDraft): DoubaoSettings {
       : draft.timeRange,
     needContent: draft.needContent,
     needUrl: draft.needUrl,
-    sites: draft.sites.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, 20),
-    blockHosts: draft.blockHosts.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, 5),
+    sites: draft.sites.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, MAX_DOUBAO_SITES),
+    blockHosts: draft.blockHosts.split('\n').map((d) => d.trim()).filter(Boolean).slice(0, MAX_DOUBAO_BLOCK_HOSTS),
     onlyAuthoritative: draft.onlyAuthoritative,
     queryRewrite: draft.queryRewrite,
     contentFormat: draft.contentFormat,
     industry: draft.industry,
   };
+}
+
+/** 自定义时间区间是否完整且有序（submit 前置校验与表单内提示共用同一判定）。 */
+function doubaoCustomRangeComplete(draft: DoubaoDraft): boolean {
+  return !!(draft.timeStart && draft.timeEnd && draft.timeStart <= draft.timeEnd);
 }
 
 /** Exa 参数表单：从 feat/exa-settings 的 ExaSettings.tsx 移植，改为受控草稿。 */
@@ -275,6 +301,11 @@ function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: 
                 onChange={(e) => onChange({ timeEnd: e.target.value })}
               />
             </label>
+            {/* 区间不完整/倒置时显式提示（submit 同时拒绝保存）：不再静默回退 ''（= 不限），
+                避免用户以为保存了自定义区间、重开后两端日期凭空消失。 */}
+            {!doubaoCustomRangeComplete(draft) && (
+              <p className="hint" role="alert">{t(MSG.opts_doubao_time_invalid)}</p>
+            )}
           </>
         )}
 
@@ -368,29 +399,45 @@ function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: 
 }
 
 /**
- * Provider 实例管理：自包含组件（无 props，自己加载数据）。
- * 列出实例 + 创建/编辑/删除；Phase 1 仅 Exa 有参数表单，Phase 2 加入 Doubao。
+ * Provider 实例管理：列出实例 + 创建/编辑/删除。数据自加载（refresh），写操作成功后
+ * 经 onChange 上抛（与 SiteInstanceManager/CustomEngineManager/AggregateSearchManager 同构），
+ * 让 App 级配置快照（providerInstances → 快切栏/聚合成员清单）同步刷新。
  * 实例 id 属 SourceId 边界，这里只发 CRUD 消息，绝不把实例 id 当 ProviderId 使用。
  */
-export function ProviderInstanceManager() {
+export function ProviderInstanceManager({ onChange }: { onChange?: () => void }) {
   const [instances, setInstances] = useState<ProviderInstance[]>([]);
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<ProviderInstanceId | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle', message: '' });
+  // 初次加载失败与「真实未配置」是两回事：加载失败时 configuredProviderIds 留 [] 会让
+  // 空态提示误报「先配 key」，需单独的错误态 + 重试入口。
+  const [loadFailed, setLoadFailed] = useState(false);
+  // refresh 的过期守卫：慢的初次加载可能晚于后续 mutation 的 refresh 返回，
+  // 请求序号较大者胜出，旧响应一律丢弃（镜像 lib/useSearchCache 的 requestId 惯例）。
+  const refreshRequestIdRef = useRef(0);
 
   async function refresh() {
+    const requestId = ++refreshRequestIdRef.current;
     try {
       const config = await sendMessage('getProviderConfig', undefined);
+      if (requestId !== refreshRequestIdRef.current) return; // 过期响应：已有更新的刷新/写操作
+      setLoadFailed(false);
+      // 运行时兜底 ?? []：老 worker / 测试 mock 可能缺字段（类型层已必填）。
       setInstances(config.providerInstances ?? []);
       setConfiguredProviderIds(config.configuredProviderIds);
     } catch {
-      // 加载失败保持现有列表；下次写操作后再同步。
+      if (requestId !== refreshRequestIdRef.current) return;
+      // 加载失败：不覆盖现有列表，标记错误态渲染重试入口（与空态区分）。
+      setLoadFailed(true);
     }
   }
 
   useEffect(() => {
     void refresh();
+    return () => {
+      refreshRequestIdRef.current += 1; // 卸载后返回的响应一律丢弃
+    };
   }, []);
 
   const providers = allProviders();
@@ -478,23 +525,43 @@ export function ProviderInstanceManager() {
     if (!editor || busy) return;
     const name = editor.name.trim();
     if (!name) return;
+    // per-provider options 组装（if/else 分支按 PROVIDERS_WITH_INSTANCE_OPTIONS 逐项对应，
+    // 新 provider 接入实例 options 时加一个分支即可）：仅带 per-instance options schema 的
+    // provider 提交 options；其它 provider（含配置导入带来的任意 base provider）**不提交**
+    // options 字段——worker 侧 patch.options ?? current.options 会保留存储原值，
+    // 提交空对象反而会把既有 options 静默清空。
+    let options: Record<string, unknown> | undefined;
+    if (editor.baseProviderId === 'exa') {
+      const textMaxCharacters = parseExaMaxCharacters(editor.exa.textMaxStr);
+      const highlightsMaxCharacters = parseExaMaxCharacters(editor.exa.highlightsMaxStr);
+      if (textMaxCharacters === 'invalid' || highlightsMaxCharacters === 'invalid') {
+        setStatus({ kind: 'fail', message: t(MSG.opts_exa_number_invalid) });
+        return;
+      }
+      options = exaSettingsFromDraft(editor.exa, textMaxCharacters, highlightsMaxCharacters) as unknown as Record<string, unknown>;
+    } else if (editor.baseProviderId === 'doubao') {
+      if (editor.doubao.timeRange === 'custom' && !doubaoCustomRangeComplete(editor.doubao)) {
+        // 自定义区间不完整/倒置：拒绝保存并提示，而不是静默落 ''（= 不限）造成数据丢失假象。
+        setStatus({ kind: 'fail', message: t(MSG.opts_doubao_time_invalid) });
+        return;
+      }
+      options = doubaoSettingsFromDraft(editor.doubao) as unknown as Record<string, unknown>;
+    }
     setStatus({ kind: 'saving', message: '' });
-    // 仅带 per-instance options schema 的 provider 组装 options；其它 provider 的 options 为空对象。
-    const options = editor.baseProviderId === 'exa'
-      ? exaSettingsFromDraft(editor.exa) as unknown as Record<string, unknown>
-      : editor.baseProviderId === 'doubao'
-        ? doubaoSettingsFromDraft(editor.doubao) as unknown as Record<string, unknown>
-        : {};
     try {
       if (editor.mode === 'create') {
-        await sendMessage('createProviderInstance', { baseProviderId: editor.baseProviderId, name, options });
+        await sendMessage('createProviderInstance', { baseProviderId: editor.baseProviderId, name, options: options ?? {} });
         setStatus({ kind: 'ok', message: t(MSG.opts_instance_status_created) });
       } else {
-        await sendMessage('updateProviderInstance', { id: editor.editId, patch: { name, options } });
+        await sendMessage('updateProviderInstance', {
+          id: editor.editId,
+          patch: options !== undefined ? { name, options } : { name },
+        });
         setStatus({ kind: 'ok', message: t(MSG.opts_instance_status_updated) });
       }
       setEditor(null);
       await refresh();
+      onChange?.(); // App 级快照（providerInstances）同步，快切栏/聚合成员清单跟随
     } catch {
       setStatus({ kind: 'fail', message: t(MSG.opts_instance_status_failed) });
     }
@@ -508,6 +575,7 @@ export function ProviderInstanceManager() {
       setStatus({ kind: 'ok', message: t(MSG.opts_instance_status_deleted) });
       setConfirmDeleteId(null);
       await refresh();
+      onChange?.(); // App 级快照（providerInstances）同步，快切栏/聚合成员清单跟随
     } catch {
       setStatus({ kind: 'fail', message: t(MSG.opts_instance_status_failed) });
     }
@@ -548,6 +616,11 @@ export function ProviderInstanceManager() {
                 // 编辑模式禁用下拉，防止切 base 后 submit 按新 base 组装 options，静默清空原设置。
                 disabled={editor.mode === 'edit'}
               >
+                {/* 配置导入可带来任意 provider 的实例（normalizeProviderInstance 不限 base）：
+                    当前 base 不在可选列表时也要可表示，否则编辑模式下拉渲染成空白。 */}
+                {!instanceableProviders.some((p) => p.id === editor.baseProviderId) && (
+                  <option value={editor.baseProviderId}>{t(getAdapter(editor.baseProviderId).label)}</option>
+                )}
                 {instanceableProviders.map((p) => (
                   <option key={p.id} value={p.id}>{t(p.label)}</option>
                 ))}
@@ -560,6 +633,9 @@ export function ProviderInstanceManager() {
           )}
           {editor.baseProviderId === 'doubao' && (
             <DoubaoOptionsForm draft={editor.doubao} onChange={patchDoubao} />
+          )}
+          {editor.baseProviderId !== 'exa' && editor.baseProviderId !== 'doubao' && (
+            <p className="hint" role="note">{t(MSG.opts_instance_no_options)}</p>
           )}
 
           {(editor.baseProviderId === 'exa' || editor.baseProviderId === 'doubao') && (
@@ -597,11 +673,17 @@ export function ProviderInstanceManager() {
           {atCapacity && (
             <p className="hint" role="note">{t(MSG.opts_instance_limit_reached)}</p>
           )}
-          {noInstanceableProvider && (
+          {noInstanceableProvider && !loadFailed && (
             <p className="hint" role="note">
               {configuredProviderIds.length === 0
                 ? t(MSG.opts_instances_hint_need_key)
                 : t(MSG.opts_instances_hint_no_options)}
+            </p>
+          )}
+          {loadFailed && (
+            <p className="hint" role="alert">
+              {t(MSG.opts_instance_load_failed)}{' '}
+              <button type="button" onClick={() => void refresh()}>{t(MSG.opts_instance_retry)}</button>
             </p>
           )}
         </>

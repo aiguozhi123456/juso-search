@@ -33,6 +33,11 @@ export const DOUBAO_TIME_RANGES = ['OneDay', 'OneWeek', 'OneMonth', 'OneYear'] a
 export const DOUBAO_INDUSTRIES = ['finance', 'game', 'gov'] as const;
 export type DoubaoIndustry = (typeof DOUBAO_INDUSTRIES)[number];
 
+/** Doubao API 契约：sites / blockHosts 的数量上限。读侧归一（hostList 截断）与 UI 侧
+ *  （ProviderInstanceManager 的 textarea 组装截断）共用，防两处硬编码漂移。 */
+export const MAX_DOUBAO_SITES = 20;
+export const MAX_DOUBAO_BLOCK_HOSTS = 5;
+
 export interface DoubaoSettings {
   timeRange: string; // '' | 枚举值 | 'YYYY-MM-DD..YYYY-MM-DD'（含端点区间）
   needContent: boolean;
@@ -78,8 +83,8 @@ export function normalizeDoubaoSettings(raw: unknown): DoubaoSettings {
     needContent: r.needContent === true,
     // needUrl 默认 true（保持现状行为）：字段缺失时回落默认值，显式非 true 才视为关闭。
     needUrl: r.needUrl === undefined ? DEFAULT_DOUBAO_SETTINGS.needUrl : r.needUrl === true,
-    sites: hostList(r.sites, 20),
-    blockHosts: hostList(r.blockHosts, 5),
+    sites: hostList(r.sites, MAX_DOUBAO_SITES),
+    blockHosts: hostList(r.blockHosts, MAX_DOUBAO_BLOCK_HOSTS),
     onlyAuthoritative: r.onlyAuthoritative === true,
     queryRewrite: r.queryRewrite === true,
     contentFormat: contentFormat(r.contentFormat),

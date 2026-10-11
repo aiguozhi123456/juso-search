@@ -46,6 +46,11 @@ export interface ExaSettings {
   highlightsMaxCharacters: number | null;
 }
 
+/** 可选数值参数（textMaxCharacters / highlightsMaxCharacters）的合法区间。
+ *  UI 表单与校验必须引用同一契约（normalizeExaSettings 越界即钳回 null），防止「保存成功但读侧静默丢弃」。 */
+export const EXA_MAX_CHARACTERS_MIN = 1;
+export const EXA_MAX_CHARACTERS_MAX = 10000;
+
 export const DEFAULT_EXA_SETTINGS: ExaSettings = {
   searchType: 'auto',
   category: '',
@@ -75,8 +80,8 @@ export function normalizeExaSettings(raw: unknown): ExaSettings {
     category: isExaCategory(r.category) ? r.category : '',
     includeDomains: domains(r.includeDomains),
     excludeDomains: domains(r.excludeDomains),
-    textMaxCharacters: clampInt(r.textMaxCharacters, 1, 10000, null),
-    highlightsMaxCharacters: clampInt(r.highlightsMaxCharacters, 1, 10000, null),
+    textMaxCharacters: clampInt(r.textMaxCharacters, EXA_MAX_CHARACTERS_MIN, EXA_MAX_CHARACTERS_MAX, null),
+    highlightsMaxCharacters: clampInt(r.highlightsMaxCharacters, EXA_MAX_CHARACTERS_MIN, EXA_MAX_CHARACTERS_MAX, null),
   };
 }
 

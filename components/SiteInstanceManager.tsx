@@ -11,6 +11,9 @@ import {
   constructionFor,
   findDuplicateSiteInstanceScopes,
   formDefaultConstruction,
+  MAX_INSTANCE_NAME_LENGTH,
+  MAX_SITE_INSTANCES,
+  MAX_SITE_TARGET_LENGTH,
   normalizeSiteTarget,
   siteScopeForDefinition,
   siteScopeForTarget,
@@ -22,10 +25,10 @@ import { getEngine } from '@/lib/engines/registry';
 
 const BACKING_ENGINES: readonly SiteInstanceEngineId[] = ['google', 'bing', 'baidu'];
 
-/** UI-side affordances matching backend limits. Defined once to avoid scattering magic numbers. */
-const NAME_MAX = 40;
-const TARGET_MAX = 2048;
-const MAX_SITE_INSTANCES = 50;
+/** UI-side affordances mirroring the backend limits — single source of truth is
+ *  lib/site-instances (MAX_INSTANCE_NAME_LENGTH / MAX_SITE_TARGET_LENGTH / MAX_SITE_INSTANCES). */
+const NAME_MAX = MAX_INSTANCE_NAME_LENGTH;
+const TARGET_MAX = MAX_SITE_TARGET_LENGTH;
 
 const TIME_RANGE_OPTIONS: ReadonlyArray<{ value: '' | NonNullable<ZhanneiFilters['timeRange']>; key: MessageName }> = [
   { value: '', key: MSG.opts_site_instances_filters_time_any },
@@ -252,7 +255,9 @@ export function SiteInstanceManager({
   }
 
   function selectEngine(engineId: SiteInstanceEngineId) {
-    setEditor((prev) => (prev ? patchEditorForEngine(prev, engineId) : prev));
+    // 原生 radio 语义：点击已激活引擎是 no-op，不得经 patchEditorForEngine 重置
+    // 编辑中的构造模式与 zhannei 筛选（否则对已激活项的误点会静默丢弃未保存的编辑）。
+    setEditor((prev) => (prev && prev.engineId !== engineId ? patchEditorForEngine(prev, engineId) : prev));
   }
 
   async function submit() {
@@ -293,6 +298,9 @@ export function SiteInstanceManager({
       await sendMessage('deleteSiteInstance', id);
       setStatus({ kind: 'ok', message: t(MSG.opts_site_instances_status_deleted) });
       setConfirmDeleteId(null);
+      // 删除的正是正在编辑的记录时关掉表单：否则悬挂编辑器仍显示旧值，
+      // 保存会对已不存在的 id 提交 update 而失败。
+      setEditor((prev) => (prev && prev.mode === 'edit' && prev.editId === id ? null : prev));
       onChange();
     } catch {
       setStatus({ kind: 'fail', message: t(MSG.opts_site_instances_status_failed) });

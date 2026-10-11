@@ -3,7 +3,7 @@ import type { ProviderId } from '@/lib/providers/types';
 import { allProviders } from '@/lib/providers/registry';
 import type { EngineId } from '@/lib/engines/types';
 import { getEngine } from '@/lib/engines/registry';
-import { extractorCapableEngineIds } from '@/lib/aggregate/eligibility';
+import { extractorCapableEngineIds, resolveAggregateEligibility } from '@/lib/aggregate/eligibility';
 import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId } from '@/lib/aggregate/types';
 import type { AggregateInstance } from '@/lib/aggregate-instances';
 import {
@@ -130,7 +130,6 @@ export function AggregateSearchManager({
   const atCapacity = instances.length >= MAX_AGGREGATE_INSTANCES;
 
   // === 成员清单（两节平铺；全部从 registry/快照派生，不手写）===
-  const configuredSet = new Set<ProviderId>(configuredProviderIds);
   const instancesByProvider = new Map<ProviderId, ProviderInstance[]>();
   for (const instance of providerInstances) {
     const list = instancesByProvider.get(instance.baseProviderId);
@@ -155,13 +154,21 @@ export function AggregateSearchManager({
   const engineIdSet = new Set<string>(engineRows.map((row) => row.id));
   const instancesById = new Map(providerInstances.map((instance) => [instance.id, instance]));
 
-  /** 编辑器清单内的成员是否为有效成员（与 lib/aggregate/eligibility.ts 同一判定规则的 UI 投影：
-   *  清单只列有效候选，故勾选数 = 有效成员数；不在清单的存量成员按同规则复核计数）。 */
-  function isDraftMemberValid(member: AggregateMemberId): boolean {
-    if (engineIdSet.has(member)) return true;
-    const providerInstance = instancesById.get(member as ProviderInstance['id']);
-    if (providerInstance) return configuredSet.has(providerInstance.baseProviderId);
-    return configuredSet.has(member as ProviderId);
+  /**
+   * 草稿成员的有效性计数：直接复用 worker 侧共享纯函数 resolveAggregateEligibility
+   * （同 engine-set / instance-map / configured-provider 判定），UI 计数与实际 eligibility 永不漂移。
+   * isRerankConfigured 只查 endpoint 非空，脱敏快照的 endpoint 足以构成 RerankConfig 形状；
+   * validMembers 不依赖 rerank，快照未配置（endpoint=''）时同样可计数。
+   */
+  function draftEligibilityOf(members: readonly AggregateMemberId[]) {
+    return resolveAggregateEligibility(
+      { members: [...members] },
+      {
+        configuredProviderIds,
+        providerInstances,
+        rerankConfig: snapshotEndpoint ? { endpoint: snapshotEndpoint } : null,
+      },
+    );
   }
 
   /** 成员显示名（实例列表卡摘要用）：provider 实例 → 「Provider · 实例名」；provider → label；engine → label；未知 → 原 id。 */
@@ -246,13 +253,19 @@ export function AggregateSearchManager({
     }
     setRerankStatus({ kind: 'saving' });
     try {
-      await sendMessage('setRerankConfig', {
+      const reply = await sendMessage('setRerankConfig', {
         endpoint: validation.endpoint,
         ...(snapshotModel ? { model: snapshotModel } : {}),
         apiKey: '',
       });
-      setRerankStatus({ kind: 'ok', message: t(MSG.opts_aggregate_rerank_api_key_cleared) });
-      onChange();
+      if (reply.ok) {
+        setRerankStatus({ kind: 'ok', message: t(MSG.opts_aggregate_rerank_api_key_cleared) });
+        onChange();
+      } else {
+        // setRerankConfig 是 ok/error 判别联合（worker 侧返回而非抛出）：失败必须按
+        // 失败渲染，不能落到「已清除」的假成功。
+        setRerankStatus({ kind: 'fail', message: reply.error.message });
+      }
     } catch {
       setRerankStatus({ kind: 'fail', message: t(MSG.status_save_failed) });
     }
@@ -277,8 +290,14 @@ export function AggregateSearchManager({
     }
   }
 
-  const testDisabled =
-    !rerankConfigured || rerankBusy || endpointStr.trim() !== snapshotEndpoint;
+  // 测试按钮守卫：worker handleTestRerank 测的是**已存储**的配置——endpoint/model 任一输入
+  // 与快照不一致、或 apiKey 输入了未保存的新 key 时都视为脏并禁用，提示先保存，
+  // 避免「Test 可用但测的是旧配置」的误导性结果。
+  const rerankDirty =
+    endpointStr.trim() !== snapshotEndpoint
+    || modelStr.trim() !== snapshotModel
+    || apiKeyStr.trim() !== '';
+  const testDisabled = !rerankConfigured || rerankBusy || rerankDirty;
 
   // === 实例编辑器动作 ===
 
@@ -333,7 +352,7 @@ export function AggregateSearchManager({
   async function submit() {
     if (!editor || busy) return;
     const name = editor.name.trim();
-    const validCount = editor.members.filter(isDraftMemberValid).length;
+    const validCount = draftEligibilityOf(editor.members).validMembers.length;
     if (!name || validCount < 1) return;
     setStatus({ kind: 'busy' });
     const topN = clampAggregateTopN(parseTopNStr(editor.topNStr));
@@ -367,7 +386,7 @@ export function AggregateSearchManager({
     }
   }
 
-  const draftValidCount = editor ? editor.members.filter(isDraftMemberValid).length : 0;
+  const draftValidCount = editor ? draftEligibilityOf(editor.members).validMembers.length : 0;
   const draftTopN = editor ? parseTopNStr(editor.topNStr) : DEFAULT_AGGREGATE_TOP_N;
   const atTopNMin = editor ? draftTopN <= MIN_AGGREGATE_TOP_N : false;
   const atTopNMax = editor ? draftTopN >= MAX_AGGREGATE_TOP_N : false;
@@ -445,7 +464,7 @@ export function AggregateSearchManager({
             type="button"
             onClick={testRerankConnection}
             disabled={testDisabled}
-            title={testDisabled && endpointStr.trim() !== snapshotEndpoint ? t(MSG.opts_aggregate_rerank_test_save_first) : undefined}
+            title={rerankDirty ? t(MSG.opts_aggregate_rerank_test_save_first) : undefined}
           >
             {rerankStatus.kind === 'testing' ? t(MSG.status_testing) : t(MSG.opts_aggregate_rerank_test)}
           </button>

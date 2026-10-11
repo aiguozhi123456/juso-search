@@ -11,6 +11,48 @@ type Status =
   | { kind: 'imported'; report: ImportReport }
   | { kind: 'error'; message: string };
 
+/** worker 校验失败的机器 token（parseImportPayload 产出，gateway 原样透传）→ 本地化文案；
+ *  未知 token（如 mergeImport 抛出的异常串）回退通用文案，绝不把裸 token 渲染给用户。 */
+function importErrorText(token: string): string {
+  switch (token) {
+    case 'invalid_format':
+      return t(MSG.IMPORT_invalid_format);
+    case 'import_too_large':
+      return t(MSG.IMPORT_import_too_large);
+    case 'schema_version_mismatch':
+      return t(MSG.IMPORT_schema_version_mismatch);
+    case 'invalid_provider_keys':
+      return t(MSG.IMPORT_invalid_provider_keys);
+    case 'invalid_theme':
+      return t(MSG.IMPORT_invalid_theme);
+    default:
+      return t(MSG.IMPORT_unknown);
+  }
+}
+
+/** PrefDiff 全键 → MSG 键映射（显式穷举，新增 pref 键时编译器强制补行）；
+ *  prefLabel 与 importReportPrefs 共用此表，防两处清单漂移。 */
+const PREF_LABELS: Record<PrefDiff['key'], string> = {
+  activeProvider: MSG.opts_pref_activeProvider,
+  activeSource: MSG.opts_pref_activeSource,
+  themePref: MSG.opts_pref_themePref,
+  localePref: MSG.opts_pref_localePref,
+  serpBarPosition: MSG.opts_pref_serpBarPosition,
+  aiAutoEnter: MSG.opts_pref_aiAutoEnter,
+  flatLayoutFewSources: MSG.opts_pref_flatLayoutFewSources,
+  sourceOrder: MSG.opts_pref_sourceOrder,
+  sourceHidden: MSG.opts_pref_sourceHidden,
+  siteInstances: MSG.opts_pref_siteInstances,
+  customEngines: MSG.opts_pref_customEngines,
+  providerInstances: MSG.opts_pref_providerInstances,
+  aggregateInstances: MSG.opts_pref_aggregateInstances,
+  rerankConfig: MSG.opts_pref_rerankConfig,
+  providerMaxResults: MSG.opts_pref_providerMaxResults,
+  groupConfig: MSG.opts_pref_groupConfig,
+};
+
+const PREF_KEYS = Object.keys(PREF_LABELS) as PrefDiff['key'][];
+
 export function ConfigExportImport({ onImported }: { onImported: () => void }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -34,10 +76,11 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // 立即复位 input：保证下面任何提前 return（容量护栏 / 校验失败）之后重选同一文件仍能触发 onChange。
+    if (fileRef.current) fileRef.current.value = '';
     // 容量护栏：真实导出 < 1KB，给 256KB 余量即可挡住恶意大文件 OOM。
     if (file.size > 256 * 1024) {
       setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, 'file_too_large') });
-      if (fileRef.current) fileRef.current.value = '';
       return;
     }
     setStatus({ kind: 'busy' });
@@ -47,7 +90,7 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
       // 先 dry-run 预览，拿到 diff 再决定是否需要确认
       const previewReply = await sendMessage('previewImport', parsed);
       if (!previewReply.ok) {
-        setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, previewReply.error.message) });
+        setStatus({ kind: 'error', message: importErrorText(previewReply.error.message) });
         return;
       }
       const hasPrefChanges = previewReply.preview.prefDiffs.length > 0;
@@ -59,9 +102,8 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
         await doImport(parsed, false);
       }
     } catch {
-      setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, 'invalid_format') });
+      setStatus({ kind: 'error', message: t(MSG.IMPORT_invalid_format) });
     }
-    if (fileRef.current) fileRef.current.value = '';
   }
 
   async function doImport(payload: ConfigExport, applyPrefs: boolean) {
@@ -72,10 +114,10 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
         onImported();
         setStatus({ kind: 'imported', report: reply.report });
       } else {
-        setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, reply.error.message) });
+        setStatus({ kind: 'error', message: importErrorText(reply.error.message) });
       }
     } catch {
-      setStatus({ kind: 'error', message: t(MSG.opts_config_import_invalid, 'invalid_format') });
+      setStatus({ kind: 'error', message: t(MSG.IMPORT_invalid_format) });
     }
   }
 
@@ -84,21 +126,13 @@ export function ConfigExportImport({ onImported }: { onImported: () => void }) {
   }
 
   function prefLabel(key: PrefDiff['key']): string {
-    return t(`opts_pref_${key}`);
+    return t(PREF_LABELS[key]);
   }
 
   function importReportPrefs(report: ImportReport): string {
-    const labels = [];
-    if (report.activeProviderOverridden) labels.push(prefLabel('activeProvider'));
-    if (report.activeSourceOverridden) labels.push(prefLabel('activeSource'));
-    if (report.themePrefOverridden) labels.push(prefLabel('themePref'));
-    if (report.localePrefOverridden) labels.push(prefLabel('localePref'));
-    if (report.serpBarPositionOverridden) labels.push(prefLabel('serpBarPosition'));
-    if (report.sourceOrderOverridden) labels.push(prefLabel('sourceOrder'));
-    if (report.sourceHiddenOverridden) labels.push(prefLabel('sourceHidden'));
-    if (report.siteInstancesOverridden) labels.push(prefLabel('siteInstances'));
-    if (report.providerMaxResultsOverridden) labels.push(prefLabel('providerMaxResults'));
-    if (report.groupConfigOverridden) labels.push(prefLabel('groupConfig'));
+    // 与 ImportReport 的 16 个 *Overridden 标志一一对应：标志名 = `${prefKey}Overridden`。
+    // 由 PREF_LABELS 驱动（单一来源），新增 pref 键时本清单自动跟随，不再漏报。
+    const labels = PREF_KEYS.filter((key) => report[`${key}Overridden` as keyof ImportReport] === true).map(prefLabel);
     return labels.length > 0 ? t(MSG.opts_config_import_report_prefs, labels.join(' / ')) : '';
   }
 

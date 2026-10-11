@@ -1,10 +1,11 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
 import type { SearchCacheEntry, SearchCacheSummary } from '@/lib/search-cache';
 import { AGGREGATE_CACHE_PROVIDER_ID } from '@/lib/search-cache';
 import { allProviders } from '@/lib/providers/registry';
-import { getCurrentLocale, t, MSG } from '@/lib/i18n';
+import { t, MSG } from '@/lib/i18n';
 import { useSearchCache } from '@/lib/useSearchCache';
+import { relativeTime } from './relativeTime';
 import { CloseIcon, TrashIcon } from './icons';
 
 interface Props {
@@ -23,9 +24,13 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const selectReqIdRef = useRef(0);
+  // loadEntry/deleteEntry/clear 透传 worker 消息，worker 侧 storage 读取可能 reject
+  // （扩展上下文失效 / 存储不可用）：面板需有失败反馈态，不能让 rejection 悬空。
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setActionError(null);
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     return () => {
@@ -38,14 +43,41 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
 
   async function select(summary: SearchCacheSummary) {
     const reqId = ++selectReqIdRef.current;
-    const entry = await loadEntry(summary.id);
-    if (reqId !== selectReqIdRef.current) return; // 丢弃乱序的旧选择
-    if (!entry) {
-      await refresh();
-      return;
+    setActionError(null);
+    try {
+      const entry = await loadEntry(summary.id);
+      if (reqId !== selectReqIdRef.current) return; // 丢弃乱序的旧选择
+      if (!entry) {
+        await refresh();
+        return;
+      }
+      onSelect(entry);
+      closePanel();
+    } catch {
+      // 读缓存失败（乱序的旧失败同样丢弃）：保持面板打开并给出失败反馈。
+      if (reqId !== selectReqIdRef.current) return;
+      setActionError(t(MSG.history_action_failed));
     }
-    onSelect(entry);
-    closePanel();
+  }
+
+  async function clearAll() {
+    setActionError(null);
+    try {
+      await clear();
+    } catch {
+      // 清空失败：列表保持原状并提示，用户可重试。
+      setActionError(t(MSG.history_action_failed));
+    }
+  }
+
+  async function removeEntry(id: string) {
+    setActionError(null);
+    try {
+      await deleteEntry(id);
+    } catch {
+      // 单条删除失败：条目保持原状并提示，用户可重试。
+      setActionError(t(MSG.history_action_failed));
+    }
   }
 
   function closePanel() {
@@ -83,10 +115,11 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
           </button>
         </header>
         {summaries.length > 0 && (
-          <button type="button" className="history-clear" onClick={() => void clear()}>
+          <button type="button" className="history-clear" onClick={() => void clearAll()}>
             {t(MSG.history_clear_all)}
           </button>
         )}
+        {!loading && actionError && <div className="state" role="alert">{actionError}</div>}
         {loading && <div className="state">{t(MSG.state_loading)}</div>}
         {!loading && summaries.length === 0 && <div className="state">{t(MSG.history_empty)}</div>}
         {!loading && summaries.length > 0 && (
@@ -103,7 +136,7 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
                     </span>
                   )}
                 </button>
-                <button type="button" className="history-delete" onClick={() => void deleteEntry(summary.id)} aria-label={t(MSG.history_delete_item, summary.query)}>
+                <button type="button" className="history-delete" onClick={() => void removeEntry(summary.id)} aria-label={t(MSG.history_delete_item, summary.query)}>
                   <TrashIcon size={14} />
                   <span>{t(MSG.history_delete)}</span>
                 </button>
@@ -125,17 +158,4 @@ function providerLabel(providerId: ProviderId | typeof AGGREGATE_CACHE_PROVIDER_
   }
   const provider = providers.find((candidate) => candidate.id === providerId);
   return provider ? t(provider.label) : providerId;
-}
-
-function relativeTime(timestamp: number): string {
-  const seconds = Math.round((timestamp - Date.now()) / 1000);
-  const abs = Math.abs(seconds);
-  const locale = getCurrentLocale() === 'zh_CN' ? 'zh-CN' : 'en';
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  if (abs < 60) return rtf.format(seconds, 'second');
-  const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) return rtf.format(minutes, 'minute');
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour');
-  return rtf.format(Math.round(hours / 24), 'day');
 }

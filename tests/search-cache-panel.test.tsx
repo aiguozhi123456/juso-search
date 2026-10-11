@@ -87,6 +87,69 @@ describe('SearchCachePanel', () => {
     expect(await screen.findByText('暂无搜索历史')).toBeInTheDocument();
   });
 
+  // ── worker 侧失败（storage 不可用 / 扩展上下文失效）必须落到面板错误态，不得悬空 rejection ──
+
+  it('shows an error state and keeps the panel open when loadEntry rejects', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'tavily:q', query: 'q', normalizedQuery: 'q', providerId: 'tavily', createdAt: 1, lastAccessedAt: 1, answerPreview: '', resultPreviews: [], resultCount: 0 },
+        ]);
+      }
+      if (type === 'getCachedSearchEntry') {
+        return Promise.reject(new Error('Extension context invalidated'));
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(<SearchCachePanel open onClose={onClose} onSelect={onSelect} />);
+
+    fireEvent.click((await screen.findByText('q')).closest('button') as HTMLButtonElement);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('操作失败，请重试');
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows an error state when a row delete rejects', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'tavily:q', query: 'q', normalizedQuery: 'q', providerId: 'tavily', createdAt: 1, lastAccessedAt: 1, answerPreview: '', resultPreviews: [], resultCount: 0 },
+        ]);
+      }
+      if (type === 'deleteCachedSearch') {
+        return Promise.reject(new Error('quota exceeded'));
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<SearchCachePanel open onClose={vi.fn()} onSelect={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '删除 q' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('操作失败，请重试');
+  });
+
+  it('shows an error state when clear rejects', async () => {
+    mockedSend.mockImplementation(((type: string) => {
+      if (type === 'getSearchCacheSummaries') {
+        return Promise.resolve([
+          { id: 'cache-1', cacheKey: 'tavily:q', query: 'q', normalizedQuery: 'q', providerId: 'tavily', createdAt: 1, lastAccessedAt: 1, answerPreview: '', resultPreviews: [], resultCount: 0 },
+        ]);
+      }
+      if (type === 'clearSearchCache') {
+        return Promise.reject(new Error('quota exceeded'));
+      }
+      return Promise.resolve(undefined);
+    }) as never);
+    render(<SearchCachePanel open onClose={vi.fn()} onSelect={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '清空全部' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('操作失败，请重试');
+  });
+
   // ── 聚合条目 label（R11/Oracle F4）：'aggregate' 哨兵 → i18n「聚合 · 实例名」 ──
 
   function installAggregateSummary() {
