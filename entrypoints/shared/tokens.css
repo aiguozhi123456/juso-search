@@ -38,7 +38,7 @@
   /* ── 语义色（与 brand 区分） ──────────────────────── */
   --success: #1e8e3e;
   --error: #b00020;            /* 深 crimson，与 vermillion brand 区分 */
-  --warning: #b97400;
+  --warning: #8a5a00;          /* 白底小文本 ≥4.5:1（AA）；原 #b97400 仅 ≈3.8:1 */
 
   /* ── 品牌相关衍生（AI 回答卡片用暖色调和谐 brand） ─ */
   --answer-bg: #fdf6f4;        /* 极浅 vermillion 暖白 */
@@ -83,8 +83,10 @@
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.16);
 
-  /* ── 焦点环（跟随 brand） ────────────────────────── */
-  --focus-ring: 0 0 0 3px rgba(200, 55, 45, 0.28);
+  /* ── 焦点环（跟随 brand） ──────────────────────────
+     不透明度需保证合成到背景后 ≥3:1（WCAG 2.4.11 焦点指示）；25–36% 的低透明值
+     合成后仅 ≈1.5–1.9:1，近乎不可见。0.70/0.65 在白底与 --bg 暗底上均 ≥3.1:1。 */
+  --focus-ring: 0 0 0 3px rgba(200, 55, 45, 0.7);
 
   /* ── 动效 ─────────────────────────────────────────── */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -126,7 +128,7 @@
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.36);
     --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.40);
     --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.50);
-    --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.36);
+    --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.65);
 
     --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff6b5b'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
   }
@@ -157,7 +159,7 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.36);
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.40);
   --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.50);
-  --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.36);
+  --focus-ring: 0 0 0 3px rgba(255, 107, 91, 0.65);
 
   --mark-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff6b5b'%3E%3Crect x='3' y='4' width='18' height='3' rx='1.5'/%3E%3Crect x='6' y='10.5' width='12' height='3' rx='1.5'/%3E%3Crect x='9' y='17' width='6' height='3' rx='1.5'/%3E%3C/svg%3E");
 }
@@ -191,9 +193,11 @@
   --answer-bg: var(--color-teal-soft);
   --answer-border: #b9e3e1;
   --success: var(--color-green);
-  --error: var(--color-red);
-  --warning: var(--color-yellow);
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  /* 语义色不直接 alias 分类色：--color-red/--color-yellow 作为来源实色/底纹保持原值，
+     而语义色承担小号提示文本，需 ≥4.5:1（AA），故取同色相加深值。 */
+  --error: #c0392b;            /* ≈5.4:1；分类色 --color-red 仍是 #d94841 */
+  --warning: #8a5a00;          /* ≈5.9:1；分类色 --color-yellow 仍是 #9a7200 */
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.75);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -227,7 +231,7 @@
     --success: var(--color-green);
     --error: var(--color-red);
     --warning: var(--color-yellow);
-    --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.32);
+    --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.65);
   }
 }
 
@@ -261,7 +265,7 @@
   --success: var(--color-green);
   --error: var(--color-red);
   --warning: var(--color-yellow);
-  --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.32);
+  --focus-ring: 0 0 0 3px rgba(121, 168, 255, 0.65);
 }
 
 /* 全局焦点环：仅在键盘导航时显示，避免点击残留。 */

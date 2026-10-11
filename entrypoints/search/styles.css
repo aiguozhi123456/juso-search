@@ -280,11 +280,13 @@ body {
 .history-button:disabled { opacity: 0.55; cursor: default; }
 
 /* ── 搜索框（pill） ──────────────────────────────── */
+/* flex-wrap + input min-width:0：加载中会同时挂提交与中断按钮，输入框要能收缩到
+   内容宽以下，整行才不会在窄视口溢出（body overflow-x: clip 裁掉尾部按钮且无法滚动）。 */
 .search-box {
-  display: flex; gap: var(--space-2); margin-bottom: var(--space-5);
+  display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5);
 }
 .search-box input {
-  flex: 1; padding: var(--space-3) var(--space-5);
+  flex: 1; min-width: 0; padding: var(--space-3) var(--space-5);
   font-size: var(--text-lg); font-family: inherit;
   border: 1px solid var(--border); border-radius: var(--radius-full);
   background: var(--bg); color: var(--fg); outline: none;
@@ -674,17 +676,30 @@ body {
 [data-style="colorful"] .wordmark-head { color: var(--color-orange); }
 [data-style="colorful"] .wordmark-tail { color: var(--color-blue); }
 
-/* 来源分类色：按钮与结果卡共享同一 data-source 映射。 */
-[data-style="colorful"] [data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
-[data-style="colorful"] [data-source="bing"] { --source-color: var(--color-cyan); --source-soft: var(--color-cyan-soft); }
-[data-style="colorful"] [data-source="baidu"] { --source-color: var(--color-red); --source-soft: var(--color-red-soft); }
-[data-style="colorful"] [data-source="tavily"] { --source-color: var(--color-violet); --source-soft: var(--color-violet-soft); }
-[data-style="colorful"] [data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
-[data-style="colorful"] [data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
-[data-style="colorful"] [data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
-[data-style="colorful"] [data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
-[data-style="colorful"] [data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
-[data-style="colorful"] [data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
+/* 来源分类色：按钮与结果卡共享同一 data-source 映射。
+   必须带元素限定（.source-switcher button / .result-card）：下方的蓝色默认分别是
+   0,2,1 与 0,2,0，裸 [data-source] 规则（0,2,0）会被整体覆盖成死代码——
+   与 serp-bar-styles.ts 的同款映射保持同一写法。 */
+[data-style="colorful"] .source-switcher button[data-source="google"],
+[data-style="colorful"] .result-card[data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
+[data-style="colorful"] .source-switcher button[data-source="bing"],
+[data-style="colorful"] .result-card[data-source="bing"] { --source-color: var(--color-cyan); --source-soft: var(--color-cyan-soft); }
+[data-style="colorful"] .source-switcher button[data-source="baidu"],
+[data-style="colorful"] .result-card[data-source="baidu"] { --source-color: var(--color-red); --source-soft: var(--color-red-soft); }
+[data-style="colorful"] .source-switcher button[data-source="tavily"],
+[data-style="colorful"] .result-card[data-source="tavily"] { --source-color: var(--color-violet); --source-soft: var(--color-violet-soft); }
+[data-style="colorful"] .source-switcher button[data-source="exa"],
+[data-style="colorful"] .result-card[data-source="exa"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+[data-style="colorful"] .source-switcher button[data-source="stepfun"],
+[data-style="colorful"] .result-card[data-source="stepfun"] { --source-color: var(--color-orange); --source-soft: var(--color-orange-soft); }
+[data-style="colorful"] .source-switcher button[data-source="stepfun-plan"],
+[data-style="colorful"] .result-card[data-source="stepfun-plan"] { --source-color: var(--color-green); --source-soft: var(--color-green-soft); }
+[data-style="colorful"] .source-switcher button[data-source="jina"],
+[data-style="colorful"] .result-card[data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
+[data-style="colorful"] .source-switcher button[data-source="doubao"],
+[data-style="colorful"] .result-card[data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
+[data-style="colorful"] .source-switcher button[data-source="doubao-global"],
+[data-style="colorful"] .result-card[data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
 
 [data-style="colorful"] .source-switcher button {
   --source-color: var(--color-blue);
