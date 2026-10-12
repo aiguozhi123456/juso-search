@@ -224,3 +224,36 @@
   background: var(--color-cyan-soft);
   color: var(--color-cyan);
 }
+/* 快切栏栏位（栏位布局语义 → cyan）：与 FlatLayoutToggle 同构的指示器/active/hover 覆盖组。
+   栏位与"少量来源平铺"同属布局域，复用已确立的 cyan，不新增色相。 */
+[data-style="colorful"] .bar-position-toggle-indicator,
+[data-style="colorful"] .bar-position-toggle button.active {
+  background: var(--color-cyan);
+}
+[data-style="colorful"] .bar-position-toggle[style*="--indicator-w"] button.active {
+  background: transparent;
+}
+[data-style="colorful"] .bar-position-toggle button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .bar-position-toggle button:hover:not([data-active="true"]) {
+  background: var(--color-cyan-soft);
+  color: var(--color-cyan);
+}
+/* 划词搜索（扩展行为语义 → teal）：与 AiAutoEnterToggle 同构的覆盖组。
+   划词开关与 AI 自动回车同属运行时行为域，复用已确立的 teal；
+   green 保留给 success/已配置状态语义（--success、.key-row .configured），不挪用为分类色。 */
+[data-style="colorful"] .selection-search-toggle-indicator,
+[data-style="colorful"] .selection-search-toggle button.active {
+  background: var(--color-teal);
+}
+[data-style="colorful"] .selection-search-toggle[style*="--indicator-w"] button.active {
+  background: transparent;
+}
+[data-style="colorful"] .selection-search-toggle button[data-active="true"] {
+  color: var(--color-on-fill);
+}
+[data-style="colorful"] .selection-search-toggle button:hover:not([data-active="true"]) {
+  background: var(--color-teal-soft);
+  color: var(--color-teal);
+}
