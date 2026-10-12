@@ -1,4 +1,4 @@
-import { extractLooseBridgeCredentials, parseBridgeFragment } from '@/lib/agent-bridge';
+import { abortLoopback, extractLooseBridgeCredentials, parseBridgeFragment } from '@/lib/agent-bridge';
 import type { BridgeCredentials } from '@/lib/agent-bridge';
 import { sendMessage } from '@/lib/messaging';
 import { applyLocalePref, t, MSG } from '@/lib/i18n';
@@ -53,25 +53,12 @@ async function connect(): Promise<void> {
 // /v1/abort 的唯一截止：对端是常驻 loopback 进程，正常应答为毫秒级；对端冻结、
 // 被安全软件拦截或 handler 耗尽时不能让 abort 挂死——三条失败路径都在 await 本函数
 // 之后才 setStatus/closeTab，无界等待会留下永不关闭的孤儿 bridge 标签页。
+// 2s < worker 侧 5s：页面侧三条失败路径都在 await 之后才 setStatus/closeTab，收紧
+// deadline 以最小化孤儿 bridge 标签页窗口；worker 侧 5s 覆盖更坏的对端状况。
 const ABORT_DEADLINE_MS = 2_000;
 
 async function abortBridge(credentials: BridgeCredentials, reason: string): Promise<void> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ABORT_DEADLINE_MS);
-  try {
-    await fetch(`http://127.0.0.1:${credentials.port}/v1/abort`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${credentials.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-      redirect: 'error',
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-  } catch {
-    // Python server 可能已关闭或凭据不可读——忽略，skill 会走自己的超时路径
-  } finally {
-    clearTimeout(timer);
-  }
+  await abortLoopback(credentials, reason, ABORT_DEADLINE_MS);
 }
 
 async function notifyAbort(fragment: string): Promise<void> {

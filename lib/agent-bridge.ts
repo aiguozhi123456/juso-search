@@ -244,12 +244,17 @@ function requireListDep<T>(dep: T | undefined): T {
   return dep;
 }
 
-/** worker 侧主动 abort（fire-and-forget，限时）：仅用于无法以合法回包形态完成的动作。 */
-async function abortClaim(credentials: BridgeCredentials, reason: string, fetchFn: typeof fetch): Promise<void> {
+/** /v1/abort 的共享实现：worker 与 bridge 页面均委托至此，仅截止时长不同。 */
+export async function abortLoopback(
+  credentials: BridgeCredentials,
+  reason: string,
+  deadlineMs: number,
+  fetchFn: typeof fetch = fetch,
+): Promise<void> {
   const abortUrl = buildAgentEndpoint(credentials.port, '/v1/abort');
   if (!abortUrl) return;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AGENT_BRIDGE_COMPLETE_DEADLINE_MS);
+  const timer = setTimeout(() => controller.abort(), deadlineMs);
   try {
     await fetchFn(abortUrl, {
       ...requestOptions(credentials.token, controller.signal),
@@ -260,6 +265,11 @@ async function abortClaim(credentials: BridgeCredentials, reason: string, fetchF
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** worker 侧主动 abort（fire-and-forget，限时）：仅用于无法以合法回包形态完成的动作。 */
+async function abortClaim(credentials: BridgeCredentials, reason: string, fetchFn: typeof fetch): Promise<void> {
+  await abortLoopback(credentials, reason, AGENT_BRIDGE_COMPLETE_DEADLINE_MS, fetchFn);
 }
 
 type ActionOutcome = { kind: 'reply'; reply: AgentComplete['reply'] } | { kind: 'abort'; reason: string };

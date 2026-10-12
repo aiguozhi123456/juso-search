@@ -63,7 +63,7 @@ import {
 
 export default defineBackground(() => {
   // data: URL 下载的 filename 修正守卫：注册 onDeterminingFilename 监听器，强制本扩展
-  // 发起的下载使用指定文件名（见 lib/gateway.ts 中 installDownloadFilenameGuard 的注释）。
+  // 发起的下载使用指定文件名（见 lib/download-filename-guard.ts 中 installDownloadFilenameGuard 的注释）。
   installDownloadFilenameGuard();
   // 预热 schema 迁移：worker 启动即触发 ensureSchema+ensureCacheSchema（懒加载 memoized），
   // 让首条消息到达前迁移大概率已完成。handler 仍会 await getSchemaReady() 兜底。
