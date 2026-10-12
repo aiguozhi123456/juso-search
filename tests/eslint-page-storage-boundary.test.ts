@@ -7,10 +7,16 @@
 //   - 页面块不能把既有的 barrel-only 深层导入禁令覆盖掉（flat config 后块胜出）。
 
 import { ESLint } from 'eslint';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 // 仓库测试一律以仓库根为 cwd 跑（npm test / npx vitest run），eslint.config.mjs 在根下解析。
 const eslint = new ESLint({ overrideConfigFile: 'eslint.config.mjs' });
+
+// 全量并行负载下首次 lintText 要付 ESLint 配置 + 插件加载成本（实测 >5s 默认用例超时），
+// 先热身把一次性成本移出用例计时（ESLint 实例会缓存已加载配置）。
+beforeAll(async () => {
+  await eslint.lintText('', { filePath: 'components/__probe.tsx' });
+}, 60_000);
 
 /** 页面侧禁止的 lib/storage barrel 红线符号（明文 key 面）。 */
 const REDLINE_SYMBOLS = [

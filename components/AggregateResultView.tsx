@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { AggregateMemberId, AggregateSearchResponse } from '@/lib/aggregate/types';
 import { resolveIconUrl } from '@/lib/sources';
 import { ResultList } from './ResultList';
@@ -41,9 +41,13 @@ export function AggregateResultView({ response, instanceName, validMemberCount, 
   const [confirmRefresh, setConfirmRefresh] = useState(false);
   // 状态卫生：response 换代（新搜索 / AE7 历史回放换实例）时收回未决的确认，
   // 避免上一实例的确认被误用于新响应（detailsOpen 是用户偏好，保持不重置）。
-  useEffect(() => {
+  // 渲染期调整自身 state（React 官方 "adjusting state when a prop changes"），
+  // 语义与原 [response] effect 恒等：prop 换代当帧即收回，不等待 commit。
+  const [prevResponse, setPrevResponse] = useState(response);
+  if (response !== prevResponse) {
+    setPrevResponse(response);
     setConfirmRefresh(false);
-  }, [response]);
+  }
   const okMembers = response.members.filter((member) => member.ok);
   const cachedCount = okMembers.filter((member) => member.cached).length;
   const failedCount = response.members.length - okMembers.length;

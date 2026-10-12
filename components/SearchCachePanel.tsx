@@ -28,9 +28,18 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
   // （扩展上下文失效 / 存储不可用）：面板需有失败反馈态，不能让 rejection 悬空。
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // 开面板时清 actionError：渲染期调整自身 state（React 官方 "adjusting state
+  // when a prop changes"），语义与原 effect 的 setActionError(null) 恒等。
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setActionError(null);
+  }
+
+  // focus 暂存/归还属「同步外部系统」（effect 的正统用途），保留在 effect 里；
+  // 附带递增 selectReqIdRef 丢弃在途选择。
   useEffect(() => {
     if (!open) return;
-    setActionError(null);
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeRef.current?.focus();
     return () => {

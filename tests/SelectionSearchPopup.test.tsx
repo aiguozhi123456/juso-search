@@ -102,6 +102,28 @@ describe('SelectionSearchPopup — 主浮层点击固定', () => {
     }
   });
 
+  // 回归：主浮层挂起的延迟关闭（scheduleClose 定时器）必须在卸载时清理，
+  // 否则回调会作用到已卸载组件（照抄 SourceSwitcher 同名回归的 fake-timers 模式）。
+  it('clears the pending close timer on unmount (no callback after teardown)', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, unmount } = renderPopup();
+      const area = getExpandArea(container);
+      fireEvent.mouseEnter(area); // hover 瞬态展开
+      expect(screen.getByRole('menuitem', { name: /API 搜索/ })).toBeInTheDocument();
+      fireEvent.mouseLeave(area); // 150ms 延迟关闭挂起
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      // 延迟窗口内卸载组件
+      unmount();
+      // 卸载清理必须取消挂起的定时器（无残留 pending timer）
+      expect(vi.getTimerCount()).toBe(0);
+      // 推进时间超过延迟：不应有回调作用到已卸载组件
+      expect(() => act(() => { vi.advanceTimersByTime(300); })).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('Escape 关闭固定展开的主浮层', () => {
     const { container } = renderPopup();
     const expandBtn = getExpandButton(container);
@@ -357,6 +379,26 @@ describe('SelectionSearchPopup — 分组子浮层点击固定', () => {
       fireEvent.mouseLeave(aiRoot);
       act(() => { vi.advanceTimersByTime(200); });
       expectGroupState(/API 搜索/, false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // 回归：分组子浮层的延迟关闭（scheduleClose 定时器）同样必须在卸载时清理。
+  it('clears the pending group close timer on unmount (no callback after teardown)', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, unmount } = renderPopup();
+      openMainFlyout(container);
+      const aiRoot = groupRoot(/API 搜索/);
+      fireEvent.mouseEnter(aiRoot); // hover 瞬态展开分组
+      expectGroupState(/API 搜索/, true);
+      fireEvent.mouseLeave(aiRoot); // 120ms 延迟关闭挂起
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      unmount(); // 延迟窗口内卸载（分组子浮层随主浮层一起卸载）
+      // 卸载清理必须取消挂起的定时器（无残留 pending timer）
+      expect(vi.getTimerCount()).toBe(0);
+      expect(() => act(() => { vi.advanceTimersByTime(300); })).not.toThrow();
     } finally {
       vi.useRealTimers();
     }

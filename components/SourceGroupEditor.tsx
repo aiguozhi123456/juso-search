@@ -9,6 +9,7 @@ import type {
 import {
   groupOrderOf,
   isBuiltinGroupId,
+  newGroupId,
   normalizeGroupConfig,
   resolveGroupId,
 } from '@/lib/source-groups';
@@ -294,7 +295,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
   function createGroup() {
     const name = newGroupName.trim();
     if (!name) return;
-    const id = `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const id = newGroupId();
     const previous = cfg;
     const next: GroupConfig = {
       ...cfg,

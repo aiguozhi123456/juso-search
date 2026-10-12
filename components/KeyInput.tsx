@@ -1,5 +1,5 @@
 import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { MAX_RESULTS_MAX, MAX_RESULTS_MIN } from '@/lib/storage';
 import { t, MSG } from '@/lib/i18n';
@@ -31,10 +31,14 @@ export function KeyInput({
   // 但仍保留 ref 兜底，确保同一值不会发起两次请求。
   const maxSavingRef = useRef(false);
 
-  // 外部 prop 变化时同步本地输入（如配置导入 / worker 回写）。
-  useEffect(() => {
+  // 外部 prop 变化时同步本地输入（如配置导入 / worker 回写）：渲染期调整自身
+  // state（React 官方 "adjusting state when a prop changes"），语义与原 [maxResults]
+  // effect 恒等（首帧 prevMaxResults 已初始化为 maxResults，不触发多余同步）。
+  const [prevMaxResults, setPrevMaxResults] = useState(maxResults);
+  if (maxResults !== prevMaxResults) {
+    setPrevMaxResults(maxResults);
     setMaxVal(maxResults?.toString() ?? '');
-  }, [maxResults]);
+  }
 
   async function save() {
     // 粘贴件常见尾随换行/空格：先 trim 再持久化，纯空白与空串同样视为无效，

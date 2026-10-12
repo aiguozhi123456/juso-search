@@ -112,12 +112,17 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
   }, [overlayPosition, centerKey, layout]);
 
   // 覆盖层 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
-  useEffect(() => {
+  // 渲染期调整模式（替代 effect 内 setState）：宿主在 inline↔overlay 切换时强制
+  // teardown+重挂（serp-bar.content.ts:537/573），该路径生产不可达，此处为纯防御——
+  // 保留语义：overlayPosition 变为非 overlay 时立即清空两组状态。
+  const [prevOverlay, setPrevOverlay] = useState(overlayPosition);
+  if (overlayPosition !== prevOverlay) {
+    setPrevOverlay(overlayPosition);
     if (!isOverlay) {
       setOpenGroupId(null);
       setPinnedGroupId(null);
     }
-  }, [overlayPosition]);
+  }
 
   // 覆盖层 host 被 data-hidden 藏起时关闭浮层（scroll-hide 不走 unmount）。
   useEffect(() => {
@@ -359,9 +364,12 @@ function GroupPill({
   // 内联模式：flyout 绝对定位于 .switcher-group 内（CSS left:0），trigger 靠近视口右缘时
   // 右侧会超出视口被 body 的 overflow-x: clip 裁掉（无滚动恢复路径）——按 trigger 视口盒
   // 与实测浮层宽度把 left 偏移夹紧进视口。
+  // 关闭即清 anchor（渲染期调整，替代 effect 内 setState）。不用"删 reset"取巧：
+  // 删除会依赖"layout effect 重算必先于 paint"的推理链，trigger 缺失早退时
+  // （如 ref 未就绪）会留下陈旧 anchor；渲染期调整保留"关闭即无 anchor"不变式。
+  if (!open && flyoutAnchor !== null) setFlyoutAnchor(null);
   useLayoutEffect(() => {
     if (!open) {
-      setFlyoutAnchor(null);
       return;
     }
     const trigger = triggerRef.current;

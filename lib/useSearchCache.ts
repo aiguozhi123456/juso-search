@@ -31,6 +31,10 @@ export function useSearchCache(open: boolean): {
     if (!open) return;
     let alive = true;
     const requestId = ++requestIdRef.current;
+    // fetch-on-open 是文档认可的 effect 用途（打开即拉取）；此处 setLoading(true) 是
+    // 效果内的真同步 setState，但「开面板 → 拉列表」整体拆成渲染期模式收益差且更绕，
+    // 故显式禁用该编译器规则，避免后来者当作漏修。
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-open 是 effect 正统用途，重构收益差
     setLoading(true);
     void (async () => {
       try {

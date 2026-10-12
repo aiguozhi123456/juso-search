@@ -309,6 +309,17 @@ export function isBuiltinGroupId(id: string): boolean {
   return BUILTIN_GROUP_IDS.has(id);
 }
 
+/**
+ * 新建分组 id（`g-<base36 时间戳>-<4 位随机>`）。
+ *
+ * 格式逐字固定：存量 group id 是不透明字符串（持久化于用户配置的 layout/assignments
+ * 引用里），不得改用 crypto.randomUUID 等其它形态。从 SourceGroupEditor.createGroup
+ * 提取为模块级纯函数，规避渲染期调 Date.now/Math.random 的 purity 告警。
+ */
+export function newGroupId(): string {
+  return `g-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 投影层：把 GroupConfig + source 列表投影成 SourceSwitcher 可直接渲染的序列。
 // ────────────────────────────────────────────────────────────────────────────

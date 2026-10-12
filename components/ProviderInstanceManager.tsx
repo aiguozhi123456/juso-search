@@ -434,6 +434,10 @@ export function ProviderInstanceManager({ onChange }: { onChange?: () => void })
   }
 
   useEffect(() => {
+    // mount 拉配置是 effect 正统用途；refresh() 内所有 setState 都在 await sendMessage
+    // 之后（异步回调，非同步 setState），此处的 void refresh() 属跨函数保守误报，
+    // 显式禁用避免后来者当作漏修。
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() 的 setState 全在 await 之后，mount 拉取是 effect 正统用途
     void refresh();
     return () => {
       refreshRequestIdRef.current += 1; // 卸载后返回的响应一律丢弃

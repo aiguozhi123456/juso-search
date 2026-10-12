@@ -94,15 +94,20 @@ export default tseslint.config(
   // React 专项：rules-of-hooks（条件/嵌套 hook 调用，error）与 exhaustive-deps
   // （stale closure / 缺失清理，warn）。source-switcher 点击固定与 serp-bar 滚动隐藏的
   // cancelClose/卸载清理类 bug 正是该规则针对的失败模式，靠评审兜底不可持续。
-  // 注意：只启用这两条经典规则——插件 v7 的 recommended-latest 还捆绑
-  // set-state-in-effect / refs / purity 等编译器系 error 级规则，会在全仓既有代码上
-  // 报 12+ error（见 2026-10 评审），需要专项重构才能接入，不在本次范围。
+  // 编译器系规则分工（v7 插件，2026-10 接入，显式列出不用 recommended-latest——
+  // preset 规则面随插件版本漂移）：set-state-in-effect（effect 内同步 setState，
+  // 渲染期调整模式替代）、refs（渲染期读写 ref，commit 期同步替代）、purity
+  // （渲染期不纯）。合法 effect setState 场景（fetch-on-open 等）显式 eslint-disable
+  // 并附理由，不静默放行。
   {
     files: ['**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/refs': 'error',
+      'react-hooks/purity': 'error',
     },
   },
   {

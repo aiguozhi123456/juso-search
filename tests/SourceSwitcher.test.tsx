@@ -429,6 +429,36 @@ describe('SourceSwitcher — bottom overlay (overlayPosition="bottom")', () => {
     expect(flyout!.className).not.toContain('group-flyout--fixed-down');
   });
 
+  // 回归（v7 热区重构前的行为锁）：宿主退出覆盖层——overlayPosition 从 'bottom' 变为
+  // null/内联——时，已固定的浮层必须立即关闭，且固定态一并清除。该 effect 在真实宿主
+  // 常因 host 重挂而不可达，但语义必须保留：否则 fixed 菜单会悬空留在内联顶栏上。
+  it('leaving the overlay (overlayPosition → null) closes a pinned flyout and drops the pin', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
+      );
+      const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+      fireEvent.click(aiTrigger); // 覆盖层：点击打开并固定
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      // 退出覆盖层 → 内联：浮层不得悬空
+      rerender(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition={null} />,
+      );
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+      // 固定态也必须一并清除：内联模式下 hover 同一组只是瞬态展开（onOpen 保留同组固定），
+      // 移出超过延迟窗口后应收起——若固定残留，浮层会一直挂着。
+      const group = screen.getByRole('button', { name: /API 搜索/ }).parentElement!;
+      fireEvent.mouseEnter(group);
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      fireEvent.mouseLeave(group);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('click group trigger opens flyout; second click closes', () => {
     render(
       <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="bottom" />,
@@ -518,6 +548,32 @@ describe('SourceSwitcher — top overlay (overlayPosition="top")', () => {
     expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
     fireEvent.click(aiTrigger);
     expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+  });
+
+  // 回归（v7 热区重构前的行为锁）：与 bottom 一致——top 覆盖层退出（overlayPosition
+  // 变为 null）时，已固定的浮层必须关闭、固定态必须清除。
+  it('leaving the top overlay (overlayPosition → null) closes a pinned flyout and drops the pin', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition="top" />,
+      );
+      const aiTrigger = screen.getByRole('button', { name: /API 搜索/ });
+      fireEvent.click(aiTrigger); // 覆盖层：点击打开并固定
+      expect(screen.getByRole('button', { name: /Tavily/ })).toBeInTheDocument();
+      rerender(
+        <SourceSwitcher sources={sources} groupConfig={groupedConfig} activeId={null} onSelect={vi.fn()} overlayPosition={null} />,
+      );
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+      // 固定态已清除：内联 hover 同组为瞬态展开，移出超过延迟后收起
+      const group = screen.getByRole('button', { name: /API 搜索/ }).parentElement!;
+      fireEvent.mouseEnter(group);
+      fireEvent.mouseLeave(group);
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByRole('button', { name: /Tavily/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // 覆盖层守卫：top 覆盖层与 bottom 共用——focus 不开层，避免触屏 focus→click 竞态。

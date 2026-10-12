@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import App from '@/entrypoints/search/App';
+import { AggregateResultView } from '@/components/AggregateResultView';
 import { sendMessage } from '@/lib/messaging';
 import type { AggregateInstanceId, AggregateSearchResponse } from '@/lib/aggregate/types';
 
@@ -301,6 +302,40 @@ describe('search page: aggregate view (Lane D)', () => {
     expect(screen.queryByRole('button', { name: '确认重查' })).toBeNull();
     expect(screen.getByRole('button', { name: '强制全新搜索' })).toBeInTheDocument();
     expect(mockedSend).not.toHaveBeenCalled();
+  });
+
+  it('withdraws a pending force-refresh confirmation when the response prop is replaced (状态卫生)', () => {
+    // 直接渲染视图（不经 App）：response 换代（新搜索 / AE7 历史回放换实例）时，
+    // 渲染期 prevResponse 调整须当帧收回未决确认，避免上一实例的确认被误用于新响应。
+    const view = (
+      <AggregateResultView
+        response={aggregateResponse()}
+        instanceName="全家桶"
+        validMemberCount={4}
+        cacheHit={false}
+        onForceRefresh={vi.fn()}
+        getMemberBadge={(member) => ({ id: member, label: member })}
+      />
+    );
+    const { rerender } = render(view);
+
+    // 有效成员 ≥ 4：点击先弹两步确认，不直接执行。
+    fireEvent.click(screen.getByRole('button', { name: '强制全新搜索' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('将重新查询 4 个成员');
+
+    // response 换代 → 未决确认收回（detailsOpen 是用户偏好，不在本断言范围）。
+    rerender(
+      <AggregateResultView
+        response={aggregateResponse({ query: 'world' })}
+        instanceName="全家桶"
+        validMemberCount={4}
+        cacheHit={false}
+        onForceRefresh={vi.fn()}
+        getMemberBadge={(member) => ({ id: member, label: member })}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: '确认重查' })).toBeNull();
+    expect(screen.getByRole('button', { name: '强制全新搜索' })).toBeInTheDocument();
   });
 
   it('renders ErrorState with the rerank-specific CTA on keyMissing (R3), without any results', async () => {

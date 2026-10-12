@@ -28,8 +28,12 @@ interface Props {
 export function SelectionSearchPopup({ sources, groupConfig, primarySource, flatLayoutFewSources, onSearch }: Props) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
-  const pinnedRef = useRef(false);
-  pinnedRef.current = pinned;
+  // pinnedRef 在 commit 阶段同步：渲染期写 ref 会在 StrictMode/中断渲染下留脏值，
+  // 而延迟关闭定时器异步读取它，陈旧值会错误地抑制/放行关闭（范式同 SourceSwitcher）。
+  const pinnedRef = useRef(pinned);
+  useEffect(() => {
+    pinnedRef.current = pinned;
+  }, [pinned]);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [pinnedGroupId, setPinnedGroupId] = useState<string | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,12 +71,16 @@ export function SelectionSearchPopup({ sources, groupConfig, primarySource, flat
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [open, cancelClose]);
 
-  useEffect(() => {
+  // 主浮层关闭即重置分组状态（渲染期调整，替代 effect 内 setState）：比 effect
+  // 更早生效，重开主浮层时保证无陈旧子浮层展开。
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) {
       setOpenGroupId(null);
       setPinnedGroupId(null);
     }
-  }, [open]);
+  }
 
   const handleGroupOpen = (id: string) => {
     setOpenGroupId(id);
@@ -226,8 +234,12 @@ function SelectionGroupItem({
   const rowRef = useRef<HTMLDivElement>(null);
   const sourcesRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // pinnedRef 在 commit 阶段同步（同主浮层/SourceSwitcher 范式）：120ms 延迟关闭
+  // 定时器异步读取，渲染期写 ref 在 StrictMode/中断渲染下会留脏值。
   const pinnedRef = useRef(pinned);
-  pinnedRef.current = pinned;
+  useEffect(() => {
+    pinnedRef.current = pinned;
+  }, [pinned]);
 
   const cancelClose = () => {
     if (closeTimerRef.current != null) {
