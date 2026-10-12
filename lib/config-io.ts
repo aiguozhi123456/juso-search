@@ -29,9 +29,7 @@ import {
   FLAT_LAYOUT_FEW_SOURCES_KEY,
   clampMaxResults,
   deleteAggregateCacheEntries,
-  withProviderKeysMutation,
-  withProviderMaxResultsMutation,
-  withSourceMutation,
+  withSharedKeyWrite,
 } from './storage';
 import { allProviders } from './providers/registry';
 import type { ProviderId } from './providers/types';
@@ -511,10 +509,10 @@ export async function mergeImport(
   opts: { applyPrefs?: boolean } = {},
 ): Promise<ImportReport> {
   const applyPrefs = opts.applyPrefs === true;
-  // 锁序 source → providerKeys → providerMaxResults：本函数整写 MAX_RESULTS_KEY，而
-  // set/clearProviderMaxResults 只持专用队列——不取第三重队列会与它们 lost-update
-  // （instance-crud-cross-queue-lock-order.md：mergeImport 覆写的键必须串行化于 source 队列之下）。
-  return withSourceMutation(() => withProviderKeysMutation(() => withProviderMaxResultsMutation(async () => {
+  // 共享键写者统一走 withSharedKeyWrite 原语（锁序 source → keys → maxResults）：
+  // 本函数整写 MAX_RESULTS_KEY，而 set/clearProviderMaxResults 只持专用队列，
+  // 不串行化则并发保存的读改写会被这里的整体写回覆盖。
+  return withSharedKeyWrite(async () => {
     const got = await browser.storage.local.get([...CONFIG_IO_KEYS]);
     const current = (got[KEYS_KEY] ?? {}) as Record<string, unknown>;
 
@@ -703,7 +701,7 @@ export async function mergeImport(
       providerMaxResultsOverridden,
       groupConfigOverridden,
     };
-  })));
+  });
 }
 
 function normalizeProviderKeys(keys: Record<string, unknown>): Record<string, string> {

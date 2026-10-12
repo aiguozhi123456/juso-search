@@ -12,7 +12,7 @@ import * as storage from '@/lib/storage';
  * Lane B（KTD7/KTD9 聚合缓存路径）再加 2 项：saveCachedAggregateSearch / deleteAggregateCacheEntries。
  */
 describe('storage barrel export surface', () => {
-  it('exposes exactly the 100 runtime exports (alphabetical snapshot)', () => {
+  it('exposes exactly the 101 runtime exports (alphabetical snapshot)', () => {
     expect(Object.keys(storage).sort()).toEqual([
       // keys（22 常量）+ max-results 常量（2）
       'ACTIVE_KEY',
@@ -115,8 +115,9 @@ describe('storage barrel export surface', () => {
       'withProviderInstancesMutation',
       'withProviderKeysMutation',
       'withProviderMaxResultsMutation',
+      'withSharedKeyWrite',
       'withSourceMutation',
     ]);
-    expect(Object.keys(storage)).toHaveLength(100);
+    expect(Object.keys(storage)).toHaveLength(101);
   });
 });

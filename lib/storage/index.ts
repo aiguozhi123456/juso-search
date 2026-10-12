@@ -11,6 +11,7 @@ export {
   clearProviderMaxResults,
 } from './max-results-store';
 export * from './source-graph-store';
+export { withSharedKeyWrite } from './shared-key-write';
 export * from './prefs-store';
 export * from './site-instance-store';
 export * from './custom-engine-store';

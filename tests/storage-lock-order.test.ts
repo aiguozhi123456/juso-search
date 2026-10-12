@@ -10,6 +10,7 @@ import {
   createProviderInstance,
   clearKey,
   setProviderMaxResults,
+  withSharedKeyWrite,
 } from '@/lib/storage';
 import { mergeImport, type ConfigExport } from '@/lib/config-io';
 import { CURRENT_SCHEMA_VERSION } from '@/lib/schema';
@@ -193,5 +194,32 @@ describe('storage lock order: maxResults queue nests under source (→ keys)', (
 
     // setter 串行在导入之后：读到导入映射再追加，两笔都存活（无锁时 B 以陈旧读覆盖导入映射）。
     expect(mock.store.get(MAX_RESULTS_KEY)).toEqual({ tavily: 10, exa: 5 });
+  });
+});
+
+describe('storage lock order: withSharedKeyWrite primitive', () => {
+  it('withSharedKeyWrite serializes behind a blocked setProviderMaxResults (source → keys → maxResults)', async () => {
+    const mock = installStorage();
+    mock.store.set(MAX_RESULTS_KEY, { tavily: 8 });
+    const gate = mock.blockNextSetOf(MAX_RESULTS_KEY);
+
+    // A：withSharedKeyWrite 读改写 MAX_RESULTS_KEY，set 挂在测试 gate 上（队列未释放）。
+    const pA = withSharedKeyWrite(async () => {
+      const got = await browser.storage.local.get(MAX_RESULTS_KEY);
+      const map = { ...((got[MAX_RESULTS_KEY] as Record<string, number>) ?? {}) };
+      map.exa = 5;
+      await browser.storage.local.set({ [MAX_RESULTS_KEY]: map });
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    // B：setProviderMaxResults 须先取 source 队列（被 A 持有）→ mutation 体未开始。
+    const pB = setProviderMaxResults('exa', 5);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mock.writeLog.filter((keys) => keys.includes(MAX_RESULTS_KEY))).toHaveLength(1);
+
+    gate.resolve();
+    await Promise.all([pA, pB]);
+
+    // 两笔写按序落盘：A 先写 exa=5，B 读到后映射再写 exa=5（幂等）。
+    expect(mock.store.get(MAX_RESULTS_KEY)).toEqual({ tavily: 8, exa: 5 });
   });
 });
