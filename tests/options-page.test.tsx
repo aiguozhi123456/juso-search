@@ -559,7 +559,7 @@ describe('options page', () => {
     const addBtn = await screen.findByRole('button', { name: '新增实例' });
     // No instanceable provider → button stays disabled and a dedicated hint shows.
     expect(addBtn).toBeDisabled();
-    expect(screen.getByText('暂无已配置的 provider 支持自定义实例。')).toBeInTheDocument();
+    expect(screen.getByText('已配置的 provider 暂不支持自定义实例（目前仅 Exa 与 Doubao 支持）。')).toBeInTheDocument();
     // The create form (and its base-provider dropdown) never opens.
     expect(screen.queryByLabelText('底层 Provider')).not.toBeInTheDocument();
   });

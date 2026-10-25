@@ -29,8 +29,9 @@ export default function App() {
   // 否则只有 header 的开关自身刷新、正文与演示停在旧语言。
   useLocale();
   const [step, setStep] = useState(0);
-  // null = 尚未从 worker 取回脱敏配置状态（页面绝不读 providerKeys 本体）
-  const [configuredCount, setConfiguredCount] = useState<number | null>(null);
+  // null = 尚未从 worker 取回脱敏配置状态（页面绝不读 providerKeys 本体）。
+  // 计数语义 = 实际配了 key 的 provider（keyed）：免 key 免费层开箱即可用，不计入「已配置」。
+  const [keyedCount, setKeyedCount] = useState<number | null>(null);
 
   const providerCount = allProviders().length;
   const engineCount = allEngines().length;
@@ -41,7 +42,7 @@ export default function App() {
     void (async () => {
       try {
         const config = await sendMessage('getProviderConfig', undefined);
-        if (!cancelled) setConfiguredCount(config.configuredProviderIds.length);
+        if (!cancelled) setKeyedCount(config.keyedProviderIds.length);
       } catch {
         // 状态取不到就不显示计数徽章，不阻塞引导流程
       }
@@ -127,13 +128,13 @@ export default function App() {
             <h1 className="onboarding-title">{t(MSG.onboarding_keys_title)}</h1>
             <p className="onboarding-lead">{t(MSG.onboarding_keys_desc)}</p>
             <div className="onboarding-keys-status">
-              {configuredCount !== null && configuredCount > 0 ? (
+              {keyedCount !== null && keyedCount > 0 ? (
                 <span className="onboarding-keys-status__badge onboarding-keys-status__badge--ok">
-                  {t(MSG.onboarding_keys_status_some, [String(configuredCount), String(providerCount)])}
+                  {t(MSG.onboarding_keys_status_some, [String(keyedCount), String(providerCount)])}
                 </span>
               ) : (
                 <span className="onboarding-keys-status__badge">
-                  {configuredCount === null ? '' : t(MSG.onboarding_keys_status_none)}
+                  {keyedCount === null ? '' : t(MSG.onboarding_keys_status_none)}
                 </span>
               )}
             </div>

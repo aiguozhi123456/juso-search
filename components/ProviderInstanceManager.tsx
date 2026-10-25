@@ -407,6 +407,8 @@ function DoubaoOptionsForm({ draft, onChange }: { draft: DoubaoDraft; onChange: 
 export function ProviderInstanceManager({ onChange }: { onChange?: () => void }) {
   const [instances, setInstances] = useState<ProviderInstance[]>([]);
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
+  // 实例仅支持需 key 的 provider（PROVIDERS_WITH_INSTANCE_OPTIONS），空态提示按「是否已配 key」分支。
+  const [keyedProviderIds, setKeyedProviderIds] = useState<ProviderId[]>([]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<ProviderInstanceId | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle', message: '' });
@@ -426,6 +428,7 @@ export function ProviderInstanceManager({ onChange }: { onChange?: () => void })
       // 运行时兜底 ?? []：老 worker / 测试 mock 可能缺字段（类型层已必填）。
       setInstances(config.providerInstances ?? []);
       setConfiguredProviderIds(config.configuredProviderIds);
+      setKeyedProviderIds(config.keyedProviderIds ?? []);
     } catch {
       if (requestId !== refreshRequestIdRef.current) return;
       // 加载失败：不覆盖现有列表，标记错误态渲染重试入口（与空态区分）。
@@ -679,7 +682,7 @@ export function ProviderInstanceManager({ onChange }: { onChange?: () => void })
           )}
           {noInstanceableProvider && !loadFailed && (
             <p className="hint" role="note">
-              {configuredProviderIds.length === 0
+              {keyedProviderIds.length === 0
                 ? t(MSG.opts_instances_hint_need_key)
                 : t(MSG.opts_instances_hint_no_options)}
             </p>

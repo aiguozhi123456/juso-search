@@ -39,8 +39,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedSetCompleted.mockResolvedValue(undefined);
   tabsCreate.mockResolvedValue(undefined);
-  // 引导页挂载即拉取脱敏配置状态（默认已配置 tavily + exa）
-  mockedSend.mockImplementation(((() => Promise.resolve({ configuredProviderIds: ['tavily', 'exa'] })) as never));
+  // 引导页挂载即拉取脱敏配置状态（tavily 免 key 可用，exa 实际配了 key → keyed 计数 1）
+  mockedSend.mockImplementation(((() => Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], keyedProviderIds: ['exa'] })) as never));
 });
 /** 步骤圆点辅助：返回当前激活步索引。 */
 function activeStep() {
@@ -66,17 +66,17 @@ describe('onboarding page', () => {
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
     expect(screen.getByText('配置 API 密钥')).toBeInTheDocument();
-    expect(await screen.findByText(/已配置 2 \/ \d+ 个 AI 搜索 provider/)).toBeInTheDocument();
+    expect(await screen.findByText(/已为 1 \/ \d+ 个 provider 配置 API key/)).toBeInTheDocument();
     expect(mockedSend).toHaveBeenCalledWith('getProviderConfig', undefined);
     expect(activeStep()).toBe(2);
   });
 
   it('shows the unconfigured status when no provider key is set', async () => {
-    mockedSend.mockImplementation(((() => Promise.resolve({ configuredProviderIds: [] })) as never));
+    mockedSend.mockImplementation(((() => Promise.resolve({ configuredProviderIds: [], keyedProviderIds: [] })) as never));
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
     fireEvent.click(screen.getByRole('button', { name: '下一步' }));
-    expect(await screen.findByText('尚未配置任何 AI 搜索 provider')).toBeInTheDocument();
+    expect(await screen.findByText('尚未配置任何 API key')).toBeInTheDocument();
   });
 
   it('deep-links the settings button to the keys tab via tabs.create', async () => {
