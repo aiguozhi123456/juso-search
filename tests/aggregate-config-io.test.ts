@@ -109,6 +109,16 @@ describe('buildExportPayload: aggregate keys (KTD13/AE6)', () => {
     expect(payload.rerankConfig).toEqual({ endpoint: ENDPOINT_A, model: 'bge-reranker-base', apiKey: 'sk-local-secret' });
   });
 
+  it('exports protocol: jev only when set (cohere default stays absent for old-importer compatibility)', async () => {
+    installStorage({ [RERANK_CONFIG_KEY]: { endpoint: 'https://api.typesafe.ai/v1/systemone', protocol: 'jev', apiKey: 'ts' } });
+    const jev = await buildExportPayload();
+    expect(jev.rerankConfig).toEqual({ endpoint: 'https://api.typesafe.ai/v1/systemone', protocol: 'jev', apiKey: 'ts' });
+
+    installStorage({ [RERANK_CONFIG_KEY]: { endpoint: ENDPOINT_A, protocol: 'cohere' } });
+    const cohere = await buildExportPayload();
+    expect(cohere.rerankConfig).toEqual({ endpoint: ENDPOINT_A });
+  });
+
   it('exports unconfigured rerank and empty aggregate collection as explicit defaults', async () => {
     const payload = await buildExportPayload();
     expect(payload.aggregateInstances).toEqual([]);
@@ -162,6 +172,21 @@ describe('parseImportPayload: aggregate validation (KTD13)', () => {
     // 未配置态（endpoint ''）合法放行。
     const unconfigured = parseImportPayload(validPayload({ rerankConfig: { endpoint: '' } }));
     expect(unconfigured.ok).toBe(true);
+  });
+
+  it('accepts the TypeSafe whitelist host for rerankConfig and round-trips protocol (old exports stay protocol-free)', () => {
+    const parsed = parseImportPayload(validPayload({ rerankConfig: { endpoint: 'https://api.typesafe.ai/v1/systemone', protocol: 'jev', apiKey: 'ts' } }));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.rerankConfig).toEqual({ endpoint: 'https://api.typesafe.ai/v1/systemone', protocol: 'jev', apiKey: 'ts' });
+
+    // 协议只认 'jev'：垃圾值剥掉（越界字符串经 as never 绕过类型层，模拟手改导出文件）；旧导出缺 protocol → cohere 缺省，形状不变。
+    const garbage = parseImportPayload(validPayload({ rerankConfig: { endpoint: 'http://127.0.0.1:8000/v1/rerank', protocol: 'gpt' as never } }));
+    expect(garbage.ok).toBe(true);
+    if (garbage.ok) expect(garbage.value.rerankConfig).toEqual({ endpoint: ENDPOINT_A });
+
+    const legacy = parseImportPayload(validPayload({ rerankConfig: { endpoint: ENDPOINT_A, model: 'bge' } }));
+    expect(legacy.ok).toBe(true);
+    if (legacy.ok) expect(legacy.value.rerankConfig).toEqual({ endpoint: ENDPOINT_A, model: 'bge' });
   });
 
   it('accepts agg ids in sourceOrder/activeSource only when the payload carries the instance set', () => {

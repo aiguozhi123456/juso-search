@@ -242,6 +242,7 @@ export function parseImportPayload(raw: unknown): ParseResult {
         endpoint: endpointCheck.endpoint,
         ...(normalizedRerank.model ? { model: normalizedRerank.model } : {}),
         ...(normalizedRerank.apiKey ? { apiKey: normalizedRerank.apiKey } : {}),
+        ...(normalizedRerank.protocol ? { protocol: normalizedRerank.protocol } : {}),
       };
     } else {
       rerankConfig = normalizedRerank;
@@ -422,10 +423,10 @@ export async function previewImport(payload: ConfigExport): Promise<ImportPrevie
   if (payload.aggregateInstances !== undefined && !sameAggregateInstances(currentAggregates, payload.aggregateInstances)) {
     prefDiffs.push({ key: 'aggregateInstances', from: aggregateInstancesSummary(currentAggregates), to: aggregateInstancesSummary(payload.aggregateInstances) });
   }
-  // rerankConfig（AE6/KTD13）：diff 只含 endpoint/model——**apiKey 绝不进预览**。
+  // rerankConfig（AE6/KTD13）：diff 只含 endpoint/model/protocol——**apiKey 绝不进预览**。
   if (payload.rerankConfig !== undefined) {
     const currentRerank = normalizeRerankConfig(got[RERANK_CONFIG_KEY]);
-    if (currentRerank.endpoint !== payload.rerankConfig.endpoint || (currentRerank.model ?? undefined) !== (payload.rerankConfig.model ?? undefined)) {
+    if (currentRerank.endpoint !== payload.rerankConfig.endpoint || (currentRerank.model ?? undefined) !== (payload.rerankConfig.model ?? undefined) || (currentRerank.protocol ?? undefined) !== (payload.rerankConfig.protocol ?? undefined)) {
       prefDiffs.push({ key: 'rerankConfig', from: rerankConfigSummary(currentRerank), to: rerankConfigSummary(payload.rerankConfig) });
     }
   }
@@ -885,7 +886,7 @@ function aggregateInstancesSummary(instances: readonly AggregateInstance[]): str
 
 /** rerankConfig 摘要（KTD13/AE6）：只含 endpoint/model——**apiKey 绝不进 preview/diff**。 */
 function rerankConfigSummary(config: RerankConfig): string {
-  return `${config.endpoint || '—'}:${config.model ?? '—'}`;
+  return `${config.endpoint || '—'}:${config.model ?? '—'}${config.protocol === 'jev' ? ':jev' : ''}`;
 }
 
 // LANE-C-FOLD（KTD13/Oracle F3 interim）已折叠：normalizeSourceOrder/normalizeSourceHidden 直接受

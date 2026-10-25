@@ -66,10 +66,10 @@ return {
 
 单成员实例合法可用（单源 + rerank 也是聚合）；**删光成员也合法**——与 `provider-instance-multi-config-model.md` 的「独苗保护 + 懒 backfill + 自动创建」三件套显式分歧（分歧记录在 `lib/aggregate-instances.ts` 头注释）：聚合没有 base provider、没有「裸 pill 回退」语义，空集合/未配置 rerank = 实例 ineligible = 功能整体隐藏（快切栏不投影），而不是造一个兜底实体出来。eligibility 只作用于**投影与可用性解析**；持久层（order/hidden 归一）的定义集 = 全部已定义实例，与 eligibility 无关——这是分层铁律：eligibility 抖动（如 rerank 短暂未配置）期间重写 order/hidden 绝不剥落 agg id，否则配置来回切换会静默丢用户排序。
 
-### ③ endpoint 强制 loopback，双写路径同校验
+### ③ endpoint 白名单校验，双写路径同校验
 
 ```ts
-// lib/aggregate/rerank-client.ts
+// lib/aggregate/rerank-client.ts（三分支白名单：loopback / 硅基流动 / TypeSafe）
 export function validateRerankEndpoint(raw: string): RerankEndpointValidation {
   let url: URL;
   try { url = new URL(raw.trim()); } catch { return { ok: false, reason: 'invalid_url' }; }
@@ -78,13 +78,17 @@ export function validateRerankEndpoint(raw: string): RerankEndpointValidation {
     url.hostname = '127.0.0.1';
     rewritten = true;
   }
-  if (url.protocol !== 'http:') return { ok: false, reason: 'not_http' };
-  if (url.hostname !== '127.0.0.1') return { ok: false, reason: 'not_loopback' };
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: 'not_http' };
+  if (url.username !== '' || url.password !== '') return { ok: false, reason: 'invalid_url' };
+  const loopback = url.protocol === 'http:' && url.hostname === '127.0.0.1';
+  const siliconflow = url.protocol === 'https:' && url.hostname === 'api.siliconflow.cn';
+  const typesafe = url.protocol === 'https:' && url.hostname === 'api.typesafe.ai';
+  if (!loopback && !siliconflow && !typesafe) return { ok: false, reason: 'not_loopback' };
   return { ok: true, endpoint: url.href, rewritten };
 }
 ```
 
-`localhost` / `[::1]` 自动改写为 `127.0.0.1`（保留端口/路径，reply 提示已改写），最终必须 `http` + `127.0.0.1`。关键接缝：worker 侧 `handleSetRerankConfig` 与 `config-io` 导入**共用这一个校验函数**——两条写路径语义恒一致，导入无法绕过 loopback 约束。理由：manifest `host_permissions` 已含 `http://127.0.0.1/*`（Chrome match pattern 忽略端口），「本地」威胁模型（搜索内容 + apiKey 不出 loopback）在校验层硬约束，**manifest 零 host-permission 变更**。
+`localhost` / `[::1]` 自动改写为 `127.0.0.1`（保留端口/路径，reply 提示已改写）。关键接缝不变：worker 侧 `handleSetRerankConfig` 与 `config-io` 导入**共用这一个校验函数**——两条写路径语义恒一致，导入无法绕过白名单约束。白名单的演进史：v1 仅 loopback（「本地」威胁模型 = 搜索内容 + apiKey 不出 loopback，manifest 零 host-permission 变更）→ 云端分支硅基流动（KTD12）→ jev/SystemOne 的 TypeSafe 分支，每放行一个云 host 都要在 `wxt.config.ts` 同步声明 host_permission。协议本身靠设置页显式下拉声明（cohere/jev），不属于 URL 可推断的属性——见 [jev-systemone-rerank-protocol](../tooling-decisions/jev-systemone-rerank-protocol.md)。
 
 ### ④ engine 成员 = 用户发起的临时 SERP 抽取，借位 provider 字段只进 merge
 

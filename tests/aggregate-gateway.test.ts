@@ -473,6 +473,20 @@ describe('handleSetRerankConfig (KTD12/KTD9)', () => {
     expect(reply).toEqual({ ok: true, endpoint: 'http://127.0.0.1:8000/v1/rerank', rewritten: false });
   });
 
+  it('persists protocol: jev with the whitelisted TypeSafe endpoint (KTD12 third branch)', async () => {
+    const reply = await handleSetRerankConfig({ endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-latest', protocol: 'jev' });
+
+    expect(reply).toEqual({ ok: true, endpoint: 'https://api.typesafe.ai/v1/systemone', rewritten: false });
+    expect(mockedSetRerankConfig).toHaveBeenCalledWith({ endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-latest', protocol: 'jev' });
+    expect(mockedDeleteAggregateCacheEntries).toHaveBeenCalledWith('all');
+  });
+
+  it('persists without protocol when the UI omits it (full-write semantics = cohere default)', async () => {
+    await handleSetRerankConfig({ endpoint: 'https://api.typesafe.ai/v1/systemone' });
+
+    expect(mockedSetRerankConfig).toHaveBeenCalledWith({ endpoint: 'https://api.typesafe.ai/v1/systemone' });
+  });
+
   it('rejects https and remote hosts without persisting or invalidating (AE8)', async () => {
     const https = await handleSetRerankConfig({ endpoint: 'https://127.0.0.1:8000/v1/rerank' });
     expect(https.ok).toBe(false);

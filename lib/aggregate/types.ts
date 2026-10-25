@@ -59,12 +59,17 @@ export interface AggregateSearchResponse {
   rerank: AggregateRerankMeta;
 }
 
-/** 全局唯一的 rerank 服务配置（KTD10/R3）：endpoint 强制 loopback（校验在 KTD12，Lane B 接线）。
+/** rerank 协议判别：`'cohere'` = Cohere/Jina 风格 `/v1/rerank`（缺省，兼容旧数据）；`'jev'` = TypeSafe
+ *  SystemOne 决策模型协议（listwise state+questions → answers.noul）。缺省即 cohere，旧存储/旧导出零迁移。 */
+export type RerankProtocol = 'cohere' | 'jev';
+
+/** 全局唯一的 rerank 服务配置（KTD10/R3）：endpoint 白名单校验（KTD12，Lane B 接线）。
  *  apiKey 明文随导出文件（与 providerKeys 同设计），仅 worker 读；任何返回值/纯函数输出不得携带。 */
 export interface RerankConfig {
   endpoint: string;
   model?: string;
   apiKey?: string;
+  protocol?: RerankProtocol;
 }
 
 /** 快照侧脱敏聚合配置（KTD5）：`ProviderConfigReply.aggregate` 的形状。
@@ -79,5 +84,5 @@ export interface AggregateConfigSnapshot {
    *  布尔标志，**永不回显值**——provider-instance-multi-config-model.md 快照脱敏先例的
    *  hasApiKey 类字段）。AggregateSearchManager 的「已配置」态由本字段驱动（跨会话准确：
    *  保存/清除后经 syncConfig 快照回流，页面不再维护会话内本地投影）。 */
-  rerank: { configured: boolean; hasApiKey: boolean; endpoint?: string; model?: string };
+  rerank: { configured: boolean; hasApiKey: boolean; endpoint?: string; model?: string; protocol?: RerankProtocol };
 }

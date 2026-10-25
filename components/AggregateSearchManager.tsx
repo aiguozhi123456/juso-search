@@ -4,7 +4,7 @@ import { allProviders } from '@/lib/providers/registry';
 import type { EngineId } from '@/lib/engines/types';
 import { getEngine } from '@/lib/engines/registry';
 import { extractorCapableEngineIds, resolveAggregateEligibility } from '@/lib/aggregate/eligibility';
-import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId } from '@/lib/aggregate/types';
+import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId, RerankProtocol } from '@/lib/aggregate/types';
 import type { AggregateInstance } from '@/lib/aggregate-instances';
 import {
   clampAggregateTopN,
@@ -25,10 +25,11 @@ import { MinusIcon, PlusIcon } from './icons';
  *
  * 骨架抄 SiteInstanceManager / ProviderInstanceManager 母本（onChange={syncConfig} 上抛、
  * 两步删除确认、容量提示先例）。数据源 = worker 快照 `config.aggregate`（KTD5 脱敏形状：
- * instances + eligibility + rerank{configured,endpoint,model}），**快照永不携带 apiKey**。
+ * instances + eligibility + rerank{configured,endpoint,model,protocol}），**快照永不携带 apiKey**。
  *
- * 三卡：rerank 全局卡（endpoint loopback 校验 + localhost/[::1] 改写提示 AE8 / apiKey password
- * 型不回显）/ 实例列表卡（成员摘要 + topN 徽标 + 有效性警示 + 两步删除，无独苗禁用 AE9）/
+ * 三卡：rerank 全局卡（协议下拉 cohere|jev + endpoint 白名单校验 + localhost/[::1] 改写提示 AE8 /
+ * apiKey password 型不回显；jev 协议的 endpoint placeholder/hint/model placeholder 随下拉切换）/
+ * 实例列表卡（成员摘要 + topN 徽标 + 有效性警示 + 两步删除，无独苗禁用 AE9）/
  * inline 编辑器（create/edit 共用：空白起步、两节平铺成员清单、topN 5–20、≥1 有效成员才可保存）。
  *
  * 编辑器契约（edit-mode-base-provider-switch / enum-timerange 两篇教训）：draft↔保存全字段
@@ -96,18 +97,21 @@ export function AggregateSearchManager({
   const rerankConfigured = aggregate?.rerank.configured ?? false;
   const snapshotEndpoint = aggregate?.rerank.endpoint ?? '';
   const snapshotModel = aggregate?.rerank.model ?? '';
+  // 快照只在 'jev' 时携带 protocol（normalizeRerankConfig 剥掉缺省 cohere）；缺省即 cohere。
+  const snapshotProtocol: RerankProtocol = aggregate?.rerank.protocol ?? 'cohere';
 
   // === rerank 全局卡 state ===
   const [endpointStr, setEndpointStr] = useState(snapshotEndpoint);
   const [modelStr, setModelStr] = useState(snapshotModel);
+  const [protocolStr, setProtocolStr] = useState<RerankProtocol>(snapshotProtocol);
   const [apiKeyStr, setApiKeyStr] = useState('');
   // 快照永不携带 apiKey（KTD5）——「已配置」态由快照脱敏布尔 hasApiKey 驱动（快照脱敏先例：
   // provider-instance-multi-config-model.md 的 hasApiKey 类字段）。跨会话准确：保存/清除成功后
   // onChange → syncConfig 快照回流翻转本态；页面重载后同样直接从快照恢复，无会话内本地投影。
   const apiKeySet = aggregate?.rerank.hasApiKey ?? false;
   const [rerankStatus, setRerankStatus] = useState<RerankStatus>({ kind: 'idle' });
-  const lastSnapshotRef = useRef({ endpoint: snapshotEndpoint, model: snapshotModel });
-  // 快照回流（保存后 syncConfig / 配置导入）时回填 endpoint/model 非敏感输入；仅当快照值
+  const lastSnapshotRef = useRef({ endpoint: snapshotEndpoint, model: snapshotModel, protocol: snapshotProtocol });
+  // 快照回流（保存后 syncConfig / 配置导入）时回填 endpoint/model/protocol 非敏感输入；仅当快照值
   // 真的变了才覆盖，避免无关 sync 打断用户正在编辑的内容。
   useEffect(() => {
     if (lastSnapshotRef.current.endpoint !== snapshotEndpoint) {
@@ -118,7 +122,11 @@ export function AggregateSearchManager({
       lastSnapshotRef.current.model = snapshotModel;
       setModelStr(snapshotModel);
     }
-  }, [snapshotEndpoint, snapshotModel]);
+    if (lastSnapshotRef.current.protocol !== snapshotProtocol) {
+      lastSnapshotRef.current.protocol = snapshotProtocol;
+      setProtocolStr(snapshotProtocol);
+    }
+  }, [snapshotEndpoint, snapshotModel, snapshotProtocol]);
 
   // === 实例管理 state ===
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -224,6 +232,8 @@ export function AggregateSearchManager({
         endpoint: rawEndpoint,
         ...(trimmedModel ? { model: trimmedModel } : {}),
         ...(apiKeyStr ? { apiKey: apiKeyStr } : {}),
+        // protocol 全写语义同 model（normalizeRerankConfig 只认 'jev'）：不携带 = 回到 cohere 缺省。
+        ...(protocolStr === 'jev' ? { protocol: 'jev' as const } : {}),
       });
       if (reply.ok) {
         setEndpointStr(reply.endpoint);
@@ -256,6 +266,8 @@ export function AggregateSearchManager({
       const reply = await sendMessage('setRerankConfig', {
         endpoint: validation.endpoint,
         ...(snapshotModel ? { model: snapshotModel } : {}),
+        // protocol 与 model 同为全写语义：清除 key 的重发必须带上快照 protocol，否则会被剥成 cohere。
+        ...(snapshotProtocol === 'jev' ? { protocol: 'jev' as const } : {}),
         apiKey: '',
       });
       if (reply.ok) {
@@ -290,12 +302,13 @@ export function AggregateSearchManager({
     }
   }
 
-  // 测试按钮守卫：worker handleTestRerank 测的是**已存储**的配置——endpoint/model 任一输入
-  // 与快照不一致、或 apiKey 输入了未保存的新 key 时都视为脏并禁用，提示先保存，
+  // 测试按钮守卫：worker handleTestRerank 测的是**已存储**的配置——endpoint/model/protocol 任一
+  // 输入与快照不一致、或 apiKey 输入了未保存的新 key 时都视为脏并禁用，提示先保存，
   // 避免「Test 可用但测的是旧配置」的误导性结果。
   const rerankDirty =
     endpointStr.trim() !== snapshotEndpoint
     || modelStr.trim() !== snapshotModel
+    || protocolStr !== snapshotProtocol
     || apiKeyStr.trim() !== '';
   const testDisabled = !rerankConfigured || rerankBusy || rerankDirty;
 
@@ -406,6 +419,19 @@ export function AggregateSearchManager({
       <div className="aggregate-rerank-card" data-card="rerank">
         <h3 className="aggregate-card-title">{t(MSG.opts_aggregate_rerank_card_title)}</h3>
         <div className="aggregate-rerank-fields">
+          {/* 协议置顶（决定下方字段提示语境）：切换只换 placeholder/hint 草稿提示，不动已输入值。 */}
+          <label className="aggregate-rerank-field" htmlFor="aggregate-rerank-protocol">
+            <span className="aggregate-rerank-field-label">{t(MSG.opts_aggregate_rerank_protocol_label)}</span>
+            <select
+              id="aggregate-rerank-protocol"
+              value={protocolStr}
+              onChange={(e) => setProtocolStr(e.target.value === 'jev' ? 'jev' : 'cohere')}
+              disabled={rerankBusy}
+            >
+              <option value="cohere">{t(MSG.opts_aggregate_rerank_protocol_cohere)}</option>
+              <option value="jev">{t(MSG.opts_aggregate_rerank_protocol_jev)}</option>
+            </select>
+          </label>
           <label className="aggregate-rerank-field" htmlFor="aggregate-rerank-endpoint">
             <span className="aggregate-rerank-field-label">{t(MSG.opts_aggregate_rerank_endpoint_label)}</span>
             <input
@@ -413,16 +439,21 @@ export function AggregateSearchManager({
               type="text"
               value={endpointStr}
               onChange={(e) => setEndpointStr(e.target.value)}
-              placeholder={t(MSG.opts_aggregate_rerank_endpoint_placeholder)}
+              placeholder={protocolStr === 'jev'
+                ? t(MSG.opts_aggregate_rerank_endpoint_placeholder_jev)
+                : t(MSG.opts_aggregate_rerank_endpoint_placeholder)}
               autoComplete="off"
               spellCheck={false}
             />
           </label>
-          {/* 完整 URL 提示（用户反馈）：rerankDocuments 直接 POST endpoint 全 URL，不自动补全
-              /rerank 路径；示例端口对齐配套本地服务 reranker-server 默认 8090。作为
-              .aggregate-rerank-fields（flex 列）的直接子元素复用既有 .hint 样式，无需新 CSS——
+          {/* 完整 URL 提示（用户反馈）：POST 直接打 endpoint 全 URL，不自动补全协议路径；文案随协议切换。
+              作为 .aggregate-rerank-fields（flex 列）的直接子元素复用既有 .hint 样式，无需新 CSS——
               放进 .aggregate-rerank-field（96px+1fr 网格）会被压进标签列。 */}
-          <p className="hint aggregate-rerank-endpoint-hint">{t(MSG.opts_aggregate_rerank_endpoint_hint)}</p>
+          <p className="hint aggregate-rerank-endpoint-hint">
+            {protocolStr === 'jev'
+              ? t(MSG.opts_aggregate_rerank_endpoint_hint_jev)
+              : t(MSG.opts_aggregate_rerank_endpoint_hint)}
+          </p>
           <label className="aggregate-rerank-field" htmlFor="aggregate-rerank-model">
             <span className="aggregate-rerank-field-label">{t(MSG.opts_aggregate_rerank_model_label)}</span>
             <input
@@ -430,6 +461,7 @@ export function AggregateSearchManager({
               type="text"
               value={modelStr}
               onChange={(e) => setModelStr(e.target.value)}
+              placeholder={protocolStr === 'jev' ? t(MSG.opts_aggregate_rerank_model_placeholder_jev) : undefined}
               autoComplete="off"
               spellCheck={false}
             />

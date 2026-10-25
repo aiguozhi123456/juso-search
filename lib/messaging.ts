@@ -7,7 +7,7 @@ import type { ConfigExport, ImportPreview, ImportReport } from './config-io';
 import type { SiteInstanceDefinition, SiteInstanceEngineId, SiteInstanceId, SiteInstanceOptions } from './site-instances';
 import type { CustomEngineDefinition, CustomEngineId } from './custom-engines';
 import type { ProviderInstance, ProviderInstanceId } from './provider-instances';
-import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId, AggregateSearchResponse } from './aggregate/types';
+import type { AggregateConfigSnapshot, AggregateInstanceId, AggregateMemberId, AggregateSearchResponse, RerankProtocol } from './aggregate/types';
 import type { AggregateInstance } from './aggregate-instances';
 
 export type SearchRequest = {
@@ -149,7 +149,7 @@ export type ProtocolMap = {
   createAggregateInstance(input: { name: string; members: AggregateMemberId[]; topN?: number }): Promise<AggregateInstance>;
   updateAggregateInstance(input: { id: AggregateInstanceId; patch: { name?: string; members?: AggregateMemberId[]; topN?: number } }): Promise<AggregateInstance | null>;
   deleteAggregateInstance(id: AggregateInstanceId): Promise<void>;
-  setRerankConfig(config: { endpoint: string; model?: string; apiKey?: string }): Promise<SetRerankConfigReply>;
+  setRerankConfig(config: { endpoint: string; model?: string; apiKey?: string; protocol?: RerankProtocol }): Promise<SetRerankConfigReply>;
   testRerank(): Promise<TestKeyReply>;
   openNewTab(url: string): Promise<void>;
   saveProviderKey(data: { providerId: ProviderId; key: string }): Promise<void>;

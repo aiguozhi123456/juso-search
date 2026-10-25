@@ -55,6 +55,27 @@ beforeEach(() => {
   }) as never);
 });
 
+/**
+ * active-source 下拉只在 search-source 节内查询：聚合卡新增的 rerank 协议下拉同为
+ * combobox，screen 级 role 查询会歧义（Found multiple elements）。
+ */
+function sourceSelectScope(): HTMLElement {
+  return document.querySelector('[data-section="search-source"]') as HTMLElement;
+}
+
+function getSourceSelect(): HTMLSelectElement {
+  return within(sourceSelectScope()).getByRole('combobox') as HTMLSelectElement;
+}
+
+async function findSourceSelect(): Promise<HTMLSelectElement> {
+  const scope = await waitFor(() => {
+    const el = document.querySelector('[data-section="search-source"]');
+    if (!el) throw new Error('search-source section not mounted yet');
+    return el as HTMLElement;
+  });
+  return within(scope).getByRole('combobox') as HTMLSelectElement;
+}
+
 describe('options page', () => {
   // 分页模型：侧栏分组即页签。默认落在「搜索」页；密钥/通用页需先切换。
   function openTab(name: '搜索' | '密钥' | '通用') {
@@ -74,21 +95,21 @@ describe('options page', () => {
 
   it('selecting active provider writes active source id', async () => {
     render(<App />);
-    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    const select = await findSourceSelect();
     fireEvent.change(select, { target: { value: 'exa' } });
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
   });
 
   it('selecting an engine writes active source id', async () => {
     render(<App />);
-    const select = await screen.findByRole('combobox');
+    const select = await findSourceSelect();
     fireEvent.change(select, { target: { value: 'google' } });
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'google'));
   });
 
   it('shows configured providers and engines in the active-source select', async () => {
     render(<App />);
-    const select = await screen.findByRole('combobox');
+    const select = await findSourceSelect();
     expect(select).toHaveTextContent('Exa');
     expect(select).toHaveTextContent('Google');
     expect(select).toHaveTextContent('Bing');
@@ -107,7 +128,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
-    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    const select = await findSourceSelect();
     // 激活态下拉框仍按 sourceOrder（visibleSources 未排序）。
     expect(Array.from(select.options).slice(1).map((option) => option.value)).toEqual(['bing', 'exa', 'google', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
     // 快切栏管理列表按拼音排序展示（中文与拉丁文按拼写交错，不随 sourceOrder）。
@@ -152,7 +173,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
-    const select = await screen.findByRole('combobox');
+    const select = await findSourceSelect();
     // google 被隐藏，不出现在激活态下拉框；管理列表仍保留（由其它测试覆盖）。
     expect(select).not.toHaveTextContent('Google');
     expect(select).toHaveTextContent('Exa');
@@ -177,7 +198,7 @@ describe('options page', () => {
     save.resolve();
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
     // 下拉框值落到 exa
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    const select = getSourceSelect();
     expect(select.value).toBe('exa');
   });
 
@@ -212,7 +233,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
-    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    const select = await findSourceSelect();
     expect(select.value).toBe('google');
     // 保存已配置的 exa key：markConfigured 对状态是 no-op，但仍触发 syncConfig，
     // 由此产生一个在途的旧 getProviderConfig 请求。
@@ -223,7 +244,7 @@ describe('options page', () => {
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 在第二次配置仍在途时 choose 到 exa。
     openTab('搜索');
-    const selectFresh = screen.getByRole('combobox') as HTMLSelectElement;
+    const selectFresh = getSourceSelect();
     fireEvent.change(selectFresh, { target: { value: 'exa' } });
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
     await waitFor(() => expect(selectFresh.value).toBe('exa'));
@@ -249,7 +270,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
-    const select = await screen.findByRole('combobox') as HTMLSelectElement;
+    const select = await findSourceSelect();
     expect(select.value).toBe('google');
     // 触发在途的旧 getProviderConfig（保存已配置的 exa key，状态 no-op 但仍 syncConfig）。
     openTab('密钥');
@@ -259,7 +280,7 @@ describe('options page', () => {
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 隐藏当前激活的 google：重选到首个可见源 exa 并持久化。
     openTab('搜索');
-    const selectFresh = screen.getByRole('combobox') as HTMLSelectElement;
+    const selectFresh = getSourceSelect();
     fireEvent.click(screen.getByRole('button', { name: '在快切栏隐藏 Google' }));
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setActiveSource', 'exa'));
     await waitFor(() => expect(selectFresh.value).toBe('exa'));
@@ -321,7 +342,7 @@ describe('options page', () => {
       return Promise.resolve({ ok: true });
     }) as never);
     render(<App />);
-    const select = await screen.findByRole('combobox');
+    const select = await findSourceSelect();
     expect(select).not.toHaveTextContent('Tavily');
     openTab('密钥');
     // tavily 免 key 且未存 key → 免 key placeholder（首个即 tavily 行）。
@@ -329,7 +350,7 @@ describe('options page', () => {
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
     openTab('搜索');
-    await waitFor(() => expect(screen.getByRole('combobox')).toHaveTextContent('Tavily'));
+    await waitFor(() => expect(getSourceSelect()).toHaveTextContent('Tavily'));
   });
 
   it('test success shows 验证通过', async () => {
@@ -1100,7 +1121,7 @@ describe('options page: deep link & onboarding re-entry', () => {
   it('unknown ?group= values fall back to the search tab', async () => {
     window.history.pushState({}, '', '/?group=hax');
     render(<App />);
-    expect(await screen.findByRole('combobox')).toBeInTheDocument();
+    expect(await findSourceSelect()).toBeInTheDocument();
   });
 
   it('the about section reopens the onboarding page via tabs.create', async () => {

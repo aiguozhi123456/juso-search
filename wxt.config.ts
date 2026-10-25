@@ -101,6 +101,7 @@ export default defineConfig({
       'https://s.jina.ai/*',
       'https://api.parallel.ai/*',
       'https://api.siliconflow.cn/*',
+      'https://api.typesafe.ai/*',
       'https://api.deepseek.com/*',
       'https://api.anysearch.com/*',
     ],

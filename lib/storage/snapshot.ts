@@ -37,6 +37,7 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
       hasApiKey: !!rerankConfig.apiKey,
       ...(rerankConfig.endpoint ? { endpoint: rerankConfig.endpoint } : {}),
       ...(rerankConfig.model ? { model: rerankConfig.model } : {}),
+      ...(rerankConfig.protocol ? { protocol: rerankConfig.protocol } : {}),
     },
   };
   // configuredProviderIds 沿聚合投影单点计算（lib/storage/shared.ts），消除同表达式第二份派生，

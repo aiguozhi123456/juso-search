@@ -93,7 +93,8 @@ export function appendProviderErrorDetail(message: string, detail?: string): str
   return detail ? `${message}: ${detail}` : message;
 }
 
-function extractProviderErrorDetail(raw: string): string | undefined {
+/** 从原始响应体提取脱敏错误摘要（rerank jev 协议等自带 fetch 的调用方复用）。 */
+export function extractProviderErrorDetail(raw: string): string | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
   // JSON body：只取已知错误键的值。JSON 解析成功但无已知错误键时返回 undefined——

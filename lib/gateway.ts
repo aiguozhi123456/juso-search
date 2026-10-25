@@ -7,7 +7,7 @@ import { buildSiteInstanceUrl, isSiteInstanceId, type SiteInstanceDefinition, ty
 import { isCustomEngineId, type CustomEngineDefinition, type CustomEngineId } from './custom-engines';
 import { isProviderInstanceId, PROVIDERS_WITH_INSTANCE_OPTIONS, type ProviderInstance, type ProviderInstanceId } from './provider-instances';
 import { isAggregateInstanceId, type AggregateInstance } from './aggregate-instances';
-import type { AggregateInstanceId, AggregateMemberId, AggregateMergedResult, AggregateSearchResponse } from './aggregate/types';
+import type { AggregateInstanceId, AggregateMemberId, AggregateMergedResult, AggregateSearchResponse, RerankProtocol } from './aggregate/types';
 import { buildRerankDocument, mergeAggregateMembers } from './aggregate/merge';
 import { resolveAggregateEligibility, extractorCapableEngineIds } from './aggregate/eligibility';
 import type { RerankResultItem } from './aggregate/rerank-client';
@@ -550,10 +550,11 @@ function toAggregateSearchError(e: unknown): AggregateSearchReply {
   return toSearchError(e);
 }
 
-/** 保存全局 rerank 配置（KTD12/KTD9）：endpoint loopback 校验 + localhost/[::1] 自动改写为 127.0.0.1
- *  （保留端口/路径，reply 带改写标志供 UI 提示）；最终必须 http + 127.0.0.1 否则拒绝。
+/** 保存全局 rerank 配置（KTD12/KTD9）：endpoint 白名单校验（loopback/硅基流动/TypeSafe）+
+ *  localhost/[::1] 自动改写为 127.0.0.1（保留端口/路径，reply 带改写标志供 UI 提示）。
+ *  protocol 透传存储（normalizeRerankConfig 只认 'jev'，其余剥掉 = cohere 缺省）。
  *  成功持久化后删除全部聚合缓存条目——设置不在缓存键内 ⇒ 写时失效（AE5 第二行）。 */
-export async function handleSetRerankConfig(config: { endpoint: string; model?: string; apiKey?: string }): Promise<SetRerankConfigReply> {
+export async function handleSetRerankConfig(config: { endpoint: string; model?: string; apiKey?: string; protocol?: RerankProtocol }): Promise<SetRerankConfigReply> {
   await getSchemaReady();
   const validation = validateRerankEndpoint(config.endpoint);
   if (!validation.ok) {
@@ -563,6 +564,7 @@ export async function handleSetRerankConfig(config: { endpoint: string; model?: 
     endpoint: validation.endpoint,
     ...(config.model !== undefined ? { model: config.model } : {}),
     ...(config.apiKey !== undefined ? { apiKey: config.apiKey } : {}),
+    ...(config.protocol !== undefined ? { protocol: config.protocol } : {}),
   });
   await deleteAggregateCacheEntries('all');
   return { ok: true, endpoint: validation.endpoint, rewritten: validation.rewritten };

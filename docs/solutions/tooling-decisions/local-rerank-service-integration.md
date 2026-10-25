@@ -10,7 +10,7 @@ applies_when:
   - "Configuring rerankConfig endpoints against the local reranker-server (full URL including the /v1/rerank path; the client does not auto-complete it)"
   - "Running the first aggregate search after reranker-server startup with a 10s client timeout and a cold teacher model that loads in ~34s — send a warm-up request first"
   - "Choosing between teacher bge-reranker-v2-m3 and mini-reranker (9.7M student, millisecond latency but fails same-pattern distractors)"
-  - "Deciding manifest host_permissions for loopback-only local services (zero changes required)"
+  - "Deciding manifest host_permissions for cohere-path rerank endpoints (loopback needs none; cloud hosts declare their own)"
 related_components:
   - lib/aggregate/rerank-client.ts
   - components/AggregateSearchManager.tsx
@@ -66,7 +66,7 @@ mini-reranker 的翻车样本：query「法国的首都」，文档对「巴黎�
 
 ### ⑤ 云端白名单：硅基流动 rerank 端口
 
-KTD12 校验已从 loopback-only 扩为双分支白名单（`validateRerankEndpoint`，`lib/aggregate/rerank-client.ts`）：除 `http://127.0.0.1` 外，还接受 `https://api.siliconflow.cn`（host 精确匹配，其他 https host 一律拒绝 not_loopback）。硅基流动的 `/v1/rerank` 与本客户端的 Cohere/Jina 风格协议完全兼容，配置要点：
+KTD12 校验已从 loopback-only 扩为**三分支白名单**（`validateRerankEndpoint`，`lib/aggregate/rerank-client.ts`）：`http://127.0.0.1`、`https://api.siliconflow.cn`（host 精确匹配，其他 https host 一律拒绝 not_loopback），以及 jev/SystemOne 协议的 `https://api.typesafe.ai`。注意白名单只解决「能连到哪」，**协议讲什么**由设置页显式下拉声明（cohere/jev）——loopback host 无法从 URL 推断协议，本地 SystemOne 兼容服务必须选 jev，见 [jev-systemone-rerank-protocol](jev-systemone-rerank-protocol.md)。硅基流动的 `/v1/rerank` 与本客户端的 Cohere/Jina 风格协议完全兼容，配置要点：
 
 - endpoint 填全 URL：`https://api.siliconflow.cn/v1/rerank`（同样不会自动补全路径，见 ①）；
 - apiKey 必填（云端 BYOK，Bearer 鉴权；本地服务才可留空）；
@@ -96,6 +96,7 @@ KTD12 校验已从 loopback-only 扩为双分支白名单（`validateRerankEndpo
 ## Related
 
 - Plan：`docs/plans/2026-09-09-001-aggregate-search-rerank-plan.md`（超时 / loopback / 协议 / 不降级设计）
+- [Jev/SystemOne decision-model rerank](jev-systemone-rerank-protocol.md) — 第二协议（jev）的接入清单与显式协议下拉的理由；白名单现为三分支（loopback / 硅基流动 / TypeSafe）
 - [Aggregate rerank documents poisoned by display-metadata snippets](../logic-errors/aggregate-rerank-metadata-snippet-sink.md) — 分数解读（④）的下游故事
 - [Agent skill localhost capability bridge](../architecture-patterns/agent-skill-localhost-capability-bridge.md) — 另一条 loopback 边界设计的先例
 - [Per-provider config worker injection](../architecture-patterns/per-provider-config-worker-injection.md) — rerankConfig 的 worker-only 读写先例

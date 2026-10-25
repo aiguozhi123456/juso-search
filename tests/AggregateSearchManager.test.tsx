@@ -93,6 +93,64 @@ describe('AggregateSearchManager — 三卡结构与警示条（R12）', () => {
   });
 });
 
+describe('AggregateSearchManager — rerank 卡协议下拉（jev/SystemOne）', () => {
+  it('defaults the protocol to Cohere/Jina and keeps the cohere hint/placeholder', () => {
+    renderManager();
+    expect((screen.getByLabelText('协议') as HTMLSelectElement).value).toBe('cohere');
+    expect(screen.getByLabelText('Endpoint')).toHaveAttribute('placeholder', 'http://127.0.0.1:8090/v1/rerank');
+    expect(screen.getByText(/需填完整接口地址/)).toBeInTheDocument();
+  });
+
+  it('restores the stored jev protocol from the snapshot with jev-specific hints', () => {
+    renderManager({ ...SNAPSHOT, rerank: { ...SNAPSHOT.rerank, protocol: 'jev' } });
+    expect((screen.getByLabelText('协议') as HTMLSelectElement).value).toBe('jev');
+    expect(screen.getByLabelText('Endpoint')).toHaveAttribute('placeholder', 'https://api.typesafe.ai/v1/systemone');
+    expect(screen.getByText(/api\.typesafe\.ai\/v1\/systemone/)).toBeInTheDocument();
+    expect(screen.getByLabelText('模型（可选）')).toHaveAttribute('placeholder', 'jev-latest');
+  });
+
+  it('switching the protocol only swaps draft hints without touching entered values', () => {
+    renderManager();
+    fireEvent.change(screen.getByLabelText('Endpoint'), { target: { value: 'http://127.0.0.1:9000/v1/rerank' } });
+    fireEvent.change(screen.getByLabelText('协议'), { target: { value: 'jev' } });
+
+    expect(screen.getByLabelText('Endpoint')).toHaveValue('http://127.0.0.1:9000/v1/rerank');
+    expect(screen.getByLabelText('Endpoint')).toHaveAttribute('placeholder', 'https://api.typesafe.ai/v1/systemone');
+    expect(screen.queryByText(/需填完整接口地址/)).toBeNull();
+    expect(screen.getByText(/api\.typesafe\.ai\/v1\/systemone/)).toBeInTheDocument();
+  });
+
+  it('sends protocol: jev on save when switched and omits it again for cohere (full-write semantics)', async () => {
+    mockedSend.mockResolvedValue({ ok: true, endpoint: 'https://api.typesafe.ai/v1/systemone', rewritten: false });
+    renderManager();
+    fireEvent.change(screen.getByLabelText('协议'), { target: { value: 'jev' } });
+    fireEvent.change(screen.getByLabelText('Endpoint'), { target: { value: 'https://api.typesafe.ai/v1/systemone' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('setRerankConfig', {
+        endpoint: 'https://api.typesafe.ai/v1/systemone',
+        model: 'bge-reranker',
+        protocol: 'jev',
+      }),
+    );
+
+    fireEvent.change(screen.getByLabelText('协议'), { target: { value: 'cohere' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(mockedSend).toHaveBeenCalledWith('setRerankConfig', {
+        endpoint: 'https://api.typesafe.ai/v1/systemone',
+        model: 'bge-reranker',
+      }),
+    );
+  });
+
+  it('disables the test button while the protocol draft diverges from the stored snapshot', () => {
+    renderManager({ ...SNAPSHOT, rerank: { ...SNAPSHOT.rerank, protocol: 'jev' } });
+    fireEvent.change(screen.getByLabelText('协议'), { target: { value: 'cohere' } });
+    expect(screen.getByRole('button', { name: '测试连接' })).toBeDisabled();
+  });
+});
+
 describe('AggregateSearchManager — rerank 卡保存链路（KTD12/AE8）', () => {
   it('saves the endpoint, shows the rewritten notice and adopts the normalized value (AE8)', async () => {
     const onChange = vi.fn();
