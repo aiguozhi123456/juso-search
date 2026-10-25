@@ -373,6 +373,8 @@ export const MSG = {
   provider_doubao: 'provider_doubao',
   provider_doubao_global: 'provider_doubao_global',
   provider_parallel: 'provider_parallel',
+  provider_deepseek: 'provider_deepseek',
+  provider_anysearch: 'provider_anysearch',
   // 常规搜索引擎标签（v2 快切）
   engine_google: 'engine_google',
   engine_bing: 'engine_bing',
@@ -508,6 +510,8 @@ export const MSG = {
   // 豆包业务错误码（HTTP 200 + ResponseMetadata.Error）：语义是服务业务码而非 HTTP 状态，
   // 不能复用 error_http_generic（"$1：HTTP $2"）。
   error_doubao_business: 'error_doubao_business',
+  // AnySearch 业务码信封的防御分支（HTTP 200 + code!==0），同上不复用 error_http_generic。
+  error_anysearch_business: 'error_anysearch_business',
   error_mcp_network: 'error_mcp_network',
   error_mcp_unauthorized: 'error_mcp_unauthorized',
   error_mcp_rate_limit: 'error_mcp_rate_limit',

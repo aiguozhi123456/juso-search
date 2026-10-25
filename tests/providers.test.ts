@@ -3,9 +3,9 @@ import { allProviders, getAdapter } from '@/lib/providers/registry';
 import type { ProviderId } from '@/lib/providers/types';
 
 describe('provider registry', () => {
-  it('contains the eight providers', () => {
+  it('contains the eleven providers', () => {
     const ids = allProviders().map((p) => p.id).sort();
-    expect(ids).toEqual(['brave', 'doubao', 'doubao-global', 'exa', 'jina', 'parallel', 'stepfun', 'stepfun-plan', 'tavily']);
+    expect(ids).toEqual(['anysearch', 'brave', 'deepseek', 'doubao', 'doubao-global', 'exa', 'jina', 'parallel', 'stepfun', 'stepfun-plan', 'tavily']);
   });
 
   it.each([
@@ -18,6 +18,8 @@ describe('provider registry', () => {
     ['doubao', false],
     ['doubao-global', false],
     ['parallel', false],
+    ['deepseek', false],
+    ['anysearch', false],
   ] as Array<[ProviderId, boolean]>)('declares supportsAnswer=%s for %s', (id, expected) => {
     expect(getAdapter(id).supportsAnswer).toBe(expected);
   });
@@ -34,6 +36,9 @@ describe('provider registry', () => {
     // doubao-global 与 doubao 同公司，共享同一品牌图标。
     ['doubao-global', '/icons/doubao.svg'],
     ['parallel', '/icons/parallel.svg'],
+    // deepseek 与 ai:deepseek 对话引擎同品牌，共享同一品牌图标。
+    ['deepseek', '/icons/ai-deepseek.svg'],
+    ['anysearch', '/icons/anysearch.svg'],
   ] as Array<[ProviderId, string]>)('declares favicon=%s for %s', (id, expected) => {
     expect(getAdapter(id).favicon).toBe(expected);
   });

@@ -18,13 +18,13 @@
 
 > Allows the background service worker to save user-initiated files to the user's Downloads folder: (a) a configuration backup file (JSON containing the user's provider API keys and search preferences, which the user can later import to restore their setup), and (b) a downloadable Agent Skill package (a ZIP containing a Python CLI and reference docs that let a local AI assistant call the extension's search capability). Both are performed by the worker (rather than a page `<a>` download) so stored API keys flow from the service worker directly into the file without entering any page's memory, and files are written only when the user explicitly requests them.
 
-## 4. 权限理由 — 主机权限(限 1000 字符;实测 ~981)
+## 4. 权限理由 — 主机权限(限 1000 字符;实测 ~997)
 
-> (1) Provider APIs (api.tavily.com, api.exa.ai, api.search.brave.com, api.stepfun.com, s.jina.ai, open.feedcoopapi.com): worker sends query+key+minimal params; Stepfun MCP calls only 'web_search'. No cookies/history.
+> (1) Provider APIs (api.tavily.com, api.exa.ai, api.search.brave.com, api.stepfun.com, s.jina.ai, open.feedcoopapi.com, api.parallel.ai, api.siliconflow.cn, api.deepseek.com, api.anysearch.com): worker sends query+key+params; MCP calls only 'web_search'. No cookies/history.
 >
-> (2) 127.0.0.1 (Agent Bridge, off by default): local AI assistant searches via loopback, no keys. Engine extraction (separate opt-in) opens one background tab, reads public results (title/url/snippet). Fresh port/token per call.
+> (2) 127.0.0.1 (Agent Bridge, off by default): local AI assistant searches via loopback, no keys. Engine extraction (opt-in) opens a background tab, reads public results (title/url/snippet).
 >
-> (3) Content scripts on search-engine result pages (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili/Yandex/DuckDuckGo) and AI chat pages (chatgpt.com, chat.deepseek.com, www.doubao.com, gemini.google.com): injects closed shadow-root bar + <style> (inline: repositions Baidu/Douyin toolbars; top/bottom: pads page). Reads only anchors + URL query on search pages (no result alteration); fills query into chat input on AI pages, optionally submits. Extractor reads public results on request. No cookies/credentials/account data read; nothing sent externally.
+> (3) Content scripts on search-engine result pages (Google/Bing/Baidu/Douyin/Xiaohongshu/Bilibili/Yandex/DuckDuckGo) and AI chat pages (chatgpt.com, chat.deepseek.com, www.doubao.com, gemini.google.com): injects closed shadow-root bar + <style> (inline: repositions Baidu/Douyin toolbars; else pads page). Reads only anchors + URL query on search pages (no result alteration); fills query into chat input on AI pages, optionally submits. Extractor reads public results on request. No cookies/credentials read; nothing sent externally.
 
 ## 5. 权限理由 — contextMenus (限 1000 字符;实测 ~555)
 

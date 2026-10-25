@@ -31,7 +31,7 @@ tags:
 
 ## Context
 
-A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate nine AI search providers — Tavily, Exa, Brave, Stepfun REST, Stepfun MCP, Jina, Doubao, Doubao Global, and Parallel — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
+A Chrome MV3 extension (WXT + React + TypeScript) needed to integrate eleven AI search providers — Tavily, Exa, Brave, Stepfun REST, Stepfun MCP, Jina, Doubao, Doubao Global, Parallel, DeepSeek, and AnySearch — each with different auth schemes, response shapes, feature sets (answer synthesis, result fields, error codes), and transport protocols (REST vs MCP streamableHttp). The UI required a single, clean search result experience regardless of which provider was active.
 
 ## Guidance
 

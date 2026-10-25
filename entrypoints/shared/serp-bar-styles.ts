@@ -221,6 +221,8 @@ export const serpBarStyles = `
 :host([data-style="colorful"]) .source-switcher button[data-source="jina"] { --source-color: var(--color-teal); --source-soft: var(--color-teal-soft); }
 :host([data-style="colorful"]) .source-switcher button[data-source="doubao"] { --source-color: var(--color-rose); --source-soft: var(--color-rose-soft); }
 :host([data-style="colorful"]) .source-switcher button[data-source="doubao-global"] { --source-color: var(--color-yellow); --source-soft: var(--color-yellow-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="deepseek"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
+:host([data-style="colorful"]) .source-switcher button[data-source="anysearch"] { --source-color: var(--color-cyan); --source-soft: var(--color-cyan-soft); }
 :host([data-style="colorful"]) .source-switcher button:hover:not(:disabled):not([data-active="true"]) {
   color: var(--source-color);
   background: var(--source-soft);
@@ -245,6 +247,8 @@ export const serpBarStyles = `
 :host([data-style="colorful"]) .source-switcher[data-active-source="jina"] .switcher-indicator { background: var(--color-teal); }
 :host([data-style="colorful"]) .source-switcher[data-active-source="doubao"] .switcher-indicator { background: var(--color-rose); }
 :host([data-style="colorful"]) .source-switcher[data-active-source="doubao-global"] .switcher-indicator { background: var(--color-yellow); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="deepseek"] .switcher-indicator { background: var(--color-blue); }
+:host([data-style="colorful"]) .source-switcher[data-active-source="anysearch"] .switcher-indicator { background: var(--color-cyan); }
 :host([data-style="colorful"]) .source-switcher button:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--source-color) 30%, transparent);
 }

@@ -8,6 +8,8 @@ import { jinaAdapter } from './jina';
 import { doubaoAdapter } from './doubao';
 import { doubaoGlobalAdapter } from './doubao-global';
 import { parallelAdapter } from './parallel';
+import { deepseekAdapter } from './deepseek';
+import { anysearchAdapter } from './anysearch';
 
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
@@ -19,6 +21,8 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
   parallel: parallelAdapter,
+  deepseek: deepseekAdapter,
+  anysearch: anysearchAdapter,
 };
 
 export function getAdapter(id: ProviderId): ProviderAdapter {
@@ -38,5 +42,7 @@ export function allProviders(): ProviderAdapter[] {
     adapters.doubao,
     adapters['doubao-global'],
     adapters.parallel,
+    adapters.deepseek,
+    adapters.anysearch,
   ];
 }
