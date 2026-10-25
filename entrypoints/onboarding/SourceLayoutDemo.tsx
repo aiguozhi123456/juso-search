@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { allSources, resolveIconUrl, sourceLabel, type SearchSource } from '@/lib/sources';
 import { getCurrentLocale, t, MSG } from '@/lib/i18n';
 import { ChevronDownIcon, ChevronUpIcon, GripIcon, PlusIcon } from '@/components/icons';
@@ -201,20 +201,22 @@ export function SourceLayoutDemo() {
   // 删除分组：「新建分组」区原位置（常用行卸下后上移，FLIP 消除跳变）
   const barFromRef = useRef<DOMRect | null>(null);
 
-  function relCenter(el: Element): Point {
+  // 编排 effect 引用的两个指针助手 useCallback 稳定化（只经 ref/setState 读写）：
+  // 身份恒定 → effect 保持 mount-only，无需 disable 指令。
+  const relCenter = useCallback((el: Element): Point => {
     const c = rootRef.current?.getBoundingClientRect();
     if (!c) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
     return { x: r.left - c.left + r.width / 2, y: r.top - c.top + r.height / 2 };
-  }
+  }, []);
 
   function memberEl(id: string): HTMLElement | null {
     return membersRef.current?.querySelector<HTMLElement>(`[data-source-id="${id}"]`) ?? null;
   }
 
-  function moveToEl(el: Element | null, dur: number) {
+  const moveToEl = useCallback((el: Element | null, dur: number) => {
     if (el && rootRef.current) setCursor({ p: relCenter(el), dur, on: true });
-  }
+  }, [relCenter]);
 
   /** 指针隐藏待命：不设可见停靠点（容器角落紧邻「新建分组」区，现身会造成误移动感）。 */
   function hideCursor() {
@@ -222,9 +224,9 @@ export function SourceLayoutDemo() {
   }
 
   /** 指针就位现身：瞬移（dur=0）到目标处淡入，避免从上一次位置滑过半个演示区。 */
-  function appearAt(el: Element | null) {
+  const appearAt = useCallback((el: Element | null) => {
     if (el && rootRef.current) setCursor({ p: relCenter(el), dur: 0, on: true });
-  }
+  }, [relCenter]);
 
   /** FLIP 前拍：重排渲染前记录成员位置（getBoundingClientRect 含进行中的 transform）。 */
   function captureMembers() {
@@ -423,7 +425,8 @@ export function SourceLayoutDemo() {
       }
     }, 300);
     return () => window.clearInterval(timer);
-  }, []);
+    // relCenter 是 appearAt/moveToEl 的传递依赖（v7 规则会追进 useCallback 要求列出），三者身份恒定。
+  }, [appearAt, moveToEl, relCenter]);
 
   // FLIP 后拍：按旧位置反向位移后过渡归零，得到真实元素的滑动换位/收拢/跨行飞行。
   useLayoutEffect(() => {

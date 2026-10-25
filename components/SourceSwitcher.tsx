@@ -109,7 +109,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     const target = track.querySelector<HTMLElement>(`[data-key="${CSS.escape(centerKey)}"]`);
     if (!target) return;
     scrollChildToCenter(track, target);
-  }, [overlayPosition, centerKey, layout]);
+  }, [overlayPosition, centerKey, layout, isOverlay]);
 
   // 覆盖层 scroll-hide 或模式切换时关闭浮层，避免 fixed 菜单悬空。
   // 渲染期调整模式（替代 effect 内 setState）：宿主在 inline↔overlay 切换时强制
@@ -142,7 +142,7 @@ export function SourceSwitcher({ sources, groupConfig, activeId, onSelect, disab
     });
     obs.observe(host, { attributes: true, attributeFilter: ['data-hidden'] });
     return () => obs.disconnect();
-  }, [overlayPosition]);
+  }, [overlayPosition, isOverlay]);
 
   // 指示器锚定的那个 pill 的 data-key。CSS 用 [data-indicator-target="true"]
   // 精确清除「该 pill 自身的 .active/.open 底色」，避免指示器实色与按钮底色叠加。

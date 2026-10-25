@@ -196,6 +196,7 @@ export default function App() {
       ignore = true;
     };
     // mount-only：故意只跑一次；handleSearch 是组件内闭包，列进 deps 会反复触发。
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only 初始化 + 深链首搜，重构为 latest-ref 收益差
   }, []);
 
   async function handleSearch(rawQuery: string, opts: { forceRefresh?: boolean; providerId?: ProviderId | ProviderInstanceId | AggregateInstanceId; sourceId?: SourceId; selectedSource?: SearchSource; aiAutoEnter?: boolean } = {}) {

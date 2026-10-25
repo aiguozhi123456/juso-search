@@ -241,16 +241,17 @@ function SelectionGroupItem({
     pinnedRef.current = pinned;
   }, [pinned]);
 
-  const cancelClose = () => {
+  // useCallback 稳定化：外点关闭 effect 以 handleClose 为 dep，身份恒定 → 仅 onClose 变化时重订阅。
+  const cancelClose = useCallback(() => {
     if (closeTimerRef.current != null) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-  };
-  const handleClose = () => {
+  }, []);
+  const handleClose = useCallback(() => {
     cancelClose();
     onClose();
-  };
+  }, [cancelClose, onClose]);
   const scheduleClose = () => {
     if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
@@ -258,7 +259,7 @@ function SelectionGroupItem({
       if (!pinnedRef.current) handleClose();
     }, 120);
   };
-  useEffect(() => () => cancelClose(), []);
+  useEffect(() => () => cancelClose(), [cancelClose]);
 
     // 外部点击关闭（固定态）：点击在分组框之外时关闭。
     // 子浮层是分组框的 DOM 子孙，rootRef 判定已覆盖子浮层内点击。
@@ -273,7 +274,7 @@ function SelectionGroupItem({
       };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [open]);
+  }, [open, handleClose]);
 
   return (
     <div
