@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { ProviderId } from '@/lib/providers/types';
-import { allProviders } from '@/lib/providers/registry';
+import { allProviders, isProviderKeyless } from '@/lib/providers/registry';
 import type { SourceId } from '@/lib/sources';
 import { aggregateSourcesOf, allSources, normalizeSourceOrder, sourceLabel } from '@/lib/sources';
 import { compareByPinyin } from '@/lib/pinyin-sort';
@@ -124,6 +124,9 @@ export default function App() {
   useLocale();
   const providers = allProviders();
   const [configuredProviderIds, setConfiguredProviderIds] = useState<ProviderId[]>([]);
+  // 「已配置 key」语义（密钥徽标/删除按钮专用）；configuredProviderIds 是「可用」语义
+  // （有 key 或免 key 免费层），快切栏投影/默认源下拉沿用后者。
+  const [keyedProviderIds, setKeyedProviderIds] = useState<ProviderId[]>([]);
   const [providerMaxResults, setProviderMaxResults] = useState<Partial<Record<ProviderId, number>>>({});
   const [aiAutoEnter, setAiAutoEnterState] = useState(true);
   const [flatLayoutFewSources, setFlatLayoutFewSourcesState] = useState(true);
@@ -166,11 +169,16 @@ export default function App() {
 
   function markConfigured(id: ProviderId) {
     setConfiguredProviderIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+    setKeyedProviderIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
     syncConfig();
   }
 
   function markRemoved(id: ProviderId) {
-    setConfiguredProviderIds((ids) => ids.filter((x) => x !== id));
+    setConfiguredProviderIds((ids) => {
+      // keyOptional provider 删 key 后仍是可用源（免 key 免费层），不得从可用集中摘除。
+      return isProviderKeyless(id) ? ids : ids.filter((x) => x !== id);
+    });
+    setKeyedProviderIds((ids) => ids.filter((x) => x !== id));
     // worker 端会按 activeSource → activeProvider → 默认 engine 重新解析有效默认源；
     // 此处重新拉取配置以同步 active，避免下拉框显示已失效的选项。
     syncConfig();
@@ -195,6 +203,8 @@ export default function App() {
           setActive(config.activeSourceId);
         }
         setConfiguredProviderIds(config.configuredProviderIds);
+        // 运行时兜底 ?? []：老 worker / 测试 mock 可能缺字段（类型层已必填）。
+        setKeyedProviderIds(config.keyedProviderIds ?? []);
         // 运行时兜底 ?? []：老 worker / 测试 mock 可能缺字段（类型层已必填）。
         setProviderMaxResults(config.providerMaxResults ?? {});
         setAiAutoEnterState(config.aiAutoEnter ?? true);
@@ -512,7 +522,7 @@ export default function App() {
               <KeyInput
                 key={p.id}
                 provider={p}
-                configured={configuredProviderIds.includes(p.id)}
+                configured={keyedProviderIds.includes(p.id)}
                 onConfigured={markConfigured}
                 onRemoved={markRemoved}
                 maxResults={providerMaxResults[p.id]}

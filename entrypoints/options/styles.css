@@ -1163,6 +1163,8 @@ body {
   color: var(--brand); font-weight: 500;
   margin-left: var(--space-2); font-size: var(--text-xs);
 }
+/* 免 key 免费层徽标：绿色语义（可用但按 IP 限速），与「已配置」区分。 */
+.key-row .configured.keyless-free { color: var(--color-green, #3aaf5c); }
 .key-row input {
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-md); font-family: inherit;

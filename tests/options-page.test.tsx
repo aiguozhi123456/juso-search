@@ -49,7 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockedSend.mockImplementation(((type: string) => {
     if (type === 'getProviderConfig') {
-      return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+      return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
     }
     return Promise.resolve({ ok: true });
   }) as never);
@@ -64,7 +64,8 @@ describe('options page', () => {
   it('saving a key asks the worker to save it and marks configured', async () => {
     render(<App />);
     openTab('密钥');
-    const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
+    // tavily（免 key 且未存 key）用免 key placeholder；首个匹配即 tavily 行。
+    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0];
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('saveProviderKey', { providerId: 'tavily', key: 'tvly-abc' }));
@@ -99,7 +100,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           sourceOrder: ['bing', 'exa', 'google', 'tavily', 'stepfun', 'stepfun-plan', 'baidu'],
         });
       }
@@ -124,7 +125,7 @@ describe('options page', () => {
     const save = deferred<void>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       if (type === 'setSourceHidden') return save.promise;
       return Promise.resolve(undefined);
@@ -144,7 +145,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           sourceHidden: ['google'],
         });
       }
@@ -164,7 +165,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string, data?: unknown) => {
       calls.push([type, data]);
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       if (type === 'setSourceHidden') return save.promise;
       return Promise.resolve(undefined);
@@ -183,7 +184,7 @@ describe('options page', () => {
   it('rolls back the hidden state when saving fails', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       if (type === 'setSourceHidden') return Promise.reject(new Error('storage unavailable'));
       return Promise.resolve(undefined);
@@ -203,7 +204,7 @@ describe('options page', () => {
         configCalls += 1;
         if (configCalls === 1) {
           // 首次加载快速返回，下拉框出现 exa + 各 engine，active = google。
-          return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+          return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
         }
         // 第二次（保存 exa key 触发）慢返回，将带着旧的 activeSourceId。
         return staleConfig.promise;
@@ -228,7 +229,7 @@ describe('options page', () => {
     await waitFor(() => expect(selectFresh.value).toBe('exa'));
     // 旧配置带着 activeSourceId = google 返回——不得覆盖较新的 choose。
     await act(async () => {
-      staleConfig.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
+      staleConfig.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
       await new Promise((r) => setTimeout(r, 50));
     });
     expect(selectFresh.value).toBe('exa');
@@ -241,7 +242,7 @@ describe('options page', () => {
       if (type === 'getProviderConfig') {
         configCalls += 1;
         if (configCalls === 1) {
-          return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+          return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
         }
         return staleConfig.promise;
       }
@@ -265,7 +266,7 @@ describe('options page', () => {
     // 旧配置带着 activeSourceId = google、sourceHidden = [] 返回——
     // 不得覆盖重选后的 active，也不得回退隐藏态。
     await act(async () => {
-      staleConfig.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
+      staleConfig.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google', sourceHidden: [] });
       await new Promise((r) => setTimeout(r, 50));
     });
     // google 仍处于隐藏态（隐藏 revision 守卫已存在）。
@@ -289,6 +290,23 @@ describe('options page', () => {
     expect(keyScope.getByText('Stepfun Step Plan')).toBeInTheDocument();
   });
 
+  // ── 免 key 免费层（keyOptional）：tavily 免 key 可用，exa 已配 key ──
+  it('keyless provider shows the free badge, keyless placeholder and an enabled test button without a key', async () => {
+    render(<App />);
+    openTab('密钥');
+    // 先等配置快照落地（exa keyed → 已配置徽标出现）。
+    const exaRow = screen.getByText('Exa').closest('.key-row') as HTMLElement;
+    expect(await within(exaRow).findByText(/已配置/)).toBeInTheDocument();
+    expect(within(exaRow).getByPlaceholderText('输入新 key 覆盖')).toBeInTheDocument();
+    expect(within(exaRow).getByRole('button', { name: '删除' })).toBeInTheDocument();
+    const tavilyRow = screen.getByText('Tavily').closest('.key-row') as HTMLElement;
+    expect(within(tavilyRow).getByText(/免费/)).toBeInTheDocument();
+    expect(within(tavilyRow).getByPlaceholderText('可选：粘贴 API key 提升限额')).toBeInTheDocument();
+    // 无 key 也可测试（匿名层连通性），且无删除按钮。
+    expect(within(tavilyRow).getByRole('button', { name: '测试' })).toBeEnabled();
+    expect(within(tavilyRow).queryByRole('button', { name: '删除' })).not.toBeInTheDocument();
+  });
+
   it('adds a provider to the active-source select after saving its key', async () => {
     let configCalls = 0;
     mockedSend.mockImplementation(((type: string) => {
@@ -296,8 +314,8 @@ describe('options page', () => {
         configCalls += 1;
         return Promise.resolve(
           configCalls === 1
-            ? { configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' }
-            : { configuredProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' },
+            ? { configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' }
+            : { configuredProviderIds: ['tavily', 'exa'], keyedProviderIds: ['tavily', 'exa'], activeProviderId: 'tavily', activeSourceId: 'tavily' },
         );
       }
       return Promise.resolve({ ok: true });
@@ -306,7 +324,8 @@ describe('options page', () => {
     const select = await screen.findByRole('combobox');
     expect(select).not.toHaveTextContent('Tavily');
     openTab('密钥');
-    const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
+    // tavily 免 key 且未存 key → 免 key placeholder（首个即 tavily 行）。
+    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0];
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
     openTab('搜索');
@@ -316,7 +335,7 @@ describe('options page', () => {
   it('test success shows 验证通过', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], keyedProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -330,7 +349,7 @@ describe('options page', () => {
   it('test failure shows the error message', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], keyedProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily' });
       }
       return Promise.resolve({ ok: false, error: { kind: 'providerError', message: '无效 key' } });
     }) as never);
@@ -375,7 +394,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           sourceOrder: ['exa', 'site:docs', 'google', 'bing', 'baidu'],
           siteInstances: [siteInstance],
         });
@@ -401,7 +420,7 @@ describe('options page', () => {
         if (configCalls === 1) return slowConfig.promise; // Initial load is slow.
         // Second call (triggered by saving a key) resolves immediately with current data.
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           siteInstances: [],
         });
       }
@@ -417,7 +436,7 @@ describe('options page', () => {
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // The slow first config resolves late with stale data — it must be ignored.
     slowConfig.resolve({
-      configuredProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
+      configuredProviderIds: ['tavily'], keyedProviderIds: ['tavily'], activeProviderId: 'tavily', activeSourceId: 'tavily',
       siteInstances: [{ id: 'site:stale', name: 'Stale', target: 'https://stale.example.com', engineId: 'google' }],
       sourceOrder: ['tavily', 'google'],
     });
@@ -431,6 +450,7 @@ describe('options page', () => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
           configuredProviderIds: [],
+          keyedProviderIds: [],
           activeProviderId: null,
           activeSourceId: 'google',
           // Hide all engines except google → only one visible source remains.
@@ -454,7 +474,7 @@ describe('options page', () => {
       if (type === 'getProviderConfig') {
         configCalls += 1;
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           siteInstances: [],
         });
       }
@@ -530,7 +550,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         // Tavily is configured but has no per-instance options form (Phase 1: only Exa).
-        return Promise.resolve({ configuredProviderIds: ['tavily'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['tavily'], keyedProviderIds: ['tavily'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -548,7 +568,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         // Both Tavily and Exa configured; only Exa supports per-instance options.
-        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['tavily', 'exa'], keyedProviderIds: ['tavily', 'exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -569,7 +589,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究',
             options: { searchType: 'auto', category: 'publication', numResults: 5, includeDomains: [], excludeDomains: [], textMaxCharacters: null, highlightsMaxCharacters: null },
@@ -602,7 +622,7 @@ describe('options page', () => {
   it('offers doubao in the base-provider dropdown when its key is configured', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa', 'doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa', 'doubao'], keyedProviderIds: ['exa', 'doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -624,7 +644,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         // 仅 exa 已配置 → 默认 base provider 即 exa。
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -648,7 +668,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         // 仅 doubao 已配置 → 默认 base provider 即 doubao。
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -694,7 +714,7 @@ describe('options page', () => {
   it('saves the OneWeek enum time range when selected for a doubao instance', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -722,7 +742,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
             options: { timeRange: 'OneWeek', needContent: false, needUrl: true, sites: [], blockHosts: [], onlyAuthoritative: false, queryRewrite: false, contentFormat: 'text', industry: '' },
@@ -752,7 +772,7 @@ describe('options page', () => {
   it('blocks save with a hint when a custom range has only a start date', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -779,7 +799,7 @@ describe('options page', () => {
   it('blocks save with a hint when a custom range is inverted (start > end)', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -805,7 +825,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
             options: { timeRange: 'OneWeek', needContent: false, needUrl: true, sites: [], blockHosts: [], onlyAuthoritative: false, queryRewrite: false, contentFormat: 'text', industry: '' },
@@ -826,7 +846,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
             options: { timeRange: '2026-02-01..2026-02-28', needContent: true, needUrl: true, sites: ['a.com', 'b.com'], blockHosts: ['x.com'], onlyAuthoritative: false, queryRewrite: true, contentFormat: 'markdown', industry: 'game' },
@@ -872,7 +892,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:doubao:abc123', baseProviderId: 'doubao', name: '豆包研究',
             options: { timeRange: '2026-02-01..2026-02-28', needContent: true, needUrl: true, sites: ['a.com', 'b.com'], blockHosts: ['x.com'], onlyAuthoritative: false, queryRewrite: true, contentFormat: 'markdown', industry: 'game' },
@@ -902,7 +922,7 @@ describe('options page', () => {
   it('resets changed doubao fields to defaults in create mode before saving', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -931,7 +951,7 @@ describe('options page', () => {
   it('echoes the default options in the form after resetting', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['doubao'], keyedProviderIds: ['doubao'], activeProviderId: null, activeSourceId: 'google' });
       }
       return Promise.resolve({ ok: true });
     }) as never);
@@ -958,7 +978,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [
             { id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究', options: {} },
             // 第二个实例使删除不命中「独苗保护」（否则删除按钮会被禁用）。
@@ -983,7 +1003,7 @@ describe('options page', () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
         return Promise.resolve({
-          configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
+          configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google',
           providerInstances: [{
             id: 'inst:exa:abc123', baseProviderId: 'exa', name: 'AI 研究', options: {},
           }],
@@ -1024,7 +1044,7 @@ describe('options page', () => {
   it('shows the failure status with the worker error when packaging fails', async () => {
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       if (type === 'packageAgentSkill') {
         return Promise.resolve({ ok: false, error: 'boom' });
@@ -1041,7 +1061,7 @@ describe('options page', () => {
     const pending = deferred<void>();
     mockedSend.mockImplementation(((type: string) => {
       if (type === 'getProviderConfig') {
-        return Promise.resolve({ configuredProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
+        return Promise.resolve({ configuredProviderIds: ['exa'], keyedProviderIds: ['exa'], activeProviderId: null, activeSourceId: 'google' });
       }
       if (type === 'packageAgentSkill') return pending.promise.then(() => ({ ok: true }));
       return Promise.resolve({ ok: true });

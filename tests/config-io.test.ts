@@ -113,7 +113,8 @@ describe('buildExportPayload', () => {
     expect(payload.localePref).toBe('auto');
     expect(payload.serpBarPosition).toBe('auto');
     expect(payload.activeProvider).toBeNull();
-    expect(payload.activeSource).toBe('google');
+    // 无任何 key 时 activeSource 回退到首个免 key provider（tavily），而非默认引擎。
+    expect(payload.activeSource).toBe('tavily');
   });
 
   it('exports groupConfig when present', async () => {

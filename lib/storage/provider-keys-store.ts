@@ -1,5 +1,5 @@
 import type { ProviderId } from '../providers/types';
-import { allProviders } from '../providers/registry';
+import { allProviders, isProviderUsable } from '../providers/registry';
 import { normalizeSourceHidden, normalizeSourceOrder } from '../sources';
 import { normalizeSiteInstanceDefinitions } from '../site-instances';
 import { normalizeCustomEngineDefinitions } from '../custom-engines';
@@ -26,7 +26,8 @@ async function readKeys(): Promise<Record<string, string>> {
 
 export async function getConfiguredProviderIds(): Promise<ProviderId[]> {
   const keys = await readKeys();
-  return allProviders().filter((p) => keys[p.id]).map((p) => p.id);
+  // 可用性 = 有 key 或 keyOptional（免 key 免费层）——与投影/快照同源的单点谓词。
+  return allProviders().filter((p) => isProviderUsable(p.id, keys)).map((p) => p.id);
 }
 
 /** 返回某 provider 的 key，未配置则 null。仅 worker 调用。 */

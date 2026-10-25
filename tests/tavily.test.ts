@@ -76,6 +76,8 @@ describe('tavilyAdapter', () => {
     ];
     expect(url).toBe('https://api.tavily.com/search');
     expect(init.headers.Authorization).toBe('Bearer tvly-abc');
+    // keyed 路径不发 keyless 头（两头同发时上游以 key 为准，我们只发其一）。
+    expect(init.headers['X-Tavily-Access-Mode']).toBeUndefined();
     const body = JSON.parse(init.body);
     expect(body.query).toBe('hello');
     expect(body.include_answer).toBe(true);
@@ -101,5 +103,25 @@ describe('tavilyAdapter', () => {
       }),
     );
     await expect(tavilyAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
+  });
+
+  // ── 免 key 免费层（官方 keyless：同端点改发 X-Tavily-Access-Mode，响应同构）──
+  it('declares keyOptional and swaps Bearer for X-Tavily-Access-Mode on an empty key', async () => {
+    const fetchMock = vi.fn(async () =>
+      res(200, { query: 'q', answer: 'a', results: [{ title: 'A', url: 'https://a.com', content: 's' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(tavilyAdapter.keyOptional).toBe(true);
+    const out = await tavilyAdapter.search('q', {}, '');
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ];
+    expect(url).toBe('https://api.tavily.com/search');
+    expect(init.headers.Authorization).toBeUndefined();
+    expect(init.headers['X-Tavily-Access-Mode']).toBe('keyless');
+    // keyless 响应同构：answer/results 正常归一化。
+    expect(out.answer?.text).toBe('a');
+    expect(out.results[0]?.url).toBe('https://a.com');
   });
 });

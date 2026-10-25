@@ -141,9 +141,10 @@ describe('custom engine store: active source re-pointing on delete', () => {
 
   it('re-points to DEFAULT_ENGINE_ID via the ensureVisibleUsable repair when everything else is hidden (ACTIVE_KEY untouched)', async () => {
     const mock = installStorage({
-      // 无已配 key 的 provider；全部引擎 + 被删 custom 均在隐藏清单 → 删除前无可见可用源。
+      // 无已配 key 的 provider；全部引擎 + 被删 custom + 免 key provider（tavily/jina/anysearch）
+      // 均在隐藏清单 → 删除前无可见可用源（keyless provider 不隐藏则永远构成可见可用源）。
       [SOURCE_ORDER_KEY]: ['custom:gone', ...ALL_ENGINE_IDS],
-      [SOURCE_HIDDEN_KEY]: ['custom:gone', ...ALL_ENGINE_IDS],
+      [SOURCE_HIDDEN_KEY]: ['custom:gone', ...ALL_ENGINE_IDS, 'tavily', 'jina', 'anysearch'],
       [ACTIVE_SOURCE_KEY]: 'custom:gone',
       [CUSTOM_ENGINES_KEY]: [makeCustom('custom:gone')],
     });

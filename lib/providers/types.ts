@@ -53,6 +53,9 @@ export interface ProviderAdapter {
   supportsAnswer: boolean;
   /** provider 品牌图标：扩展内相对路径（与 engine favicon 同语义），渲染处用 resolveIconUrl 解析。 */
   favicon: string;
+  /** key 可选（免 key 免费层）：声明后无 key 也可用（按 IP 限速），网关以空串 apiKey
+   *  调用 adapter；adapter 端约定空串 = 省略认证头（或按上游要求改发 keyless 头）。 */
+  keyOptional?: boolean;
   search(query: string, opts: SearchOptions, apiKey: string): Promise<NormalizedSearchResponse>;
 }
 

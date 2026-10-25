@@ -87,4 +87,18 @@ describe('jinaAdapter', () => {
     );
     await expect(jinaAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
   });
+
+  // ── 免 key 免费层（keyOptional）──
+  it('declares keyOptional and omits Authorization on an empty key', async () => {
+    const fetchMock = vi.fn(async () =>
+      res(200, { code: 200, status: 20000, data: [{ title: 'A', url: 'https://a.com', description: 'd' }] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    expect(jinaAdapter.keyOptional).toBe(true);
+    const out = await jinaAdapter.search('q', {}, '');
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
+    expect(init.headers.Authorization).toBeUndefined();
+    expect(init.headers['X-Respond-With']).toBe('no-content');
+    expect(out.results[0]?.url).toBe('https://a.com');
+  });
 });

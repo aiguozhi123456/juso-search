@@ -1,4 +1,5 @@
 import type { ProviderAdapter, ProviderId } from '@/lib/providers/types';
+import { isProviderKeyless } from '@/lib/providers/registry';
 import { useRef, useState } from 'react';
 import { sendMessage } from '@/lib/messaging';
 import { MAX_RESULTS_MAX, MAX_RESULTS_MIN } from '@/lib/storage';
@@ -130,8 +131,10 @@ export function KeyInput({
   }
 
   const busy = status.kind === 'saving' || status.kind === 'testing' || status.kind === 'deleting';
-  // 有未保存的输入时不允许"测试"（测试只校验已存储的 key）
-  const testDisabled = !configured || !!val.trim() || busy;
+  // 免 key 免费层：无 key 也可用（IP 限速），「测试」直接测匿名层连通性。
+  const keyless = isProviderKeyless(provider.id);
+  // 有未保存的输入时不允许"测试"（测试只校验已存储的 key；免 key provider 例外，测的是匿名层）
+  const testDisabled = (!configured && !keyless) || !!val.trim() || busy;
   const maxBusy = maxStatus.kind === 'saving';
   // 步进边界：留空或 ≤MIN 时禁用「−」，≥MAX 时禁用「+」
   const maxNum = maxVal.trim() === '' ? NaN : Number.parseInt(maxVal.trim(), 10);
@@ -144,13 +147,14 @@ export function KeyInput({
       <label htmlFor={`key-${provider.id}`}>
         {t(provider.label)}
         {configured && <span className="configured">{t(MSG.configured_badge)}</span>}
+        {!configured && keyless && <span className="configured keyless-free">{t(MSG.provider_keyless_badge)}</span>}
       </label>
       <input
         id={`key-${provider.id}`}
         type="password"
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        placeholder={configured ? t(MSG.placeholder_new_key) : t(MSG.placeholder_paste_key)}
+        placeholder={configured ? t(MSG.placeholder_new_key) : keyless ? t(MSG.key_input_placeholder_keyless) : t(MSG.placeholder_paste_key)}
         autoComplete="new-password"
         spellCheck={false}
       />

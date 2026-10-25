@@ -4,6 +4,8 @@ import { restTransport } from './http';
 
 // POST https://api.tavily.com/search (Bearer)
 // include_answer=true -> answer 字符串；results[].content 是短摘要（snippet）。
+// 免 key 免费层（官方 keyless）：同端点省略 Bearer、改发 X-Tavily-Access-Mode: keyless，
+// 响应同构（无需 normalize 分支）；两个头同发时上游以 key 为准，keyed 路径不受影响。
 interface TavilyResult {
   title?: string;
   url: string;
@@ -26,12 +28,16 @@ export const tavilyAdapter = defineProvider<TavilyResponse>({
   label: LABEL,
   supportsAnswer: true,
   favicon: '/icons/tavily.svg',
+  keyOptional: true,
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,
     buildRequest(query, opts, apiKey) {
+      const auth: Record<string, string> = apiKey
+        ? { Authorization: `Bearer ${apiKey}` }
+        : { 'X-Tavily-Access-Mode': 'keyless' };
       return {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json', ...auth },
         body: JSON.stringify({ query, include_answer: true, max_results: opts.maxResults ?? 8 }),
       };
     },

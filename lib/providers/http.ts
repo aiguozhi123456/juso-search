@@ -162,6 +162,10 @@ export interface RestTransportConfig {
     body?: string;
     params?: Record<string, string>;
   };
+  /** 可选 per-status 错误改写：返回 ProviderError 时优先于 mapStatus（返回 null 走默认映射）。
+   *  用于必须吞掉 errorDetail 的特判（如 anysearch 匿名 402 的响应体含上游生成的凭证，
+   *  绝不能进会透传到 UI 的 detail 链）。apiKey 供按 keyed/keyless 分型。 */
+  overrideStatusError?(status: number, label: string, detail: string | undefined, apiKey: string): ProviderError | null;
 }
 
 /** 把 postJson + mapStatus + throw 包成一个 ProviderTransport —— 即原 3 个 REST adapter 里
@@ -175,7 +179,8 @@ export function restTransport<TRaw>(cfg: RestTransportConfig): ProviderTransport
         : await postJson<TRaw>(cfg.endpoint, { headers: request.headers, body: request.body ?? '', signal: opts.signal, fetch: cfg.fetch });
       if (!response.ok) {
         // mapStatus 对一切非 2xx 抛错（见其注释）；?? 分支仅为类型收窄的兜底。
-        throw mapStatus(response.status, t(cfg.label), response.errorDetail)
+        throw cfg.overrideStatusError?.(response.status, t(cfg.label), response.errorDetail, apiKey)
+          ?? mapStatus(response.status, t(cfg.label), response.errorDetail)
           ?? new ProviderError('provider', t(MSG.error_http_generic, [t(cfg.label), String(response.status)]), response.status);
       }
       return response.data;

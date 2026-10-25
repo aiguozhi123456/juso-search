@@ -61,12 +61,14 @@ differs from the earlier additions.
 - `max_results` has a hard upstream cap of 10 — below the storage-side 1–20 clamp — so the
   adapter clamps to 10 and users cannot get more regardless of the stored setting.
 - The upstream anonymous tier (IP rate limits; a 402 auto-registration flow that returns
-  generated credentials) is intentionally **not** wired in: the gateway has a hard keyMissing
-  gate for every provider (`lib/gateway.ts` runProviderSearch). Supporting keyless operation
-  would need a per-provider "key optional" concept, which is out of scope; BYOK parity with
-  the other providers is the chosen behavior. The whole anonymous 402 response is also
-  sensitive (credentials in the body), another reason to keep it out of adapter paths that
-  surface `errorDetail`.
+  generated credentials) was intentionally **not** wired in at v1: the gateway had a hard
+  keyMissing gate for every provider (`lib/gateway.ts` runProviderSearch). **Superseded
+  2026-10-25**: the per-provider "key optional" concept now exists
+  (`keyOptional` + `isProviderUsable`), and AnySearch ships keyless — see
+  `docs/solutions/architecture-patterns/keyless-free-tier-providers.md`. The anonymous 402
+  response body remains sensitive (credentials in the body) and is handled by the
+  `overrideStatusError` special case: mapped to a dedicated rateLimit message with the
+  body discarded, never entering the `errorDetail` passthrough.
 - The brand icon (`public/icons/anysearch.svg`) reproduces the official mark pixel-sampled from
   the website logo: a 4×4 block grid in two blues (`#2D5DED` dark / `#3587FC` light) —
   full-height dark left bar, top row dark|light|light|dark, light cell below the dark

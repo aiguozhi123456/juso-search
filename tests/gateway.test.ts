@@ -42,20 +42,26 @@ vi.mock('@/lib/storage', () => ({
   ensureDefaultInstance: vi.fn(),
 }));
 
-vi.mock('@/lib/providers/registry', () => ({
-  allProviders: vi.fn(() => [
-    { id: 'tavily', label: 'provider_tavily', supportsAnswer: true },
-    { id: 'exa', label: 'provider_exa', supportsAnswer: true },
-    { id: 'brave', label: 'provider_brave', supportsAnswer: false },
-    { id: 'stepfun', label: 'provider_stepfun', supportsAnswer: false },
-    { id: 'stepfun-plan', label: 'provider_stepfun_plan', supportsAnswer: true },
-    { id: 'jina', label: 'provider_jina', supportsAnswer: false },
-    { id: 'doubao', label: 'provider_doubao', supportsAnswer: false, favicon: '/icons/doubao.svg' },
-    { id: 'doubao-global', label: 'provider_doubao_global', supportsAnswer: false, favicon: '/icons/doubao.svg' },
-    { id: 'parallel', label: 'provider_parallel', supportsAnswer: false, favicon: '/icons/parallel.svg' },
-  ]),
-  getAdapter: vi.fn(),
-}));
+vi.mock('@/lib/providers/registry', () => {
+  const getAdapter = vi.fn();
+  return {
+    allProviders: vi.fn(() => [
+      { id: 'tavily', label: 'provider_tavily', supportsAnswer: true },
+      { id: 'exa', label: 'provider_exa', supportsAnswer: true },
+      { id: 'brave', label: 'provider_brave', supportsAnswer: false },
+      { id: 'stepfun', label: 'provider_stepfun', supportsAnswer: false },
+      { id: 'stepfun-plan', label: 'provider_stepfun_plan', supportsAnswer: true },
+      { id: 'jina', label: 'provider_jina', supportsAnswer: false },
+      { id: 'doubao', label: 'provider_doubao', supportsAnswer: false, favicon: '/icons/doubao.svg' },
+      { id: 'doubao-global', label: 'provider_doubao_global', supportsAnswer: false, favicon: '/icons/doubao.svg' },
+      { id: 'parallel', label: 'provider_parallel', supportsAnswer: false, favicon: '/icons/parallel.svg' },
+    ]),
+    getAdapter,
+    // gateway 统一经 isProviderKeyless 判免 key；这里穿透被 mock 的 getAdapter 读取，
+    // 保持各用例经 fakeAdapter({ keyOptional: true }) 控制免 key 语义的原有写法。
+    isProviderKeyless: vi.fn((id: string) => (getAdapter as (id: string) => ProviderAdapter | undefined)(id)?.keyOptional === true),
+  };
+});
 
 // schema 启动护栏短路：gateway 模块加载即触发 schemaReady IIFE，
 // 这里把两个 ensure mock 为 no-op，使 schemaReady 立即 resolve（不依赖 browser.storage）。
@@ -412,6 +418,48 @@ describe('handleSearch', () => {
     if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');
   });
 
+  // ── 免 key 免费层（keyOptional）──
+  it('keyOptional provider searches keylessly with an empty key', async () => {
+    const search = vi.fn().mockResolvedValue({ query: 'q', provider: 'tavily', results: [] });
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue(null);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ keyOptional: true, search }));
+    const reply = await handleSearch({ query: 'q' });
+    expect(reply.ok).toBe(true);
+    expect(search).toHaveBeenCalledWith('q', {}, '');
+  });
+
+  it('appends the keyless hint to a rateLimit error when running keylessly', async () => {
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue(null);
+    mockedGetAdapter.mockReturnValue(
+      fakeAdapter({
+        keyOptional: true,
+        search: vi.fn().mockRejectedValue(new ProviderError('rateLimit', 'Tavily：请求过频', 429)),
+      }),
+    );
+    const reply = await handleSearch({ query: 'q' });
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) {
+      expect(reply.error.providerErrorKind).toBe('rateLimit');
+      expect(reply.error.message).toContain('配置 API key 可提升限额');
+    }
+  });
+
+  it('does not append the keyless hint when a key is present', async () => {
+    mockedGetActive.mockResolvedValue('tavily');
+    mockedGetKey.mockResolvedValue('tvly-k');
+    mockedGetAdapter.mockReturnValue(
+      fakeAdapter({
+        keyOptional: true,
+        search: vi.fn().mockRejectedValue(new ProviderError('rateLimit', 'Tavily：请求过频', 429)),
+      }),
+    );
+    const reply = await handleSearch({ query: 'q' });
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.message).not.toContain('配置 API key');
+  });
+
   it('maps a ProviderError to providerError', async () => {
     const adapter = fakeAdapter({
       search: vi.fn().mockRejectedValue(new ProviderError('unauthorized', 'bad key', 401)),
@@ -457,6 +505,23 @@ describe('handleTestKey', () => {
     if (!reply.ok) expect(reply.error.kind).toBe('keyMissing');
   });
 
+  // 免 key provider 无 key 时测试匿名层连通性（空串调用 adapter），限速错误带配 key 提示。
+  it('tests the keyless tier without a key and hints on rate limit', async () => {
+    const search = vi.fn().mockResolvedValue({ query: 'test', provider: 'tavily', results: [] });
+    mockedGetKey.mockResolvedValue(null);
+    mockedGetAdapter.mockReturnValue(fakeAdapter({ keyOptional: true, search }));
+    const okReply = await handleTestKey('tavily');
+    expect(okReply.ok).toBe(true);
+    expect(search).toHaveBeenCalledWith('test', { maxResults: 1 }, '');
+
+    mockedGetAdapter.mockReturnValue(
+      fakeAdapter({ keyOptional: true, search: vi.fn().mockRejectedValue(new ProviderError('rateLimit', 'Tavily：请求过频', 429)) }),
+    );
+    const reply = await handleTestKey('tavily');
+    expect(reply.ok).toBe(false);
+    if (!reply.ok) expect(reply.error.message).toContain('配置 API key 可提升限额');
+  });
+
   it('returns providerError on adapter failure', async () => {
     mockedGetKey.mockResolvedValue('k');
     mockedGetAdapter.mockReturnValue(
@@ -484,6 +549,7 @@ describe('handleGetProviderConfig', () => {
   function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     return {
       configuredProviderIds: [],
+      keyedProviderIds: [],
       activeProviderId: null,
       activeSourceId: 'google',
       sourceOrder: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu'],

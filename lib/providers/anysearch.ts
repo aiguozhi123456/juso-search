@@ -4,8 +4,9 @@ import { restTransport, appendProviderErrorDetail } from './http';
 import { t, MSG } from '@/lib/i18n';
 
 // POST https://api.anysearch.com/v1/search (Bearer)
-// 上游另有匿名 IP 限流层（402 时自动注册发凭证）；v1 不接——网关对所有 provider 有
-// keyMissing 门，BYOK 一致要求配 key，匿名接入需"key 可选"机制，超出当前范围。
+// 免 key 免费层：/v1/* key 可选（官方匿名层，按 IP 限速/限额）；无 key 省略 Bearer。
+// 匿名 402 = 免费额度触顶、上游回自动注册凭证：响应体敏感（含生成的 key），必须丢弃
+// errorDetail、只回专用限速文案（overrideStatusError 特判，绝不进透传链）。
 // 业务码信封 {code, message, request_id, data}：错误按 HTTP 状态码传递，HTTP 200 +
 // code!==0 仅防御分支。title 可为空串（回退 url）；无综合答案字段；max_results 上限 10
 // （maxResults 存储侧 clamp 是 1–20，适配器内再收到上游上限）。
@@ -30,12 +31,20 @@ export const anysearchAdapter = defineProvider<AnySearchResponse>({
   label: LABEL,
   supportsAnswer: false,
   favicon: '/icons/anysearch.svg',
+  keyOptional: true,
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,
+    overrideStatusError(status, label, _detail, apiKey) {
+      // 仅匿名（免 key）路径特判 402；keyed 402 是计费问题，走默认 provider 分型。
+      if (status === 402 && !apiKey) {
+        return new ProviderError('rateLimit', t(MSG.error_anysearch_anonymous_exhausted, label));
+      }
+      return null;
+    },
     buildRequest(query, opts, apiKey) {
       return {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        headers: { 'Content-Type': 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
         body: JSON.stringify({ query, max_results: Math.min(Math.max(opts.maxResults ?? 10, 1), 10) }),
       };
     },

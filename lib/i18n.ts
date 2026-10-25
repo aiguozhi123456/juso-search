@@ -258,6 +258,8 @@ export const MSG = {
   configured_badge: 'configured_badge',
   placeholder_new_key: 'placeholder_new_key',
   placeholder_paste_key: 'placeholder_paste_key',
+  provider_keyless_badge: 'provider_keyless_badge',
+  key_input_placeholder_keyless: 'key_input_placeholder_keyless',
   btn_save: 'btn_save',
   btn_test: 'btn_test',
   btn_delete: 'btn_delete',
@@ -512,6 +514,10 @@ export const MSG = {
   error_doubao_business: 'error_doubao_business',
   // AnySearch 业务码信封的防御分支（HTTP 200 + code!==0），同上不复用 error_http_generic。
   error_anysearch_business: 'error_anysearch_business',
+  // 免 key 免费层：匿名 402（额度触顶，响应体含上游自动注册的凭证，绝不回显 detail）
+  // 与通用限速触顶的「配 key 提额」提示。
+  error_anysearch_anonymous_exhausted: 'error_anysearch_anonymous_exhausted',
+  error_keyless_rate_limit_hint: 'error_keyless_rate_limit_hint',
   error_mcp_network: 'error_mcp_network',
   error_mcp_unauthorized: 'error_mcp_unauthorized',
   error_mcp_rate_limit: 'error_mcp_rate_limit',

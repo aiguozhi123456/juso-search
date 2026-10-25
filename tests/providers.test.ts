@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allProviders, getAdapter } from '@/lib/providers/registry';
+import { allProviders, getAdapter, isProviderKeyless } from '@/lib/providers/registry';
 import type { ProviderId } from '@/lib/providers/types';
 
 describe('provider registry', () => {
@@ -22,6 +22,25 @@ describe('provider registry', () => {
     ['anysearch', false],
   ] as Array<[ProviderId, boolean]>)('declares supportsAnswer=%s for %s', (id, expected) => {
     expect(getAdapter(id).supportsAnswer).toBe(expected);
+  });
+
+  // keyOptional 锁表：免 key 集合的任何增删都必须显式改这张表（防漂移，同 supportsAnswer 先例）。
+  // 契约：未声明时属性缺省（undefined，defineProvider 不展开），读取一律 === true。
+  it.each([
+    ['tavily', true],
+    ['exa', false],
+    ['brave', false],
+    ['stepfun', false],
+    ['stepfun-plan', false],
+    ['jina', true],
+    ['doubao', false],
+    ['doubao-global', false],
+    ['parallel', false],
+    ['deepseek', false],
+    ['anysearch', true],
+  ] as Array<[ProviderId, boolean]>)('declares keyOptional=%s for %s', (id, expected) => {
+    expect(getAdapter(id).keyOptional === true).toBe(expected);
+    expect(isProviderKeyless(id)).toBe(expected);
   });
 
   it.each([

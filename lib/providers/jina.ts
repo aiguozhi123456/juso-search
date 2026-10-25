@@ -25,6 +25,8 @@ export const jinaAdapter = defineProvider<JinaResponse>({
   label: LABEL,
   supportsAnswer: false,
   favicon: '/icons/jina.svg',
+  // 免 key 免费层：无 key 省略 Authorization 即可（约 20 RPM/IP，配 key 提额）。
+  keyOptional: true,
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,
@@ -33,7 +35,7 @@ export const jinaAdapter = defineProvider<JinaResponse>({
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           'X-Retain-Images': 'none',
           'X-Respond-With': 'no-content',
         },

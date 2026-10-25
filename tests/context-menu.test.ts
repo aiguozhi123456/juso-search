@@ -36,6 +36,7 @@ const storageLocalGet = vi.fn().mockResolvedValue({ localePref: 'zh_CN' });
 /** 默认配置快照：仅 tavily 已配置；全部内置源可见；flatLayout 平铺偏好开启。 */
 const baseSnapshot: Snapshot = {
   configuredProviderIds: ['tavily'],
+  keyedProviderIds: ['tavily'],
   activeProviderId: 'tavily',
   activeSourceId: 'google',
   sourceOrder: [],

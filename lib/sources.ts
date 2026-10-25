@@ -5,7 +5,7 @@
 // id 空间不冲突：provider 用 tavily/exa/stepfun/stepfun-plan，engine 用 google/bing/baidu。
 
 import type { ProviderId } from './providers/types';
-import { allProviders } from './providers/registry';
+import { allProviders, isProviderUsable, preferredProviderFallback } from './providers/registry';
 import type { EngineId } from './engines/types';
 import { allEngines } from './engines/registry';
 import type { SiteInstanceDefinition, SiteInstanceId } from './site-instances';
@@ -372,17 +372,17 @@ export function resolveEffectiveActiveSource(
     if (isRegisteredAiEngineId(storedSource)) return storedSource;
     if (isKnownSiteInstanceId(storedSource, siteDefinitions)) return storedSource;
     if (isKnownCustomEngineId(storedSource, customDefinitions)) return storedSource;
-    if (isProviderInstanceId(storedSource) && instances.some((instance) => instance.id === storedSource && keys[instance.baseProviderId])) return storedSource;
+    if (isProviderInstanceId(storedSource) && instances.some((instance) => instance.id === storedSource && isProviderUsable(instance.baseProviderId, keys))) return storedSource;
     if (isAggregateInstanceId(storedSource) && aggregateSources.some((aggregate) => aggregate.id === storedSource && aggregate.eligible)) return storedSource;
-    if (isProviderId(storedSource) && keys[storedSource]) {
+    if (isProviderId(storedSource) && isProviderUsable(storedSource, keys)) {
       const firstInstance = instances.find((instance) => instance.baseProviderId === storedSource);
       return firstInstance ? firstInstance.id : storedSource;
     }
   }
-  const firstConfigured = allProviders().find((provider) => keys[provider.id]);
+  const firstConfigured = preferredProviderFallback(keys);
   if (firstConfigured) {
-    const firstInstance = instances.find((instance) => instance.baseProviderId === firstConfigured.id);
-    return firstInstance ? firstInstance.id : firstConfigured.id;
+    const firstInstance = instances.find((instance) => instance.baseProviderId === firstConfigured);
+    return firstInstance ? firstInstance.id : firstConfigured;
   }
   return undefined;
 }
@@ -411,12 +411,12 @@ export function visibleUsableSource(
     isKnownCustomEngineId(id, customDefinitions) ||
     // 实例可用性必须镜像 allSources 的实例投影：base provider 有 key，且 base provider
     // 未被显式 hidden（allSources 在裸 provider id 被隐藏时连带不投影其任何实例）。
-    (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && !!keys[instance.baseProviderId] && !hiddenSet.has(instance.baseProviderId))) ||
+    (isProviderInstanceId(id) && instances.some((instance) => instance.id === id && isProviderUsable(instance.baseProviderId, keys) && !hiddenSet.has(instance.baseProviderId))) ||
     (isAggregateInstanceId(id) && aggregateSources.some((aggregate) => aggregate.id === id && aggregate.eligible)) ||
     // 有实例的 provider 不投影裸 provider pill（仅实例 pill，见 allSources）——镜像
     // resolveEffectiveActiveSource 的裸→首实例映射，跳过裸 id，否则 delete* 回退会持久化
     // 一个快切栏没有任何 pill 的 id，「至少一个可见可用源」保证被破坏。
-    (isProviderId(id) && !!keys[id] && !instances.some((instance) => instance.baseProviderId === id))
+    (isProviderId(id) && isProviderUsable(id, keys) && !instances.some((instance) => instance.baseProviderId === id))
   ));
 }
 

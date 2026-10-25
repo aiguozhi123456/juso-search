@@ -94,4 +94,40 @@ describe('anysearchAdapter', () => {
     );
     await expect(anysearchAdapter.search('q', {}, 'k')).rejects.toMatchObject({ kind: 'network' });
   });
+
+  // ── 免 key 免费层（官方匿名层，IP 限速/限额）──
+  it('declares keyOptional and omits Authorization on an empty key', async () => {
+    const fetchMock = vi.fn(async () => res(200, { code: 0, data: { results: [{ title: 'A', url: 'https://a.com', snippet: 's' }] } }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(anysearchAdapter.keyOptional).toBe(true);
+    const out = await anysearchAdapter.search('q', {}, '');
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
+    expect(init.headers.Authorization).toBeUndefined();
+    expect(out.results[0]?.url).toBe('https://a.com');
+  });
+
+  it('maps an anonymous 402 to rateLimit with a dedicated message and never echoes the credential body', async () => {
+    // 402 响应体含上游自动注册的凭证（api_key 等）——特判必须丢弃 detail，绝不透传。
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => res(402, { code: 402, message: 'anonymous quota exceeded', api_key: 'sk-generated-secret' })),
+    );
+    let caught: unknown;
+    try {
+      await anysearchAdapter.search('q', {}, '');
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ProviderError);
+    const err = caught as ProviderError;
+    expect(err.kind).toBe('rateLimit');
+    expect(err.message).toContain('AnySearch');
+    expect(err.message).not.toContain('sk-generated-secret');
+    expect(err.message).not.toContain('anonymous quota exceeded');
+  });
+
+  it('keeps the default provider mapping for a keyed 402', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => res(402, { code: 402, message: 'payment required' })));
+    await expect(anysearchAdapter.search('q', {}, 'as-x')).rejects.toMatchObject({ kind: 'provider' });
+  });
 });

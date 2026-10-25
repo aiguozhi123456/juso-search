@@ -12,7 +12,7 @@ import { buildRerankDocument, mergeAggregateMembers } from './aggregate/merge';
 import { resolveAggregateEligibility, extractorCapableEngineIds } from './aggregate/eligibility';
 import type { RerankResultItem } from './aggregate/rerank-client';
 import { isRerankConfigured, MSG_RERANK_ENDPOINT_INVALID, rerankDocuments, RerankError, testRerank, validateRerankEndpoint } from './aggregate/rerank-client';
-import { getAdapter } from './providers/registry';
+import { getAdapter, isProviderKeyless } from './providers/registry';
 import { allProviders } from './providers/registry';
 import { allEngines, matchEngineByUrl } from './engines/registry';
 import { runEngineSearch } from './engine-search';
@@ -130,16 +130,20 @@ export async function handleSearch(request: SearchRequest, signal?: AbortSignal)
   }
 }
 
-/** 设置页"测试 key"：最小查询验证连通性与鉴权。 */
+/** 设置页"测试 key"：最小查询验证连通性与鉴权。免 key provider 无 key 时测试匿名层连通性。 */
 export async function handleTestKey(providerId: ProviderId): Promise<TestKeyReply> {
   await getSchemaReady();
   try {
     const adapter = getAdapter(providerId);
     const key = await getKey(providerId);
-    if (!key) {
+    if (!key && !isProviderKeyless(adapter.id)) {
       return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
     }
-    await adapter.search('test', { maxResults: 1 }, key);
+    try {
+      await adapter.search('test', { maxResults: 1 }, key ?? '');
+    } catch (e) {
+      throw withKeylessRateLimitHint(e, !!key);
+    }
     return { ok: true };
   } catch (e) {
     const reply = toSearchError(e);
@@ -895,7 +899,9 @@ async function runProviderSearch(
   }
   const adapter = getAdapter(providerId);
   const key = await getKey(providerId);
-  if (!key) {
+  // key 可选（免 key 免费层）：keyOptional provider 无 key 时放行，以空串调用 adapter
+  //（adapter 端约定空串 = 省略认证头/改发 keyless 头）；其余 provider 维持 keyMissing 门。
+  if (!key && !isProviderKeyless(adapter.id)) {
     return { ok: false, error: { kind: 'keyMissing', message: t(MSG.error_key_missing_provider, t(adapter.label)) } };
   }
   const maxResults = await getProviderMaxResults(providerId);
@@ -904,7 +910,12 @@ async function runProviderSearch(
     ...(maxResults !== null ? { maxResults } : {}),
     ...(providerSettings !== undefined ? { providerSettings } : {}),
   };
-  const response = await adapter.search(query, options, key);
+  let response;
+  try {
+    response = await adapter.search(query, options, key ?? '');
+  } catch (e) {
+    throw withKeylessRateLimitHint(e, !!key);
+  }
   if (signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError');
   }
@@ -971,4 +982,13 @@ function toSearchError(e: unknown): SearchErrorReply {
   }
   // 不把原始异常信息透传到页面（避免未来 provider 错误体回显敏感数据）。
   return { ok: false, error: { kind: 'unknown', message: t(MSG.error_service_unavailable) } };
+}
+
+/** 免 key 免费层触顶提示：免 key 路径（无存储 key）撞限速时追加「配 key 提额」引导。
+ *  UI 只见 configuredProviderIds（可用语义），无法区分有无 key（BYOK 边界），提示只能在 worker 合成。 */
+function withKeylessRateLimitHint(e: unknown, hasKey: boolean): unknown {
+  if (!hasKey && e instanceof ProviderError && e.kind === 'rateLimit') {
+    return new ProviderError('rateLimit', `${e.message} ${t(MSG.error_keyless_rate_limit_hint)}`, e.status);
+  }
+  return e;
 }

@@ -1,5 +1,5 @@
 import type { ProviderId } from '../providers/types';
-import { allProviders } from '../providers/registry';
+import { isProviderUsable, preferredProviderFallback } from '../providers/registry';
 import type { SourceId } from '../sources';
 import type { AggregateSourceDefinition } from '../sources';
 import { allKnownSourceIds, isEngineId, normalizeSourceHidden, normalizeSourceOrder, resolveEffectiveActiveSource } from '../sources';
@@ -28,15 +28,16 @@ export function withSourceMutation<T>(mutation: () => Promise<T>): Promise<T> {
 }
 
 /**
- * 有效激活 provider：显式选择优先（须为已知 provider）；否则回退到首个已配 key 的 provider；
+ * 有效激活 provider：显式选择优先（须为已知 provider）；否则按两级偏好回退
+ * （有 key 的 provider 注册序优先，其次免 key provider；见 preferredProviderFallback）；
  * 都没有则 null。切换只影响后续查询（R3）。
  */
 export async function getActiveProviderId(): Promise<ProviderId | null> {
   const got = await browser.storage.local.get([ACTIVE_KEY, KEYS_KEY]);
   const stored = got[ACTIVE_KEY];
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
-  if (isKnownProvider(stored) && keys[stored]) return stored;
-  return allProviders().find((p) => keys[p.id])?.id ?? null;
+  if (isKnownProvider(stored) && isProviderUsable(stored, keys)) return stored;
+  return preferredProviderFallback(keys) ?? null;
 }
 
 // 实例 id 属 SourceId 边界（IU7 将把 ProviderInstanceId 并入 SourceId 联合），
@@ -80,14 +81,14 @@ export async function selectActiveSourceId(id: EffectiveSourceId): Promise<void>
     const got = await browser.storage.local.get([KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY]);
     const { keys, definitions, customDefinitions, instances, aggregateSources } = readSourceGraphDefinitions(got);
     if (isKnownProvider(id)) {
-      if (!keys[id]) throw new Error('invalid_source');
+      if (!isProviderUsable(id, keys)) throw new Error('invalid_source');
       await browser.storage.local.set({ [ACTIVE_KEY]: id, [ACTIVE_SOURCE_KEY]: id });
       return;
     }
     if (isProviderInstanceId(id)) {
       const instance = instances.find((item) => item.id === id);
-      // 实例可用性同 base provider：base provider 未配 key 则拒绝选中（投影层也会过滤）。
-      if (!instance || !keys[instance.baseProviderId]) throw new Error('invalid_source');
+      // 实例可用性同 base provider：base provider 不可用（无 key 且非免 key）则拒绝选中（投影层也会过滤）。
+      if (!instance || !isProviderUsable(instance.baseProviderId, keys)) throw new Error('invalid_source');
       // 双写：把 base provider 写入 activeProvider，保证 provider-only 回退路径（getActiveProviderId）仍可用。
       await browser.storage.local.set({ [ACTIVE_KEY]: instance.baseProviderId, [ACTIVE_SOURCE_KEY]: id });
       return;

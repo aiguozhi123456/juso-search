@@ -123,12 +123,13 @@ describe('storage: BYOK keys', () => {
   it('returns configured provider ids in registry order', async () => {
     await setKey('stepfun', 'sf-2');
     await setKey('tavily', 'tvly-1');
-    expect(await getConfiguredProviderIds()).toEqual(['tavily', 'stepfun']);
+    // 可用语义（有 key 或免 key 免费层）：有 key 的 tavily/stepfun + 免 key 的 jina/anysearch，按注册序。
+    expect(await getConfiguredProviderIds()).toEqual(['tavily', 'stepfun', 'jina', 'anysearch']);
   });
 
   it('ignores unknown provider ids when listing configured providers', async () => {
     await browser.storage.local.set({ providerKeys: { nonexistent: 'x', exa: 'exa-1' } });
-    expect(await getConfiguredProviderIds()).toEqual(['exa']);
+    expect(await getConfiguredProviderIds()).toEqual(['tavily', 'exa', 'jina', 'anysearch']);
   });
 
   it('clearKey removes only that provider', async () => {
@@ -138,11 +139,27 @@ describe('storage: BYOK keys', () => {
     expect(await getKey('tavily')).toBeNull();
     expect(await getKey('exa')).toBe('exa-2');
   });
+
+  // ── 免 key 免费层（keyOptional）──
+  it('selectActiveSourceId accepts a keyless provider without any key', async () => {
+    await selectActiveSourceId('jina');
+    expect(await getActiveSourceId()).toBe('jina');
+    expect((await browser.storage.local.get('activeProvider')).activeProvider).toBe('jina');
+  });
+
+  it('snapshot separates keyedProviderIds from the usable configuredProviderIds', async () => {
+    await setKey('exa', 'exa-k');
+    const snap = await getProviderConfigSnapshot();
+    expect(snap.keyedProviderIds).toEqual(['exa']);
+    // 可用集 = keyed + 免 key（tavily/jina/anysearch），与快照单点派生一致。
+    expect(snap.configuredProviderIds).toEqual(['tavily', 'exa', 'jina', 'anysearch']);
+  });
 });
 
 describe('storage: active provider', () => {
-  it('defaults to null when nothing configured', async () => {
-    expect(await getActiveProviderId()).toBeNull();
+  it('falls back to the first keyless provider when nothing configured', async () => {
+    // 免 key 免费层：无任何 key 时 active provider 回退到首个 keyOptional provider（开箱即用）。
+    expect(await getActiveProviderId()).toBe('tavily');
   });
 
   it('falls back to first configured provider (registry order)', async () => {
@@ -182,8 +199,9 @@ describe('storage: active provider', () => {
 });
 
 describe('storage: active source', () => {
-  it('defaults to google when nothing configured', async () => {
-    expect(await getActiveSourceId()).toBe('google');
+  it('defaults to the first keyless provider when nothing configured', async () => {
+    // 产品决策：全新安装的默认源落在首个免 key provider（开箱即用 API 搜索）。
+    expect(await getActiveSourceId()).toBe('tavily');
   });
 
   it('explicit baidu engine round-trips without keys', async () => {
@@ -206,7 +224,8 @@ describe('storage: active source', () => {
 
   it('invalid stored source falls back', async () => {
     await browser.storage.local.set({ activeSource: 'ghost' });
-    expect(await getActiveSourceId()).toBe('google');
+    // 无 key → 免 key tavily；配 key 后 keyed 优先于免 key（两级回退）。
+    expect(await getActiveSourceId()).toBe('tavily');
     await setKey('exa', 'exa-x');
     expect(await getActiveSourceId()).toBe('exa');
   });
@@ -528,20 +547,23 @@ describe('sourceHidden', () => {
     expect(await getSourceHidden()).toEqual(['baidu', 'tavily']);
   });
   it('keeps at least one usable source visible', async () => {
-    await setSourceHidden(['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
-    expect(await getSourceHidden()).not.toContain('google');
+    // 全隐藏（含免 key 的 jina/anysearch）→ 修复揭示 source order 首个可用源（tavily）。
+    await setSourceHidden(['tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'deepseek', 'anysearch', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini']);
+    expect(await getSourceHidden()).not.toContain('tavily');
   });
   it('normalizes a legacy all-hidden snapshot to retain a visible source', async () => {
-    await browser.storage.local.set({ sourceHidden: ['tavily', 'exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
+    await browser.storage.local.set({ sourceHidden: ['tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'deepseek', 'anysearch', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
     const snapshot = await getProviderConfigSnapshot();
-    expect(snapshot.sourceHidden).not.toContain('google');
+    expect(snapshot.sourceHidden).not.toContain('tavily');
   });
   it('reveals a fallback atomically when clearing the last visible provider key', async () => {
-    await browser.storage.local.set({ providerKeys: { tavily: 'key' }, sourceHidden: ['exa', 'stepfun', 'stepfun-plan', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
-    await clearKey('tavily');
+    // exa（非免 key）清 key 后不可用 → 修复揭示首个可见可用源（免 key tavily）。
+    // tavily 等 keyOptional provider 不适用此场景：清 key 后仍可用，无修复需求。
+    await browser.storage.local.set({ providerKeys: { exa: 'key' }, sourceHidden: ['tavily', 'exa', 'brave', 'stepfun', 'stepfun-plan', 'jina', 'doubao', 'doubao-global', 'parallel', 'deepseek', 'anysearch', 'google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili', 'yandex', 'duckduckgo', 'weixin', 'ai:grok', 'ai:chatgpt', 'ai:deepseek', 'ai:doubao', 'ai:gemini'] });
+    await clearKey('exa');
     const got = await browser.storage.local.get(['providerKeys', 'sourceHidden']);
     expect(got.providerKeys).toEqual({});
-    expect(got.sourceHidden).not.toContain('google');
+    expect(got.sourceHidden).not.toContain('tavily');
   });
 });
 
@@ -843,7 +865,8 @@ describe('storage: Provider Instances', () => {
 
     await clearKey('exa');
     expect(await getProviderInstances()).toEqual([created]);
-    expect(await getActiveSourceId()).toBe('google');
+    // exa 非 keyOptional：清 key 后不可用 → 回退到免 key tavily（两级回退的第二级）。
+    expect(await getActiveSourceId()).toBe('tavily');
   });
 
   it('ensureDefaultInstance creates a default instance with empty options when none exist (BUG-3)', async () => {
@@ -892,8 +915,9 @@ describe('storage: Provider Instances', () => {
     expect(got.providerInstances).toEqual([second]);
     expect(got.activeSource).not.toBe(created.id);
     expect(await getActiveSourceId()).not.toBe(created.id);
-    // 双写残余仍指向可用 provider（getActiveProviderId 回退路径可用）
-    expect(got.activeProvider).toBe('exa');
+    // 双写残余仍指向可用 provider（getActiveProviderId 回退路径可用）：
+    // 删除回退取 source order 首个可见可用源，免 key tavily 排在 exa 实例之前。
+    expect(got.activeProvider).toBe('tavily');
   });
 });
 

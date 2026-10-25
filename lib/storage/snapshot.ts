@@ -12,11 +12,12 @@ import { isRerankConfigured, normalizeRerankConfig } from '../aggregate/rerank-c
 import type { GroupConfig } from '../source-groups';
 import { normalizeGroupConfig, defaultGroupConfig } from '../source-groups';
 import { ACTIVE_KEY, ACTIVE_SOURCE_KEY, AGGREGATE_INSTANCES_KEY, AI_AUTO_ENTER_KEY, CUSTOM_ENGINES_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY, GROUP_CONFIG_KEY, KEYS_KEY, MAX_RESULTS_KEY, PROVIDER_INSTANCES_KEY, RERANK_CONFIG_KEY, SITE_INSTANCES_KEY, SOURCE_HIDDEN_KEY, SOURCE_ORDER_KEY } from './keys';
-import { DEFAULT_ENGINE_ID, buildAggregateProjection, ensureVisibleUsable, isKnownProvider } from './shared';
+import { DEFAULT_ENGINE_ID, buildAggregateProjection, ensureVisibleUsable, isKnownProvider, keyedProviderIdsFrom } from './shared';
+import { isProviderUsable, preferredProviderFallback } from '../providers/registry';
 import { readMaxResultsMapFrom } from './max-results-store';
 
 /** One coherent exact-key view for UI configuration replies. */
-export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteInstances: SiteInstanceDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; aggregate: AggregateConfigSnapshot; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig; aiAutoEnter: boolean; flatLayoutFewSources: boolean }> {
+export async function getProviderConfigSnapshot(): Promise<{ configuredProviderIds: ProviderId[]; keyedProviderIds: ProviderId[]; activeProviderId: ProviderId | null; activeSourceId: SourceId; sourceOrder: SourceId[]; sourceHidden: SourceId[]; siteInstances: SiteInstanceDefinition[]; customEngines: CustomEngineDefinition[]; providerInstances: ProviderInstance[]; aggregate: AggregateConfigSnapshot; providerMaxResults: Partial<Record<ProviderId, number>>; groupConfig: GroupConfig; aiAutoEnter: boolean; flatLayoutFewSources: boolean }> {
   const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY, SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY]);
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
   const siteInstances = normalizeSiteInstanceDefinitions(got[SITE_INSTANCES_KEY]);
@@ -39,9 +40,12 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
     },
   };
   // configuredProviderIds 沿聚合投影单点计算（lib/storage/shared.ts），消除同表达式第二份派生，
-  // 保证 activeProviderId 回退与 eligibility 判定的「已配置」定义永远一致。
+  // 保证 eligibility 判定的「可用」定义永远一致（可用 = 有 key 或免 key）。
   const configuredProviderIds = aggregateProjection.configuredProviderIds;
-  const activeProviderId = isKnownProvider(got[ACTIVE_KEY]) && keys[got[ACTIVE_KEY]] ? got[ACTIVE_KEY] : configuredProviderIds[0] ?? null;
+  const keyedProviderIds = keyedProviderIdsFrom(keys);
+  // activeProviderId 回退走两级偏好（有 key 优先于免 key）：configuredProviderIds[0] 是
+  // 注册序的可用集首位，会把免 key tavily 永远排在用户已配 key 的 provider 之前，故不沿用。
+  const activeProviderId = isKnownProvider(got[ACTIVE_KEY]) && isProviderUsable(got[ACTIVE_KEY], keys) ? got[ACTIVE_KEY] : preferredProviderFallback(keys) ?? null;
   const sourceOrder = normalizeSourceOrder(got[SOURCE_ORDER_KEY], siteInstances, customEngines, providerInstances, aggregateProjection.instances);
   const sourceHidden = ensureVisibleUsable(normalizeSourceHidden(got[SOURCE_HIDDEN_KEY], siteInstances, customEngines, providerInstances, aggregateProjection.instances), sourceOrder, keys, siteInstances, customEngines, providerInstances, aggregateProjection.sources);
   const providerMaxResults = await readMaxResultsMapFrom(got[MAX_RESULTS_KEY]);
@@ -53,5 +57,5 @@ export async function getProviderConfigSnapshot(): Promise<{ configuredProviderI
   // ProviderInstanceId 并入 SourceId），resolveEffectiveActiveSource 已并入 SourceId 联合。
   const storedSource = typeof got[ACTIVE_SOURCE_KEY] === 'string' ? got[ACTIVE_SOURCE_KEY] as SourceId : null;
   const activeFallback = typeof got[ACTIVE_KEY] === 'string' ? got[ACTIVE_KEY] as SourceId : null;
-  return { configuredProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteInstances, customEngines, providerInstances, aggregateProjection.sources) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregate, providerMaxResults, groupConfig, aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false, flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false };
+  return { configuredProviderIds, keyedProviderIds, activeProviderId, activeSourceId: resolveEffectiveActiveSource(storedSource ?? activeFallback, keys, siteInstances, customEngines, providerInstances, aggregateProjection.sources) ?? DEFAULT_ENGINE_ID, sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregate, providerMaxResults, groupConfig, aiAutoEnter: got[AI_AUTO_ENTER_KEY] !== false, flatLayoutFewSources: got[FLAT_LAYOUT_FEW_SOURCES_KEY] !== false };
 }

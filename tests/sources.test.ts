@@ -378,10 +378,11 @@ describe('resolveEffectiveActiveSource', () => {
     expect(resolveEffectiveActiveSource('ghost' as never, { exa: 'key' }, [], [], [])).toBe('exa');
   });
 
-  it('returns undefined when nothing is configured', () => {
-    expect(resolveEffectiveActiveSource(null, {}, [], [], [])).toBeUndefined();
-    expect(resolveEffectiveActiveSource('tavily', {}, [], [], [])).toBeUndefined();
-    expect(resolveEffectiveActiveSource(undefined, {}, [], [], [])).toBeUndefined();
+  it('falls back to the first keyless provider when nothing is configured', () => {
+    // 免 key 免费层：无任何 key 时回退到首个 keyOptional provider；显式选中免 key provider 同样有效。
+    expect(resolveEffectiveActiveSource(null, {}, [], [], [])).toBe('tavily');
+    expect(resolveEffectiveActiveSource('tavily', {}, [], [], [])).toBe('tavily');
+    expect(resolveEffectiveActiveSource(undefined, {}, [], [], [])).toBe('tavily');
   });
 });
 

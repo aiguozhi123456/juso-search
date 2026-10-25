@@ -206,7 +206,8 @@ describe('normalize + known ids threading (KTD4/F2)', () => {
 
   it('resolveEffectiveActiveSource / visibleUsableSource honor the eligible flag', () => {
     const sources = [{ id: 'agg:a1' as const, name: 'A1', eligible: false }];
-    expect(resolveEffectiveActiveSource('agg:a1', {}, [], [], [], sources)).toBeUndefined();
+    // ineligible 的存量 agg 不被受理 → 落到 keyless 免费层回退（tavily），而非 undefined。
+    expect(resolveEffectiveActiveSource('agg:a1', {}, [], [], [], sources)).toBe('tavily');
     expect(visibleUsableSource(['agg:a1'], [], {}, [], [], [], sources)).toBeUndefined();
     const eligibleSources = [{ id: 'agg:a1' as const, name: 'A1', eligible: true }];
     expect(resolveEffectiveActiveSource('agg:a1', {}, [], [], [], eligibleSources)).toBe('agg:a1');

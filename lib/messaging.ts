@@ -71,6 +71,10 @@ export type SetRerankConfigReply =
 
 export type ProviderConfigReply = {
   configuredProviderIds: ProviderId[];
+  /** 实际存有 key 的 provider id（脱敏）。「已配置 key」语义，供密钥 UI 徽标/删除按钮；
+   *  configuredProviderIds 是「可用」语义（有 key 或免 key 免费层），在存在 keyOptional
+   *  provider 时两者不相等。 */
+  keyedProviderIds: ProviderId[];
   activeProviderId: ProviderId | null;
   activeSourceId: SourceId;
   sourceOrder: SourceId[];

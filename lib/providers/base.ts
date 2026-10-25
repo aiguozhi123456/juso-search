@@ -21,6 +21,8 @@ export interface ProviderDefinition<TRaw> {
   readonly supportsAnswer: boolean;
   /** provider 品牌图标：扩展内相对路径（与 engine favicon 同语义），渲染处用 resolveIconUrl 解析。 */
   readonly favicon: string;
+  /** key 可选（免 key 免费层）：见 ProviderAdapter.keyOptional。 */
+  readonly keyOptional?: boolean;
   readonly transport: ProviderTransport<TRaw>;
   /** 把原始响应归一化为 {answer?, results}；query/provider 由工厂注入。
    *  允许抛 ProviderError（如 JSON 解析失败映射为 parse）。 */
@@ -34,6 +36,7 @@ export function defineProvider<TRaw>(def: ProviderDefinition<TRaw>): ProviderAda
     label: def.label,
     supportsAnswer: def.supportsAnswer,
     favicon: def.favicon,
+    ...(def.keyOptional ? { keyOptional: true } : {}),
     async search(query, opts, apiKey) {
       const raw = await def.transport.send(query, opts, apiKey);
       const body = def.normalize(query, raw);
