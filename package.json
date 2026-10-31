@@ -24,7 +24,7 @@
     "@webext-core/messaging": "^3.0.2",
     "pinyin-pro": "^3.28.2",
     "react": "^19.3.1",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
