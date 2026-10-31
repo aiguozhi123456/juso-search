@@ -366,7 +366,7 @@
   "error_aggregate_all_members_failed": { "message": "全部成员搜索失败，未生成聚合结果" },
   "error_rerank_not_configured": { "message": "尚未配置重排服务（rerank endpoint），聚合搜索不可用" },
   "error_aggregate_instance_unknown": { "message": "聚合实例不存在或已被删除" },
-  "error_rerank_endpoint_invalid": { "message": "重排 endpoint 无效：仅允许 http://127.0.0.1（可含端口）" },
+  "error_rerank_endpoint_invalid": { "message": "重排 endpoint 无效：仅允许 http://127.0.0.1（可含端口）、https://api.siliconflow.cn 或 https://api.typesafe.ai" },
   "opts_rerank_endpoint_rewritten": { "message": "已将 localhost/[::1] 自动改写为 127.0.0.1" },
   "error_site_instance_unknown": { "message": "站点实例不存在或已被删除" },
   "error_agent_engine_search_disabled": { "message": "引擎搜索子开关未开启（扩展设置 → Agent Bridge），无法代为加载搜索结果页" },

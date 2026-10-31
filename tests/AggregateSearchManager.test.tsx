@@ -175,7 +175,7 @@ describe('AggregateSearchManager — rerank 卡保存链路（KTD12/AE8）', () 
     fireEvent.change(screen.getByLabelText('Endpoint'), { target: { value: 'https://api.example.com/v1/rerank' } });
     fireEvent.click(screen.getByRole('button', { name: '保存' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('重排 endpoint 无效：仅允许 http://127.0.0.1（可含端口）');
+    expect(await screen.findByRole('alert')).toHaveTextContent('重排 endpoint 无效：仅允许 http://127.0.0.1（可含端口）、https://api.siliconflow.cn 或 https://api.typesafe.ai');
     expect(mockedSend).not.toHaveBeenCalled();
   });
 
