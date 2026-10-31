@@ -27,8 +27,14 @@ export async function triggerDownload(url: string, filename: string): Promise<vo
   // 转 blob: URL 绕过。Chrome service worker 无 URL.createObjectURL，保留 data: URL + 下方守卫。
   let downloadUrl = url;
   if (url.startsWith('data:') && typeof URL.createObjectURL === 'function') {
-    const blob = await (await fetch(url)).blob();
-    downloadUrl = URL.createObjectURL(blob);
+    // best-effort：转换环境异常时（如 jsdom 30 的 createObjectURL 只认自家 Blob，
+    // 拒绝原生 fetch 返回的 Blob）退回 data: URL，即此绕行方案出现前的原始行为。
+    try {
+      const blob = await (await fetch(url)).blob();
+      downloadUrl = URL.createObjectURL(blob);
+    } catch {
+      downloadUrl = url;
+    }
   }
   pendingFilenames.push(filename);
   try {
