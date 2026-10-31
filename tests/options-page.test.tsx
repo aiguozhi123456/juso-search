@@ -234,7 +234,8 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await findSourceSelect();
-    expect(select.value).toBe('google');
+    // select 挂载与 value 填充之间隔一次异步配置响应，CI 慢机上会拉开间隙。
+    await waitFor(() => expect(select.value).toBe('google'));
     // 保存已配置的 exa key：markConfigured 对状态是 no-op，但仍触发 syncConfig，
     // 由此产生一个在途的旧 getProviderConfig 请求。
     openTab('密钥');
@@ -271,7 +272,8 @@ describe('options page', () => {
     }) as never);
     render(<App />);
     const select = await findSourceSelect();
-    expect(select.value).toBe('google');
+    // select 挂载与 value 填充之间隔一次异步配置响应，CI 慢机上会拉开间隙。
+    await waitFor(() => expect(select.value).toBe('google'));
     // 触发在途的旧 getProviderConfig（保存已配置的 exa key，状态 no-op 但仍 syncConfig）。
     openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
