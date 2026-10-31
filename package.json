@@ -23,14 +23,14 @@
   "dependencies": {
     "@webext-core/messaging": "^3.0.2",
     "pinyin-pro": "^3.28.2",
-    "react": "^19.2.7",
+    "react": "^19.3.1",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
-    "@types/react": "^19.2.17",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "@wxt-dev/module-react": "^1.2.2",
