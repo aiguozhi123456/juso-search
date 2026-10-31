@@ -13,7 +13,7 @@
 
 > **Search with equal focus on people and agents.**
 
-Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site instances (Site Instances), custom engines, AI chat engines, and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo work with zero AI service configuration, and you can save site instances or any URL-template-based custom engines in settings, and use AI chat sites as switchable search engines, all without any API key.
+Juso is an open-source, two-sided search product. It gives people one place to select and switch between conventional search engines, saved site instances (Site Instances), custom engines, AI chat engines, and configured AI search services. It also lets local AI agents use AI search APIs through the same browser or search conventional engines. The extension manages credentials locally, while requests go directly to the service you select. Even using only the human side, it is a fully functional, ready-to-use search aggregation and switching tool — Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo work with zero AI service configuration, and you can save site instances or any URL-template-based custom engines in settings, and use AI chat sites as switchable search engines, all without any API key — and Tavily, Jina, and AnySearch even offer keyless free tiers for AI search.
 
 | For | What it does today |
 | --- | --- |
@@ -41,20 +41,21 @@ Juso is an open-source, two-sided search product. It gives people one place to s
 
 ## Current Capabilities and Sources
 
-Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Instance**, a user-defined **Custom Engine**, a configured AI search service (which can have multiple tuned **instances**), or a preset **AI Chat Engine**; those five types use different execution paths.
+Juso presents a **Search Source** as one user-facing choice. A source can be a conventional **Search Engine**, a user-saved **Site Instance**, a user-defined **Custom Engine**, a configured AI search service (which can have multiple tuned **instances**), a preset **AI Chat Engine**, or a user-created **Aggregate Instance** (parallel fan-out with rerank); those six types use different execution paths.
 
-- Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo. They use no API key; Juso navigates a browser for people to use directly; all eight engines also let agents extract ordinary search results (Bilibili, Xiaohongshu, and Douyin extraction runs in a logged-in browser profile).
+- Conventional Search Engines: Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo. They use no API key; Juso navigates a browser for people to use directly; all engines also let agents extract ordinary search results (Bilibili, Xiaohongshu, and Douyin extraction runs in a logged-in browser profile).
 - Site Instances: save site-scoped searches in extension settings. Each entry fixes Google, Bing, or Baidu as the underlying engine and picks its own construction mode — Baidu offers true in-site search (zhannei, with optional time range / sort-by-time / title-only filters) or a `site:` prefix, Bing offers the `q1` advanced-keyword parameter or a `site:` prefix, and Google uses the `site:` operator; the same site can hold multiple instances with different modes. Targets must be public hostnames; the underlying engine is chosen at create time and does not change afterward. Saved entries appear on the search page and the SERP Switch Bar like other sources. No API key required.
 - Custom Engines: save any URL containing a `%s` placeholder in extension settings, and it becomes a search engine on the search page and SERP Switch Bar. Unlike Site Instances, a Custom Engine navigates directly to a user-specified URL with no underlying engine. No API key required.
-- AI search services: Tavily, Exa, Brave, Stepfun pay-as-you-go API, Stepfun Step Plan, Jina, and Doubao (Custom and Global endpoints). They are accessed through a normalized adapter interface, while each service retains its own authentication and billing. Services that support instances (currently Exa and Doubao Custom) can save multiple tuned variants (e.g. different search scenarios or filter directions); each instance is a first-class switchable target in the quick-switch bar. Instances hold no credentials — keys remain shared per service type.
+- AI search services: Tavily, Exa, Brave, Stepfun pay-as-you-go API, Stepfun Step Plan, Jina, Doubao (Custom and Global endpoints), Parallel, DeepSeek, and AnySearch. They are accessed through a normalized adapter interface, while each service retains its own authentication and billing. Services that support instances (currently Exa and Doubao Custom) can save multiple tuned variants (e.g. different search scenarios or filter directions); each instance is a first-class switchable target in the quick-switch bar. Instances hold no credentials — keys remain shared per service type.
 - AI Chat Engines: Grok, ChatGPT, DeepSeek, Doubao, and Gemini. They turn AI chat sites into search engines: switching to one auto-fills the query, with optional auto-submit. These sources are hidden by default (login required) and appear in the quick-switch bar after you show them in settings. No API key required.
-- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Stepfun (including Step Plan), Brave, Jina, and Doubao currently return result lists only. AI Chat Engines are conversational interfaces and are not included here.
+- Aggregate Instances: combine several members (AI search services, engines, service instances) into one instance in extension settings; one query fans out to all valid members in parallel, then merges and deduplicates the results and reranks them by relevance through your configured rerank service, returning the top N. A rerank service must be configured first; members that are engines run through the browser. Once created, an aggregate appears on the search page and SERP Switch Bar like other sources.
+- Answer capability: Tavily and Exa can return a synthesized answer with a result list. Stepfun (including Step Plan), Brave, Jina, Doubao, Parallel, DeepSeek, and AnySearch currently return result lists only. AI Chat Engines are conversational interfaces and are not included here.
 
-In the current release, “aggregation” means unified access, selection, and fast source switching. It does **not** mean a query retrieves from several sources in parallel by default, nor that results are merged, deduplicated, or fused by default.
+In the current release, “aggregation” means unified access, selection, and fast source switching. It does **not** mean a query retrieves from several sources in parallel by default, nor that results are merged, deduplicated, or fused by default — the default experience stays single-source; Aggregate Instances are an explicit, opt-in capability that does not change this default.
 
 ## For People
 
-The independent search page lets you choose and switch Search Sources, including saved Site Instances and Custom Engines. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo result pages, the SERP Switch Bar can move the current query to another search source, or hand it off to Juso’s AI search page.
+The independent search page lets you choose and switch Search Sources, including saved Site Instances, Custom Engines, and Aggregate Instances. On supported Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo result pages, the SERP Switch Bar can move the current query to another search source, or hand it off to Juso’s AI search page.
 
 Successful AI searches are cached on the current device and appear in local search history that can be reviewed and replayed. Cache entries are scoped to a service plus normalized query, and are not shared across services. Use explicit refresh when you need fresh results; it bypasses the cache and may incur charges from the selected AI service.
 
@@ -83,7 +84,7 @@ See the [development document](docs/DEVELOPMENT.en.md) for development commands,
 
 ### People
 
-1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no configuration (engines hidden by default can be shown from settings). AI Chat Engines likewise need no API key (hidden by default, login required). To add site-scoped search, create Site Instances in extension settings (site + underlying engine + construction mode). You can also add Custom Engines (any URL with a `%s` placeholder). Configure the corresponding key only when using an AI search service.
+1. Open the Juso search page and choose a Search Source. Google, Bing, Baidu, Douyin, Xiaohongshu, Bilibili, Yandex, and DuckDuckGo need no configuration (engines hidden by default can be shown from settings). AI Chat Engines likewise need no API key (hidden by default, login required). To add site-scoped search, create Site Instances in extension settings (site + underlying engine + construction mode). You can also add Custom Engines (any URL with a `%s` placeholder), or create Aggregate Instances (parallel fan-out with rerank; configure a rerank service first). Among AI search services, Tavily, Jina, and AnySearch offer keyless free tiers (rate-limited per IP); configure a key only for the others.
 
 You can now search and switch among conventional engines, Site Instances, Custom Engines, AI Chat Engines, and configured AI search services from one entry point.
 
@@ -116,20 +117,23 @@ Edge-case settings such as browser path, profile, extension ID, and timeout are 
 
 #### Option 2: MCP Server
 
-For MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code). After `pip install juso-search`, register `juso-search` in the client's `mcp.json` with `JUSO_EXTENSION_ID` in `env` (find the extension ID at `chrome://extensions`):
+For MCP-native clients (Claude Desktop / Cursor / Cline / Claude Code). After `pip install juso-search`, register `juso-search` in the client's `mcp.json` with `JUSO_BROWSER_PATH` (browser executable) and `JUSO_EXTENSION_ID` in `env` (find the extension ID at `chrome://extensions`):
 
 ```json
 {
   "mcpServers": {
     "juso": {
       "command": "juso-search",
-      "env": { "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      "env": {
+        "JUSO_BROWSER_PATH": "<browser executable path>",
+        "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
     }
   }
 }
 ```
 
-Per-client differences and all environment variables (`JUSO_CHROME_PATH`, `JUSO_CHROME_PROFILE`, `JUSO_TIMEOUT`) are in [`mcp-server/README.md`](mcp-server/README.md).
+Per-client differences and all environment variables (including the required `JUSO_BROWSER_PATH` and the Firefox-only `JUSO_BRIDGE_URL`) are in [`mcp-server/README.md`](mcp-server/README.md).
 
 ---
 
@@ -156,7 +160,7 @@ See the [development document](docs/DEVELOPMENT.en.md) for source install, devel
 
 ## Possible Future
 
-This is not a roadmap or a promise. Based on demand, interface availability, and service stability, Juso may adapt more AI search services and conventional search engines. It may also explore optional parallel retrieval from multiple sources, deduplication, ranking, and provenance-preserving result fusion. Any such capability should give users explicit control of cost, scope, and latency.
+This is not a roadmap or a promise. Based on demand, interface availability, and service stability, Juso may adapt more AI search services and conventional search engines. Any such capability should give users explicit control of cost, scope, and latency.
 
 ## Naming History
 

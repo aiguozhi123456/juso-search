@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "juso-search"
 dynamic = ["version"]
-description = "MCP server (stdio) that exposes the Juso search extension's five agent-bridge actions as tools."
+description = "MCP server (stdio) that exposes the Juso search extension's ten agent-bridge actions as tools."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MPL-2.0"

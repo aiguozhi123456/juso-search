@@ -13,7 +13,7 @@
 
 > **一面为人，一面为智能体。**
 
-Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎、站外搜索（Site Instance）、自定义引擎、AI 对话引擎与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。即使只使用人类这一面，它也是一个功能完整、开箱即用的搜索聚合与切换工具——无需配置任何 AI 服务即可使用 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex 和 DuckDuckGo，也可在设置中保存面向指定站点的站外搜索、任意带查询参数的自定义引擎，并把 AI 对话站点当作搜索引擎切换。
+Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选择、切换传统搜索引擎、站外搜索（Site Instance）、自定义引擎、AI 对话引擎与已配置的 AI 搜索服务；也让本地 AI 智能体通过同一台浏览器调用 AI 搜索 API，或检索传统搜索引擎。密钥由扩展在本地管理，搜索请求直接前往你选择的服务。即使只使用人类这一面，它也是一个功能完整、开箱即用的搜索聚合与切换工具——无需配置任何 AI 服务即可使用 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex 和 DuckDuckGo，也可在设置中保存面向指定站点的站外搜索、任意带查询参数的自定义引擎，并把 AI 对话站点当作搜索引擎切换；Tavily、Jina、AnySearch 还提供免密钥的 AI 搜索免费层。
 
 | 面向谁 | 现在能做什么 |
 | --- | --- |
@@ -49,20 +49,21 @@ Juso 是一个开源的双面搜索产品：它让人类用户在同一入口选
 
 ## 当前能力与来源
 
-Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索引擎**、用户保存的**站外搜索（Site Instance）**或**自定义引擎（Custom Engine）**、已配置的 AI 搜索服务（可为同一服务创建多个调好参数的**实例**），或预置的 **AI 对话引擎**；五类来源的执行方式不同。
+Juso 将**搜索来源**作为统一的用户选择：它可以是传统**搜索引擎**、用户保存的**站外搜索（Site Instance）**或**自定义引擎（Custom Engine）**、已配置的 AI 搜索服务（可为同一服务创建多个调好参数的**实例**）、预置的 **AI 对话引擎**，或用户创建的**聚合实例**（多成员并行 + 重排）；六类来源的执行方式不同。
 
-- 传统搜索引擎：Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo。它们不使用 API 密钥；Juso 通过浏览器导航，供人直接使用；八个引擎均支持智能体提取普通搜索结果（哔哩哔哩、小红书、抖音在浏览器已登录状态下提取）。
+- 传统搜索引擎：Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo。它们不使用 API 密钥；Juso 通过浏览器导航，供人直接使用；全部引擎均支持智能体提取普通搜索结果（哔哩哔哩、小红书、抖音在浏览器已登录状态下提取）。
 - 站外搜索（Site Instance）：在扩展设置中保存站点；每个条目固定选用 Google、Bing 或 Baidu 之一，并可单独选择构造模式——百度可选站内搜索（zhannei，支持时间范围 / 按时间排序 / 仅标题筛选）或 `site:` 前缀，必应可选 `q1` 高级参数或 `site:` 前缀，Google 用 `site:` 操作符；同一站点可保存多个不同模式的实例。目标须为公网域名；底层引擎在创建时选定，之后不再更改。创建后会出现在搜索页与 SERP 切换栏，与其他来源一样可切换。无需 API 密钥。
 - 自定义引擎（Custom Engine）：在扩展设置中保存任意带 `%s` 占位符的网址，即可把它当作搜索引擎加入搜索页与 SERP 切换栏。与站外搜索不同，自定义引擎直接导航到用户指定的 URL，不依赖底层引擎。无需 API 密钥。
-- AI 搜索服务：Tavily、Exa、Brave、Stepfun 按量 API、Stepfun Step Plan、Jina、Doubao（Custom 与 Global 双端点）。服务经由统一的适配器接口访问，但各自的鉴权与计费由相应服务决定。支持实例的服务（当前为 Exa 与 Doubao Custom）可保存多套调好参数的实例（如不同搜索场景或过滤方向），每个实例是快切栏里的一等可切换目标；实例不持有密钥，密钥仍按服务类型共享。
+- AI 搜索服务：Tavily、Exa、Brave、Stepfun 按量 API、Stepfun Step Plan、Jina、Doubao（Custom 与 Global 双端点）、Parallel、DeepSeek、AnySearch。服务经由统一的适配器接口访问，但各自的鉴权与计费由相应服务决定。支持实例的服务（当前为 Exa 与 Doubao Custom）可保存多套调好参数的实例（如不同搜索场景或过滤方向），每个实例是快切栏里的一等可切换目标；实例不持有密钥，密钥仍按服务类型共享。
 - AI 对话引擎：Grok、ChatGPT、DeepSeek、豆包、Gemini。把 AI 对话站点当作搜索引擎，切换过去时自动填入查询、可选自动提交。这类来源默认隐藏（需登录），在设置页显示后进入快切栏。不使用 API 密钥。
-- 答案能力：Tavily 和 Exa 可返回综合答案及结果列表；Stepfun（含 Step Plan）、Brave、Jina、Doubao 当前仅返回结果列表。AI 对话引擎为对话界面，不在此列。
+- 聚合实例（Aggregate Instance）：在扩展设置中把多个成员（AI 搜索服务、搜索引擎、服务实例）组合成一个实例；一次查询并行请求全部有效成员，合并、去重后经所配置的重排服务按相关性重排，取前 N 条返回。需先在设置中配置重排服务；成员含搜索引擎时经浏览器检索。创建后与其它来源一样进入搜索页与 SERP 切换栏。
+- 答案能力：Tavily 和 Exa 可返回综合答案及结果列表；Stepfun（含 Step Plan）、Brave、Jina、Doubao、Parallel、DeepSeek、AnySearch 当前仅返回结果列表。AI 对话引擎为对话界面，不在此列。
 
-“聚合”在当前版本中指统一接入、选择与快速切换搜索来源，**不表示**一次查询默认并行请求多个来源，也不表示默认合并、去重或融合结果。
+“聚合”在当前版本中指统一接入、选择与快速切换搜索来源，**不表示**一次查询默认并行请求多个来源，也不表示默认合并、去重或融合结果——默认体验仍是单来源检索；上面的聚合实例是显式创建的可选能力，不改变此默认。
 
 ## 人类使用
 
-独立搜索页提供搜索来源选择和切换（含已保存的站外搜索与自定义引擎）；在 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 的受支持结果页上，SERP 切换栏可将当前查询直接切到其他搜索来源，或跳转至 Juso 的 AI 搜索页。
+独立搜索页提供搜索来源选择和切换（含已保存的站外搜索、自定义引擎与聚合实例）；在 Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 的受支持结果页上，SERP 切换栏可将当前查询直接切到其他搜索来源，或跳转至 Juso 的 AI 搜索页。
 
 成功的 AI 搜索会缓存在当前设备上，并形成可查看、可重放的本地搜索历史。缓存按“服务 + 规范化查询”区分，不在服务之间共享。需要最新结果时，请显式刷新；刷新会绕过缓存，并可能产生所选 AI 服务的费用。
 
@@ -91,7 +92,7 @@ Chrome Web Store 安装无开发者模式警告，且可自动更新。
 
 ### 人类用户
 
-1. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 无需配置（默认隐藏的可在设置页点「显示」启用）；AI 对话引擎同样无需 API 密钥（默认隐藏，需登录）；若要站外搜索，在扩展设置中添加站点实例（站点 + 底层引擎 + 构造模式）；也可添加自定义引擎（带 `%s` 占位符的网址）；只有使用 AI 搜索服务时，才需要配置对应服务的密钥。
+1. 打开 Juso 搜索页并选择搜索来源。Google、Bing、Baidu、抖音、小红书、哔哩哔哩、Yandex、DuckDuckGo 无需配置（默认隐藏的可在设置页点「显示」启用）；AI 对话引擎同样无需 API 密钥（默认隐藏，需登录）；若要站外搜索，在扩展设置中添加站点实例（站点 + 底层引擎 + 构造模式）；也可添加自定义引擎（带 `%s` 占位符的网址），或创建聚合实例（多成员并行检索加重排，需先在设置中配置重排服务）；AI 搜索服务中 Tavily、Jina、AnySearch 提供免密钥免费层（按 IP 限速），其余服务才需要配置对应服务的密钥。
 
 完成后，你可以在一个入口搜索、切换传统引擎、站外搜索、自定义引擎、AI 对话引擎和已配置的 AI 搜索服务。
 
@@ -124,20 +125,23 @@ python scripts/juso_search.py search-aggregate "宽泛的研究型查询" --aggr
 
 #### 方式二：MCP Server
 
-适合 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）。`pip install juso-search` 后，把 `juso-search` 加进客户端的 `mcp.json`，`env` 里设 `JUSO_EXTENSION_ID`（扩展 ID 见 `chrome://extensions`）：
+适合 MCP 原生客户端（Claude Desktop / Cursor / Cline / Claude Code）。`pip install juso-search` 后，把 `juso-search` 加进客户端的 `mcp.json`，`env` 里设 `JUSO_BROWSER_PATH`（浏览器可执行文件路径）与 `JUSO_EXTENSION_ID`（扩展 ID 见 `chrome://extensions`）：
 
 ```json
 {
   "mcpServers": {
     "juso": {
       "command": "juso-search",
-      "env": { "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+      "env": {
+        "JUSO_BROWSER_PATH": "<浏览器可执行文件路径>",
+        "JUSO_EXTENSION_ID": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
     }
   }
 }
 ```
 
-各客户端的差异与全部环境变量（`JUSO_CHROME_PATH`、`JUSO_CHROME_PROFILE`、`JUSO_TIMEOUT`）见 [`mcp-server/README.md`](mcp-server/README.md)。
+各客户端的差异与全部环境变量（含必填的 `JUSO_BROWSER_PATH` 与 Firefox 所需的 `JUSO_BRIDGE_URL`）见 [`mcp-server/README.md`](mcp-server/README.md)。
 
 ---
 
@@ -164,7 +168,7 @@ MCP server（`juso-search`）复用同一 Agent Bridge 接口与边界：同样�
 
 ## 可能的未来
 
-这不是路线图或承诺。我们可能根据需求、接口可用性与服务稳定性，适配更多 AI 搜索服务和传统搜索引擎；也可能探索可选的多来源并行检索、去重、排序和保留来源的结果融合。任何这类能力都应让用户明确控制成本、范围和等待时间。
+这不是路线图或承诺。我们可能根据需求、接口可用性与服务稳定性，适配更多 AI 搜索服务和传统搜索引擎。任何这类能力都应让用户明确控制成本、范围和等待时间。
 
 ## 命名历史
 
