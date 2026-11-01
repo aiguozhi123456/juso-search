@@ -1,7 +1,7 @@
 ---
 title: "Theme persistence, BYOK key hygiene, and i18n parity in a WXT/React MV3 extension"
 date: 2026-07-04
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: best-practices
 module: "theme / i18n / storage layer / provider config messaging"
 problem_type: best_practice
@@ -99,7 +99,7 @@ export type ProtocolMap = {
 };
 ```
 
-Note: this example is a subset of the current contract — `ProtocolMap` now carries ~20 messages and `ProviderConfigReply` has grown well beyond the five fields shown (later additions include `siteInstances` (renamed from `siteEngines` in schema v10), `customEngines`, `providerMaxResults`, `groupConfig`, `providerInstances`, `aiAutoEnter`, and `flatLayoutFewSources`); see `lib/messaging.ts` for the current shape.
+Note: this example is a subset of the current contract — `ProtocolMap` now carries 42 messages and `ProviderConfigReply` has grown well beyond the five fields shown (later additions include `keyedProviderIds` (splits "configured" into usable vs actually-keyed now that keyless providers exist, `lib/messaging.ts:77`), `siteInstances` (renamed from `siteEngines` in schema v10), `customEngines`, `providerMaxResults`, `groupConfig`, `providerInstances`, `aggregate` (the desensitized aggregate-search snapshot), `aiAutoEnter`, and `flatLayoutFewSources`); see `lib/messaging.ts` for the current shape.
 
 Then implement the storage reads and writes only in the background gateway:
 
@@ -145,15 +145,16 @@ Provider availability has different UI meanings depending on whether the surface
 - **Source/default surfaces** may combine configured providers with keyless engines. Engines such as Google/Bing do not need API keys, so a source-level selector should not disappear just because no BYOK provider is configured.
 - **Configuration surfaces** (`KeyInput` rows) must show all known providers, including unconfigured ones, or users lose the path to configure a new provider.
 
-The storage-side active-provider fallback should match the provider-only contract: a stored active provider only wins if it is known **and configured**; otherwise fall back to the first configured provider in registry order, or `null` when none exists. A separate source-level fallback can continue to a keyless engine after provider fallbacks are exhausted.
+The storage-side active-provider fallback should match the provider-only contract: a stored active provider only wins if it is known **and usable** (`isProviderUsable`: has a key, or the adapter declares `keyOptional` for a keyless free tier); otherwise fall back via the two-tier `preferredProviderFallback` — the first keyed provider in registry order, then the first keyless provider (`lib/providers/registry.ts:42-53`) — or `null` when none exists. A separate source-level fallback can continue to a keyless engine after provider fallbacks are exhausted.
 
 ```ts
+// lib/storage/source-graph-store.ts:35-41
 export async function getActiveProviderId(): Promise<ProviderId | null> {
   const got = await browser.storage.local.get([ACTIVE_KEY, KEYS_KEY]);
   const stored = got[ACTIVE_KEY];
   const keys = (got[KEYS_KEY] ?? {}) as Record<string, string>;
-  if (isKnownProvider(stored) && keys[stored]) return stored;
-  return allProviders().find((p) => keys[p.id])?.id ?? null;
+  if (isKnownProvider(stored) && isProviderUsable(stored, keys)) return stored;
+  return preferredProviderFallback(keys) ?? null;
 }
 ```
 
@@ -320,7 +321,7 @@ describe('i18n locale parity', () => {
 
 ## Related
 
-- [Provider API integration patterns](../architecture-patterns/provider-api-integration-patterns.md) - provider adapter normalization and worker-side gateway shape; related security boundary.
+- [Standardized provider/engine adapter layers](../architecture-patterns/standardized-provider-engine-adapter-layers.md) - provider adapter normalization and worker-side gateway shape; related security boundary (BYOK worker-only key flow).
 - [Separate active search source from active BYOK provider](../architecture-patterns/separate-active-search-source-from-active-byok-provider.md) - why `activeSource` can include keyless engines while `activeProvider` stays provider-only.
 - [Local search cache in MV3](../architecture-patterns/local-search-cache-mv3.md) - current worker-owned storage observation and sanitized UI-preference broadcast pattern.
 - [Configuration preference pipeline](../architecture-patterns/config-preference-pipeline.md) - end-to-end checklist for durable preferences across storage and UI hosts.

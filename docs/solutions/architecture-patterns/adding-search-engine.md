@@ -1,8 +1,8 @@
 ---
 title: Adding a conventional search engine to Juso — the full twelve-touchpoint registration pattern
 date: 2026-08-13
-last_updated: 2026-09-09
-category: docs/solutions/architecture-patterns/
+last_updated: 2026-11-01
+category: architecture-patterns
 module: lib/engines
 problem_type: architecture_pattern
 component: tooling
@@ -95,13 +95,20 @@ The full touchpoint list, grouped by layer:
 **Cross-cutting wiring**
 8. `entrypoints/engine-extractor.content.ts` — add a `hostsForEngine`
    case (so challenge/consent redirect pages on the new host are
-   recognized) and add the id to the `isRequest` allowlist literal.
-9. `wxt.config.ts` — add the favicon to the `resources` arrays of BOTH
-   `web_accessible_resources` entries: the SERP-scope entry (matched
-   against `SERP_HOST_MATCH_PATTERNS`) and the `<all_urls>` entry
-   (which serves favicons to the selection-search popup on arbitrary
-   pages). The two lists are kept identical; omitting the second entry
-   makes the favicon 404 in the popup.
+   recognized). No `isRequest` edit: the engine whitelist derives from
+   the registry (`ENGINE_ID_SET`, built from `allEngines()` at
+   `entrypoints/engine-extractor.content.ts:20-21` and consulted by the
+   request guard at `:68-74`), so a registered engine is accepted
+   automatically.
+9. `wxt.config.ts` — add the favicon once to the shared
+   `FAVICON_RESOURCES` constant (`wxt.config.ts:13-39`), which both
+   `web_accessible_resources` entries consume (`:111-120`): the
+   SERP-scope entry (matched against `SERP_HOST_MATCH_PATTERNS`) and
+   the `<all_urls>` entry (which serves favicons to the
+   selection-search popup on arbitrary pages). One constant feeds both
+   entries, so the two lists cannot drift; when they were two
+   hand-kept arrays, omitting the second entry made the favicon 404 in
+   the popup.
 10. `lib/i18n.ts` + `public/_locales/{zh_CN,en}/messages.json` — add the
     `engine_<id>` message-name constant and its localized label.
 11. `public/icons/<id>.svg` — the favicon, plus a mirror copy to
@@ -112,10 +119,13 @@ The full touchpoint list, grouped by layer:
     non-obvious result-shape caveats (wrapper URLs, rich-metadata
     snippets, anti-bot behavior).
 
-> A stale-comment touchpoint (e.g. the engine list in
-> `lib/engines/extractors/unsupported.ts`) is not strictly required for
-> behavior but should be updated in the same change so the next author
-> does not read a stale "current engines" comment and omit the new id.
+> The former stale-comment touchpoint — the "current engines" comment in
+> `lib/engines/extractors/unsupported.ts` — is gone with the file: the
+> registry lookup is now `getEngineExtractor(engine): EngineExtractor | null`
+> via an own-property guard (`lib/engines/extractors/registry.ts:25-29`), and
+> `extractEngineSearch` maps `null` to the `'unsupported-layout'` error kind,
+> a branch commented as unreachable for valid `EngineId`s
+> (`lib/engines/extractors/index.ts:19-20`; kind at `extractors/types.ts:39`).
 
 ### Write the engine adapter as a self-contained module
 
@@ -436,18 +446,23 @@ chronology.
 ### Wire the content-script host allowlist and request guard
 
 The extractor content script (`entrypoints/engine-extractor.content.ts`)
-is the bridge between the background orchestrator and the SERP DOM. Two
-per-engine additions are required:
+is the bridge between the background orchestrator and the SERP DOM. One
+per-engine addition is required:
 
 1. **`hostsForEngine` case** — so
    `isEngineChallengeOrConsentUrlForHost(url, hostsForEngine(engineId))`
    can recognize challenge redirects on the new engine's host.
-2. **`isRequest` allowlist literal** — the `engineId` field validation
-   includes a hardcoded `.includes([...])` literal array; the new id
-   must be added or the message is silently rejected as malformed.
+
+The `isRequest` guard needs no per-engine edit: it validates `engineId`
+against `ENGINE_ID_SET`, derived from `allEngines()`
+(`entrypoints/engine-extractor.content.ts:20-21`, guard at `:68-74`), so
+a registered engine is accepted automatically.
 
 ```ts
 // entrypoints/engine-extractor.content.ts
+// 引擎白名单从 registry 推导（与 EngineId union / engines 表单源）——新增引擎不再需要记得改这里。
+const ENGINE_ID_SET: ReadonlySet<EngineId> = new Set(allEngines().map((engine) => engine.id));
+
 function hostsForEngine(engineId: EngineId): readonly string[] {
   switch (engineId) {
     case 'google': return GOOGLE_SERP_HOSTS;
@@ -458,18 +473,19 @@ function hostsForEngine(engineId: EngineId): readonly string[] {
 
 function isRequest(value: unknown): value is Request {
   // ...
-  && ['google', 'bing', 'baidu', 'douyin', 'xiaohongshu', 'bilibili',
-      'yandex', 'duckduckgo', 'weixin'].includes((value as Request).engineId)
+  && ENGINE_ID_SET.has((value as Request).engineId)
   // ...
 }
 ```
 
-> The `isRequest` literal is a runtime guard, not a type check —
+> The `isRequest` check is a runtime guard, not a type check —
 > TypeScript's `EngineId` narrowing does not apply across the
-> `unknown`-typed message boundary. Forgetting to add the id here means
-> the orchestrator's message is dropped silently and the 4-second wait
-> times out. This is the same failure mode as BUG-1 (a narrowed guard
-> excluding the new engine) but at a different layer.
+> `unknown`-typed message boundary. It originally hardcoded the id
+> list, and forgetting to add a new id meant the orchestrator's
+> message was dropped silently and the 4-second wait timed out — the
+> same failure mode as BUG-1 (a narrowed guard excluding the new
+> engine) but at a different layer. The registry-derived
+> `ENGINE_ID_SET` removes that per-engine edit.
 
 ### Mirror the favicon to the website drift-lock directory
 
@@ -494,19 +510,21 @@ shadow DOM onto the host SERP page), so they must be listed in
 `web_accessible_resources` in `wxt.config.ts` or they 404:
 
 ```ts
-// wxt.config.ts
+// wxt.config.ts — one shared constant feeds both entries
+const FAVICON_RESOURCES = [
+  // ...
+  'icons/weixin.svg',
+  // ...
+];
+// ...
 web_accessible_resources: [
   {
-    resources: [
-      // ...
-      'icons/weixin.svg',
-      // ...
-    ],
+    resources: FAVICON_RESOURCES,
     matches: SERP_HOST_MATCH_PATTERNS,
   },
   {
     // The selection-search popup renders favicons on any page.
-    resources: [ /* …the same icon list… */ ],
+    resources: FAVICON_RESOURCES,
     matches: ['<all_urls>'],
   },
 ],
@@ -618,13 +636,13 @@ characterized the `weixin` review findings.
 | 4 | Scopes | `lib/engines/scopes.ts` | `WEIXIN_SERP_HOSTS`, match pattern `/weixin`, `isWeixinSerpHostname`, **and `antispider` added to the challenge regex** (BUG-1 fix) |
 | 5 | Extractor | `lib/engines/extractors/weixin.ts` | New: `weixinExtractor` with 3-signal `pageState`, wrapper-URL `extract`, rich-metadata snippet fallback |
 | 6 | Extractor registry | `lib/engines/extractors/registry.ts` | `weixin: weixinExtractor` |
-| 7 | Schema migration | `lib/schema.ts` | v8→v9: `mergeHiddenFactory(['weixin'])`, `CURRENT_SCHEMA_VERSION = 9` |
-| 8 | Content-script allowlist | `entrypoints/engine-extractor.content.ts` | `hostsForEngine` case + `isRequest` literal |
-| 9 | Manifest resources | `wxt.config.ts` | `'icons/weixin.svg'` in `web_accessible_resources` — note the `<all_urls>` entry postdates weixin; new engines must hit both entries |
+| 7 | Schema migration | `lib/schema.ts` | v8→v9: `mergeHiddenFactory(['weixin'])`, `CURRENT_SCHEMA_VERSION = 10` |
+| 8 | Content-script allowlist | `entrypoints/engine-extractor.content.ts` | `hostsForEngine` case (`isRequest` was then an id literal; now registry-derived via `ENGINE_ID_SET`, no edit needed) |
+| 9 | Manifest resources | `wxt.config.ts` | `'icons/weixin.svg'` in `web_accessible_resources` — the `<all_urls>` entry postdates weixin; the shared `FAVICON_RESOURCES` constant (introduced later) now feeds both entries, so one edit covers them |
 | 10 | i18n | `lib/i18n.ts` + `_locales/{zh_CN,en}/messages.json` | `engine_weixin` → "搜狗公众号" / "WeChat Articles" |
 | 11 | Favicon + mirror | `public/icons/weixin.svg` + `website/static/icons/weixin.svg` | New SVG, byte-identical copy (INT-1 fix) |
 | 12 | Agent reference doc | `public/agent-skill/reference/engines.md` | `## weixin` section documenting wrapper-URL caveat + anti-bot (INT-2 fix) |
-| — | Stale comment | `lib/engines/extractors/unsupported.ts` | Added `weixin` to the "current engines" comment (INT-3 fix) |
+| — | Stale comment | `lib/engines/extractors/unsupported.ts` | Added `weixin` to the "current engines" comment (INT-3 fix; file since removed — the registry lookup returns `null` for absent ids) |
 
 ### The challenge regex fix (BUG-1)
 
@@ -714,7 +732,7 @@ documented for DuckDuckGo.
 - [Standardized provider/engine adapter layers](../architecture-patterns/standardized-provider-engine-adapter-layers.md) — the abstract "add a route-specific navigation engine" checklist (§487-505) that this doc instantiates for `weixin`
 - [Engine capability is layered per registry](../architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md) — the four-layer capability model (navigation / extraction / agent-vocabulary / default-visibility); the twelve touchpoints map onto these layers
 - [Yandex canonical SERP redirect antibot](../integration-issues/yandex-canonical-serp-slash-redirect-antibot.md) — established the "emit canonical URLs only" rule that the weixin wrapper-URL strategy applies
-- [Douyin automated-tab antibot no-results](../integration-issues/douyin-automated-tab-antibot-no-results.md) — same anti-bot/challenge problem class; established the "document the limitation at the skill surface" resolution pattern
+- [Douyin caption whitespace regression](../integration-issues/douyin-caption-whitespace-regression.md) — same anti-bot/challenge problem class; its "misdiagnosis" section records why a limitation note must never outlive an unverified root cause (the old anti-bot investigation was consolidated there 2026-11-01)
 - [DuckDuckGo React SERP anchors](../ui-bugs/duckduckgo-react-serp-anchors-and-real-device-probing.md) — codified the "probe real SERP, do not trust scraping guides" anchor strategy that weixin's unverified anchors defer to
 - [Google/Bing SERP scope minimization](../architecture-patterns/google-bing-serp-scope-minimization.md) — governs the wxt.config / host_permissions / content-script match integration
 - [Website drift-lock enforcement](../architecture-patterns/website-drift-lock-enforcement.md) — the CI test that catches the website icon mirror miss (INT-1)

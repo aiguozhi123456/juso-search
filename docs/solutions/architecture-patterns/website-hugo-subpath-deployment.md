@@ -1,7 +1,7 @@
 ---
 title: "Website architecture and deployment: Hugo on GitHub Pages project subpath"
 date: 2026-08-08
-last_updated: 2026-09-04
+last_updated: 2026-11-01
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -44,7 +44,7 @@ When the extension's `tokens.css` changes, a CI drift-lock (`scripts/check-websi
 ### Deployment
 
 - **Target**: GitHub Pages **project** site (not user/org site), served under `/juso-search/`.
-- **Mechanism**: GitHub Actions (`.github/workflows/website-pages.yml`) — `peaceiris/actions-hugo` builds, `actions/deploy-pages` deploys. Triggered on pushes to `main` that touch `website/**`, the drift-lock source trees (`entrypoints/shared/tokens.css`, `public/icons/**`, `docs/assets/screens/**`), or the workflow file (plus `workflow_dispatch`).
+- **Mechanism**: GitHub Actions (`.github/workflows/website-pages.yml`) — `peaceiris/actions-hugo` builds, `actions/deploy-pages` deploys. Triggered on pushes to `main` that touch `website/**`, the drift-lock source trees (`entrypoints/shared/tokens.css`, `public/icons/**`, `docs/assets/screens/**`), the drift-lock scripts themselves (`scripts/check-website-tokens.py`, `scripts/check-website-assets.py`), or the workflow file (plus `workflow_dispatch`). `pull_request` with the same paths runs the drift-locks (and the build) **without deploying** — drift must be caught before merge, not by reddening `main` after it.
 - **baseURL handling**: baseURL is set in `website/hugo.toml` (not a CI `--baseURL` flag). This only rewrites URLs generated through Hugo's URL functions — `relURL`, `absURL`, `relLangURL`, `.Permalink`, `.RelPermalink`. **Hardcoded strings in templates are NOT rewritten.** Use the functions exclusively:
   - Static resources (images, fonts, CSS, icons) → `relURL`
   - Open Graph / social images → `absURL` (OG requires absolute URLs)

@@ -132,7 +132,7 @@ Every npm script that previously said `python ...` now says `node scripts/python
 ```json
 {
   "scripts": {
-    "test:python": "node scripts/python.mjs -m unittest tests/scripts/test_juso_search.py tests/scripts/test_gen_skills.py tests/scripts/test_juso_bridge.py tests/scripts/test_all_export.py",
+    "test:python": "node scripts/python.mjs -m unittest tests/scripts/test_juso_search.py tests/scripts/test_gen_skills.py tests/scripts/test_juso_bridge.py tests/scripts/test_all_export.py tests/scripts/test_check_website_assets.py tests/scripts/test_errors_reference.py",
     "test:mcp": "node scripts/python.mjs -m pytest mcp-server/tests",
     "gen-skills": "node scripts/python.mjs scripts/gen_skills.py"
   }
@@ -175,6 +175,14 @@ on:
       - '.github/workflows/test-python-matrix.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Superseded runs on the same branch cancel (avoids queuing on the 5-macOS-runner cap).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python-matrix:
     strategy:
@@ -188,10 +196,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: mcp-server/pyproject.toml
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
-          cache: npm
       - name: Install mcp-server (dev)
         run: pip install -e "mcp-server[dev]"
       - name: Smoke launcher
@@ -240,6 +249,14 @@ on:
       - '.github/workflows/test-js-matrix.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Superseded runs on the same branch cancel (avoids queuing on the 5-macOS-runner cap).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   js-matrix:
     strategy:
@@ -265,8 +282,10 @@ Pinning details that matter:
 
 - **Node LTS pin to `24`**, not the `lts/*` alias. The alias silently jumps when a new Node version enters LTS (Node 26 is coming), which can break builds overnight. Pin the concrete version.
 - **Actions at `v7`** (Node 24 runtime). Older actions versions run on a Node 20 runtime and emit the `Node 20 is being deprecated` warning on every run. Bumping to `v7` silences that.
-- **`actions/setup-python` with `python-version: "3.13"`** plus its built-in pip cache keeps installs fast and reproducible.
+- **`actions/setup-python` with `python-version: "3.13"`** plus its pip cache (`cache: pip`, keyed to `mcp-server/pyproject.toml`) keeps installs fast and reproducible.
 - **`fail-fast: false`** is mandatory for a 3-OS matrix — you want to see all failures, not just the first.
+- **Top-level `permissions: contents: read` and a per-ref `concurrency` group with `cancel-in-progress: true`** on both workflows — least privilege, and a superseded run on the same branch cancels instead of queueing (macOS is capped at 5 concurrent jobs).
+- **`cache: npm` only in the JS matrix.** The python matrix's `setup-node` deliberately omits it — no `npm ci` runs there; Node exists only to execute `scripts/python.mjs`, so there is no npm cache to warm.
 
 ### Pattern 4: Close the "written but never executed" coverage gap
 
@@ -361,7 +380,7 @@ const PY3 = /^Python 3\.\d+/m;
 ```json
 {
   "scripts": {
-    "test:python": "node scripts/python.mjs -m unittest tests/scripts/test_juso_search.py tests/scripts/test_gen_skills.py tests/scripts/test_juso_bridge.py tests/scripts/test_all_export.py",
+    "test:python": "node scripts/python.mjs -m unittest tests/scripts/test_juso_search.py tests/scripts/test_gen_skills.py tests/scripts/test_juso_bridge.py tests/scripts/test_all_export.py tests/scripts/test_check_website_assets.py tests/scripts/test_errors_reference.py",
     "test:mcp": "node scripts/python.mjs -m pytest mcp-server/tests",
     "gen-skills": "node scripts/python.mjs scripts/gen_skills.py"
   }
@@ -395,7 +414,7 @@ jobs:
       - uses: actions/setup-python@v7
         with: { python-version: "3.13" }
       - uses: actions/setup-node@v7
-        with: { node-version: "24", cache: npm }
+        with: { node-version: "24" }
       - run: pip install -e "mcp-server[dev]"
       - run: node scripts/python.mjs --version
       - run: npm run test:python

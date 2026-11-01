@@ -1,7 +1,7 @@
 ---
 title: "Adding a persisted config preference: the end-to-end pipeline"
 date: 2026-07-17
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: config-preferences
 problem_type: architecture_pattern
@@ -76,15 +76,16 @@ tags:
    }
 
    // sourceHidden：稀疏——只过滤 + 去重，绝不补尾
-   export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = []): SourceId[] {
+   export function normalizeSourceHidden(ids: unknown, siteDefinitions: readonly SiteInstanceDefinition[] = [], customDefinitions: readonly CustomEngineDefinition[] = [], providerInstances: readonly ProviderInstance[] = [], aggregateInstances: readonly { id: AggregateInstanceId }[] = []): SourceId[] {
      const siteIds = new Set(siteDefinitions.map((site) => site.id));
      const customIds = new Set(customDefinitions.map((c) => c.id));
      const instanceIds = new Set(providerInstances.map((instance) => instance.id));
+     const aggregateIds = new Set(aggregateInstances.map((instance) => instance.id));
      const list = Array.isArray(ids) ? ids : [];
      const seen = new Set<SourceId>();
      const normalized: SourceId[] = [];
      for (const id of list) {
-       if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id))) || seen.has(id as SourceId)) continue;
+       if (typeof id !== 'string' || (!isProviderId(id) && !isEngineId(id) && !isRegisteredAiEngineId(id) && !(isSiteInstanceId(id) && siteIds.has(id)) && !(isCustomEngineId(id) && customIds.has(id)) && !(isProviderInstanceId(id) && instanceIds.has(id)) && !(isAggregateInstanceId(id) && aggregateIds.has(id))) || seen.has(id as SourceId)) continue;
        seen.add(id as SourceId);
        normalized.push(id as SourceId);
      }
@@ -100,7 +101,7 @@ tags:
 
 5. **ImportReport 字段追加的连锁反应。** 给 `ImportReport` 加一个**必填**字段（如 `sourceHiddenOverridden`）会迫使所有渲染导入报告的组件（`ConfigExportImport`）及其测试同步更新——这是一处不明显的波及面，TS 会在这些地方报错提醒。
 
-6. **写串行队列嵌套。** `mergeImport` 对新偏好做读-改-写，必须把新队列嵌进去，使直接 setter 与导入不会互相覆盖（沿用 `mergeImport = withSourceMutation(withProviderKeysMutation(...))` 的嵌套模式；`withSourceMutation` 是统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteInstances 和 activeSource 写入）。
+6. **写串行队列嵌套。** `mergeImport` 对新偏好做读-改-写，必须把新队列嵌进去，使直接 setter 与导入不会互相覆盖（`mergeImport` 现统一走 `withSharedKeyWrite` 原语（`lib/storage/shared-key-write.ts`）：`withSourceMutation(withProviderKeysMutation(withProviderMaxResultsMutation(...)))`，锁序 source → keys → maxResults；`withSourceMutation` 是统一的来源图串行队列，覆盖 sourceOrder、sourceHidden、siteInstances、aggregateInstances、rerankConfig 和 activeSource 写入）。
 
 ## Why This Matters
 

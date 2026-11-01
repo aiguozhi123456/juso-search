@@ -31,13 +31,14 @@ tags:
 This repository (WXT + React + TypeScript, Chrome MV3) maintains a closed
 string-literal union `ProviderId` that names every BYOK AI search adapter the
 extension ships (`tavily`, `exa`, `brave`, `stepfun`, `stepfun-plan`, `jina`,
-`doubao`, `doubao-global`, `parallel`):
+`doubao`, `doubao-global`, `parallel`, `deepseek`, `anysearch`):
 
 ```ts
 // lib/providers/types.ts:4
 export type ProviderId =
   | 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan'
-  | 'jina' | 'doubao' | 'doubao-global' | 'parallel';
+  | 'jina' | 'doubao' | 'doubao-global' | 'parallel'
+  | 'deepseek' | 'anysearch';
 ```
 
 `ProviderId` is load-bearing. It is the BYOK boundary type: every worker-side
@@ -52,7 +53,7 @@ a registered adapter.
 The registry is the single source of truth for "which adapters exist":
 
 ```ts
-// lib/providers/registry.ts:12-22
+// lib/providers/registry.ts:14-26, 55-69
 const adapters: Record<ProviderId, ProviderAdapter> = {
   tavily: tavilyAdapter,
   exa: exaAdapter,
@@ -63,6 +64,8 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
   parallel: parallelAdapter,
+  deepseek: deepseekAdapter,
+  anysearch: anysearchAdapter,
 };
 
 export function allProviders(): ProviderAdapter[] {
@@ -70,6 +73,7 @@ export function allProviders(): ProviderAdapter[] {
     adapters.tavily, adapters.exa, adapters.brave, adapters.stepfun,
     adapters['stepfun-plan'], adapters.jina, adapters.doubao,
     adapters['doubao-global'], adapters.parallel,
+    adapters.deepseek, adapters.anysearch,
   ];
 }
 ```
@@ -78,7 +82,7 @@ Three modules had already learned the right lesson and derive their id set from
 `allProviders()`:
 
 ```ts
-// lib/sources.ts:86-88
+// lib/sources.ts:104-106
 export function isProviderId(id: string): id is ProviderId {
   return allProviders().some((p) => p.id === id);
 }
@@ -88,7 +92,7 @@ function isKnownProvider(id: unknown): id is ProviderId {
   return typeof id === 'string' && allProviders().some((p) => p.id === id);
 }
 
-// lib/config-io.ts:47
+// lib/config-io.ts:55
 const KNOWN_PROVIDER_IDS = new Set<ProviderId>(allProviders().map((p) => p.id));
 ```
 
@@ -185,7 +189,7 @@ The fix is one instance of a general rule this codebase already follows in
 three other places. The rule is: **a value-level enumeration of a closed union
 must be derived from the single registration site, never hand-maintained.** The
 registration site for providers is `allProviders()`; for engines it is
-`allEngines()`; for AI engines it is `allAiEngines()`. `lib/sources.ts:47` even
+`allEngines()`; for AI engines it is `allAiEngines()`. `lib/sources.ts:60` even
 derives the engine id set (`ENGINE_IDS`) from `allEngines()` for the same
 reason. Any new module that needs "all provider ids" or "all engine ids" as a
 set, a map, a `switch`, or a `Record<…>` should derive from the registry rather
@@ -326,10 +330,10 @@ const PROVIDER_IDS: ReadonlySet<ProviderId> = new Set(allProviders().map((p) => 
 from the respective registries, with no hand-maintained literals:
 
 ```ts
-// lib/sources.ts:47
+// lib/sources.ts:60
 const ENGINE_IDS: ReadonlySet<string> = new Set(allEngines().map((e) => e.id));
 
-// lib/sources.ts:86-88
+// lib/sources.ts:104-106
 export function isProviderId(id: string): id is ProviderId {
   return allProviders().some((p) => p.id === id);
 }
@@ -343,7 +347,7 @@ function isKnownProvider(id: unknown): id is ProviderId {
 }
 ```
 
-`lib/config-io.ts:47` derives the set used to validate untrusted import
+`lib/config-io.ts:55` derives the set used to validate untrusted import
 payloads:
 
 ```ts

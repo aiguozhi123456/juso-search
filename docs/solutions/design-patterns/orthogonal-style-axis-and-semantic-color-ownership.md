@@ -11,7 +11,7 @@ applies_when:
   - Designing a colorful operational UI where color should communicate stable source and action identity
   - Applying one persisted UI preference across extension pages, tabs, and a shadow-DOM content script
   - Rendering viewport atmosphere from inside a width-constrained application root
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 related_components:
   - entrypoints/shared/tokens.css
   - entrypoints/shared/page-bg.css
@@ -119,7 +119,7 @@ shadowHost.dataset.style = state.stylePref;
 
 Keep classic CSS as the unscoped baseline. Add only colorful deltas under `[data-style="colorful"]`. This makes `classic` both the explicit default and the no-JavaScript/failure fallback.
 
-Define palette tokens once, with light and dark values, then assign them by semantic ownership. The shared tokens make search blue, AI synthesis teal, success green, errors red, and warnings/history gold without turning every component into a bespoke palette implementation.
+Define palette tokens once, with light and dark values, then assign them by semantic ownership. The shared tokens make search blue, AI synthesis teal, success green, and warnings/history gold without turning every component into a bespoke palette implementation. `--error` / `--warning` deliberately do **not** alias `--color-red` / `--color-yellow`: the categorical colors keep their source-brand values for fills and tints, while the semantic colors carry small hint text and take same-hue darkened literals for ≥4.5:1 (AA) contrast.
 
 ```css
 :root[data-style="colorful"] {
@@ -135,8 +135,10 @@ Define palette tokens once, with light and dark values, then assign them by sema
   --brand: var(--color-blue);
   --answer-bg: var(--color-teal-soft);
   --success: var(--color-green);
-  --error: var(--color-red);
-  --warning: var(--color-yellow);
+  /* 语义色不直接 alias 分类色：--color-red/--color-yellow 保持来源实色/底纹原值，
+     语义色承担小号提示文本（需 ≥4.5:1 AA），取同色相加深值。 */
+  --error: #c0392b;            /* ≈5.4:1；分类色 --color-red 仍是 #d94841 */
+  --warning: #8a5a00;          /* ≈5.9:1；分类色 --color-yellow 仍是 #9a7200 */
 }
 
 :root[data-theme="dark"][data-style="colorful"] {
@@ -161,7 +163,7 @@ Color ownership should follow stable domain identifiers, not child position or t
 </div>
 ```
 
-Define one stable source-ID mapping and keep its implementations in parity across CSS ownership boundaries. Extension pages use `search/styles.css`, while the isolated SERP shadow root repeats the mapping in `serp-bar-styles.ts`. The mapping is Google blue, Bing cyan, Baidu red, Tavily violet, Exa teal, StepFun orange, StepFun Plan green, Jina teal, Doubao rose, and Doubao Global yellow.
+Define one stable source-ID mapping and keep its implementations in parity across CSS ownership boundaries. Extension pages use `search/styles.css`, while the isolated SERP shadow root repeats the mapping in `serp-bar-styles.ts`. The mapping is Google blue, Bing cyan, Baidu red, Tavily violet, Exa teal, StepFun orange, StepFun Plan green, Jina teal, Doubao rose, and Doubao Global yellow; the SERP bar additionally maps DeepSeek blue and AnySearch cyan (`serp-bar-styles.ts:224-225`), while `search/styles.css` still maps the original ten and falls back to the default blue for unmapped ids. The two files are therefore not in perfect parity today — the parity rule stated later is the rule to maintain, not a description of the current state.
 
 ```css
 [data-style="colorful"] [data-source="google"] { --source-color: var(--color-blue); --source-soft: var(--color-blue-soft); }
@@ -279,14 +281,16 @@ Functional selectors express ownership directly rather than relying on a global 
 }
 ```
 
-The options page applies the same idea at section scale. Search-source settings are blue, site-instances are cyan, the quickbar is teal, API-key state is gold, locale is orange, and configuration import/export is violet (agent-bridge sections fall back to the default violet):
+The options page applies the same idea at section scale. Search-source settings are blue, site-instances are cyan, custom-engines are teal, the quickbar is teal, API-key state is gold, provider-instances and locale are orange, and configuration import/export is violet (unlisted sections — agent-bridge, aggregate-search — fall back to the default violet):
 
 ```css
-/* 未显式配色的 section（如 agent-bridge）沿用下方默认 violet。 */
+/* 未显式配色的 section（如 agent-bridge / aggregate-search）沿用下方默认 violet。 */
 [data-style="colorful"] .options section[data-section="search-source"] { --section-color: var(--color-blue); --section-soft: var(--color-blue-soft); }
 [data-style="colorful"] .options section[data-section="site-instances"] { --section-color: var(--color-cyan); --section-soft: var(--color-cyan-soft); }
+[data-style="colorful"] .options section[data-section="custom-engines"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="quickbar"] { --section-color: var(--color-teal); --section-soft: var(--color-teal-soft); }
 [data-style="colorful"] .options section[data-section="api-keys"] { --section-color: var(--color-yellow); --section-soft: var(--color-yellow-soft); }
+[data-style="colorful"] .options section[data-section="provider-instances"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="locale"] { --section-color: var(--color-orange); --section-soft: var(--color-orange-soft); }
 [data-style="colorful"] .options section[data-section="config"] { --section-color: var(--color-violet); --section-soft: var(--color-violet-soft); }
 ```

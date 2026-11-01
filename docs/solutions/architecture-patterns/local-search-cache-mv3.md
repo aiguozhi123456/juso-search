@@ -1,7 +1,7 @@
 ---
 title: "Local Search Cache for Repeat-Billing Avoidance in an MV3 Extension"
 date: 2026-07-07
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: architecture-patterns
 module: "storage / gateway / messaging"
 problem_type: architecture_pattern
@@ -82,7 +82,7 @@ Cap each entry to prevent unbounded storage growth:
 - Answer text <= 2000 characters
 - Citations <= 10
 - Snippets <= 1000 characters
-- FIFO eviction at 50 entries
+- FIFO eviction at 100 entries (`SEARCH_CACHE_CAP` in `lib/search-cache.ts`; raised from 50 when aggregate entries joined the same pool — `buildAggregateCacheEntry` stores them with the `aggregate` providerId sentinel, keyed by aggregate instance id)
 
 ### Cache-first search flow
 
@@ -246,7 +246,7 @@ async function select(summary: SearchCacheSummary) {
 
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` — BYOK
   key hygiene rules that motivated the cross-tab sync change
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md` —
+- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` —
   provider adapter normalization; the cache stores normalized responses
 - `docs/solutions/ui-bugs/provider-switch-current-query-and-async-state.md` —
   search UI async patterns and worker-message boundaries

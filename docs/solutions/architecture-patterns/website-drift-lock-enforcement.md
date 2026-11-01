@@ -1,7 +1,7 @@
 ---
 title: "Website drift-lock enforcement: CI tests that catch manual-sync drift across the site↔extension boundary"
 date: 2026-08-10
-last_updated: 2026-09-04
+last_updated: 2026-11-01
 category: architecture-patterns
 module: website
 problem_type: architecture_pattern
@@ -47,7 +47,7 @@ Two scripts, both Python (matching `scripts/gen_skills.py`'s style), wired into 
 
 **`scripts/check-website-tokens.py`** — value-equality lock. Parses `:root` (light) and the first `@media (prefers-color-scheme: dark)` block from both `style.css` and `tokens.css`, and asserts a **must-match** token set is value-identical: brand colors (`--brand`, `--brand-soft`, `--brand-softer`, `--brand-on`), neutrals (`--bg`, `--bg-soft`, `--fg`, `--muted`, `--border`), and durations (`--duration-fast`/`normal`/`slow`). Exits 0 if matched, 1 with a per-token diff if drifted.
 
-**`scripts/check-website-assets.py`** — byte-equality lock. SHA256-compares `website/static/icons/*.svg` ↔ `public/icons/*.svg` (23 pairs as of 2026-09-04 — the script compares the two directories 1:1 by filename, so the pair count is emergent) and `website/static/img/screenshot-*.png` ↔ `docs/assets/screens/*.png` (4 pairs, per `static/img/README.md`'s mapping table). Exits 0 if all pairs byte-identical, 1 with the drifted filename if not.
+**`scripts/check-website-assets.py`** — byte-equality lock. SHA256-compares `website/static/icons/*.svg` ↔ `public/icons/*.svg` (24 pairs as of 2026-11-01 — the script compares the two directories 1:1 by filename minus a documented exclusion: `ICON_EXCLUSIONS = {"aggregate.svg"}` exempts extension-only icons with no website counterpart, so the pair count is emergent) and `website/static/img/screenshot-*.png` ↔ `docs/assets/screens/*.png` (4 pairs, per `static/img/README.md`'s mapping table). Exits 0 if all pairs byte-identical, 1 with the drifted filename if not.
 
 ### 3. Split must-match from intentional divergence
 

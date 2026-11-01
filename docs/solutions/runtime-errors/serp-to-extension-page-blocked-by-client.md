@@ -1,7 +1,7 @@
 ---
 title: "SERP Content Script Cannot Top-Level Navigate to an Extension Page (ERR_BLOCKED_BY_CLIENT)"
 date: 2026-07-08
-last_updated: 2026-08-01
+last_updated: 2026-11-01
 category: runtime-errors
 module: "serp-bar content script / background worker / messaging"
 problem_type: runtime_error
@@ -90,7 +90,7 @@ export type SerpHandoff =
 export function resolveSerpHandoff(source, query): SerpHandoff | null { ... }
 ```
 
-回归测试 `tests/serp-bar.test.ts` 锁定 provider 分支产出 `openSearchPage`、engine 分支产出 `navigate`。
+回归测试 `tests/serp-handoff.test.ts` 锁定 provider 分支产出 `openSearchPage`、engine 分支产出 `navigate`（`describe('resolveSerpHandoff — provider chip (回归 ERR_BLOCKED_BY_CLIENT)')`，`tests/serp-handoff.test.ts:130-144`）。
 
 ## Why This Works
 
@@ -110,7 +110,7 @@ export function resolveSerpHandoff(source, query): SerpHandoff | null { ... }
 
 - **网页上下文不得顶层导航到 `chrome-extension://`。** 任何由内容脚本发起、目标是扩展页的跳转，都应委托 background 用 `tabs.update`/`tabs.create` 执行。引擎→SERP 这种「网页→https」的跳转用 `location.assign` 没问题。
 - **内容脚本不要 `export` 命名成员。** WXT 会把带命名 export 的内容脚本当可分析模块，触发其依赖图顶层的浏览器 API 副作用（如 `browser.i18n.getUILanguage()`），在 `wxt build` 下炸开。需要单测的逻辑抽到独立的纯模块（本项目用 `lib/serp-handoff.ts`；可复用的抽取 + 默认参数 DI 模式详见 `docs/solutions/architecture-patterns/testable-content-script-helpers-via-lib-extraction.md`）。
-- **快切两方向都要有测试。** 此前只有 Juso→SERP 方向（`search-page.test.tsx`）有覆盖，反向 SERP→Juso 零覆盖，所以回归没被拦住。新增 `tests/serp-bar.test.ts` 后，provider 分支产出 `openSearchPage`、engine 分支产出 `navigate` 被锁定。
+- **快切两方向都要有测试。** 此前只有 Juso→SERP 方向（`search-page.test.tsx`）有覆盖，反向 SERP→Juso 零覆盖，所以回归没被拦住。`tests/serp-handoff.test.ts` 的 provider chip 回归 describe（回归 ERR_BLOCKED_BY_CLIENT）落地后，provider 分支产出 `openSearchPage`、engine 分支产出 `navigate` 被锁定。
 
 ## Related Issues
 

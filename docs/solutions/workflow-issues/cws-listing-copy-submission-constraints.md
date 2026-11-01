@@ -1,7 +1,7 @@
 ---
 title: Chrome Web Store Listing Copy & Privacy Questionnaire Submission Constraints
 date: 2026-08-01
-last_updated: 2026-08-07
+last_updated: 2026-11-01
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -51,7 +51,7 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 
 - 商店说明字段里**不堆砌**品牌/引擎名（6+ 个触发关键字垃圾判罚）。但 **≤3 个品牌名 + "等"** 可接受且利于 SEO——v1.3.0 过审版本用了"聚合baidu、bing和Google等传统搜索引擎"（3 个 + 等），v1.4.0 沿用此模式分三类各列 3 个 + 等（"Google、Bing、百度等"、"ChatGPT、DeepSeek、Gemini 等"、"Tavily、Exa、Stepfun 等"）。
 - 用类别词概括功能：如「传统搜索引擎」「你已配置的 AI 搜索服务」，而不是逐个点名。**概括不算虚假描述**——扩展确实支持这些类别，概括并未夸大。≤3+等 是概括与可发现性的平衡点。
-- 功能亮点写特性本身，不靠品牌名堆砌支撑：例如 SERP 快切栏写「栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏下改为固定底栏」，这是功能特性，不依赖任何品牌名。
+- 功能亮点写特性本身，不靠品牌名堆砌支撑：例如 SERP 快切栏写「栏位可选『顶部 / 内联 / 底部 / 自动』，自动模式在桌面内联插入，窄屏下改为固定底栏」，这是功能特性，不依赖任何品牌名。
 - 以已过审版本（v1.2.0）的措辞结构为基线重写：【它解决什么问题】【核心功能】【为谁而做】【隐私与安全】【开源与免费】。已过审的措辞本身就是「什么样的文案能过审」的最佳样本。
 
 ### 2. 隐私问卷四节全部 ≤1000 字符，先量后写
@@ -62,10 +62,11 @@ v1.3.0 的发版申请把三个商店文案问题集中暴露在同一轮里，�
 
 ### 3. 商店文档单主版，无副本
 
-- `docs/assets/store/` 收敛为三个职责清晰的文件，每块内容只出现一次：
+- `docs/assets/store/` 的**文案主版**收敛为三个职责清晰的文件，每块文案只出现一次：
   - `cws-release.md`：商店详情填表文案（**中文为填表主版**）
   - `privacy.md`：隐私问卷填表文案（**英文为填表主版**）
   - `privacy-policy.md`：公开隐私政策（双语，用作商店 Privacy Policy URL）
+  - 目录中另有非文案资产：商店宣传图（`promo-1400x560.html/png`、`promo-440x280.html/png`）、商店截图（`screenshot-search{,-en}.png`、`screenshot-serp{,-en}.png`）与 `originals/` 截图原件——它们不是文案副本，不构成双写
 - 删除零引用的 `description.md` 副本。英文说明若有需要，应放进正式的 `privacy-policy.md` 双语政策里，而不是另立无人引用的副本文件。
 - 改文案只改主版，不双写；任何新增的商店文档文件，落盘前先确认是否已有主版可改。
 
@@ -95,7 +96,7 @@ The v1.4.0 release-prep pass exposed four further lessons (a code-accuracy audit
 
 ### 6. CWS 文档准确度审计：样式注入模式描述必须与代码一致
 
-隐私问卷 `privacy.md` §4(3) 原写 "top: repositions Baidu/Douyin toolbars"，但代码（`entrypoints/serp-bar.content.ts:96-119` `applyPositionChrome`）的实际行为是：
+隐私问卷 `privacy.md` §4(3) 原写 "top: repositions Baidu/Douyin toolbars"，但代码（`entrypoints/serp-bar.content.ts:97-120` `applyPositionChrome`）的实际行为是：
 
 - `inline` 模式 → `injectPageStyles(state.engine)` → 注入百度/抖音的 `PAGE_STYLES`（位移引擎自身工具栏）；移除覆盖层垫高
 - `top` 模式 → `removePageStyles()` + `injectTopPadStyles()` → 移除引擎样式，页面顶部垫高
@@ -135,7 +136,7 @@ GitHub Release notes（双语、经用户审定、附在 GitHub Release 上）�
 > ChatGPT、DeepSeek、Gemini 等 AI 对话站点……
 > Tavily、Exa、Stepfun 等 AI 搜索能力……
 
-功能特性照写，但不靠品牌名堆砌支撑——「SERP 快切栏：栏位可选『顶部 / 底部 / 自动』，自动模式在窄屏（≤480px）下自动改为固定在页面底部的紧凑底栏」。
+功能特性照写，但不靠品牌名堆砌支撑——「SERP 快切栏：栏位可选『顶部 / 内联 / 底部 / 自动』，自动模式在桌面内联插入，窄屏（≤480px）下改为固定底栏」。
 
 ### 2. storage 权限理由 1086 字符 → 732 字符
 
@@ -147,7 +148,7 @@ GitHub Release notes（双语、经用户审定、附在 GitHub Release 上）�
 
 **Before**：`description.md`（中英双语说明）与 `cws-release.md`（中文填表主版）内容完全重复、仓库零引用，改说明要双写。
 
-**After**：删除 `description.md`，`docs/assets/store/` 只剩三个职责清晰的文件（填表文案 / 隐私问卷 / 公开政策），商店文案只有一个主版文件。
+**After**：删除 `description.md`，`docs/assets/store/` 的文案主版只剩三个职责清晰的文件（填表文案 / 隐私问卷 / 公开政策），商店文案只有一个主版文件（目录中另有 promo 宣传图、商店截图与 `originals/` 原件等非文案资产）。
 
 ### 4. 模式描述：top 位移（错）→ inline 位移（对）
 

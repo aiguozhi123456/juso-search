@@ -186,7 +186,7 @@ cta_links_label:     { other: "下一步" }            # Next steps
 -agents_doc_open_app:  { other: "进入接入前置条件" }
 ```
 
-删除死键与清理孤儿键（如 `sec_bridge`）同样重要：留着只会诱惑未来的人把它重新接回去。
+删除死键与清理孤儿键同样重要——但两者在本轮的下场不同：死键 `human_doc_open_app` / `agents_doc_open_app` 已删，孤儿块 `sec_bridge`（`sec_bridge` / `sec_bridge_sub` / `sec_bridge_link`，zh.yaml / en.yaml 各一份，zh.yaml:97-101 起）**至今仍在两份 yaml 里、零引用，清理仍待执行**：留着只会诱惑未来的人把它重新接回去。
 
 ### 6. CSS：`.guide-back` 单链 → 双链容器（`assets/css/style.css`）
 

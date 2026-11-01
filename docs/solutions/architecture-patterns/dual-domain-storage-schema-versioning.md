@@ -2,7 +2,7 @@
 title: Dual-domain storage schema versioning and config export/import
 module: lib/schema
 date: 2026-07-08
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: docs/solutions/architecture-patterns
 problem_type: architecture_pattern
 component: tooling
@@ -31,13 +31,13 @@ tags:
 
 ## Context
 
-This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan — the v1-era four; the family has since grown to nine, incl. Brave and Parallel) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to ~50 entries, ~1MB of data).
+This is a Chrome MV3 browser extension built on WXT + React + TypeScript. It is a BYOK (bring-your-own-key) AI search aggregator: users store their own API keys for providers (Tavily, Exa, Stepfun, Stepfun Plan — the v1-era four; the family has since grown to nine, incl. Brave and Parallel) in `chrome.storage.local`, choose an active provider and default search source, set theme/locale preferences, and the extension caches recent search results (up to 100 entries — `SEARCH_CACHE_CAP` in `lib/search-cache.ts`).
 
 The extension's storage had grown organically and accumulated three latent problems:
 
 1. **No schema versioning.** The stored data shape had no version stamp anywhere. Any future change to a key's shape (renames, new fields, structural moves) would silently corrupt old data on read, because code would assume the new shape against data written in the old shape. There was no migration story at all.
 2. **No config export/import.** Users could not back up their keys and preferences, nor transfer a configured extension between machines. Re-entering keys on every device is friction, and losing keys (a crashed profile, a re-install) means losing access to paid provider accounts until the user digs them up again.
-3. **`get(null)` performance debt.** Several storage read paths used `chrome.storage.local.get(null)`, which reads the *entire* store — including all ~50 cache entries (~1MB) — just to read a single small key. This is wasteful on every call, and especially bad because MV3 service workers are killed and restarted frequently, so these reads happen on essentially every worker wakeup.
+3. **`get(null)` performance debt.** Several storage read paths used `chrome.storage.local.get(null)`, which reads the *entire* store — including all 100 cache entries — just to read a single small key. This is wasteful on every call, and especially bad because MV3 service workers are killed and restarted frequently, so these reads happen on essentially every worker wakeup.
 
 On top of all this, the project maintains a strict trust boundary (called R7 in this codebase): API keys are BYOK, are stored in `chrome.storage.local`, and are *only ever read by the background worker*. Page code (search UI, options UI) never reads stored keys, and never reads the `providerKeys` map directly. Any feature that needs to surface configuration state does so through worker messages that return a *desensitized* view (e.g. "which providers are configured", not the keys themselves). This boundary had to be preserved across the new export/import feature.
 
@@ -49,8 +49,8 @@ The work happened in one cohesive change that introduced dual-domain schema vers
 
 When storage holds heterogeneous data with different change rates, give each natural cluster its own schema version stamp and its own migration registry. In this codebase there are two domains:
 
-- **Config domain** (`lib/schema.ts`): operates on nineteen small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `sourceOrder`, `sourceHidden`, `siteInstances`, `customEngines`, `providerInstances`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`, `selectionSearchEnabled`, `selectionSearchSource`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
-- **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (up to ~50 entries, ~1MB). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
+- **Config domain** (`lib/schema.ts`): operates on twenty-three small keys — `providerKeys`, `activeProvider`, `activeSource`, `themePref`, `localePref`, `stylePref`, `sourceOrder`, `sourceHidden`, `siteInstances`, `customEngines`, `providerInstances`, `aggregateInstances`, `rerankConfig`, `agentBridgeEnabled`, `engineSearchEnabled`, `providerMaxResults`, `groupConfig`, `serpBarPosition`, `aiAutoEnter`, `flatLayoutFewSources`, `selectionSearchEnabled`, `selectionSearchSource`, `onboardingCompleted`. Stamped with `schemaVersion` and migrated by the `migrations` registry.
+- **Cache pool domain** (`lib/search-cache.ts`): operates on `searchCacheIndex` plus the `searchCacheEntry:*` key pool (capped at `SEARCH_CACHE_CAP = 100` entries, shared by provider and aggregate entries). Stamped with `cacheSchemaVersion` and migrated by the `cacheMigrations` registry.
 
 ```ts
 // lib/schema.ts — config domain
@@ -219,7 +219,7 @@ Merge semantics are deliberately conservative on both axes:
 - **Keys are non-destructive (fill-empty-slots only).** An imported key only fills a slot that is currently empty. An existing configured key is *never* overwritten by an import, even if they differ. This prevents an accidentally-imported stale file from clobbering a freshly-rotated key.
 - **Preferences are opt-in via `applyPrefs`, gated by a preview-confirm dialog.** The page first calls `previewImport`, the worker returns a computed diff (what *would* change), the UI shows it to the user, and only if the user confirms does the subsequent `importConfig` call include `applyPrefs: true`. Preferences include both provider-only state (`activeProvider`) and user-facing source state (`activeSource`, `sourceOrder`). Older export files without `sourceOrder` preserve the current quick-switch order.
 
-For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also use the shared `withSourceMutation` boundary (unified source graph queue covering sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, groupConfig, activeSource), so an older import cannot overwrite a later quick-switch move.
+For read-modify-write sequences on `providerKeys` (where two concurrent messages could race), wrap the mutation in a serialization queue (`withProviderKeysMutation` in `lib/storage/provider-keys-store.ts`) so that read-modify-write is atomic with respect to itself. Imports also route through `withSharedKeyWrite` (`lib/storage/shared-key-write.ts`) — the single sanctioned acquisition order for shared-key writers: `withSourceMutation(withProviderKeysMutation(withProviderMaxResultsMutation(...)))`, lock order source → keys → maxResults. The innermost `withSourceMutation` is the unified source graph queue covering sourceOrder, sourceHidden, siteInstances, customEngines, providerInstances, aggregateInstances, rerankConfig, groupConfig, activeSource — so an older import cannot overwrite a later quick-switch move.
 
 ### Never use `get(null)` when you know the keys you need
 
@@ -251,7 +251,7 @@ The pattern solves four problems that each look different on the surface but sha
 
 **Schema versioning is non-negotiable for any persistent data.** Without a version stamp, every future shape change becomes a silent corruption bug waiting for the right combination of "old install + new code + code path that reads the changed key." The cost of adding a version stamp and an empty migration registry *now* is trivial; the cost of retrofitting it *after* you've shipped an un-versioned shape change that breaks user data is enormous, and in a BYOK context "broken user data" can mean losing paid provider credentials.
 
-**Dual-domain versioning respects change-rate asymmetry.** Config keys change shape roughly as often as product direction shifts. Cache structure changes rarely. Coupling them into one version number forces every config migration to also read and rewrite the cache pool — a ~1MB IO tax on every minor schema bump.
+**Dual-domain versioning respects change-rate asymmetry.** Config keys change shape roughly as often as product direction shifts. Cache structure changes rarely. Coupling them into one version number forces every config migration to also read and rewrite the cache pool — a full cache-pool IO tax on every minor schema bump.
 
 **The three-layer `ensure*` makes versioning affordable in MV3.** Because the steady-state layer reads *only* the version stamp key (one small read, ~0.1ms), the amortized cost of versioning over the worker's lifetime is essentially zero. Without this layer, versioning would re-introduce exactly the `get(null)` problem it was meant to solve.
 
@@ -361,7 +361,7 @@ async function handleExportConfig() {
 
 - [theme-persistence-i18n-key-hygiene](../best-practices/theme-persistence-i18n-key-hygiene.md) — origin of the BYOK key-hygiene / `get(null)` rules that this doc extends to worker-side reads and the export/import path
 - [local-search-cache-mv3](./local-search-cache-mv3.md) — documents the cache structure (searchCacheIndex / searchCacheEntry) that the cache-pool domain versioning governs; its `withSearchCacheMutation` queue is the precedent for worker-kill-safe migration ordering
-- [provider-api-integration-patterns](./provider-api-integration-patterns.md) — defines the BYOK + worker-only-key-read invariant that config export/import preserves
+- [standardized-provider-engine-adapter-layers](./standardized-provider-engine-adapter-layers.md) — defines the BYOK + worker-only-key-read invariant that config export/import preserves (see its Why This Works section)
 - `lib/schema.ts` — config-domain versioning: `CURRENT_SCHEMA_VERSION`, `migrations`, `migrateConfig`, `ensureSchema`, `diffKeys`
 - `lib/search-cache.ts` — cache-domain versioning: `CURRENT_CACHE_SCHEMA_VERSION`, `cacheMigrations`, `migrateCachePool`, `ensureCacheSchema`, `runCacheMigration`, `recoverCacheSchemaByClear`
 - `lib/config-io.ts` — export/import: `buildExportPayload`, `parseImportPayload`, `previewImport`, `mergeImport`

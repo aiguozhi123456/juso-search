@@ -1,7 +1,7 @@
 ---
 title: "Right-click context menu search and MV3 worker lifecycle defects"
 date: 2026-08-12
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: logic-errors
 module: "lib/context-menu / entrypoints/background / lib/storage / lib/sources / lib/source-groups / lib/serp-handoff / lib/i18n / wxt.config"
 problem_type: logic_error
@@ -68,13 +68,23 @@ tags: [context-menu, chrome-mv3, service-worker, worker-lifecycle, contextmenus,
      const source = sourceById.get(sourceId) ?? resolveSourceFromSnapshot(snapshot, sourceId);
      if (!source) return;
 
-     const handoff = resolveSerpHandoff(source, query, { aiAutoEnter: snapshot.aiAutoEnter });
+     // 动态源（site-instance / custom-engine）的定义可能已在 Options 被编辑/删除，
+     // 点击时用新鲜快照重解析（dynamic-source-stale-navigation-guard）；
+     // 静态源走 resolveSerpHandoff。
+     let handoff: SerpHandoff | null;
+     if (source.kind === 'site-instance') {
+       handoff = resolveCurrentSiteInstanceHandoff(source.id, query, snapshot.siteInstances);
+     } else if (source.kind === 'custom-engine') {
+       handoff = resolveCurrentCustomEngineHandoff(source.id, query, snapshot.customEngines);
+     } else {
+       handoff = resolveSerpHandoff(source, query, { aiAutoEnter: snapshot.aiAutoEnter });
+     }
      if (!handoff) return;
      // navigate → browser.tabs.create({ url }); openSearchPage → buildSafeSearchUrl(deepLink) 后 create
      ...
    }
    ```
-2. **新增私有 `resolveSourceFromSnapshot`**：与菜单构建同参调用 `allSources(...)` 投影源列表后 `find`，保证「菜单里的源」与「快照解析出的源」严格一致：
+2. **新增私有 `resolveSourceFromSnapshot`**：与菜单构建同参调用 `allSources(...)` 投影源列表后 `find`（含聚合第 7 参 `aggregateSourcesOf(snapshot.aggregate)`），保证「菜单里的源」与「快照解析出的源」严格一致：
    ```ts
    function resolveSourceFromSnapshot(
      snapshot: Awaited<ReturnType<typeof getProviderConfigSnapshot>>,
@@ -87,6 +97,7 @@ tags: [context-menu, chrome-mv3, service-worker, worker-lifecycle, contextmenus,
        snapshot.siteInstances,
        snapshot.customEngines,
        snapshot.providerInstances,
+       aggregateSourcesOf(snapshot.aggregate),
      ).find((s) => s.id === sourceId);
    }
    ```
@@ -155,7 +166,7 @@ do/while 天然合并突发重建请求（第一轮结束前的多次请求只�
 
 ### 2. 点击跳转：复用 SERP 跳转解析，遵守扩展页白名单
 
-- 点击时从 `info.selectionText` 取查询词（`trim()` 后为空则静默 return），用 `resolveSerpHandoff(source, query, opts)`（`lib/serp-handoff.ts`）解析跳转意图，得到判别联合 `{kind:'navigate', url}` / `{kind:'openSearchPage', deepLink}`。
+- 点击时从 `info.selectionText` 取查询词（`trim()` 后为空则静默 return），用 `resolveSerpHandoff(source, query, opts)`（`lib/serp-handoff.ts`）解析跳转意图，得到判别联合 `{kind:'navigate', url}` / `{kind:'openSearchPage', deepLink}`。动态源例外：`site-instance` / `custom-engine` 的定义可能已在 Options 被编辑/删除（`sourceById` 缓存的是上次重建的快照），这两类在点击时先经 `resolveCurrentSiteInstanceHandoff` / `resolveCurrentCustomEngineHandoff` 用新鲜快照重解析，已删除 → null → 不导航，其余源才落到 `resolveSerpHandoff`（规则见 [dynamic-source-stale-navigation-guard](../design-patterns/dynamic-source-stale-navigation-guard.md)）。
 - `navigate`（engine/ai-engine/site/custom）→ 直接 `browser.tabs.create({ url })`。
 - `openSearchPage`（provider/provider-instance）→ **必须**经 `buildSafeSearchUrl(deepLink)`（`lib/search-page-url.ts`）生成 URL——该函数固定 `base=/search.html` 并白名单转发 `provider/query` 参数，防止任意跳转到 `options.html` 等特权扩展页。安全边界在 URL 构建处，而不是信任调用方。
 - 用户偏好必须透传：`aiAutoEnter` 决定注入型 AI 引擎（ChatGPT/DeepSeek/豆包/Gemini）是否追加 `enter=1` 自动提交。`resolveSerpHandoff(source, query, { aiAutoEnter: snapshot.aiAutoEnter })`——**两处 UI 用同一个快照键，行为才一致**（M3 的教训）。点击处理先读一次配置快照，让 M3 偏好与 S1 回退自解析共用同一份，避免重复读存储。
@@ -174,7 +185,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 });
 ```
 
-- **重建触发判定集中一处**：`contextMenuNeedsRebuild(changes)` 用 `REBUILD_KEYS` Set 判断，key 集合 = 影响菜单结构与可用源的配置键：`sourceOrder` / `sourceHidden` / `siteInstances` / `customEngines` / `providerInstances` / `groupConfig` / `providerKeys` / `localePref` / `flatLayoutFewSources`。**新增一个影响菜单的 storage 键时，必须同步加入 REBUILD_KEYS**——这是 M1（`localePref`）与 M2（`flatLayoutFewSources`）漏掉的共同根因。（不变量本身未变：v9→v10 仅把集合内的 `siteEngines` 键名换成了改名后的 `siteInstances`。）
+- **重建触发判定集中一处**：`contextMenuNeedsRebuild(changes)` 用 `REBUILD_KEYS` Set 判断，key 集合 = 影响菜单结构与可用源的配置键：`sourceOrder` / `sourceHidden` / `siteInstances` / `customEngines` / `providerInstances` / `aggregateInstances` / `rerankConfig` / `groupConfig` / `providerKeys` / `localePref` / `flatLayoutFewSources`（聚合 KTD16：`aggregateInstances` 变更菜单结构，`rerankConfig` 变更 eligibility 隐式可见轴）。**新增一个影响菜单的 storage 键时，必须同步加入 REBUILD_KEYS**——这是 M1（`localePref`）与 M2（`flatLayoutFewSources`）漏掉的共同根因。（不变量本身未变：v9→v10 仅把集合内的 `siteEngines` 键名换成了改名后的 `siteInstances`。）
 - storage 监听器**独立注册**（与 UI pref 广播的 onChanged 分开），职责单一。
 
 ### 4. i18n 参与菜单语言
@@ -196,7 +207,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 
 ## Examples
 
-- 真实实现参考：`C:\workspace\search\lib\context-menu.ts`（206 行，修复后最终版）、`entrypoints/background.ts`（接线）、`tests/context-menu.test.ts`（11 用例，覆盖 REBUILD_KEYS 判定、菜单树 19 项精确序列（weixin 引擎加入后由 18 增至 19）、navigate/openSearchPage 两跳转分支、空选词、非叶子前缀、M2 projectLayout 分支、M3 aiAutoEnter:false、S1 快照回退）。
+- 真实实现参考：`C:\workspace\search\lib\context-menu.ts`（223 行，修复后最终版）、`entrypoints/background.ts`（接线）、`tests/context-menu.test.ts`（19 用例，覆盖 REBUILD_KEYS 判定、菜单树 19 项精确序列（weixin 引擎加入后由 18 增至 19）、navigate/openSearchPage 两跳转分支、空选词、非叶子前缀、M2 projectLayout 分支、M3 aiAutoEnter:false、S1 快照回退、动态源新鲜快照重解析，以及聚合 chip 场景 describe——实例增删/改成员/rerank 变化 → 菜单重建 + chip 集同步（`tests/context-menu.test.ts:286` 起））。
 - 测试断言示例（engine → navigate）：
   ```ts
   await handleContextMenuClick({ menuItemId: 'juso-src:google', selectionText: 'hello world' });

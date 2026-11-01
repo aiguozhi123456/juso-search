@@ -1,7 +1,7 @@
 ---
 title: Service Worker fetch Illegal invocation when passing global fetch as a dependency
 date: 2026-07-23
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: runtime-errors
 module: agent-bridge
 problem_type: runtime_error
@@ -71,7 +71,7 @@ return runAgentBridge(data, {
 });
 ```
 
-> The deps object has since gained `handleSearchInstance` / `listInstances` / `listEngines` (v2 protocol actions) — see `entrypoints/background.ts:155-168`; the `fetch` wrapper form is unchanged.
+> The deps object has since grown to ten handlers — `handleSearch` / `listProviders`, the v2 protocol actions `handleSearchInstance` / `listInstances` / `listEngines`, plus `listSites` / `listAggregates` / `handleSearchAggregate` / `handleSearchSite` / `handleEngineSearch` (site & aggregate actions) — see `entrypoints/background.ts:182-208`; the `fetch` wrapper form is unchanged.
 
 Equivalent alternatives: `fetch.bind(globalThis)` or an explicit wrapper that calls the free function form.
 

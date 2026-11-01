@@ -1,7 +1,7 @@
 ---
 title: Default-off capability gating for Agent Bridge and engine-search (CWS compliance)
 date: 2026-07-25
-last_updated: 2026-08-15
+last_updated: 2026-11-01
 category: docs/solutions/architecture-patterns
 module: Agent Bridge / background worker
 problem_type: architecture_pattern
@@ -29,7 +29,7 @@ The same review flagged two related but lower-risk issues: the SERP switch-bar i
 Any capability that can drive the browser to load third-party pages or extract their content **must ship off by default**, behind a two-layer opt-in:
 
 1. **A total switch** gating the entire capability surface (here: `agentBridgeEnabled`, default `false`). Checked at the message-handler entry, before any work begins. When off, the handler returns `{ ok: false }` immediately and the bridge page closes itself — the capability is invisible to the outside world.
-2. **A sub-switch** gating only the highest-risk sub-action (here: `engineSearchEnabled`, default `false`). Checked inside the executor wrapper, not the handler entry, so the lower-risk actions (provider search, list-providers) still work once the total switch is on. When off, the sub-action returns a typed error (`{ error: 'extract-failed' }`) rather than executing.
+2. **A sub-switch** gating the highest-risk capability — third-party-page extraction (here: `engineSearchEnabled`, default `false`). Since 2026-09-14 it is capability-scoped over the three agent paths that can open engine pages, not tied to one action name: `engine-search` folds to a typed error (`{ error: 'extract-failed' }`), `search-site` returns an `ok:false` envelope carrying the `error_agent_engine_search_disabled` i18n message, and aggregate searches containing engine members are gated gateway-side (`lib/gateway.ts:314-328`; decision record `agent-aggregate-engine-member-gating.md`). Checked inside the executor wrappers and the gateway, not the handler entry, so the lower-risk actions (provider search, list-providers) still work once the total switch is on.
 
 The sub-switch must be **UI-disabled when the total switch is off** (`disabled={!bridgeEnabled}`), so the user cannot enable the high-risk path without first enabling the surface that governs it.
 
@@ -41,19 +41,33 @@ Gate at the **caller**, not inside the library. The library (`lib/agent-bridge.t
 // entrypoints/background.ts
 onMessage('agentBridgeClaim', async ({ data, sender }) => {
   if (!isTrustedBridgeSender(sender, browser.runtime.id)) return { ok: false };
-  // Total switch: gates the entire bridge（写文时为 search / list-providers / engine-search 三个动作，现共六个）。
+  // Total switch: gates the entire bridge（写文时为 search / list-providers / engine-search 三个动作，现共十个）。
   if (!(await getAgentBridgeEnabled())) return { ok: false };
   return runAgentBridge(data, {
     fetch: (...args) => fetch(...args),
     handleSearch,
     listProviders: handleListAgentProviders,
-    // Sub-switch: gates only engine-search. Wraps the executor dependency,
-    // so runAgentBridge's signature stays clean and the gate is testable in isolation.
-    handleEngineSearch: async (request, signal) => {
+    handleSearchInstance: handleSearchInstance,
+    listInstances: handleListAgentInstances,
+    listEngines: handleListAgentEngines,
+    listSites: handleListAgentSites,
+    listAggregates: handleListAgentAggregates,
+    handleSearchAggregate: handleSearchAggregate,
+    // Sub-switch: capability-scoped over third-party-page extraction (engine-search,
+    // search-site; aggregate engine members are gated in lib/gateway.ts). Wraps the
+    // executor dependencies, so runAgentBridge's signature stays clean and the gate
+    // is testable in isolation.
+    handleSearchSite: async (request, signal, deadline) => {
+      if (!(await getEngineSearchEnabled())) {
+        return { ok: false, error: { kind: 'unknown' as const, message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } };
+      }
+      return handleSearchSiteInstance(request, signal, engineInnerBudgetMs(deadline, Date.now()));
+    },
+    handleEngineSearch: async (request, signal, deadline) => {
       if (!(await getEngineSearchEnabled())) {
         return { engine: request.engineId, query: request.query, error: 'extract-failed' };
       }
-      return runEngineSearch(request, signal, { tabs: browser.tabs });
+      return runEngineSearch(request, signal, { tabs: browser.tabs, completeTimeoutMs: engineInnerBudgetMs(deadline, Date.now()) });
     },
   });
 });
@@ -71,7 +85,7 @@ The default-on posture made a compliant product *look* non-compliant. The capabi
 
 Default-off reframes the same capability from "the extension scrapes by default" to "the user explicitly chose to expose this." That is the difference between a scraping tool and a user-assistant feature. The cost is one checkbox; the user who wants it opts in once and loses nothing.
 
-The two-layer split matters because not all sub-actions carry the same risk. `list-providers` returns no keys and no page content; gating it behind the engine-search switch would punish low-risk usage. Putting the total switch at the handler entry and the sub-switch at the executor wrapper gives a clean risk gradient: off → bridge-invisible, total-on → agent can search/list, sub-on → agent can scrape engines.
+The two-layer split matters because not all sub-actions carry the same risk. `list-providers` returns no keys and no page content; gating it behind the engine-search switch would punish low-risk usage. Putting the total switch at the handler entry and the sub-switch at the executor wrappers (plus the gateway-side gate for aggregate engine members) gives a clean risk gradient: off → bridge-invisible, total-on → agent can search/list, sub-on → agent can scrape engine and site pages.
 
 ## When to Apply
 
@@ -111,6 +125,7 @@ These are reduction-in-risk optimizations, not blockers; the default-off gate is
 ## Related
 
 - `docs/solutions/architecture-patterns/agent-skill-localhost-capability-bridge.md` — the Agent Bridge architecture this gate plugs into. It already describes the same two-layer gating (the total-switch check precedes injection, and the executor is wrapped by the sub-switch) and cross-references this doc.
+- `docs/solutions/architecture-patterns/agent-aggregate-engine-member-gating.md` — the decision record for capability-scoping the sub-switch (since 2026-09-14): the bridge's aggregate searches containing engine members are gated gateway-side, while user-initiated aggregate engine members (visible UI) run without the agent gate.
 - `docs/solutions/architecture-patterns/google-bing-serp-scope-minimization.md` — the other half of the CWS-compliance story: static injection-scope minimization. This doc is the runtime-capability counterpart.
 - `docs/solutions/architecture-patterns/config-preference-pipeline.md` — the end-to-end preference pipeline the two new switches follow (storage / schema / i18n / options UI).
 - `docs/assets/store/privacy.md` — the store-listing copy that discloses the default-off posture to reviewers; the code and the copy must stay in sync.

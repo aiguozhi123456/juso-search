@@ -188,7 +188,7 @@ The verified checks included the full Vitest suite, Python bridge tests, `npm ru
 
 ## Related
 
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md`
+- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`
 - `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`
 - `docs/solutions/architecture-patterns/engine-capability-is-per-registry-not-per-id-union.md` — why only the extraction-capable engine subset is exposed to the Agent
 - `docs/solutions/architecture-patterns/skill-mcp-vocabulary-decoupling.md` — provider/engine vocabulary is discovered at runtime via `list-providers`/`list-engines`, not mirrored in the skill or MCP server; `/v1/abort` on claim-side rejection

@@ -1,7 +1,7 @@
 ---
 title: "SERP bar SPA remount budget and last-resort-only anchor upgrade"
 date: 2026-07-23
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: ui-bugs
 module: "serp-bar / content-script"
 problem_type: ui_bug
@@ -100,8 +100,9 @@ Upgrade observer only runs when mounted on **last-resort**; never remount solely
 ### 5. Default-hidden engines（schema version-gated）
 
 - 新引擎 `douyin` / `xiaohongshu` 注册方式与 Google/Bing/Baidu 相同。
+- 默认隐藏延伸到挂载层：`shouldMountForEngine`（`lib/serp-bar-mount.ts`）在 engine 被 `sourceHidden` 收录（且无可见匹配站点源）时返回 false，`syncLocation` 据此移除栏且不再重挂——隐藏引擎的结果页不会出现无激活目标的残栏。
 - `CURRENT_SCHEMA_VERSION = 10`。v1→v2 合并 douyin/xiaohongshu 到 `sourceHidden`、v2→v3 添加 bilibili 默认隐藏、v3→v4 添加 siteEngines（均为历史）；v4→v5 为 groupConfig 空迁移（仅 bump 版本戳），v5→v6 添加 yandex/duckduckgo 默认隐藏，v6→v7 添加 AI 引擎默认隐藏，v7→v8 重定义 serpBarPosition `'top'`→`'inline'`，v8→v9 添加 weixin 默认隐藏，v9→v10 存储键改名 siteEngines→siteInstances。每次迁移幂等；取消隐藏后不会重新合并。
-- `ensureSchema` **先设置**迁移后的键（包括版本），**再**移除过时键。
+- `ensureSchema` 先应用迁移后的 set-diff、再移除过时键，**最后**才把 `schemaVersion` 盖章为当前版本——版本戳是 commit point（迁移值与删除全部成功后才写；失败留下旧版本，下次调用可安全重跑）。
 
 ## Why This Works
 

@@ -102,7 +102,9 @@ Recording them keeps the next provider addition mechanical.
 - Adding a REST provider whose errors use a business-code envelope inside HTTP 200.
 - Adding a provider whose brand already ships as an ai-engine icon.
 - Adding a provider with an anonymous/keyless tier (decide explicitly whether to require the
-  key; the gateway currently requires one for every provider).
+  key; since the keyless free tier the gateway supports `keyOptional` providers — it passes
+  them with an empty-string key and gates on `isProviderKeyless`, so tavily/jina/anysearch
+  work keyless while the rest keep the keyMissing gate).
 
 ## Related
 

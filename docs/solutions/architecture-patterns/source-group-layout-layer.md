@@ -3,7 +3,7 @@ title: "Source Groups: A Layout Layer Over the Source Projection"
 category: architecture-patterns
 module: source switch bar (source-groups + source projection)
 date: 2026-07-30
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 problem_type: architecture_pattern
 component: frontend_stimulus
 severity: high
@@ -62,7 +62,7 @@ export type SwitcherItem =
 ```
 
 Four deliberately independent fields:
-- **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The five builtins — `engines`, `sites`, `ai-engines`, `ai-search`, `custom` — always exist.
+- **`groups`** — the group definitions (id + label), ordered as they appear in the editor. The six builtins — `engines`, `sites`, `ai-engines`, `ai-search`, `aggregate`, `custom` — always exist (`aggregate` was inserted between `ai-search` and `custom` for aggregate instances).
 - **`layout`** — a single mixed sequence of top-row items. Each item is either a pinned source (rendered as a bare pill) or a group (rendered as a collapsible pill whose flyout opens on hover/focus as a *transient* state and pins open on click — click-to-pin, see [source-switcher-click-to-pin](../ui-bugs/source-switcher-click-to-pin.md)). Pinned sources and groups are peers and share one ordering, so the user can interleave them freely.
 - **`assignments`** — `sourceId → groupId`, recorded **only** for sources that live inside a group. A pinned source does not appear in `assignments` at all; pinning is expressed by its presence in `layout`.
 - **`groupOrders`** — `groupId → explicit member order` for that group. Optional per group: when absent, the group falls back to the projected `sources` order (see section 7).
@@ -80,14 +80,14 @@ export function resolveGroupId(
 }
 ```
 
-where `defaultGroupForSourceId` maps providers and provider instances → `ai-search`, ai-engines → `ai-engines`, engines → `engines`, custom engines → `custom`, and `site:*` → `sites` (five branches — the same dispatch the context-menu mirror relies on). This means the out-of-box experience needs **zero** persisted assignments: every source falls through to its type group, and `assignments` only records deviations the user made. `SourceGroupEditor` flips between the two states with two operations: `pinSource` (append a `{kind:'source'}` entry, drop its assignment) and `foldIntoGroup` (remove its layout entry, write its assignment).
+where `defaultGroupForSourceId` maps providers and provider instances → `ai-search`, ai-engines → `ai-engines`, engines → `engines`, aggregate instances → `aggregate`, custom engines → `custom`, and `site:*` → `sites` (six branches — the same dispatch the context-menu mirror relies on). This means the out-of-box experience needs **zero** persisted assignments: every source falls through to its type group, and `assignments` only records deviations the user made. `SourceGroupEditor` flips between the two states with two operations: `pinSource` (append a `{kind:'source'}` entry, drop its assignment) and `foldIntoGroup` (remove its layout entry, write its assignment).
 
 ### 3. `normalizeGroupConfig` — the self-healing boundary
 
 Any value read from storage passes through `normalizeGroupConfig(raw, allSourceIds)` before it is used. It is the contract that guarantees a `GroupConfig` is always self-consistent regardless of what is on disk — which matters acutely in a BYOK extension where the source set is volatile. Its guarantees:
 
-- **`groups`** — drops labels that fail `isSourceLabel`, dedupes by id (first wins), and **backfills the five builtin groups in `DEFAULT_GROUPS` order**.
-- **`layout`** — drops items referencing unknown sources or unknown groups (`isSwitcherItem` checks against the live source-set and the known-group-set), dedupes by key keeping first occurrence, and falls back to `[{engines}, {sites}, {ai-engines}, {ai-search}, {custom}]` when layout is empty/missing.
+- **`groups`** — drops labels that fail `isSourceLabel`, dedupes by id (first wins), and **backfills the builtin groups in `DEFAULT_GROUPS` order**.
+- **`layout`** — drops items referencing unknown sources or unknown groups (`isSwitcherItem` checks against the live source-set and the known-group-set), dedupes by key keeping first occurrence, and falls back to `[{engines}, {sites}, {ai-engines}, {ai-search}, {aggregate}, {custom}]` when layout is empty/missing.
 - **`assignments`** — drops entries pointing at unknown sources, at deleted groups, and at sources that are currently pinned (a pinned source must not carry a stale assignment).
 
 ```ts
@@ -142,17 +142,17 @@ The getter-defaulted keys — `agentBridgeEnabled`, `engineSearchEnabled`, `prov
 
 ### 6. `groupConfig` folded into the existing provider-config snapshot and worker message
 
-There is one privileged read path for UI config: `getProviderConfigSnapshot`. `groupConfig` is folded into it alongside `sourceOrder`, `sourceHidden`, `siteEngines`, and `providerMaxResults`, computed from the same single exact-key `get`:
+There is one privileged read path for UI config: `getProviderConfigSnapshot`. `groupConfig` is folded into it alongside `sourceOrder`, `sourceHidden`, `siteInstances`, and `providerMaxResults`, computed from the same single exact-key `get`:
 
 ```ts
 const got = await browser.storage.local.get([KEYS_KEY, ACTIVE_KEY, ACTIVE_SOURCE_KEY,
-  SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_ENGINES_KEY, CUSTOM_ENGINES_KEY,
-  PROVIDER_INSTANCES_KEY, MAX_RESULTS_KEY, GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY,
-  FLAT_LAYOUT_FEW_SOURCES_KEY]);
+  SOURCE_ORDER_KEY, SOURCE_HIDDEN_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY,
+  PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY, MAX_RESULTS_KEY,
+  GROUP_CONFIG_KEY, AI_AUTO_ENTER_KEY, FLAT_LAYOUT_FEW_SOURCES_KEY]);
 ...
 const groupConfig = got[GROUP_CONFIG_KEY] && typeof got[GROUP_CONFIG_KEY] === 'object'
-  ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds(siteEngines, customEngines, providerInstances))
-  : defaultGroupConfig(allKnownSourceIds(siteEngines, customEngines, providerInstances));
+  ? normalizeGroupConfig(got[GROUP_CONFIG_KEY], allKnownSourceIds(siteInstances, customEngines, providerInstances, aggregateProjection.instances))
+  : defaultGroupConfig(allKnownSourceIds(siteInstances, customEngines, providerInstances, aggregateProjection.instances));
 ```
 
 It is also a field on `ProviderConfigReply` in `lib/messaging.ts` (`/** 来源分组与顶层布局（开箱默认按类型分组，缺失时由 worker 回退默认配置）。 */ groupConfig: GroupConfig;`), and the worker exposes a `setGroupConfig(config)` handler. So grouping rides the same plumbing the projection layer already used: one snapshot, one message pair, one known source-id set (`allKnownSourceIds`) shared across both layers so they cannot drift on what counts as a source. Import/export (`lib/config-io.ts`) carries `groupConfig` as an optional field with a preview diff and re-normalizes it against the imported Site Engines view, and v4 imports are accepted as structurally-v5-without-`groupConfig`.

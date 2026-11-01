@@ -1,7 +1,7 @@
 ---
 title: "Site Engine as third Search Source with safe persistence invariants"
 date: 2026-07-26
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: "site-engines / sources / storage / serp"
 problem_type: architecture_pattern
@@ -12,7 +12,7 @@ applies_when:
   - "Implementing normalize/read-write paths for chrome.storage-backed lists with size budgets"
   - "Wiring SERP or handoff navigation that depends on a source id written just before navigate"
   - "Importing settings schemas that must not wipe local-only collections (e.g. site engines on v3 import)"
-related_components: [lib/site-engines.ts, lib/sources.ts, lib/storage/, lib/schema.ts, lib/serp-handoff.ts, lib/config-io.ts, components/SiteEngineManager.tsx]
+related_components: [lib/site-instances.ts, lib/sources.ts, lib/storage/, lib/schema.ts, lib/serp-handoff.ts, lib/config-io.ts, lib/normalize-instance-collection.ts, components/SiteInstanceManager.tsx]
 tags:
   - site-engine
   - search-source
@@ -46,7 +46,7 @@ Product constraints that shaped the architecture:
 
 Two post-implementation defects (P0 collection wipe, P1 SERP stale navigate) are part of the durable pattern: trusted local storage normalization must never empty-on-oversize, and post-write source switches must re-resolve after write—never navigate with a pre-write URL.
 
-Key modules: `lib/site-engines.ts`, `lib/sources.ts`, `lib/storage/`, `lib/schema.ts`, `lib/config-io.ts`, `lib/serp-handoff.ts`, `entrypoints/search/App.tsx`, `entrypoints/serp-bar.content.ts`, `components/SiteEngineManager.tsx`.
+Key modules: `lib/site-instances.ts`, `lib/sources.ts`, `lib/storage/`, `lib/schema.ts`, `lib/config-io.ts`, `lib/serp-handoff.ts`, `entrypoints/search/App.tsx`, `entrypoints/serp-bar.content.ts`, `components/SiteInstanceManager.tsx`.
 
 Verification after fixes: typecheck, lint, full test suite, and build passed; residual review: no actionable findings.
 
@@ -69,7 +69,7 @@ Treat each saved Site Engine as a Search Source entry resolved at runtime:
   - Google: `host + path` **without** scheme (`example.com/docs`, not `https://example.com/docs`).
   - Bing: host + ≤ two path segments.
   - Baidu: hostname only.
-- Keep validation and URL construction in `lib/site-engines.ts` (or co-located pure helpers) so search page, SERP bar, and manager UI cannot drift.
+- Keep validation and URL construction in `lib/site-instances.ts` (or co-located pure helpers) so search page, SERP bar, and manager UI cannot drift.
 
 ### 3. Storage and schema: trust boundary for collections
 
@@ -78,20 +78,22 @@ Schema v4 adds `siteEngines`. Critical storage rule:
 | Path | Behavior |
 |------|----------|
 | **Trusted local reads** (`chrome.storage.local` already owned by this extension) | Normalize **item-by-item**. Never return `[]` solely because length > MAX or serialized size > budget. Oversize collections stay partially usable; corrupt items drop individually. |
-| **Untrusted import** (config file / foreign payload) | Use a bound check such as `isBoundedSiteEngineCollection`. Reject or refuse merge when over budget. |
-| **Mutations** (create / update / delete) | Build `next`, then reject write if `siteEnginesSerializedBytes(next)` exceeds the budget. Do not “normalize down to empty” after a successful user edit. |
+| **Untrusted import** (config file / foreign payload) | Use a bound check such as `isBoundedSiteInstanceCollection`. Reject or refuse merge when over budget. |
+| **Mutations** (create / update / delete) | Build `next`, then reject write if `siteInstancesSerializedBytes(next)` exceeds the budget. Do not “normalize down to empty” after a successful user edit. |
 | **v3 → v4 import** | Must **not** wipe existing local `siteEngines`. Merge/import paths preserve local Site Engines when the import blob has no (or empty) site-engine field. |
+
+The generalized trusted-read helper now lives in `lib/normalize-instance-collection.ts`（`normalizeInstanceCollection` / `isBoundedInstanceCollection`，site / provider / aggregate / custom-engine 四类实例集合共用同一条管线）；`lib/site-instances.ts` 以站点特定的解析、去重键与上界常量（`MAX_SITE_INSTANCES = 50` 等）绑定它。
 
 ### 4. Post-write navigation and active source (search + SERP)
 
 Search page already used a safe sequence: write → re-read config → re-resolve source → navigate. SERP switch bar must **mirror** that pattern.
 
-Shared helper pattern (`decidePostWriteSiteEngineNavigation`):
+Shared helper pattern (`decidePostWriteSiteInstanceNavigation`):
 
 1. Persist active source / definition change.
 2. Re-read config from storage.
 3. Re-resolve the selected Site Engine id against the post-write collection.
-4. If the engine was **deleted** or unresolved after write → call `onUnresolvedSiteEngine` (or equivalent) and **do not navigate**.
+4. If the engine was **deleted** or unresolved after write → call `onUnresolvedSiteInstance` (or equivalent) and **do not navigate**.
 5. If resolved → navigate with the **post-write** URL.
 
 Also apply:
@@ -103,7 +105,7 @@ Also apply:
 ### 5. UI surfaces
 
 - **Search page** + **SERP switch bar**: both list Site Engines as switchable sources.
-- **SiteEngineManager**: CRUD only; does not invent a second id scheme or a second scope normalizer.
+- **SiteInstanceManager**: CRUD only; does not invent a second id scheme or a second scope normalizer.
 
 ## Why This Matters
 
@@ -128,16 +130,16 @@ Also apply:
 **Before (destructive):**
 
 ```ts
-function normalizeSiteEngineDefinitions(raw: unknown): SiteEngine[] {
+function normalizeSiteInstanceDefinitions(raw: unknown): SiteInstance[] {
   const list = Array.isArray(raw) ? raw : [];
-  if (list.length > MAX_SITE_ENGINES) return []; // wipe
+  if (list.length > MAX_SITE_INSTANCES) return []; // wipe
   const serialized = JSON.stringify(list);
   if (serialized.length > SITE_ENGINES_BYTE_BUDGET) return []; // wipe
   return list.map(parseOne).filter(Boolean);
 }
 
 // create/update/delete:
-const current = normalizeSiteEngineDefinitions(await readRaw()); // [] if oversize
+const current = normalizeSiteInstanceDefinitions(await readRaw()); // [] if oversize
 const next = [...current, created]; // tiny array
 await write(next); // destroys real collection
 ```
@@ -146,26 +148,26 @@ await write(next); // destroys real collection
 
 ```ts
 // Trusted local read: never empty solely for size/count
-function normalizeSiteEngineDefinitionsTrusted(raw: unknown): SiteEngine[] {
+function normalizeSiteInstanceDefinitionsTrusted(raw: unknown): SiteInstance[] {
   const list = Array.isArray(raw) ? raw : [];
   return list
-    .map((item) => parseOneSiteEngine(item))
-    .filter((x): x is SiteEngine => x != null);
+    .map((item) => parseOneSiteInstance(item))
+    .filter((x): x is SiteInstance => x != null);
   // oversize: keep valid items; do not return []
 }
 
 // Untrusted import only
-function isBoundedSiteEngineCollection(raw: unknown): boolean {
+function isBoundedSiteInstanceCollection(raw: unknown): boolean {
   if (!Array.isArray(raw)) return false;
-  if (raw.length > MAX_SITE_ENGINES) return false;
-  return siteEnginesSerializedBytes(raw) <= SITE_ENGINES_BYTE_BUDGET;
+  if (raw.length > MAX_SITE_INSTANCES) return false;
+  return siteInstancesSerializedBytes(raw) <= SITE_ENGINES_BYTE_BUDGET;
 }
 
 // Mutations
-async function createSiteEngine(input: NewSiteEngine): Promise<Result> {
-  const current = normalizeSiteEngineDefinitionsTrusted(await readRaw());
-  const next = [...current, buildSiteEngine(input)];
-  if (siteEnginesSerializedBytes(next) > SITE_ENGINES_BYTE_BUDGET) {
+async function createSiteInstance(input: NewSiteInstance): Promise<Result> {
+  const current = normalizeSiteInstanceDefinitionsTrusted(await readRaw());
+  const next = [...current, buildSiteInstance(input)];
+  if (siteInstancesSerializedBytes(next) > SITE_ENGINES_BYTE_BUDGET) {
     return err("site_engines_budget_exceeded");
   }
   await write(next);
@@ -180,7 +182,7 @@ async function createSiteEngine(input: NewSiteEngine): Promise<Result> {
 ```ts
 // SERP onSelect (pre-fix sketch: pre-write resolve, then navigate)
 const config = await getConfig();
-const resolved = resolveCurrentSiteEngineHandoff(id, query, config.siteEngines ?? []); // pre-write
+const resolved = resolveCurrentSiteInstanceHandoff(id, query, config.siteInstances ?? []); // pre-write
 await setActiveSource(id);
 location.assign(resolved.url); // may be deleted/stale after concurrent write
 ```
@@ -192,12 +194,12 @@ location.assign(resolved.url); // may be deleted/stale after concurrent write
 const gen = ++selectGen; // race guard (with switchReqIdRef on search)
 await setActiveSource(id); // before any navigation decision completes
 const configAfter = await getConfig(); // re-read after write path
-const decision = decidePostWriteSiteEngineNavigation(id, query, configAfter.siteEngines ?? [], preWriteNavigateUrl);
+const decision = decidePostWriteSiteInstanceNavigation(id, query, configAfter.siteInstances ?? [], preWriteNavigateUrl);
 
 if (gen !== selectGen) return; // stale
 
 if (decision.kind === "unresolved") {
-  onUnresolvedSiteEngine(id); // deleted after write — no navigate
+  onUnresolvedSiteInstance(id); // deleted after write — no navigate
   return;
 }
 
@@ -207,23 +209,23 @@ location.assign(decision.url); // post-write URL only
 Helper sketch（真实签名）：
 
 ```ts
-function decidePostWriteSiteEngineNavigation(
+function decidePostWriteSiteInstanceNavigation(
   siteId: SourceId,
   query: string,
-  postWriteSiteEngines: readonly SiteEngineDefinition[] | null,
+  postWriteSiteInstances: readonly SiteInstanceDefinition[] | null,
   preWriteNavigateUrl: string,
 ): { kind: "navigate"; url: string } | { kind: "unresolved" } {
-  if (postWriteSiteEngines == null) {
+  if (postWriteSiteInstances == null) {
     // Post-write config read failed; the write already succeeded — keep the pre-write URL.
     return { kind: "navigate", url: preWriteNavigateUrl };
   }
-  const handoff = resolveCurrentSiteEngineHandoff(siteId, query, postWriteSiteEngines);
+  const handoff = resolveCurrentSiteInstanceHandoff(siteId, query, postWriteSiteInstances);
   if (handoff?.kind === "navigate") return handoff;
   return { kind: "unresolved" };
 }
 ```
 
-实际辅助函数名为 `resolveCurrentSiteEngineHandoff`（按最新定义重解析站点引擎跳转）与 `buildSiteEngineQuery`（构造 `site:` 作用域查询）；早期草稿中的 `resolveSiteEngine` / `buildSiteScopedUrl` 并不存在。
+实际辅助函数名为 `resolveCurrentSiteInstanceHandoff`（按最新定义重解析 Site Instance 跳转）与 `buildSiteScopeQuery`（构造 `site:` 作用域查询，`lib/site-instances.ts`）；早期草稿中的 `resolveSiteEngine` / `buildSiteScopedUrl` 并不存在。
 
 ### Related product rules (non-code)
 

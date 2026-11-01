@@ -1,7 +1,7 @@
 ---
 title: Agent Skill Distribution Pipeline — Single-Source Template, Generator with Drift Lock, and Runtime ID Stamping
 date: 2026-08-06
-last_updated: 2026-08-11
+last_updated: 2026-11-01
 category: architecture-patterns
 module: agent-skill-distribution
 problem_type: architecture_pattern
@@ -42,9 +42,9 @@ The pipeline below makes one template the single source of truth, derives every 
 
 ## Guidance
 
-### One template, two placeholders
+### One template, one content placeholder
 
-The authoritative source is `public/agent-skill/` — `SKILL.md` + `scripts/juso_search.py`. It is prod-style content verbatim, with exactly **two** placeholders: `DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"` and `DEFAULT_BRIDGE_URL = "__JUSO_BRIDGE_URL__"` at `public/agent-skill/scripts/juso_search.py:27-28`. There are no `{{...}}` tokens in `SKILL.md`. (An earlier design proposed seven `{{}}` placeholders; the implemented design collapses every variant difference into Python-side find/replace patches instead — see the next subsection — so the TypeScript packager needs zero content configuration.)
+The authoritative source is `public/agent-skill/` — `SKILL.md` + `scripts/juso_search.py`. It is prod-style content verbatim, with exactly **one** content placeholder: `DEFAULT_EXTENSION_ID = "__JUSO_EXTENSION_ID__"` at `public/agent-skill/scripts/juso_search.py:27`. (An earlier design carried a second slot, `DEFAULT_BRIDGE_URL = "__JUSO_BRIDGE_URL__"`; it was removed during the Firefox/hardening work — the skill now derives `chrome-extension://{id}/bridge.html` from the stamped extension id at runtime, and callers on Firefox pass `--bridge-url` / `JUSO_BRIDGE_URL` explicitly because the per-install `moz-extension://` UUID host is not derivable from the id. The generator/packager still substitute `__JUSO_BRIDGE_URL__` everywhere as a defensive guard, currently a no-op.) There are no `{{...}}` tokens in `SKILL.md`. (An earlier design proposed seven `{{}}` placeholders; the implemented design collapses every variant difference into Python-side find/replace patches instead — see the next subsection — so the TypeScript packager needs zero content configuration.)
 
 WXT copies `public/` into the build output verbatim by standard behavior, so the template ships inside the extension with no build hook and is reachable at runtime via `browser.runtime.getURL('agent-skill/...')`. The generator's `TEMPLATE_DIR = REPO_ROOT / "public" / "agent-skill"` (`scripts/gen_skills.py:25`) reads from the same source — the template is the single consumer-shared truth for both channels.
 
@@ -53,14 +53,16 @@ WXT copies `public/` into the build output verbatim by standard behavior, so the
 `scripts/gen_skills.py` renders the two repo-published directories from the template:
 
 - `VARIANTS` (`scripts/gen_skills.py:34-43`) maps `prod` → `skills/juso-search/` and `dev` → `skills/juso-search-dev/`, each carrying only its extension id and target directory.
-- `render(variant_key)` (`:127`) reads each template file, and for `dev` only, applies `DEV_PATCH_SKILL_MD` / `DEV_PATCH_PY` — the encoded prod→dev prose diff as `(find, replace)` pairs. The final pass substitutes both `__JUSO_EXTENSION_ID__` and `__JUSO_BRIDGE_URL__` everywhere (`:139-140`), including any the patches themselves injected.
+- `render(variant_key)` (`:127`) reads each template file, and for `dev` only, applies `DEV_PATCH_SKILL_MD` / `DEV_PATCH_PY` — the encoded prod→dev prose diff as `(find, replace)` pairs. The final pass substitutes both `__JUSO_EXTENSION_ID__` and `__JUSO_BRIDGE_URL__` everywhere (`:139-140`), including any the patches themselves injected. (The `__JUSO_BRIDGE_URL__` substitution is currently a defensive no-op — the template no longer carries that literal; the post-substitution unresolved-placeholder check stays as the guard.)
 - `_apply_patch` (`:112`) enforces a **loud-match contract**: every `find` string must occur *exactly once* in the template. A count of 0 or 2 raises `SystemExit` with the offending snippet. A partial or ambiguous transform can never silently ship.
 
-This is why the template carries only the two placeholders and no name/description/warning placeholders: those differences are *transforms on prod prose*, expressed as find/replace pairs, not slots to fill. The pairs are the authoritative record of "what makes dev different from prod".
+This is why the template carries only the one content placeholder and no name/description/warning placeholders: those differences are *transforms on prod prose*, expressed as find/replace pairs, not slots to fill. The pairs are the authoritative record of "what makes dev different from prod".
 
 ### Drift lock: generated output must equal tracked output
 
 `tests/scripts/test_gen_skills.py` runs `gen_skills.check()` and asserts the tracked directories equal the generator output byte-for-byte (`test_generated_dirs_match_tracked`). It also asserts no placeholder survives rendering, and that prod/dev differ only in the expected dimensions (name, description, compatibility, id, docstring, argparse description, the dev-only warning block, and a removed auto-discovery line). Driven through `npm run test:python`.
+
+The pipeline has a fourth generated output: `render_mcp()` (`scripts/gen_skills.py:180`) vendors the shared `scripts/juso_bridge.py` byte-for-byte into the MCP pip package (`mcp-server/juso_search/juso_bridge.py`), and `check()` (`:196`) guards that vendor copy exactly like the two skill directories. Two tests lock `juso_bridge.py` byte-identical across all four copies — the source template plus `skills/juso-search/`, `skills/juso-search-dev/`, and the MCP vendor copy: `test_juso_bridge_byte_identical_across_source_prod_dev` (`tests/scripts/test_gen_skills.py:69`) and `test_mcp_vendored_bridge_matches_source` (`:80`).
 
 Any hand-edit to a tracked directory, or any template change not followed by `npm run gen-skills`, turns CI red and names the drifted file — the hand-maintained-twin drift class is structurally eliminated.
 
@@ -68,9 +70,9 @@ Any hand-edit to a tracked directory, or any template change not followed by `np
 
 `lib/agent-skill-packager.ts:packageAgentSkill(variant)` is the in-extension channel:
 
-1. `const extId = browser.runtime.id` (`:53`), validated against `EXTENSION_ID_RE = /^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-…\})$/` (`:21`) — relaxed to also accept Firefox email-style ids and `{GUID}`s, so the same packager serves both browsers. A mismatch throws with a message that flags a dev/custom build as the expected cause rather than a generic failure.
-2. `fetch(browser.runtime.getURL('agent-skill/SKILL.md'))`, `.../scripts/juso_search.py`, `.../scripts/juso_bridge.py`, and the `reference/*.md` chapters read the bundled template. The bridge URL is derived as `browser.runtime.getURL('bridge.html')` (`:67`) — full URL, not id-derived, because Firefox's `moz-extension://` host is a per-install random UUID.
-3. `stamp(text, placeholder, value)` (`:29`) splits on the placeholder and joins with the value, applied once per placeholder: `__JUSO_EXTENSION_ID__` ← runtime id and `__JUSO_BRIDGE_URL__` ← bridge URL (`:82-84`). Post-stamp checks (`:85-90`, plus `reference/` at `:92-101`) throw if either placeholder remains — a guard against template drift sneaking past the build.
+1. `const extId = browser.runtime.id` (`:62`), validated against `EXTENSION_ID_RE = /^(?:[a-p]{32}|[a-zA-Z0-9._-]*@[a-zA-Z0-9._-]+|\{[0-9a-fA-F]{8}-…\})$/` (`:21`) — relaxed to also accept Firefox email-style ids and `{GUID}`s, so the same packager serves both browsers. A mismatch throws with a message that flags a dev/custom build as the expected cause rather than a generic failure.
+2. `fetch(browser.runtime.getURL('agent-skill/SKILL.md'))`, `.../scripts/juso_search.py`, `.../scripts/juso_bridge.py`, and the `reference/*.md` chapters read the bundled template. The bridge URL is still derived as `browser.runtime.getURL('bridge.html')` (`:76`) — it feeds the (currently no-op, see below) `__JUSO_BRIDGE_URL__` defensive stamp.
+3. `stamp(text, placeholder, value)` (`:29`) splits on the placeholder and joins with the value, applied once per placeholder: `__JUSO_EXTENSION_ID__` ← runtime id and `__JUSO_BRIDGE_URL__` ← bridge URL (`:91-93`). Post-stamp checks (`:94-99`, plus `reference/` at `:101-110`) throw if either placeholder remains — a guard against template drift sneaking past the build. In practice only the id stamp matches anything today; the skill itself derives the bridge URL from the stamped id (`chrome-extension://{id}/bridge.html`), with `--bridge-url` / `JUSO_BRIDGE_URL` as the explicit override Firefox needs.
 4. `createStoreZip` (`lib/zip.ts`) packages the entries under a **uniform** `juso-search/` top-level folder, with auto-inserted directory entries (`juso-search/`, `juso-search/scripts/`, `juso-search/reference/`).
 5. The result is returned as `{ dataUrl, filename }` — `data:application/zip;base64,...` and `juso-search[-dev]-<version>.zip`, where `<version> = browser.runtime.getManifest().version`.
 
@@ -81,38 +83,42 @@ Crucially, the **variant does not touch skill content** in this channel — only
 The pipeline uses three distinct seams that are easy to conflate:
 
 - **`__JUSO_EXTENSION_ID__`** — a *runtime* placeholder in the template, resolved at download time from `browser.runtime.id`. This is the seam that covers unknown custom dev ids with no rebuild.
-- **`__JUSO_BRIDGE_URL__`** — a second *runtime* placeholder, resolved at download time from `browser.runtime.getURL('bridge.html')`. Chrome could derive this from the id (`chrome-extension://{id}/bridge.html`), but Firefox's `moz-extension://` host is a per-install random UUID, so the full URL must be stamped into the skill for it to reach the right bridge page.
-- **`__SKILL_VARIANT__`** — a *build-time* constant injected by Vite `define` in `wxt.config.ts:12-17` (`env.mode === 'development' ? 'dev' : 'prod'`), surfaced through `lib/skill-variant.ts`. It is used **only** to pick the zip filename token inside `packageAgentSkill`. It never reaches skill content, and it never reaches the Python generator (which has its own per-variant config).
+- **Bridge URL (no longer a placeholder)** — the skill derives `chrome-extension://{id}/bridge.html` from the stamped extension id at runtime (`juso_bridge.run_bridge`), and an explicit `--bridge-url` / `JUSO_BRIDGE_URL` overrides it — which is how Firefox reaches the bridge, since its `moz-extension://` host is a per-install random UUID not derivable from the id. The generator/packager keep substituting a `__JUSO_BRIDGE_URL__` literal as a defensive stamp, but the template no longer carries it.
+- **`__SKILL_VARIANT__`** — a *build-time* constant injected by Vite `define` in `wxt.config.ts:43-47` (`env.mode === 'development' ? 'dev' : 'prod'`), surfaced through `lib/skill-variant.ts`. It is used **only** to pick the zip filename token inside `packageAgentSkill`. It never reaches skill content, and it never reaches the Python generator (which has its own per-variant config).
 
 Keeping these seams separate is the reason a custom dev build (unknown id, but `mode === 'development'` so `__SKILL_VARIANT__ === 'dev'`) produces a correctly-named `juso-search-dev-<version>.zip` whose content is stamped with the *user's own* runtime id and bridge URL.
 
 ### Worker-side packaging and messaging flow
 
-The packager runs entirely inside the MV3 worker. The flow mirrors the existing `handleExportConfig` precedent (`lib/gateway.ts:381`):
+The packager runs entirely inside the MV3 worker. The flow mirrors the existing `handleExportConfig` precedent (`lib/gateway.ts:795`):
 
 ```text
 Options UI (AgentBridgeSettings) ──sendMessage('packageAgentSkill')──▶ worker
-  entrypoints/background.ts:146  onMessage('packageAgentSkill', () => handlePackageAgentSkill())
-  lib/gateway.ts:408             handlePackageAgentSkill() → packageAgentSkill(SKILL_VARIANT)
+  entrypoints/background.ts:173  onMessage('packageAgentSkill', () => handlePackageAgentSkill())
+  lib/gateway.ts:822             handlePackageAgentSkill() → packageAgentSkill(SKILL_VARIANT)
                                   → triggerDownload(dataUrl, filename)  (browser.downloads.download)
                                   → { ok: true } | { ok: false, error }
 ```
 
-`packageAgentSkill` is declared in `lib/messaging.ts:125` with the standard ok/error discriminated-union reply (`PackageAgentSkillReply` at `:68`). The template is a keyless text resource, the worker is the only reader of BYOK keys, and the data URL never enters page memory — so the packager preserves the existing BYOK boundary without any new privilege.
+`packageAgentSkill` is declared in `lib/messaging.ts:170` with the standard ok/error discriminated-union reply (`PackageAgentSkillReply` at `:108`). The template is a keyless text resource, the worker is the only reader of BYOK keys, and the data URL never enters page memory — so the packager preserves the existing BYOK boundary without any new privilege.
 
 ### Compact flow
 
 ```text
- public/agent-skill/  (single source: prod content + __JUSO_EXTENSION_ID__ + __JUSO_BRIDGE_URL__ placeholders)
+ public/agent-skill/  (single source: prod content + __JUSO_EXTENSION_ID__ placeholder)
         │
         ├─ scripts/gen_skills.py  ──render(+ DEV_PATCH_*, loud-match)──▶ skills/juso-search/
-        │                                                          └─▶ skills/juso-search-dev/
+        │                          ──render(+ DEV_PATCH_*, loud-match)──▶ skills/juso-search-dev/
+        │                          ──render_mcp (verbatim, no patches)──▶ mcp-server/juso_search/juso_bridge.py
         │           ▲
-        │           └── tests/scripts/test_gen_skills.py  (drift lock: tracked == generated)
+        │           └── tests/scripts/test_gen_skills.py  (drift lock: tracked == generated;
+        │                                             juso_bridge.py byte-identical across all four copies)
         │
         └─ bundled in extension ──fetch at runtime──▶ lib/agent-skill-packager.ts
-                                                       stamp(__JUSO_EXTENSION_ID__ ← browser.runtime.id,
-                                                             __JUSO_BRIDGE_URL__ ← browser.runtime.getURL('bridge.html'))
+                                                       stamp(__JUSO_EXTENSION_ID__ ← browser.runtime.id;
+                                                             __JUSO_BRIDGE_URL__ stamp retained as a
+                                                             defensive no-op — bridge URL is derived
+                                                             from the id by the skill itself)
                                                        createStoreZip → uniform 'juso-search/' folder
                                                        ──▶ browser.downloads.download
 ```
@@ -138,7 +144,7 @@ Do not apply the runtime-stamping half when the placeholder must be resolved for
 
 - **Terminals silently drop characters when rendering 32-char lowercase a–p extension ids, and hand-typing them corrupts the id.** This bit this project: a plan doc once carried `cenboedgopa` where the correct id is `cenboepdgopa` — a single dropped `p` that made every literal `.Replace`/edit against it fail, while looking plausible at a glance. All-lowercase a–p strings have no visual landmarks, so a missing character is invisible to proofreading. **Prevention:** never hand-type an extension id into docs or code. Extract ids programmatically — e.g. regex over `git rev-parse HEAD` output or a known-good source file — and paste the extracted literal. The two ids in `scripts/gen_skills.py:34-43` (`VARIANTS`) were ultimately pinned this way. If an id comparison mysteriously fails, suspect a dropped character before suspecting the logic.
 - **Each `DEV_PATCH_*` find-string must match exactly once, or the generator fails loudly.** This is intentional, not a limitation to work around. If you add a patch whose `find` matches zero or multiple times, `gen_skills.py:_apply_patch` raises `SystemExit` rather than applying a partial transform. When the template drifts away from a patch (e.g. you rephrased a line in `public/agent-skill/SKILL.md`), update *both* the template and the patch in the same change, then run `npm run gen-skills` and `npm run test:python` to confirm the drift lock is green again. Never loosen the exactly-once check to "make it pass".
-- **Do not conflate the two runtime placeholders with `__SKILL_VARIANT__` (build-time).** `__JUSO_EXTENSION_ID__` and `__JUSO_BRIDGE_URL__` are content placeholders resolved per-download from `browser.runtime.id` / `browser.runtime.getURL('bridge.html')`; `__SKILL_VARIANT__` is a compile-time constant used only for the zip filename token. Routing variant content through `__SKILL_VARIANT__` would reintroduce a parallel content path and defeat the single-template property.
+- **Do not conflate the runtime content placeholder with `__SKILL_VARIANT__` (build-time).** `__JUSO_EXTENSION_ID__` is the content placeholder resolved per-download from `browser.runtime.id` (the `__JUSO_BRIDGE_URL__` stamp survives only as a defensive no-op; the bridge URL is derived from the id at runtime); `__SKILL_VARIANT__` is a compile-time constant used only for the zip filename token. Routing variant content through `__SKILL_VARIANT__` would reintroduce a parallel content path and defeat the single-template property.
 - **A custom dev build's id is correct only if it is stamped at runtime.** Any "optimization" that pre-writes the two known ids into the bundled template (to skip the stamp step) silently breaks every custom dev build. The runtime stamp is load-bearing for that case.
 - **Stamping rewrites placeholder-detection code inside the published skill — never detect a placeholder by its literal string.** The generator's final pass substitutes `__JUSO_BRIDGE_URL__` *everywhere* in the published file, including inside the very check that was meant to detect the unstamped placeholder. `juso_search.py` originally had `bridge_url = raw_bridge_url if raw_bridge_url and "__JUSO_BRIDGE_URL__" not in raw_bridge_url else None`; after stamping this became `"<real-url>" not in raw_bridge_url`, always `False`, so `bridge_url` was always `None` and `run_bridge()` fell back to a `chrome-extension://` URL that fails on Firefox's `moz-extension://`. Detect real URLs by scheme instead: `bridge_url = raw_bridge_url if raw_bridge_url and "://" in raw_bridge_url else None`. Same rule applies to any placeholder whose detection logic ships in the stamped artifact.
 

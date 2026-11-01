@@ -1,7 +1,7 @@
 ---
-title: data: URL downloads ignore the filename parameter — files save as "下载.xxx"
+title: "data: URL downloads ignore the filename parameter — files save as \"下载.xxx\""
 date: 2026-08-07
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: runtime-errors
 module: gateway
 problem_type: runtime_error
@@ -46,7 +46,7 @@ Both worker-side download paths — Config Export (`handleExportConfig`) and Age
 
 Register the extension's own `browser.downloads.onDeterminingFilename` listener that forces `suggest({ filename })` for downloads initiated by this extension, and passes through (`suggest()`) for all others. This is the workaround recommended by Chrome's official docs and the community.
 
-**`lib/gateway.ts`** — added a pending-filename queue and a guard installer; `triggerDownload` enqueues before calling `download`:
+**`lib/download-filename-guard.ts`** (moved out of `lib/gateway.ts` wholesale, zero behavior change; `lib/gateway.ts` re-exports `installDownloadFilenameGuard` / `triggerDownload` so consumers stay unchanged) — a pending-filename queue and a guard installer; `triggerDownload` enqueues before calling `download`:
 
 ```ts
 // Chrome 对 data: URL 下载不可靠地应用 filename（回退默认名，中文 locale 为「下载」）；
@@ -72,11 +72,25 @@ async function triggerDownload(url: string, filename: string): Promise<void> {
   // 转 blob: URL 绕过。Chrome service worker 无 URL.createObjectURL，保留 data: URL + 下方守卫。
   let downloadUrl = url;
   if (url.startsWith('data:') && typeof URL.createObjectURL === 'function') {
-    const blob = await (await fetch(url)).blob();
-    downloadUrl = URL.createObjectURL(blob);
+    // best-effort：转换环境异常时（如 jsdom 30 的 createObjectURL 只认自家 Blob，
+    // 拒绝原生 fetch 返回的 Blob）退回 data: URL，即此绕行方案出现前的原始行为。
+    try {
+      const blob = await (await fetch(url)).blob();
+      downloadUrl = URL.createObjectURL(blob);
+    } catch {
+      downloadUrl = url;
+    }
   }
   pendingFilenames.push(filename);
-  await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
+  try {
+    await browser.downloads.download({ url: downloadUrl, filename, saveAs: true });
+  } catch (e) {
+    // download 失败/取消时 onDeterminingFilename 永不触发——不移除会让 FIFO 队列永久错位，
+    // 之后每次下载都 suggest 到陈旧文件名。按值删最后一个同名入队项后原样上抛。
+    const idx = pendingFilenames.lastIndexOf(filename);
+    if (idx >= 0) pendingFilenames.splice(idx, 1);
+    throw e;
+  }
 }
 ```
 
@@ -102,7 +116,7 @@ No `wxt.config.ts` permission change needed — the `downloads` permission alrea
 3. **Don't interfere with other downloads**: the `byExtensionId` check ensures we only override filenames for downloads this extension initiated; all other downloads get a bare `suggest()` (pass-through).
 4. **Preserve the R7 security boundary**: keys and packaged artifacts never enter page memory — the guard runs entirely in the worker, same as the existing `triggerDownload`.
 
-The pending-filename queue (rather than a single slot) handles the theoretical case of rapid sequential downloads; in practice both download paths are user-initiated single actions, but the queue is safe under any ordering.
+The pending-filename queue (rather than a single slot) handles the theoretical case of rapid sequential downloads; in practice both download paths are user-initiated single actions, but the queue is safe under any ordering. A failed or cancelled `download()` never fires `onDeterminingFilename`, so `triggerDownload` removes the queued filename in that case to keep the FIFO queue aligned; the data:→blob: conversion is likewise best-effort, falling back to the original data: URL if the environment throws.
 
 ## Prevention
 

@@ -1,7 +1,7 @@
 ---
 title: "SERP Switch Bar bottom-position model: fixed overlay, groups coexistence, and CSS/interaction traps"
 date: 2026-07-29
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: docs/solutions/architecture-patterns/
 module: SERP Switch Bar
 problem_type: architecture_pattern
@@ -166,15 +166,15 @@ const applyPositionChrome = (pos: 'top' | 'bottom' | 'inline', opts?: { resetScr
 Every position-change path calls it, then re-renders so the `overlayPosition` prop enters the React tree (the flyout anchoring and touch handlers branch on `overlayPosition`; outside-dismiss is unified across all placement modes since 2026-08-01 — see §4e):
 
 ```typescript
-// onMount (serp-bar.content.ts:262)
+// onMount (serp-bar.content.ts:284)
 applyPositionChrome(state.resolvedPosition);
 
-// syncLocation — SPA nav (serp-bar.content.ts:441)
+// syncLocation — SPA nav (serp-bar.content.ts:456)
 applyPositionChrome(state.resolvedPosition);
 syncAlignedHost(mountedHost, strategy);
 if (mountedRoot) render(mountedRoot, state, selectSource, selecting);
 
-// resize — auto threshold crossing (serp-bar.content.ts:503-523)
+// resize — auto threshold crossing (serp-bar.content.ts:526-549)
 ctx.addEventListener(window, 'resize', () => {
   if (mountedHost && document.contains(mountedHost)) {
     syncAlignedHost(mountedHost, strategy);
@@ -188,7 +188,8 @@ ctx.addEventListener(window, 'resize', () => {
   }
 });
 
-// onPrefMessage — live sync from Options (serp-bar.content.ts:530-553)
+// onPrefMessage — live sync from Options (serp-bar.content.ts:556-581; it now also
+// handles localePref re-renders before the serpBarPosition branch)
 const onPrefMessage = (message: unknown) => {
   if (!isUiPrefChangedMessage(message) || message.key !== 'serpBarPosition') return;
   state.barPositionPref = message.value;
@@ -577,7 +578,9 @@ append: (anchor, root) => {
 }
 ```
 
-3. **A `mountIfReady` fast-path makes the body mount budget-independent.** The engine-anchor path gates mounting on `canAttemptMount` (which needs `remountBudget > 0` and a preferred/last-resort anchor present). An overlay bar depends on neither — only on `document.body` existing — so the overlay branch checks `document.body` and mounts directly, never consuming the remount budget. The detach handler mirrors this: it remounts in overlay mode regardless of budget (a body-mounted host's parent is stable; the budget gate exists to fight hostile SPA teardown of *inline* anchors). This is what prevents the bar from silently disappearing after an `inline → overlay` flip late in a long-lived page when the budget is exhausted.
+3. **A `mountIfReady` fast-path needs no engine anchor — but shares the remount budget.** The engine-anchor path gates mounting on `canAttemptMount` (which needs `remountBudget > 0` and a preferred/last-resort anchor present). An overlay bar still depends on no anchor — only on `document.body` existing — so the overlay branch checks `document.body` and mounts directly. It does, however, **consume the shared remount budget** exactly like the inline path (`consumeRemountBudget`, `serp-bar.content.ts:351-357`): a hostile SPA that repeatedly clears `document.body` children would otherwise spin mount/remove forever. The detach handler is symmetric — it remounts only while `remountBudget > 0`, in overlay and inline mode alike (`:447-450`), because a body-mounted host can still be torn down by a site clearing `body`. The budget is refilled on every SPA navigation (`syncLocation` opens a new `locationRevision`) and on user-initiated `inline ↔ overlay` flips (resize `:540`, Options toggle `:575`): a deliberate position flip is user action, not SPA teardown, and without the refill repeated flips (or flips plus SPA teardown) late in a long-lived page could exhaust the budget and permanently drop the bar.
+
+> **2026-11-01 revision:** this point originally claimed the overlay mount path "never consumes the remount budget" and that the detach handler remounts in overlay mode "regardless of budget". Hostile-SPA hardening added after that wording closed both gaps: overlay mounts now consume the shared budget, detach-remounts are budget-gated in both modes, and the budget is refilled on SPA navigation and user-initiated flips, as described above.
 
 **z-index is raised to `2147483647` (int32 max).** With the host body-mounted, its stacking context is the page root, so a maximal z-index guarantees it sits above every site floating layer (抖音 share/settings popups, etc.). The fixed-up flyout (`.group-flyout--fixed-up`) uses the same max: it is a child of the (now-body-level) host, so it does not need to exceed the host, and the same value keeps it above site popups too.
 
@@ -593,7 +596,7 @@ append: (anchor, root) => {
 }
 ```
 
-**Remount only on `inline ↔ overlay` flips.** The host's physical parent differs between the placement groups (engine anchor subtree vs `document.body`), so a flip across that boundary cannot be an in-place `applyPositionChrome` + re-render — that only changes `data-position` and the pad/pageStyles, leaving the host in the *old* DOM location. The `resize` (auto-breakpoint crossing) and `onPrefMessage` (Options toggle) transition paths therefore branch on whether the flip crosses the boundary: cross-boundary flips do **teardown + remount** (`state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`, reusing the current `locationRevision` so no budget/observer bookkeeping resets), while a `top ↔ bottom` flip is the in-place restyle since both overlays are body-mounted. `onMount`'s call to `applyPositionChrome(state.resolvedPosition)` restamps `data-position` and swaps pad↔pageStyles during the remount, so the helper remains the single owner of those operations.
+**Remount only on `inline ↔ overlay` flips.** The host's physical parent differs between the placement groups (engine anchor subtree vs `document.body`), so a flip across that boundary cannot be an in-place `applyPositionChrome` + re-render — that only changes `data-position` and the pad/pageStyles, leaving the host in the *old* DOM location. The `resize` (auto-breakpoint crossing) and `onPrefMessage` (Options toggle) transition paths therefore branch on whether the flip crosses the boundary: cross-boundary flips do **teardown + remount** (`state.resolvedPosition = next` → `safeRemove()` → `mountWhenAnchorReady(locationRevision)`, reusing the current `locationRevision` so observer bookkeeping resets do not occur — while `remountBudget` is refilled, since the user-initiated flip is not SPA teardown), while a `top ↔ bottom` flip is the in-place restyle since both overlays are body-mounted. `onMount`'s call to `applyPositionChrome(state.resolvedPosition)` restamps `data-position` and swaps pad↔pageStyles during the remount, so the helper remains the single owner of those operations.
 
 The generalizable lesson: **a `position:fixed` overlay's containing block is determined by its *page* ancestor chain, not its CSS alone.** Mounting such an overlay inside a rich SPA subtree (transforms, will-change, contain) silently breaks its viewport anchoring and traps its z-index, and no amount of `:host` CSS can repair it — the fix is structural: mount the overlay at the page top level (`document.body`).
 
@@ -611,15 +614,16 @@ export const CURRENT_SCHEMA_VERSION = 10;
 // config 域白名单：迁移只读写这些键（外加 schemaVersion 本身）。
 // ⚠️ 新增 config 键时，必须同步加进此数组，否则 ensureSchema 不会读/写它。
 // agentBridgeEnabled / engineSearchEnabled / providerMaxResults / groupConfig / customEngines 默认值由 getter 兜底，不 bump 版本（无需迁移）。
+// aggregateInstances / rerankConfig 同为 Default-by-Getter（KTD10：缺键 = 未启用/未配置，getter 归一兜底），不 bump 版本。
 // serpBarPosition 例外：v7→v8 因 'top' 语义重定义（固定覆盖顶栏，原内联行为改名 'inline'）需值重写迁移，故 bump 版本。此前的版本无需迁移。
-export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource'] as const;
+export const CONFIG_KEYS = ['providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'stylePref', 'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances', 'aggregateInstances', 'rerankConfig', 'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', 'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources', 'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted'] as const;
 
 // v7→v8: serpBarPosition 'top' 重定义为固定覆盖顶栏；原内联引擎锚点插入重命名为 'inline'。
 // 旧 'top' 用户迁移到 'inline'，保持内联体验不变（无感）。'top' 现为固定覆盖顶栏。
 { version: 7, migrate: (config) => config.serpBarPosition === 'top' ? { ...config, serpBarPosition: 'inline' } : config },
 ```
 
-> 2026-09-09 refresh: 版本现戳为 10（v9→v10 为 siteEngines→siteInstances 键改名）；此后的 `aiAutoEnter` / `flatLayoutFewSources` / `selectionSearchEnabled` / `selectionSearchSource` 均由 getter 兜底加入白名单、未 bump——正是本节规则的后续印证。
+> 2026-09-09 refresh: 版本现戳为 10（v9→v10 为 siteEngines→siteInstances 键改名）；此后的 `aiAutoEnter` / `flatLayoutFewSources` / `selectionSearchEnabled` / `selectionSearchSource` 均由 getter 兜底加入白名单、未 bump——正是本节规则的后续印证。（2026-11-01：`stylePref` / `aggregateInstances` / `rerankConfig` / `onboardingCompleted` 亦同理由加入，仍未 bump。）
 
 The rule, encoded in the comment: a new config key joins `CONFIG_KEYS` so `ensureSchema` reads/writes it during export/import, but a version bump + migration is needed **only** when legacy stored data must be transformed. A getter-defaulted key with no legacy population needs neither — which is why `customEngines` / `providerInstances` (and later `aiAutoEnter` / `flatLayoutFewSources`) joined the whitelist without a bump, while the `'top'` redefinition forced one. The getter is the single source of the default:
 

@@ -1,7 +1,7 @@
 ---
 title: "Source switching should serialize active-source writes and search the current input"
 date: 2026-07-07
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: ui-bugs
 module: "search provider switching UI"
 problem_type: ui_bug
@@ -126,18 +126,13 @@ function handleInterrupt() {
 }
 ```
 
-Active-source writes go through the background worker so page code does not directly own source storage mutations. Selection speaks **source ids** via `setActiveSource`（provider/engine/site-instance 统一）；`setActiveProvider` 仍在协议与 worker 中（`gateway.ts` 的 `handleSetActiveProvider` 路由到 `setActiveProviderAndSourceId`），但**已无任何 UI 调用方——仅作为 legacy/compat 消息保留**（协议与测试仍引用）。activeSource 与 activeProvider 的模型拆分见 `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`：
+Active-source writes go through the background worker so page code does not directly own source storage mutations. Selection speaks **source ids** via `setActiveSource`（provider/engine/site-instance 统一）；早期的 `setActiveProvider` 消息此后已从协议与 worker 中删除——它曾短暂作为 legacy/compat 消息保留（当时已无任何 UI 调用方），最终被整体移除，如今协议中唯一的来源写入消息是 `setActiveSource`。activeSource 与 activeProvider 的模型拆分见 `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`：
 
 ```ts
 // lib/messaging.ts
 export type ProtocolMap = {
-  setActiveProvider(providerId: ProviderId): Promise<void>; // legacy/compat，无 UI 调用方
+  setActiveSource(sourceId: SourceId): Promise<void>;
 };
-
-// lib/gateway.ts
-export async function handleSetActiveProvider(providerId: ProviderId): Promise<void> {
-  await setActiveProviderAndSourceId(providerId);
-}
 ```
 
 Finally, disable source buttons whenever search or switch work is pending:
@@ -176,7 +171,7 @@ The interrupt button does not cancel the provider HTTP request at the transport 
 
 ## Related Issues
 
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md` — provider adapter and worker-side API integration model.
-- `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md` — the activeSource/activeProvider model split: the UI speaks source ids while the worker keeps a separate active-provider state, and `setActiveProvider` survives only as a legacy compat message with no UI caller.
+- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` — provider adapter and worker-side API integration model.
+- `docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md` — the activeSource/activeProvider model split: the UI speaks source ids while the worker keeps a separate active-provider state, and the former `setActiveProvider` message has since been removed from the protocol entirely.
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` — worker-message boundary and BYOK storage hygiene for provider configuration.
 - `docs/solutions/ui-bugs/locale-preference-subscription-state.md` — related React UI state bug where visible active state depended on a distinction between preference state and derived render state.

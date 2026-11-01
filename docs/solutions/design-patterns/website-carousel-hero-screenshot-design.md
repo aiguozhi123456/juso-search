@@ -1,7 +1,7 @@
 ---
 title: "Website hero carousel, screenshot framing, and page-scoped hero sizing"
 date: 2026-08-08
-last_updated: 2026-09-04
+last_updated: 2026-11-01
 category: design-patterns
 module: website
 problem_type: design_pattern
@@ -47,11 +47,17 @@ The carousel is a framework-free IIFE in `layouts/_default/baseof.html`, discove
 
 **ARIA structure** (in `partials/hero-visual-home.html`):
 ```html
+{{/* slide ids live in the document-global namespace: prefix by page hash so
+     multiple carousel instances on one page can't collide */}}
+{{ $pfx := printf "hero-%s" (md5 .Page.Permalink) }}
 <div class="hero__card carousel" data-carousel
      role="region" aria-roledescription="carousel"
      aria-label="{{ i18n "carousel_label" }}">
+  <div class="windowbar" aria-hidden="true">
+    <span class="windowbar__dot"></span><span class="windowbar__dot"></span><span class="windowbar__dot"></span>
+  </div>
   <div class="carousel__viewport">
-    <div class="carousel__slide is-active" data-slide id="slide-0"
+    <div class="carousel__slide is-active" data-slide id="{{ $pfx }}-{{ $i }}"
          role="group" aria-roledescription="slide"
          aria-label="{{ i18n $s.cap }}"
          aria-hidden="false">
@@ -63,12 +69,14 @@ The carousel is a framework-free IIFE in `layouts/_default/baseof.html`, discove
     <span class="carousel__captext" data-carousel-caption aria-live="polite">{{ i18n "cap_search" }}</span>
     <div class="carousel__dots" role="tablist" aria-label="...">
       <button class="carousel__dot is-active" role="tab"
-              aria-selected="true" aria-controls="slide-0"
+              aria-selected="true" aria-controls="{{ $pfx }}-{{ $i }}"
               aria-label="{{ i18n "carousel_slide" (dict "n" (add $i 1) "m" (len $heroShots)) }}"></button>
     </div>
   </div>
 </div>
 ```
+
+Slide ids are page-hash-prefixed (`hero-<md5 of permalink>-<index>`): ids share the document-global namespace, so two carousel instances on one page would otherwise mint duplicate `slide-0`s. The carousel JS locates slides by position inside the `[data-carousel]` root and never reads the id — it exists solely to back the dots' `aria-controls`. The card also carries the standard `.windowbar` (§3) above the viewport.
 
 Slide captions travel on the slide element as `data-caption="{{ i18n $s.cap }}"`; the JS copies it into the `data-carousel-caption` element on each change, and `aria-live="polite"` announces the new caption to screen readers without interrupting. Even decorative ARIA strings go through i18n keys (`carousel_slide` in both zh/en) — the slide counter is user-facing.
 
@@ -161,7 +169,7 @@ User has reduced-motion → start() returns early → no rotation ever
 |---|---|---|---|
 | Overview (`/`) | `face-overview` | single column, centered copy | none — copy-only hero with scroll key to the door cards |
 | Human (`/human/`) | `face-human` | `0.75fr 1fr`, max-width 1240px | stretched (carousel) |
-| Agent (`/agents`) | `face-agents` | default (`1fr`), max-width 1160px | `max-width: 520px` |
+| Agent (`/agents`) | `face-agents` | default (`1.08fr .92fr`), max-width 1160px (`--maxw` wrap token) | `max-width: 520px` |
 
 ## Related
 

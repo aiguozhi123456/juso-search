@@ -1,7 +1,7 @@
 ---
 title: Chrome Web Store Listing and Privacy Docs Must Be Updated for Each Release
 date: 2026-07-27
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: workflow-issues
 module: release
 problem_type: workflow_issue
@@ -34,7 +34,7 @@ In one real case, v1.1.0 docs covered only the baseline engines and single-purpo
 
 Treat the three CWS artifacts as a single release bundle that must describe the same feature surface:
 
-1. **`docs/assets/store/cws-release.md` (store listing copy)** — enumerate every supported engine and user-facing feature. List Bilibili alongside existing engines. Describe Site Engine as a first-class capability. Update the Agent Bridge description to reflect the current two-layer gating model.
+1. **`docs/assets/store/cws-release.md` (store listing copy)** — cover every user-facing feature: list Bilibili alongside existing engines, describe Site Engine as a first-class capability, and update the Agent Bridge description to reflect the current two-layer gating model. But do **not** enumerate every supported engine in the listing copy: the listing names at most ~3 brands per category plus 等 ("and more"), while the full engine/host enumeration — with each host justified — belongs in the privacy questionnaire and privacy policy (see items 2–3 below). This enumeration boundary was set by the v1.3.0 Yellow Argon keyword-stuffing rejection; [cws-listing-copy-submission-constraints.md](./cws-listing-copy-submission-constraints.md) §1 is the canonical statement of the listing-copy rules.
 
 2. **`docs/assets/store/privacy.md` (questionnaire)** — sync host permissions and content scripts with the engines declared in the store listing. Add Bilibili to both sections. Add Site Engine to the single-purpose description and to any data-collection justifications that depend on query context.
 

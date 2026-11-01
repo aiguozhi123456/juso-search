@@ -47,9 +47,9 @@ tags:
 
 ## Solution
 
-在 `openGroupId`（瞬态展开）之上新增 `pinnedGroupId` 状态（components/SourceSwitcher.tsx:67），不变量：`pinnedGroupId ≠ null ⟹ pinnedGroupId === openGroupId`（经 oracle 逐路径推演成立）。各模式共用同一套三分支 onToggle 状态机。
+在 `openGroupId`（瞬态展开）之上新增 `pinnedGroupId` 状态（components/SourceSwitcher.tsx:66），不变量：`pinnedGroupId ≠ null ⟹ pinnedGroupId === openGroupId`（经 oracle 逐路径推演成立）。各模式共用同一套三分支 onToggle 状态机。
 
-onToggle 三分支（父组件，SourceSwitcher.tsx:215）：
+onToggle 三分支（父组件，SourceSwitcher.tsx:188）：
 
 ```tsx
 onToggle={() => {
@@ -70,7 +70,7 @@ onToggle={() => {
 }}
 ```
 
-onOpen（hover/focus）保持瞬态语义（SourceSwitcher.tsx:205）：单开语义下，固定的是别的组时清掉旧固定；hover 回原组不恢复固定（固定只能由点击产生）：
+onOpen（hover/focus）保持瞬态语义（SourceSwitcher.tsx:178）：单开语义下，固定的是别的组时清掉旧固定；hover 回原组不恢复固定（固定只能由点击产生）：
 
 ```tsx
 onOpen={() => {
@@ -79,11 +79,15 @@ onOpen={() => {
 }}
 ```
 
-hover-intent 延迟关闭读取最新固定态（SourceSwitcher.tsx:351-372）：render 期把 `pinned` 写入 ref，setTimeout 回调只读 ref——固定组不因 hover 移出关闭，瞬态组 120ms 后照常收起：
+hover-intent 延迟关闭读取最新固定态（SourceSwitcher.tsx:352-358）：`pinned` 在 **commit 阶段**（`useEffect`）写入 ref，setTimeout 回调只读 ref——固定组不因 hover 移出关闭，瞬态组 120ms 后照常收起：
 
 ```tsx
+// pinnedRef 在 commit 阶段同步：渲染期写 ref 会在 StrictMode/中断渲染下留脏值，
+// 而延迟关闭定时器异步读取它，陈旧值会错误地抑制/放行关闭。
 const pinnedRef = useRef(pinned);
-pinnedRef.current = pinned;
+useEffect(() => {
+  pinnedRef.current = pinned;
+}, [pinned]);
 const scheduleClose = () => {
   if (closeTimerRef.current != null) clearTimeout(closeTimerRef.current);
   closeTimerRef.current = setTimeout(() => {
@@ -93,7 +97,7 @@ const scheduleClose = () => {
 };
 ```
 
-显式关闭路径统一走 `handleClose` 本地包装（cancelClose + onClose，SourceSwitcher.tsx:362）：Escape、外部 pointerdown、blur、选中组内源都会先取消挂起的延迟关闭定时器，避免旧定时器到期后再触发幂等 onClose。外部 pointerdown 关闭（document capture + composedPath 判断 groupRef/flyoutRef 是否包含目标）从仅覆盖层扩展为各模式统一（SourceSwitcher.tsx:412-424）。
+显式关闭路径统一走 `handleClose` 本地包装（cancelClose + onClose，SourceSwitcher.tsx:348）：Escape、外部 pointerdown、blur、选中组内源都会先取消挂起的延迟关闭定时器，避免旧定时器到期后再触发幂等 onClose。外部 pointerdown 关闭（document capture + composedPath 判断 groupRef/flyoutRef 是否包含目标）从仅覆盖层扩展为各模式统一（SourceSwitcher.tsx:424-436）。
 
 关闭路径全集：再点 trigger、Escape（焦点归还 trigger）、外部 pointerdown、选中组内源、scroll-hide（MutationObserver 观察 host data-hidden）、模式切换（overlayPosition 变化时清空两组状态）。
 
@@ -105,15 +109,15 @@ const scheduleClose = () => {
 
 - 点击固定由三分支状态机显式建立，撤销路径全部枚举（再点/Escape/外部点击/选中组内源/scroll-hide/模式切换），不再依赖 hover 的隐式生命周期；
 - 延迟关闭只在 `!pinnedRef.current` 时生效，把"hover 移出"这个信号的效力限制在瞬态展开上；
-- `pinnedRef` 用 render 期写入 + 事件回调读取的 ref 模式，天然拿到最新固定态，且不引发重渲染；
+- `pinnedRef` 用 commit 期（useEffect）写入 + 事件回调读取的 ref 模式拿到最新固定态：渲染期直接写 ref 会在 StrictMode/中断渲染下留下陈旧值，而延迟关闭定时器异步读取它，陈旧值会错误地抑制/放行关闭（同一改动也落在 SelectionSearchPopup）；
 - 固定组 hover 移出不关闭后，用户必须靠显式动作收起，因此所有显式关闭路径都必须存在且先 cancelClose——`handleClose` 包装保证旧定时器不会在关闭后"补刀"；
 - 不变量 `pinned ⟹ open` 由三分支 + onOpen 清旧固定共同维持：pinned 只在"打开并固定"或"瞬态转固定"时设置，onOpen 只能清掉别的组的 pin，hover 回原组无法重新固定，单开语义（同一时刻最多一个组展开、最多一个 pin）全程成立。
 
 ## Prevention
 
-- 组件级行为测试覆盖 pin 全状态机：tests/SourceSwitcher.test.tsx 删除旧断言"顶栏点击不打开"，新增独立 `describe('SourceSwitcher — click pin (top bar / search page)')` 的 7 个用例——点击开+固定且 hover 移出不关、再点关闭；瞬态展开中点击转固定（不关闭）；Escape 关闭固定；外部 pointerdown 关闭固定/瞬态；单开语义（hover 别的组清除固定且 hover 回不恢复）；trigger/浮层内部 pointerdown 不关闭守卫。vitest 全量通过（SourceSwitcher 42 个，计数随套件增长）。
+- 组件级行为测试覆盖 pin 全状态机：tests/SourceSwitcher.test.tsx 删除旧断言"顶栏点击不打开"，新增独立 `describe('SourceSwitcher — click pin (top bar / search page)')` 的 7 个用例——点击开+固定且 hover 移出不关、再点关闭；瞬态展开中点击转固定（不关闭）；Escape 关闭固定；外部 pointerdown 关闭固定/瞬态；单开语义（hover 别的组清除固定且 hover 回不恢复）；trigger/浮层内部 pointerdown 不关闭守卫。vitest 全量通过（SourceSwitcher 44 个，计数随套件增长）。
 - 对含"瞬态 vs 固定"双生命周期的 UI 状态，优先拆两个状态并在组件头注释写明不变量，而不是给单一状态加 flag 堆分支——单一状态加 flag 无法在 render 期区分两种来源。
-- 事件回调里读"最新状态"一律走 ref（render 期写入、回调只读），不要闭包捕获 stale 值。
+- 事件回调里读"最新状态"一律走 ref（commit 期 useEffect 写入、回调只读——渲染期写 ref 会在 StrictMode/中断渲染下留脏值），不要闭包捕获 stale 值。
 - 新增显式关闭路径时，检查是否与延迟关闭/延迟打开定时器冲突：凡显式路径都必须先 cancelClose，并配套卸载清理（useEffect(() => () => cancelClose(), [])）。
 - 各模式共享的交互语义（点击 pin）放到共享组件实现，避免"内联一个行为、覆盖层一个行为"的模式分叉；模式差异（锚定方向、粗指针禁用 hover）留在 overlayPosition 分支内。
 

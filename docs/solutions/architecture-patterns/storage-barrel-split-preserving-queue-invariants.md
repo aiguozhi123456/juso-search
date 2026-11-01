@@ -1,7 +1,7 @@
 ---
 title: "Splitting lib/storage into a domain directory while preserving queue identity and lock order"
 date: 2026-08-14
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: lib/storage
 problem_type: architecture_pattern
@@ -53,18 +53,20 @@ tags: [module-split, barrel-exports, esm-single-instance, mutation-queues, lock-
 
 ### 域映射：一个可变域一个 `-store.ts`，队列随域走
 
-12 个文件的职责划分（`lib/storage.ts` → `lib/storage/`）：
+12 个文件的职责划分（`lib/storage.ts` → `lib/storage/`；目录后来随聚合搜索加入 `shared-key-write.ts` 与 `aggregate-instance-store.ts`，现为 14 个文件）：
 
 ```
 lib/storage/
-├── keys.ts                  # 20 个 KEY 常量 + 4 个 pref 类型 + BYOK 安全头注释
-├── shared.ts                # 跨域私有 helper（DEFAULT_ENGINE_ID / isKnownProvider / ensureVisibleUsable），不进 barrel
+├── keys.ts                  # 23 个 KEY 常量 + 4 个 pref 类型 + BYOK 安全头注释
+├── shared.ts                # 跨域私有 helper（DEFAULT_ENGINE_ID / isKnownProvider / ensureVisibleUsable / buildAggregateProjection），仅 buildAggregateProjection 经显式命名进 barrel
 ├── provider-keys-store.ts   # providerKeys 域 + providerKeysMutationQueue
 ├── max-results-store.ts     # providerMaxResults 域 + 队列（内部函数 readMaxResultsMapFrom 不进 barrel）
 ├── source-graph-store.ts    # sourceOrder/hidden/group/active + sourceMutationQueue
+├── shared-key-write.ts      # withSharedKeyWrite：共享键写者的统一锁序原语（source → keys → maxResults）
 ├── site-instance-store.ts   # siteInstances 域 CRUD
 ├── custom-engine-store.ts   # customEngines 域 CRUD
 ├── provider-instance-store.ts # providerInstances 域 CRUD + providerInstancesMutationQueue
+├── aggregate-instance-store.ts # aggregateInstances 域 CRUD + rerankConfig + aggregateInstancesMutationQueue
 ├── search-cache-store.ts    # searchCache 包装 + 缓存队列
 ├── prefs-store.ts           # 20 个只读 pref getter/setter
 ├── snapshot.ts              # getProviderConfigSnapshot（跨域精确键批量读）
@@ -74,7 +76,7 @@ lib/storage/
 三条映射规则：
 
 - **队列的所有权归"改写那个 key 的域模块"**。`providerKeysMutationQueue` 住在 `provider-keys-store.ts`，`sourceMutationQueue` 住在 `source-graph-store.ts`，`providerInstancesMutationQueue` 住在 `provider-instance-store.ts`——队列与它串行化的 key 在同一个文件里，读者不需要跨文件追踪并发边界。
-- **跨域 helper 放 `shared.ts` 且不进 barrel**。`ensureVisibleUsable` 同时被 keys / source-graph / instance 三个 store 使用，是内部实现；不导出意味着它永远可以改签名。
+- **跨域 helper 放 `shared.ts` 且默认不进 barrel**。`ensureVisibleUsable` 同时被 keys / source-graph / instance 三个 store 使用，是内部实现；不导出意味着它永远可以改签名（后来唯一例外：`buildAggregateProjection` 经显式命名进 barrel，供 snapshot 层消费）。
 - **只读域不需要队列**。`prefs-store.ts` 的 20 个 getter/setter 是单 key 直写，没有读改写循环，也就没有队列——不要为了对称给每个 store 都配一条。
 
 ### barrel 保导出面：`export *` 默认，内部实现用显式命名列表排除
@@ -82,8 +84,9 @@ lib/storage/
 这是本次拆分能做到零调用方改动的全部机制。约 30 个调用方原本就写 `import { setKey, getSourceOrder } from '@/lib/storage'` 或 `'./storage'`；`storage.ts` 变成 `storage/` 目录后，`./storage` 与 `@/lib/storage` 都解析到 `storage/index.ts`，TypeScript 与打包器把目录的 `index.ts` 当作原文件的等价物。barrel 的真实内容：
 
 ```ts
-// lib/storage/index.ts
+// lib/storage/index.ts（现状）
 export * from './keys';
+export { buildAggregateProjection } from './shared';
 export * from './provider-keys-store';
 export {
   MAX_RESULTS_MIN,
@@ -93,22 +96,23 @@ export {
   getProviderMaxResults,
   setProviderMaxResults,
   clearProviderMaxResults,
-  getAllProviderMaxResults,
 } from './max-results-store';
 export * from './source-graph-store';
+export { withSharedKeyWrite } from './shared-key-write';
 export * from './prefs-store';
 export * from './site-instance-store';
 export * from './custom-engine-store';
 export * from './provider-instance-store';
+export * from './aggregate-instance-store';
 export * from './search-cache-store';
 export * from './snapshot';
 ```
 
 `export *` 与显式命名列表的选择规则：
 
-- **模块所有导出都是公共 API 时用 `export *`**（9 个模块如此）；
-- **模块含内部实现时用显式命名列表**。`max-results-store.ts` 的 `readMaxResultsMapFrom` 是给同目录兄弟模块用的内部读取函数，`export *` 会把它静默提升为公共 API——命名列表把它挡在 barrel 之外；
-- **`shared.ts` 干脆不出现在 barrel 里**。它只被目录内相对路径导入，从源头就不公共。
+- **模块所有导出都是公共 API 时用 `export *`**（10 个模块如此，含后来加入的 `aggregate-instance-store`）；
+- **模块含内部实现时用显式命名列表**。`max-results-store.ts` 的 `readMaxResultsMapFrom` 是给同目录兄弟模块用的内部读取函数，`export *` 会把它静默提升为公共 API——命名列表把它挡在 barrel 之外（该模块曾导出的 `getAllProviderMaxResults` 已随符号删除从列表移除）；
+- **`shared.ts` 现在也只以显式命名列表进 barrel**——仅 `buildAggregateProjection` 一个符号，其余 helper（`DEFAULT_ENGINE_ID` / `isKnownProvider` / `ensureVisibleUsable` 等）仍只被目录内相对路径导入，从源头不公共。
 
 ### 队列必须保持模块级单一实例，锁序注释逐字迁移
 
@@ -210,24 +214,24 @@ lib/storage.ts（898 行 / 92 exports）
 └── getProviderConfigSnapshot
 ```
 
-After：见 Guidance 第一节的 12 文件目录树。每个可变域一个 `-store.ts`，队列与 key 同文件；`keys.ts` 顶部保留 BYOK 安全头注释（`getKey` 仅 worker 调用、优先精确键读取、不 `get(null)`），安全约定随常量一起迁移。
+After：见 Guidance 第一节的目录树（拆分时 12 文件，现 14）。每个可变域一个 `-store.ts`，队列与 key 同文件；`keys.ts` 顶部保留 BYOK 安全头注释（`getKey` 仅 worker 调用、优先精确键读取、不 `get(null)`），安全约定随常量一起迁移。
 
-### 回归测试 1：导出面快照（88 项运行时导出）
+### 回归测试 1：导出面快照（101 项运行时导出）
 
-`tests/storage-surface.test.ts` 用字母序快照锁死 barrel 的运行时导出面，`Object.keys` 只反映运行时值，4 个纯类型导出由 typecheck 覆盖（88 + 4 = 92 与拆分前对账）：
+`tests/storage-surface.test.ts` 用字母序快照锁死 barrel 的运行时导出面，`Object.keys` 只反映运行时值，4 个纯类型导出由 typecheck 覆盖（拆分时 88 + 4 = 92 与拆分前对账；此后随 aggregateInstances / rerankConfig 等域与 `withSharedKeyWrite` 的加入增长到 101 项运行时导出）：
 
 ```ts
 // tests/storage-surface.test.ts
 import * as storage from '@/lib/storage';
 
-it('exposes exactly the 88 runtime exports (alphabetical snapshot)', () => {
+it('exposes exactly the 101 runtime exports (alphabetical snapshot)', () => {
   expect(Object.keys(storage).sort()).toEqual([
-    // keys（20 常量）+ max-results 常量（2）
+    // keys（23 常量）+ max-results 常量（2）
     'ACTIVE_KEY',
-    // ...（87 项全列表）...
+    // ...（其余 99 项全列表）...
     'withSourceMutation',
   ]);
-  expect(Object.keys(storage)).toHaveLength(88);
+  expect(Object.keys(storage)).toHaveLength(101);
 });
 ```
 
@@ -279,9 +283,11 @@ rules: {
 
 注意 pattern 的收敛性已验证零误报：`lib/storage/` 内部的 `./keys`、`./source-graph-store` 不匹配 `./storage/*`（它们不叫 `storage/...`），目录外对 `../site-instances` 这类相邻模块的导入同样不匹配——规则只打击真正绕 barrel 的路径形态，`npm run lint` 保持全绿。
 
+该禁令后来扩展到动态形态：`no-restricted-imports` 只查静态 import/export，动态 `import()` / `require()` 是其已知盲区，现由 `no-restricted-syntax` 的字符串字面量选择器兜底（`eslint.config.mjs` 的 `STORAGE_DYNAMIC_SUBMODULE_SELECTORS`，同样禁止动态 `import()`/`require()` `lib/storage/` 子模块）。
+
 ## Prevention
 
-- **导出面快照测试**（`tests/storage-surface.test.ts`）：字母序锁定全部运行时导出 + `toHaveLength(88)`；类型导出与运行时导出分账（4 + 88 = 92 与拆分前对账），注释写明计数口径。任何新增公共导出必须显式改快照。
+- **导出面快照测试**（`tests/storage-surface.test.ts`）：字母序锁定全部运行时导出 + `toHaveLength(101)`；类型导出与运行时导出分账（拆分时 4 + 88 = 92 与拆分前对账，现 101 项运行时导出），注释写明计数口径。任何新增公共导出必须显式改快照。
 - **锁序并发回归测试**（`tests/storage-lock-order.test.ts`）：用 write-log + deferred gate 的 storage mock 同时锁"锁序"（A 完成前 B 不得写）与"无 lost update"（并发后两笔写都存活、实例 id 恰好追加一次）。队列分叉是这个测试的直接靶子。
 - **`no-restricted-imports` 深层导入禁令**（`eslint.config.mjs`）：`@/lib/storage/*`、`../storage/*`、`./storage/*` 三种路径形态全部报 error，message 写明"mutation 队列单一实例"理由——机制约束必须自带解释，否则下一个人只会想办法绕开它。
 - **拆分类重构的固定检查项**：逐函数对照评审（签名 / 队列嵌套 / 注释三者零漂移，警惕 async→sync 这类"顺手简化"）；grep 旧路径 `lib/storage.ts` 清理文档与注释引用；确认新目录已被 git 跟踪；跑全量 `npm run typecheck` + `npm run lint` + `npm run build` + `npm test` 对账（本次 62 files / 1272 tests → 64 / 1275，增量恰好是新增的防回归测试）。
@@ -290,6 +296,6 @@ rules: {
 
 - `docs/solutions/logic-errors/instance-crud-cross-queue-lock-order.md` — source→instances 锁序的由来（mergeImport 跨队列 lost update 修复），本拆分逐字迁移的锁序注释正是那个修复留下的契约。
 - `docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md` — `withSourceMutation` / 每域队列模式的原始设计。
-- `docs/solutions/architecture-patterns/config-preference-pipeline.md` — `mergeImport` 的队列嵌套（`withSourceMutation(withProviderKeysMutation(...))`），拆分后它经 barrel 导出的队列 helper 保持同一锁序。
+- `docs/solutions/architecture-patterns/config-preference-pipeline.md` — `mergeImport` 的队列嵌套（现经 `withSharedKeyWrite` 原语：source → keys → maxResults），拆分后它经 barrel 导出的队列 helper 保持同一锁序。
 - `docs/solutions/architecture-patterns/provider-instance-multi-config-model.md` — 实例模型的存储 CRUD 契约（含锁序），其引用的 `lib/storage.ts` 路径已随本次拆分更新为 `lib/storage/`。
 - `docs/solutions/architecture-patterns/testable-content-script-helpers-via-lib-extraction.md` — 同一主题的另一面：为可测试性把代码抽进 `lib/`；本次拆分延续"lib 模块经统一入口消费"的约定。

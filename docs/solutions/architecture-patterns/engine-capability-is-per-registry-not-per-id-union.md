@@ -1,7 +1,7 @@
 ---
 title: "Engine capability is layered per registry, but the shared EngineId union hides the layers"
 date: 2026-07-23
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: engines
 problem_type: architecture_pattern
@@ -84,17 +84,9 @@ const extractors: Record<EngineId, EngineExtractor> = {
 };
 ```
 
-As of 2026-08-15, all nine registered engines have real extractors (the three Chinese sites and Sogou-Weixin were added after this doc was written — see _Status change_ below). The placeholder `UNSUPPORTED_EXTRACTOR` (`lib/engines/extractors/unsupported.ts`) is retained as a fallback mechanism for future engines not yet implementing DOM extraction:
+As of 2026-08-15, all nine registered engines have real extractors (the three Chinese sites and Sogou-Weixin were added after this doc was written — see _Status change_ below). The former placeholder `UNSUPPORTED_EXTRACTOR` (`lib/engines/extractors/unsupported.ts`) has since been removed with its file: the registry lookup is now `getEngineExtractor(engine): EngineExtractor | null`, an own-property guard that returns `null` for any id absent from the table (`lib/engines/extractors/registry.ts:25-29`), and `extractEngineSearch` maps `null` to the `'unsupported-layout'` error kind — a branch the code comments is unreachable for valid `EngineId`s (`lib/engines/extractors/index.ts:19-20`).
 
-```ts
-export const UNSUPPORTED_EXTRACTOR: EngineExtractor = {
-  extract: () => [],
-  pageState: () => null,
-  hasNaturalResultsArea: () => false,
-};
-```
-
-`hasNaturalResultsArea → false` causes the extraction pipeline to return an `unsupported-layout` error rather than results. The full `Record<EngineId, EngineExtractor>` mapping exists to satisfy TypeScript exhaustiveness, not to declare capability.
+`hasNaturalResultsArea → false` on a real extractor still causes the extraction pipeline to return an `unsupported-layout` error rather than results. The full `Record<EngineId, EngineExtractor>` mapping exists to satisfy TypeScript exhaustiveness, not to declare capability.
 
 #### Status change — the three Chinese sites now have real extractors
 
@@ -132,7 +124,7 @@ Douyin、Xiaohongshu、Bilibili、Yandex 和 DuckDuckGo 注册但默认隐藏在
 
 When adding a new engine:
 - It enters Layer 1 automatically (register in `lib/engines/registry.ts`).
-- Layer 2 requires an explicit decision: write a real extractor or map to `UNSUPPORTED_EXTRACTOR`.
+- Layer 2 requires an explicit decision: the `Record<EngineId, EngineExtractor>` is total — the compiler forces an entry for every `EngineId` — so write a real extractor (the map-to-`UNSUPPORTED_EXTRACTOR` fallback no longer exists; a `null` registry lookup maps to `'unsupported-layout'`).
 - Layer 3 requires no decision for the engine set itself: since 2026-08-10 the engine is auto-discovered via `list-engines`. The only remaining task is keeping agent-facing docs (`SKILL.md`, `reference/engines.md`) pointed at discovery rather than enumerating ids.
 - Layer 4 requires an explicit decision: add to `DEFAULT_HIDDEN_ENGINE_IDS` or leave visible.
 - Document each layer's support list where users/agents see it (README agent paragraph, SKILL.md, engine-definition sentence).
@@ -187,7 +179,7 @@ When adding a new engine:
 | Layer | Source of truth | Current support (2026-08-17) | Evidence of absence |
 |-------|----------------|------------------------------|---------------------|
 | 1 — Navigation / SERP bar | `lib/engines/registry.ts` | all 9 engines | — |
-| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 9 engines (Chinese sites added 2026-07-31; weixin 2026-08-13) | `UNSUPPORTED_EXTRACTOR` retained but unused — fallback for future engines |
+| 2 — Agent extraction | `lib/engines/extractors/registry.ts` | all 9 engines (Chinese sites added 2026-07-31; weixin 2026-08-13) | no placeholder fallback — `getEngineExtractor` returns `null` for absent ids, mapped to `'unsupported-layout'` |
 | 3 — Agent-facing engine vocabulary | `list-engines` bridge action → `allEngines()` | all 9 engines (auto-discovered since 2026-08-10) | no mirror to drift — vocabulary fetched at runtime via `list-engines` |
 | 4 — Default visibility | `lib/schema.ts` `DEFAULT_HIDDEN_ENGINE_IDS` | hidden: douyin, xiaohongshu (v1→v2), bilibili (v2→v3), yandex, duckduckgo (v5→v6), weixin (v8→v9) | google/bing/baidu are never default-hidden; AI engines have a parallel default-hidden layer at v6→v7 |
 

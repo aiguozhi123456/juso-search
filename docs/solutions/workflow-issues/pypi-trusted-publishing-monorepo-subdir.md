@@ -1,7 +1,7 @@
 ---
 title: PyPI Trusted Publishing workflow for a monorepo-subdir Python package
 date: 2026-08-09
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: docs/solutions/workflow-issues
 module: mcp-server
 problem_type: workflow_issue
@@ -63,7 +63,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: python-package-distributions, path: dist/ }
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 ```
 
 Key points:
@@ -73,7 +73,13 @@ Key points:
 - **Separate build and publish jobs.** This is a security requirement, not
   style: build dependencies are untrusted, and mixing them with the
   OIDC-elevated publish job enables dependency-poisoning privilege escalation.
-- **`id-token: write` only on the publish job**, never globally.
+- **`id-token: write` only on the publish job**, never globally (the workflow's
+  top-level `permissions:` is the least-privilege `contents: read`).
+- **Both jobs are prerelease-gated**
+  (`if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false`)
+  and carry `timeout-minutes: 15`. The gate matters because the wheel version
+  comes from `mcp-server/juso_search/__init__.py`, not the release tag — an
+  extension prerelease must never reach the production index.
 - **`environment: pypi`** — the name must exactly match what you register on
   pypi.org. Required reviewers can be added to this environment for a manual
   approval gate.

@@ -1,7 +1,7 @@
 ---
 title: Options tabbed sidebar IA and shared page atmosphere substrate
 date: 2026-07-26
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: design-patterns
 module: options UI / shared page atmosphere
 problem_type: design_pattern
@@ -47,7 +47,7 @@ Do not mirror every `<section>` as a top-level nav item. Collapse into a small s
 
 | Group | Sections |
 |-------|----------|
-| 搜索 | active engine, selection search, site engines, custom engines, source-groups layout editor, quickbar |
+| 搜索 | active engine, selection search, site engines, aggregate search, custom engines, source-groups layout editor, quickbar |
 | 密钥 | API keys, provider instances |
 | 通用 | locale, agent bridge, config I/O |
 | 关于 | about-brand, about-links, about-tech, about-ack |
@@ -77,7 +77,7 @@ Atmosphere belongs to the **document**, not to a max-width app column or a start
 entrypoints/shared/page-bg.css
 ```
 
-Import it from both entrypoints after tokens:
+Import it from every entrypoint after tokens — search, options, and onboarding all import the shared substrate:
 
 ```ts
 import '../shared/tokens.css';

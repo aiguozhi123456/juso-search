@@ -78,12 +78,18 @@ Final verified overrides block in package.json:
 
 ```json
 "overrides": {
-  "shell-quote": "^1.9.0",
-  "adm-zip": "^0.6.0",
+  "shell-quote": "^1.12.0",
+  "adm-zip": "^0.6.1",
+  "node-forge": "^1.4.2",
+  "source-map-js": "^1.2.2",
+  "zod": "^4.6.7",
+  "vite": "^8.3.5",
+  "brace-expansion@<2": "^1.1.21",
+  "brace-expansion@>=2": "^5.0.12",
   "tmp": "^0.2.6",
   "uuid": "^11.1.1",
   "esbuild": "^0.28.1",
-  "undici": "^7.29.0"
+  "undici": "^7.30.1"
 }
 ```
 
@@ -160,12 +166,18 @@ After:
     "wxt": "^0.20.27"
   },
   "overrides": {
-    "shell-quote": "^1.9.0",
-    "adm-zip": "^0.6.0",
+    "shell-quote": "^1.12.0",
+    "adm-zip": "^0.6.1",
+    "node-forge": "^1.4.2",
+    "source-map-js": "^1.2.2",
+    "zod": "^4.6.7",
+    "vite": "^8.3.5",
+    "brace-expansion@<2": "^1.1.21",
+    "brace-expansion@>=2": "^5.0.12",
     "tmp": "^0.2.6",
     "uuid": "^11.1.1",
     "esbuild": "^0.28.1",
-    "undici": "^7.29.0"
+    "undici": "^7.30.1"
   }
 }
 ```

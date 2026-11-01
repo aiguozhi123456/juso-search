@@ -1,7 +1,7 @@
 ---
 title: Adding REST Search Providers (Jina and Brave)
 date: 2026-07-27
-last_updated: 2026-08-17
+last_updated: 2026-11-01
 category: tooling-decisions
 module: providers
 problem_type: tooling_decision
@@ -28,7 +28,7 @@ Jina AI and Brave Search were added as REST providers to the extension's normali
 
 ## Guidance
 
-The extension uses a registry-driven provider system. Adding a REST provider touches the adapter, `ProviderId`, registry, i18n/locales, brand icon, and the manifest's host and web-accessible-resource declarations.
+The extension uses a registry-driven provider system. Adding a REST provider touches the adapter, `ProviderId`, registry, i18n/locales, brand icon, the manifest's host and web-accessible-resource declarations, and the colorful-mode per-provider color entry.
 
 ### 1. Adapter definition (`lib/providers/<id>.ts`)
 
@@ -60,6 +60,8 @@ export const jinaAdapter = defineProvider<JinaResponse>({
   label: LABEL,
   supportsAnswer: false,
   favicon: '/icons/jina.svg',
+  // 免 key 免费层：无 key 省略 Authorization 即可（约 20 RPM/IP，配 key 提额）。
+  keyOptional: true,
   transport: restTransport({
     endpoint: ENDPOINT,
     label: LABEL,
@@ -68,7 +70,7 @@ export const jinaAdapter = defineProvider<JinaResponse>({
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           'X-Retain-Images': 'none',
           'X-Respond-With': 'no-content',
         },
@@ -131,7 +133,7 @@ Keep a provider's request-specific details inside its adapter. Extend `restTrans
 Append the new id to the union so the type system recognizes it everywhere:
 
 ```ts
-export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global' | 'parallel';
+export type ProviderId = 'tavily' | 'exa' | 'brave' | 'stepfun' | 'stepfun-plan' | 'jina' | 'doubao' | 'doubao-global' | 'parallel' | 'deepseek' | 'anysearch';
 ```
 
 ### 3. Registry (`lib/providers/registry.ts`)
@@ -153,6 +155,8 @@ const adapters: Record<ProviderId, ProviderAdapter> = {
   doubao: doubaoAdapter,
   'doubao-global': doubaoGlobalAdapter,
   parallel: parallelAdapter,
+  deepseek: deepseekAdapter,
+  anysearch: anysearchAdapter,
 };
 
 export function allProviders(): ProviderAdapter[] {
@@ -166,6 +170,8 @@ export function allProviders(): ProviderAdapter[] {
     adapters.doubao,
     adapters['doubao-global'],
     adapters.parallel,
+    adapters.deepseek,
+    adapters.anysearch,
   ];
 }
 ```
@@ -191,13 +197,13 @@ Add the display name for both locales:
 
 ### 6. Brand icon (`public/icons/<id>.svg`)
 
-Place a brand SVG in `public/icons/`. The icon is referenced by the adapter's `favicon` field and must be declared in `wxt.config.ts` `web_accessible_resources` so it can be loaded inside the SERP shadow root. Add the provider API origin to `host_permissions` as well.
+Place a brand SVG in `public/icons/`. The icon is referenced by the adapter's `favicon` field and must be listed in the `FAVICON_RESOURCES` array in `wxt.config.ts` (the single list feeding both `web_accessible_resources` entries) so it can be loaded inside the SERP shadow root. Add the provider API origin to `host_permissions` as well. Finally, add a colorful-mode per-provider color entry (`--source-color`/`--source-soft`) in `entrypoints/shared/serp-bar-styles.ts` (e.g. deepseek=blue, anysearch=cyan).
 
 ## Why This Matters
 
-The provider system is registry-driven, not convention-driven. Adding a provider is mechanical but touches union types, the registry record, i18n message constants, both locale message files, the icon directory, `web_accessible_resources`, host permissions, and any test that hard-codes the canonical source order. The canonical default source order is derived directly from `allProviders()` in `lib/providers/registry.ts`, which feeds `DEFAULT_SOURCE_ORDER` in `lib/sources.ts`. Adding a new entry shifts that order and causes hard-coded expectations in pre-existing tests to diverge.
+The provider system is registry-driven, not convention-driven. Adding a provider is mechanical but touches union types, the registry record, i18n message constants, both locale message files, the icon directory, `web_accessible_resources`, host permissions, the colorful-mode color entry, and any test that hard-codes the canonical source order. The canonical default source order is derived directly from `allProviders()` in `lib/providers/registry.ts`, which feeds `DEFAULT_SOURCE_ORDER` in `lib/sources.ts`. Adding a new entry shifts that order and causes hard-coded expectations in pre-existing tests to diverge.
 
-The BYOK trust boundary is unchanged for every adapter: API keys are stored in `chrome.storage.local` and read only by background-worker helpers. Configuration and search pages receive sanitized status through worker messaging, never the stored key map.
+The BYOK trust boundary is unchanged for every adapter: API keys are stored in `chrome.storage.local` (accessed via the WXT `browser` global in `lib/storage/provider-keys-store.ts`) and read only by background-worker helpers. Configuration and search pages receive sanitized status through worker messaging, never the stored key map.
 
 ## When to Apply
 
@@ -231,7 +237,7 @@ For a GET provider, add focused adapter coverage for the request method, URL que
 ## Related
 
 - `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` — the general pattern for adding a new provider (REST or MCP) via `defineProvider` + transport.
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md` — normalizing heterogeneous provider responses into `NormalizedSearchResponse` and the BYOK key flow.
+- `docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md` — normalizing heterogeneous provider responses into `NormalizedSearchResponse`; BYOK key flow (see also its per-provider wire facts section).
 - `docs/solutions/design-patterns/source-level-favicon-field-pipeline.md` — the icon asset pipeline, including `web_accessible_resources` registration for shadow-DOM loading.
 - `docs/solutions/workflow-issues/cws-store-docs-must-sync-with-release-features.md` — CWS listing, privacy questionnaire, and privacy policy must be updated when a new network endpoint is added.
 - `docs/solutions/best-practices/theme-persistence-i18n-key-hygiene.md` — i18n parity requirements when adding new provider message keys.

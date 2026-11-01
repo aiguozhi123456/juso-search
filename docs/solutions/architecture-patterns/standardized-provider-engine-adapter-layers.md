@@ -1,7 +1,7 @@
 ---
 title: "Standardize extension points, not shapes: parallel adapter layers (provider + engine)"
 date: 2026-07-09
-last_updated: 2026-08-10
+last_updated: 2026-11-01
 category: architecture-patterns
 module: provider-adapter / engines
 problem_type: architecture_pattern
@@ -47,7 +47,8 @@ cheaply" ergonomics, but which were standardized at different times and had
 drifted into opposite shapes:
 
 - **Providers** (`lib/providers/`): AI search adapters — `tavily`, `exa`,
-  `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`, `parallel` — each behind a
+  `brave`, `stepfun`, `stepfun-plan`, `jina`, `doubao`, `doubao-global`, `parallel`,
+  `deepseek`, `anysearch` — each behind a
   `ProviderAdapter.search(query, opts, key)` contract, BYOK keys, return
   `{ answer?, results }`.
 - **Engines** (`lib/engines/`): navigation-only SERP targets — `google`,
@@ -207,6 +208,8 @@ export interface SearchEngine {
   matches(url: string): boolean;
   extractQuery(url: string): string | null;
   readonly anchors: AnchorStrategy[];
+  readonly pageStyles?: string;
+  readonly serpTheme?: 'light' | 'dark';
 }
 ```
 
@@ -312,12 +315,16 @@ engine set* to pick one:
 
 ```ts
 export function matchEngineByUrl(url: string): SearchEngine | null {
-  return allEngines().find((e) => e.matches(url)) ?? null;
+  return allEngines().find((e) => e.matches(url)) ?? (baiduZhanneiSurface.matches(url) ? baiduZhanneiSurface : null);
 }
 export function extractQuery(url: string): string | null {
   return matchEngineByUrl(url)?.extractQuery(url) ?? null;
 }
 ```
+
+(The lookup has since also appended the `baiduZhanneiSurface` synthetic
+surface after the registry pass, so `zhannei.baidu.com/cse/site` result pages
+are recognized as the baidu backing engine.)
 
 External call sites don't change; behavior moved onto the object without
 breaking the registry's public API.
@@ -357,7 +364,7 @@ behavior change for zero structural benefit.
 **`ProviderId` and `EngineId` stay un-merged.** This preserves a documented v2
 decision. `ProviderId` is bound to the BYOK key read-path (`storage.getKey`)
 and the `search(query, opts, key)` contract; engines satisfy neither.
-`lib/sources.ts`'s `SourceId` (six members as of 2026-08: provider, engine, site, custom, instance, ai-engine ids) is the **only**
+`lib/sources.ts`'s `SourceId` (seven members as of 2026-11: provider, engine, site, custom, instance, ai-engine, aggregate ids) is the **only**
 composition point. Resist any urge to make `defineProvider` / an
 engine-factory return a common base type "for symmetry."
 
@@ -378,6 +385,19 @@ gateway source handling, both source switchers, and SERP handoff without
 Baidu-specific production branches. The provider path stays unchanged:
 `isProviderId('baidu')` remains false, no `providerKeys.baidu` slot exists, and
 selecting Baidu never invokes `ProviderAdapter.search()`.
+
+**BYOK keys are worker-only, and the page never sees the key map.** Keys are
+stored in `chrome.storage.local` under a single keys map (accessed via the
+WXT-typed `browser` global, `lib/storage/provider-keys-store.ts`), read only
+inside the background worker — the `lib/storage/` barrel is never imported by
+UI entrypoints, enforced by the page-storage redline lint and
+`tests/eslint-page-storage-boundary.test.ts`. The UI receives sanitized
+configuration status through worker messages (`configuredProviderIds`,
+`keyedProviderIds`, active provider id — never the stored `providerKeys` map)
+and sends newly typed keys to the worker for storage. Each adapter receives
+the key from the worker's secure context via `search(query, opts, apiKey)`.
+(Inherited from the consolidated predecessor doc — this is the invariant
+`dual-domain-storage-schema-versioning.md` relies on for config export/import.)
 
 **Validation history.** The original behavior-preserving structural refactor
 passed 274/274 tests. The later behavior-adding Baidu extension passed 318/318 tests plus typecheck,
@@ -509,19 +529,25 @@ Registration only covers the navigation layer. Engine capability is layered per
 registry (see `engine-capability-is-per-registry-not-per-id-union.md`), so a new
 engine also needs an explicit decision at each remaining layer:
 
-- Extractor registry: register a real extractor, or map the engine to
-  `UNSUPPORTED_EXTRACTOR` when extraction is not yet implemented. Login-walled
-  async SPAs are not a blocker — bilibili/xiaohongshu/douyin all ship real
-  extractors that scrape the logged-in live DOM (douyin synthesizes URLs from
-  card ids since it has no `<a>` links). The full `Record<EngineId, EngineExtractor>`
-  mapping satisfies exhaustiveness; it does not declare capability.
+- Extractor registry: the `Record<EngineId, EngineExtractor>` is total — the
+  compiler forces an entry, so write a real extractor (there is no
+  map-to-unsupported decision anymore; the old `UNSUPPORTED_EXTRACTOR` sentinel
+  was removed, and the registry's null-guard for absent engines maps to the
+  `'unsupported-layout'` error kind only as an unreachable safety net for valid
+  ids). Login-walled async SPAs are not a blocker —
+  bilibili/xiaohongshu/douyin all ship real extractors that scrape the
+  logged-in live DOM (douyin synthesizes URLs from card ids since it has no
+  `<a>` links). The total mapping satisfies exhaustiveness; it does not declare
+  capability.
 - Agent skill CLI: no whitelist edit needed — the skill discovers engines at
   runtime via `list-engines` (since 2026-08-10; see
   `skill-mcp-vocabulary-decoupling.md`). The only remaining task is keeping
   `SKILL.md` / `reference/engines.md` pointed at discovery rather than
   enumerating ids.
-- Default visibility: decide whether the engine ships default-hidden via
-  `DEFAULT_HIDDEN_ENGINE_IDS` until the user shows it.
+- Default visibility: decide whether the engine ships default-hidden via the
+  versioned `DEFAULT_HIDDEN_ENGINE_IDS_V2..V5` constants in `lib/schema.ts`
+  (one per migration that introduced a default-hidden engine batch) until the
+  user shows it.
 
 The final browser check matters for Baidu's `#content_left`: contract tests prove
 what the adapter requests, not that the external page still exposes a stable node.
@@ -537,12 +563,40 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
 
 > **Business-error note:** If the API returns HTTP 200 with business errors (Result: null + ResponseMetadata.Error), extract a shared error mapper (see `doubao-search-provider.md`) rather than inlining the business-error check per adapter.
 
+### Per-provider wire facts (inherited from the consolidated predecessor doc)
+
+The predecessor of this learning (`provider-api-integration-patterns.md`,
+2026-07-01, consolidated here 2026-11-01) recorded provider-specific API facts
+that still hold and have nowhere better to live:
+
+- **Exa**: send `outputSchema: { type: "text" }` to get `output.content` (the
+  synthesized answer) and `output.grounding[]` (field-level citations with
+  url/title) — a different citation mechanism than Tavily's index references.
+  Auth: `x-api-key: <key>`.
+- **Tavily**: `include_answer: true` returns the answer string; citations are
+  derived from `results[]` index references. Auth: `Authorization: Bearer <key>`
+  (with the keyless tier swapping in `X-Tavily-Access-Mode` instead — see
+  `keyless-free-tier-providers.md`).
+- **Stepfun REST**: no answer synthesis available; normalize from
+  `results[].snippet` + `results[].content`. Auth: `Authorization: Bearer <key>`.
+- **Stepfun MCP** (`stepfun-plan`): stateless streamableHttp transport — send an
+  `initialize` handshake (no session persisted), then `tools/call` with
+  `name: "web_search"` and `arguments.input`. The response nests the identical
+  REST result shape as a JSON string inside `result.content[0].text`, so the
+  same normalize logic serves both surfaces.
+- **Billing separation**: the two Stepfun adapters (`stepfun`,
+  `stepfun-plan`) hit the same search backend but different meters
+  (pay-as-you-go REST vs Step Plan MCP subscription). Separate adapters make it
+  impossible to charge against the wrong account.
+
 ## Related
 
-- `docs/solutions/architecture-patterns/provider-api-integration-patterns.md`
-  — documents the original `ProviderAdapter` interface that this learning
-  extends with the transport layer + `defineProvider` factory. (Its example
-  code predates this refactor — see refresh candidate below.)
+- `provider-api-integration-patterns.md` (the 2026-07-01 predecessor of this
+  learning, deleted 2026-11-01) — documented the original flat
+  `ProviderAdapter` interface this learning extends with the transport layer +
+  `defineProvider` factory. Consolidated into this doc: its per-provider wire
+  facts live in Examples above, its BYOK key-flow invariant in Why This
+  Matters. Git history preserves the full original.
 - `docs/solutions/architecture-patterns/serp-switch-bar-and-unified-source-model.md`
   — documents the provider/engine separation and the "do not merge
   `ProviderId`/`EngineId`" v2 decision this learning preserves and refines.
@@ -564,9 +618,3 @@ That's it — no fetch skeleton, no error mapping, no envelope assembly.
   — the skill/MCP vocabulary (previously a hardcoded engine whitelist) is
   discovered at runtime via `list-providers`/`list-engines`; the extension
   validates ids at claim time.
-
-**Refresh candidates surfaced by this learning** (run `/ce-compound-refresh`):
-- `provider-api-integration-patterns.md` — example code shows the pre-refactor
-  flat `ProviderAdapter` + inline `TavilyAdapter` error mapping this learning
-  extracts into `restTransport`/`defineProvider`. (That doc is self-labeled as
-  historical/superseded by this one; the snippet drift is intentional context.)

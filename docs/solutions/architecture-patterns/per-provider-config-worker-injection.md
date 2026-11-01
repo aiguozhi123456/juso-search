@@ -1,7 +1,7 @@
 ---
 title: "Per-provider config via worker injection (BYOK pattern extended to non-secret prefs)"
 date: 2026-07-27
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: lib/gateway
 problem_type: architecture_pattern
@@ -39,7 +39,7 @@ This repository is a WXT + React + TypeScript Chrome MV3 search extension with a
 
 The task: add a per-provider "max results" (搜索结果条数, 1–20) setting so a user can ask each provider to return fewer/more results than its built-in default.
 
-The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all eight REST adapters (tavily/exa/brave/stepfun/jina/doubao/doubao-global/parallel) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
+The interesting part is **not** the feature itself — `SearchOptions.maxResults` already existed in `lib/providers/types.ts` and all ten REST adapters (tavily/exa/brave/stepfun/jina/doubao/doubao-global/parallel, later joined by deepseek and anysearch) already read `opts.maxResults ?? <default>`. The gap was purely: storage, gateway injection, config import/export, and UI. The interesting part is **the architectural decision of where to put the new setting, and the cache-invalidation bug that decision produced.**
 
 ## Guidance
 
@@ -62,16 +62,18 @@ The `...(maxResults !== null ? { maxResults } : {})` spread is the key idiom: **
 
 ### Do not bump the schema version for an additive, getter-fallback config key
 
-`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 9) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
+`lib/schema.ts` maintains a config-domain schema (`schemaVersion`, currently 10) with a migration chain. There is also a separate cache-domain schema (`cacheSchemaVersion` in `lib/search-cache.ts`) — the two are intentionally independent so a pure-config change does not force reading/writing the 50-entry cache pool.
 
 When adding `providerMaxResults`, the change to `lib/schema.ts` is just a whitelist append:
 
 ```ts
 export const CONFIG_KEYS = [
-  'providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref',
+  'providerKeys', 'activeProvider', 'activeSource', 'themePref', 'localePref', 'stylePref',
   'sourceOrder', 'sourceHidden', 'siteInstances', 'customEngines', 'providerInstances',
-  'agentBridgeEnabled', 'engineSearchEnabled', 'providerMaxResults', // <- additive
-  'groupConfig', 'serpBarPosition',
+  'aggregateInstances', 'rerankConfig', 'agentBridgeEnabled', 'engineSearchEnabled',
+  'providerMaxResults', // <- additive
+  'groupConfig', 'serpBarPosition', 'aiAutoEnter', 'flatLayoutFewSources',
+  'selectionSearchEnabled', 'selectionSearchSource', 'onboardingCompleted',
 ] as const;
 ```
 
@@ -79,9 +81,9 @@ No version bump, no migration. The rule (documented inline at `lib/schema.ts`): 
 
 ### Put the enforcement point in the adapter factory, not in each provider
 
-Nine adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
+Eleven adapters share a `defineProvider` factory (`lib/providers/base.ts`). `maxResults` needs to be enforced uniformly across all of them, including `stepfun-plan` — the MCP-based adapter whose `web_search` tool takes only a `query` argument and *cannot* pass a count upstream. For stepfun-plan, the upstream returns whatever it returns and the only way to honor the user's maxResults is to truncate **after** normalization.
 
-The factory's truncation safety net handles all nine in one place:
+The factory's truncation safety net handles all eleven in one place:
 
 ```ts
 async search(query, opts, apiKey) {
@@ -278,7 +280,7 @@ export async function handleSetProviderMaxResults(providerId: ProviderId, maxRes
 
 ### Example 3 — The mutation queue (storage)
 
-Five parallel queues, one per shared storage key, each serializing its own read-modify-writes. The pattern is identical across all five; copy it verbatim when adding a sixth:
+Six parallel queues, one per shared storage key, each serializing its own read-modify-writes. The pattern is identical across all six; the sixth (`aggregateInstancesMutationQueue`, `lib/storage/aggregate-instance-store.ts:38`) was added by copying it verbatim:
 
 ```ts
 let searchCacheMutationQueue: Promise<unknown> = Promise.resolve();
@@ -286,6 +288,7 @@ let providerKeysMutationQueue: Promise<unknown> = Promise.resolve();
 let sourceMutationQueue: Promise<unknown> = Promise.resolve();
 let providerMaxResultsMutationQueue: Promise<unknown> = Promise.resolve();
 let providerInstancesMutationQueue: Promise<unknown> = Promise.resolve();
+let aggregateInstancesMutationQueue: Promise<unknown> = Promise.resolve();
 
 export function withProviderKeysMutation<T>(mutation: () => Promise<T>): Promise<T> {
   const run = providerKeysMutationQueue.then(mutation, mutation);
@@ -307,6 +310,8 @@ export function withProviderInstancesMutation<T>(mutation: () => Promise<T>): Pr
 ```
 
 The `.catch(() => undefined)` on the queue tail is load-bearing: without it, one rejected mutation would permanently poison the queue and all subsequent writes would no-op. The mutation itself can still throw — the caller sees the rejection via `run`, but the *next* queued caller sees a clean queue.
+
+One refinement the later queues introduced: multi-key writers acquire the **source queue first**, then their own key queue — `setProviderMaxResults` now nests `withSourceMutation(() => withProviderMaxResultsMutation(...))` (`lib/storage/max-results-store.ts:45-56`), because `mergeImport` holds the source queue while whole-array-overwriting the map and the per-key queue alone cannot serialize against that. The lock order is recorded in `docs/solutions/logic-errors/instance-crud-cross-queue-lock-order.md`.
 
 ### Example 4 — The truncation safety net (adapter factory)
 
@@ -357,8 +362,8 @@ The `preventDefault` on `mouseDown` is the primary fix (the input never loses fo
 
 - **`docs/solutions/architecture-patterns/local-search-cache-mv3.md`** — cache-domain design; the cache-invalidation pitfall (C1) shows its cache key must account for config values that affect result shape.
 - **`docs/solutions/architecture-patterns/config-preference-pipeline.md`** — the end-to-end pref pipeline; maxResults is a third pref type (per-provider scalar map) distinct from the existing `SourceId[]` prefs.
-- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig`, `customEngines`, and `providerInstances` are getter-defaulted additions that joined without a bump, while `serpBarPosition` (the 13th) later forced a v7→v8 value-rewrite bump when `'top'` semantics changed; `aiAutoEnter` and `flatLayoutFewSources` are further getter-defaulted additions — the whitelist is now 19 entries.
+- **`docs/solutions/architecture-patterns/dual-domain-storage-schema-versioning.md`** — config-domain schema; the no-bump-for-default-safe rule and the `CONFIG_KEYS` whitelist. `providerMaxResults` added the 11th key; `groupConfig`, `customEngines`, and `providerInstances` are getter-defaulted additions that joined without a bump, while `serpBarPosition` (the 13th) later forced a v7→v8 value-rewrite bump when `'top'` semantics changed; `aiAutoEnter` and `flatLayoutFewSources` are further getter-defaulted additions, as are `aggregateInstances` and `rerankConfig`; with `stylePref`, the selection-search pair, and `onboardingCompleted`, the whitelist is now 23 entries.
 - **`docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`** — owns the `defineProvider` factory contract where the truncation safety net lives.
-- **`docs/solutions/architecture-patterns/provider-api-integration-patterns.md`** — provider adapter patterns; the count-propagation asymmetry (REST forwards upstream, MCP relies on factory slice).
+- **`docs/solutions/architecture-patterns/standardized-provider-engine-adapter-layers.md`** — provider adapter patterns and the transport/factory standardization.
 - **`docs/solutions/architecture-patterns/separate-active-search-source-from-active-byok-provider.md`** — the BYOK/provider-config boundary this pref respects.
 - **Related bug class:** any future setting that influences a cached provider output (e.g. a per-provider `safeSearch` flag, a per-provider `lang` override) must follow the same audit: (1) inject in the worker, not the page; (2) clear the cache on write, or fold into the cache key; (3) serialize the read-modify-write; (4) cascade-delete on `clearKey`.

@@ -1,7 +1,7 @@
 ---
 title: "Separate active search source from active BYOK provider"
 date: 2026-07-09
-last_updated: 2026-09-09
+last_updated: 2026-11-01
 category: architecture-patterns
 module: search-source-configuration
 problem_type: architecture_pattern
@@ -40,6 +40,8 @@ The fix is to keep `activeProvider` provider-only and introduce a separate persi
 
 > **Note (updated 2026-09-09):** the site-engine source kind was renamed to site instance — `SiteEngineId` → `SiteInstanceId`, `SourceKind` `'site-engine'` → `'site-instance'`, storage `SITE_ENGINES_KEY` → `SITE_INSTANCES_KEY` (`'siteInstances'`, schema v9→v10). Identifiers above reflect the current names. See [site-instance-construction-modes-and-zhannei-surface](./site-instance-construction-modes-and-zhannei-surface.md).
 
+> **Note (updated 2026-11-01):** the `SourceId` union now counts **seven** members — `AggregateInstanceId` (aggregate search instances, `agg:`-prefixed ids) joined via the aggregate-search work (`lib/sources.ts`). `selectActiveSourceId` accepts an aggregate instance (eligibility-gated; no dual-write of `activeProvider`, since aggregates have no base provider), and `getActiveSourceId()` below now also reads `AGGREGATE_INSTANCES_KEY` + `RERANK_CONFIG_KEY`.
+
 ## Guidance
 
 Model BYOK providers and regular engines as separate concepts, then compose them only where the product needs a selectable default source.
@@ -55,9 +57,9 @@ The storage layer owns the fallback rule:
 ```ts
 // Effective source fallback:
 // valid stored activeSource -> activeProvider with key -> first configured provider -> google
-export async function getActiveSourceId(): Promise<SourceId> {
-  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY]);
-  // ...validate stored source/provider against known IDs, provider keys, and site-instance definitions
+export async function getActiveSourceId(): Promise<EffectiveSourceId> { // EffectiveSourceId = SourceId | ProviderInstanceId (module-local)
+  const got = await browser.storage.local.get([ACTIVE_SOURCE_KEY, ACTIVE_KEY, KEYS_KEY, SITE_INSTANCES_KEY, CUSTOM_ENGINES_KEY, PROVIDER_INSTANCES_KEY, AGGREGATE_INSTANCES_KEY, RERANK_CONFIG_KEY]);
+  // ...validate stored source/provider against known IDs, provider keys, and site/custom/provider/aggregate definitions
 }
 ```
 
