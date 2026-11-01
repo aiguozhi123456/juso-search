@@ -106,7 +106,7 @@
   <text x="190" y="188" fill="#94a3b8" font-size="9" text-anchor="middle">来源选择 · AI 搜索 · 缓存历史</text>
   <text x="190" y="274" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">SERP 切换栏 · Switch Bar</text>
   <text x="190" y="292" fill="#94a3b8" font-size="8" text-anchor="middle">Google · Bing · Baidu · 抖音 · 小红书</text>
-  <text x="190" y="304" fill="#94a3b8" font-size="8" text-anchor="middle">哔哩哔哩 · Yandex · DuckDuckGo</text>
+  <text x="190" y="304" fill="#94a3b8" font-size="8" text-anchor="middle">哔哩哔哩 · Yandex · DuckDuckGo · 搜狗公众号</text>
   <text x="190" y="316" fill="#94a3b8" font-size="8" text-anchor="middle">结果页内切换</text>
   <text x="190" y="388" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">设置页 · Options</text>
   <text x="190" y="408" fill="#94a3b8" font-size="8" text-anchor="middle">BYOK 密钥 · Site/Custom Engine · 实例</text>
@@ -122,18 +122,20 @@
   <text x="520" y="548" fill="#ffffff" font-size="12" font-weight="700" text-anchor="middle">Background Worker</text>
   <text x="520" y="570" fill="#94a3b8" font-size="9" text-anchor="middle">Service Worker · 消息网关 · Provider 执行</text>
   <text x="850" y="548" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Provider 适配器</text>
-  <text x="850" y="570" fill="#94a3b8" font-size="8" text-anchor="middle">Tavily · Exa · Brave · Stepfun · Jina · 豆包</text>
+  <text x="850" y="570" fill="#94a3b8" font-size="8" text-anchor="middle">Tavily · Exa · Brave · Stepfun · Jina</text>
+  <text x="850" y="582" fill="#94a3b8" font-size="8" text-anchor="middle">豆包 · Parallel · DeepSeek · AnySearch</text>
   <text x="500" y="718" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">chrome.storage.local</text>
   <text x="500" y="734" fill="#94a3b8" font-size="9" text-anchor="middle">BYOK 密钥 · 偏好 · 缓存</text>
 
   <!-- external services -->
   <text x="190" y="894" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">搜索引擎 · Search Engines</text>
   <text x="190" y="912" fill="#94a3b8" font-size="8" text-anchor="middle">Google · Bing · Baidu · 抖音 · 小红书</text>
-  <text x="190" y="924" fill="#94a3b8" font-size="8" text-anchor="middle">哔哩哔哩 · Yandex · DuckDuckGo</text>
+  <text x="190" y="924" fill="#94a3b8" font-size="8" text-anchor="middle">哔哩哔哩 · Yandex · DuckDuckGo · 搜狗公众号</text>
   <text x="530" y="894" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AI 对话引擎 · AI Chat Engines</text>
   <text x="530" y="912" fill="#94a3b8" font-size="8" text-anchor="middle">Grok · ChatGPT · DeepSeek · 豆包 · Gemini</text>
   <text x="850" y="894" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AI 搜索 API</text>
-  <text x="850" y="912" fill="#94a3b8" font-size="8" text-anchor="middle">Tavily · Exa · Brave · Stepfun · Jina · 豆包</text>
+  <text x="850" y="912" fill="#94a3b8" font-size="8" text-anchor="middle">Tavily · Exa · Brave · Stepfun · Jina</text>
+  <text x="850" y="924" fill="#94a3b8" font-size="8" text-anchor="middle">豆包 · Parallel · DeepSeek · AnySearch</text>
 
   <!-- arrow labels -->
   <text x="283" y="549" fill="#67e8f9" font-size="8" text-anchor="middle">messaging · 消息</text>
@@ -156,7 +158,7 @@
   <text x="701" y="994" fill="#94a3b8" font-size="9">安全边界</text>
 
   <!-- ══ Layer 8 · Title ══ -->
-  <text x="1000" y="54" fill="#64748b" font-size="8" letter-spacing="2" text-anchor="end">ARCHITECTURE · CHROME MV3</text>
+  <text x="1000" y="54" fill="#64748b" font-size="8" letter-spacing="2" text-anchor="end">ARCHITECTURE · CHROME / FIREFOX MV3</text>
   <text x="40" y="62" font-size="18" font-weight="700"><tspan fill="#e2e8f0">双面搜</tspan><tspan fill="#64748b"> / </tspan><tspan fill="#22d3ee">Juso</tspan></text>
   <text x="40" y="84" fill="#94a3b8" font-size="9">人类侧 × 智能体侧 — 共享同一个 Background Worker 核心</text>
 </svg>
