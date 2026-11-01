@@ -10,6 +10,8 @@
 
 开发者模式安装会显示浏览器警告，且更新需要手动重新构建、替换已加载目录，并在扩展管理页重新加载扩展。
 
+Firefox 从源码构建：`npm run build:firefox` → `.output/firefox-mv3/`，在 `about:debugging#/runtime/this-firefox` 中"临时载入附加组件"选择该目录下的 manifest.json。
+
 ## 开发命令
 
 ```bash
@@ -17,9 +19,10 @@ npm install      # 安装依赖
 npm run dev      # WXT 开发（HMR）
 npm run build    # 生产构建 → .output/chrome-mv3/
 npm run build:dev    # 开发构建（含签名 key，扩展 ID 稳定）→ .output/chrome-mv3-dev/
+npm run build:firefox    # Firefox MV3 构建 → .output/firefox-mv3/
 npm run typecheck    # tsc --noEmit
 npm test         # vitest run（单元 + 组件测试）
-npm run test:python  # Python 技能测试（juso_bridge 单源 + skill CLI）
+npm run test:python  # Python 技能测试（skill CLI + juso_bridge 单源 + drift 锁）
 npm run test:mcp     # MCP server 测试（pytest）
 npm run gen-skills   # 重新生成 skill 发布目录 + MCP vendor 副本
 npm run lint     # eslint .
@@ -40,10 +43,11 @@ npm run lint     # eslint .
 ![双面搜架构](assets/architecture.svg)
 
 - `entrypoints/search/`：独立人类搜索页、搜索来源切换、缓存与历史。
-- `entrypoints/options/`：本地密钥、来源偏好、Site Instance / Custom Engine / Provider Instance 管理。
+- `entrypoints/options/`：本地密钥、来源偏好、Site Instance / Aggregate Instance / Custom Engine / Provider Instance 管理与 Agent Bridge 设置。
 - `entrypoints/background.ts`、`lib/gateway.ts`：后台服务、消息网关与 Agent Bridge 的受限执行入口。
-- `lib/providers/`：Tavily、Exa、Brave、Stepfun 按量与 Step Plan、Jina、Doubao（Custom/Global）的适配器及统一响应模型。
+- `lib/providers/`：Tavily、Exa、Brave、Stepfun 按量与 Step Plan、Jina、Doubao（Custom/Global）、Parallel、DeepSeek、AnySearch 的适配器及统一响应模型。
 - `lib/provider-instances.ts`：同一 provider 的多实例（调好参数的变体），实例是快切栏一等目标，不持有密钥；gateway 在边界解析 `ProviderInstanceId → { providerId, options }`。
+- `lib/aggregate/` 与 `lib/aggregate-instances.ts`：聚合搜索——聚合实例（成员来源集 + topN）、成员资格判定与 rerank 客户端（endpoint 白名单，cohere / jev 两种协议），成员结果合并重排后返回。
 - `lib/engines/`、`lib/ai-engines/`、`lib/site-instances.ts`、`lib/custom-engines.ts`：传统搜索引擎、AI 对话引擎（Grok/ChatGPT/DeepSeek/豆包/Gemini，注入或 URL 预填）、站外搜索（site instance：per-instance 构造模式 baidu zhannei / bing q1 / `site:` 前缀）、自定义引擎（`%s` URL 模板）。
 - SERP Switch Bar 与 `lib/engine-search.ts`：结果页切换栏注入、普通结果提取；其执行契约不同于 API 服务。
 - `lib/storage/`、`lib/config-io.ts`、`lib/schema.ts`：本地配置、来源偏好、缓存、配置导入导出与 schema 迁移。
@@ -51,7 +55,7 @@ npm run lint     # eslint .
 
 ## 技术栈
 
-WXT + React + TypeScript，Chrome MV3。WXT 自动导入 `defineBackground`、`browser`、`defineContentScript` 与 React hooks（无需手写 import）。使用 `browser`（已类型化），不要用 `chrome`。
+WXT + React + TypeScript，Chrome / Firefox MV3（`wxt.config.ts` 按 browser 分支）。WXT 自动导入 `defineBackground`、`browser`、`defineContentScript` 与 React hooks（无需手写 import）。使用 `browser`（已类型化），不要用 `chrome`。
 
 ## 安全约束
 
@@ -61,7 +65,7 @@ API key 为 BYOK，仅存 `chrome.storage.local`，仅由 background worker 读�
 
 Vitest + jsdom。适配器 mock `fetch`（REST）/ MCP 端点（stepfun-plan），storage 用内存版 `browser.storage.local`。组件测试 mock `@/lib/messaging` 与 `@/lib/storage`。
 
-Python 测试（`npm run test:python`）覆盖 skill CLI 与 `juso_bridge` 单源模块；MCP server 测试（`npm run test:mcp`，pytest）覆盖配置解析/退出码、工具 schema 与 wire 字段、dual-era 握手（真实子进程）与 stdout 纯净性。
+Python 测试（`npm run test:python`）覆盖 skill CLI、`juso_bridge` 单源与 drift 锁；MCP server 测试（`npm run test:mcp`，pytest）覆盖配置解析/退出码、工具 schema 与 wire 字段、dual-era 握手（真实子进程）与 stdout 纯净性。
 
 ## 更多参考
 
