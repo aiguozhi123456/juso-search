@@ -273,7 +273,7 @@ describe('handleSearch', () => {
     expect(reply.ok).toBe(true);
     if (reply.ok) {
       expect(reply.cache).toEqual({ hit: true, entryId: 'cache-hit', createdAt: 123 });
-      expect(reply.response.results[0].title).toBe('Cached');
+      expect(reply.response.results[0]!.title).toBe('Cached');
     }
   });
 
@@ -397,7 +397,7 @@ describe('handleSearch', () => {
 
     expect(reply.ok).toBe(true);
     if (reply.ok) {
-      expect(reply.response.results[0].title).toBe('R');
+      expect(reply.response.results[0]!.title).toBe('R');
       expect(reply.cache).toEqual({ hit: false, entryId: undefined, createdAt: undefined });
     }
   });
@@ -1187,7 +1187,7 @@ describe('handleExportConfig', () => {
     }
     // onDownload 收到 data url（含明文 key）+ 文件名
     expect(onDownload).toHaveBeenCalledTimes(1);
-    const [url, filename] = onDownload.mock.calls[0];
+    const [url, filename] = onDownload.mock.calls[0]!;
     expect(url.startsWith('data:application/json;charset=utf-8,')).toBe(true);
     expect(decodeURIComponent(url.split(',')[1])).toContain('tvly-secret');
     expect(filename).toMatch(/^juso-config-\d{8}-\d{4}\.json$/);
@@ -1353,10 +1353,10 @@ describe('installDownloadFilenameGuard', () => {
     const ok = await handleExportConfig();
     expect(ok.ok).toBe(true);
     const [firstCall, secondCall] = vi.mocked(browser.downloads.download).mock.calls;
-    expect(firstCall[0].filename).toMatch(/^juso-config-20260101-\d{4}\.json$/);
-    expect(secondCall[0].filename).toMatch(/^juso-config-20260201-\d{4}\.json$/);
+    expect(firstCall![0].filename).toMatch(/^juso-config-20260101-\d{4}\.json$/);
+    expect(secondCall![0].filename).toMatch(/^juso-config-20260201-\d{4}\.json$/);
     expect(suggestSpy).toHaveBeenCalledTimes(1);
-    expect(suggestSpy).toHaveBeenCalledWith({ filename: secondCall[0].filename });
-    expect(suggestSpy).not.toHaveBeenCalledWith({ filename: firstCall[0].filename });
+    expect(suggestSpy).toHaveBeenCalledWith({ filename: secondCall![0].filename });
+    expect(suggestSpy).not.toHaveBeenCalledWith({ filename: firstCall![0].filename });
   });
 });

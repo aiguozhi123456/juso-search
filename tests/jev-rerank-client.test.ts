@@ -88,9 +88,9 @@ describe('rerankDocuments: jev protocol request shape', () => {
     expect(body.state).toEqual({ query: 'q', documents: { doc_0: 'd0', doc_1: 'd1' } });
     expect(Object.keys(body.questions)).toEqual(['doc_0', 'doc_1']);
     expect(body.questions.doc_1).toMatchObject({ type: 'noul' });
-    expect(body.questions.doc_1.instructions).toContain('`documents.doc_1`');
-    expect(body.questions.doc_1.criteria.true.length).toBeGreaterThan(0);
-    expect(body.questions.doc_1.criteria.false.length).toBeGreaterThan(0);
+    expect(body.questions.doc_1!.instructions).toContain('`documents.doc_1`');
+    expect(body.questions.doc_1!.criteria.true!.length).toBeGreaterThan(0);
+    expect(body.questions.doc_1!.criteria.false!.length).toBeGreaterThan(0);
     // SystemOne 无 top_n 参数：调用方的 top_n 被 jev 路径忽略（topN 截断在 applyRerankOrdering）。
     expect('top_n' in body).toBe(false);
   });

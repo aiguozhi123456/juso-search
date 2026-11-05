@@ -31,7 +31,7 @@ describe('StyleToggle', () => {
     renderWith('classic');
     // OPTIONS 顺序：classic / colorful
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[1]);
+    fireEvent.click(buttons[1]!);
     expect(setPref).toHaveBeenCalledWith('colorful');
     expect(setPref).toHaveBeenCalledTimes(1);
   });
@@ -48,7 +48,7 @@ describe('StyleToggle', () => {
   it('switching from colorful back to classic calls setPref with classic', () => {
     renderWith('colorful');
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[0]!);
     expect(setPref).toHaveBeenCalledWith('classic');
   });
 });

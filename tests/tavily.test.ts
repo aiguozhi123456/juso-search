@@ -43,7 +43,7 @@ describe('tavilyAdapter', () => {
     );
     const out = await tavilyAdapter.search('q', {}, 'k');
     expect(out.answer).toBeUndefined();
-    expect(out.results[0].snippet).toBe('s');
+    expect(out.results[0]!.snippet).toBe('s');
   });
 
   it('falls back to the URL when the API omits a result title (result + answer citations)', async () => {
@@ -59,7 +59,7 @@ describe('tavilyAdapter', () => {
       ),
     );
     const out = await tavilyAdapter.search('q', {}, 'k');
-    expect(out.results[0].title).toBe('https://no-title.com');
+    expect(out.results[0]!.title).toBe('https://no-title.com');
     expect(out.answer?.citations).toEqual([
       { url: 'https://no-title.com', title: 'https://no-title.com' },
     ]);

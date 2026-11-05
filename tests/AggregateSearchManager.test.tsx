@@ -70,8 +70,8 @@ describe('AggregateSearchManager — 三卡结构与警示条（R12）', () => {
     );
     expect(screen.getByRole('note')).toHaveTextContent('未配置重排服务，聚合实例不会显示');
     expect(screen.getByRole('button', { name: '新建聚合' })).toBeEnabled();
-    expect(screen.getAllByRole('button', { name: '编辑' })[0]).toBeEnabled();
-    expect(screen.getAllByRole('button', { name: '删除' })[0]).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: '编辑' })[0]!).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: '删除' })[0]!).toBeEnabled();
   });
 
   it('prefills endpoint/model from the snapshot but never renders an api key value', () => {
@@ -364,7 +364,7 @@ describe('AggregateSearchManager — 实例列表卡（R12）', () => {
     mockedSend.mockResolvedValue(undefined as never);
     render(
       <AggregateSearchManager
-        aggregate={{ ...SNAPSHOT, instances: [SNAPSHOT.instances[0]], eligibility: { 'agg:a': { eligible: true, validMembers: 3 } } }}
+        aggregate={{ ...SNAPSHOT, instances: [SNAPSHOT.instances[0]!], eligibility: { 'agg:a': { eligible: true, validMembers: 3 } } }}
         configuredProviderIds={['tavily', 'exa']}
         providerInstances={PROVIDER_INSTANCES}
         onChange={onChange}
@@ -382,8 +382,8 @@ describe('AggregateSearchManager — 实例列表卡（R12）', () => {
 
   it('can cancel the inline delete confirmation', () => {
     renderManager();
-    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]);
-    fireEvent.click(screen.getAllByRole('button', { name: '取消' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: '取消' })[0]!);
     expect(screen.queryByText('确定删除「全家桶」吗？')).not.toBeInTheDocument();
     expect(mockedSend).not.toHaveBeenCalled();
   });
@@ -543,9 +543,9 @@ describe('AggregateSearchManager — 实例编辑器（R2/R9/R12）', () => {
 
   it('round-trips every field through edit → save (name/members/topN), id invisible in edit mode', async () => {
     const onChange = vi.fn();
-    mockedSend.mockResolvedValueOnce({ ...SNAPSHOT.instances[0], name: '全家桶2', topN: 15 });
+    mockedSend.mockResolvedValueOnce({ ...SNAPSHOT.instances[0]!, name: '全家桶2', topN: 15 });
     renderManager(SNAPSHOT, onChange);
-    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]!);
 
     expect(screen.getByLabelText('名称')).toHaveValue('全家桶');
     expect(screen.getByLabelText('topN（重排保留条数）')).toHaveValue(20);

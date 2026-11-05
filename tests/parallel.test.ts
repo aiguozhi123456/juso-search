@@ -48,7 +48,7 @@ describe('parallelAdapter', () => {
       snippet: 'only',
       content: 'only',
     });
-    expect(out.results[1].publishedDate).toBeUndefined();
+    expect(out.results[1]!.publishedDate).toBeUndefined();
   });
 
   it('answer is undefined when not present', async () => {
@@ -58,7 +58,7 @@ describe('parallelAdapter', () => {
     );
     const out = await parallelAdapter.search('q', {}, 'k');
     expect(out.answer).toBeUndefined();
-    expect(out.results[0].snippet).toBe('s');
+    expect(out.results[0]!.snippet).toBe('s');
   });
 
   it('sends x-api-key auth and request body', async () => {

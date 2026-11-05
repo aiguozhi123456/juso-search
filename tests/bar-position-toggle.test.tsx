@@ -33,7 +33,7 @@ describe('BarPositionToggle', () => {
     renderWith('auto');
     // OPTIONS 顺序：auto / top / inline / bottom
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[1]);
+    fireEvent.click(buttons[1]!);
     expect(setPref).toHaveBeenCalledWith('top');
     expect(setPref).toHaveBeenCalledTimes(1);
   });
@@ -41,7 +41,7 @@ describe('BarPositionToggle', () => {
   it('clicking the inline button calls setPref with "inline"', () => {
     renderWith('auto');
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[2]);
+    fireEvent.click(buttons[2]!);
     expect(setPref).toHaveBeenCalledWith('inline');
     expect(setPref).toHaveBeenCalledTimes(1);
   });
@@ -50,7 +50,7 @@ describe('BarPositionToggle', () => {
     renderWith('auto');
     // OPTIONS 顺序：auto / top / inline / bottom
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[3]);
+    fireEvent.click(buttons[3]!);
     expect(setPref).toHaveBeenCalledWith('bottom');
     expect(setPref).toHaveBeenCalledTimes(1);
   });
@@ -69,7 +69,7 @@ describe('BarPositionToggle', () => {
   it('switching from bottom back to auto calls setPref with auto', () => {
     renderWith('bottom');
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[0]!);
     expect(setPref).toHaveBeenCalledWith('auto');
   });
 });

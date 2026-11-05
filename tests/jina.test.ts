@@ -31,7 +31,7 @@ describe('jinaAdapter', () => {
       snippet: 'desc A',
       content: 'full A',
     });
-    expect(out.results[1].content).toBeUndefined();
+    expect(out.results[1]!.content).toBeUndefined();
   });
 
   it('falls back to url for title and content slice for snippet', async () => {
@@ -46,8 +46,8 @@ describe('jinaAdapter', () => {
       ),
     );
     const out = await jinaAdapter.search('q', {}, 'jina-x');
-    expect(out.results[0].title).toBe('https://a.com');
-    expect(out.results[0].snippet).toBe('x'.repeat(300));
+    expect(out.results[0]!.title).toBe('https://a.com');
+    expect(out.results[0]!.snippet).toBe('x'.repeat(300));
   });
 
   it('sends Bearer auth, Accept and X-Respond-With headers and request body', async () => {

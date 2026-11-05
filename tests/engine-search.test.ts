@@ -187,6 +187,6 @@ describe('runEngineSearch', () => {
     api.sendMessage.mockResolvedValue({ requestId: 'id', engine: 'google', query: 'hello', results: [] });
     await runEngineSearch({ engineId: 'google', query: 'hello' }, undefined, { tabs: api, requestId: () => 'id' });
     expect(api.sendMessage).toHaveBeenCalledTimes(1);
-    expect(Object.keys(api.sendMessage.mock.calls[0][1]).sort()).toEqual(['engineId', 'query', 'requestId', 'type']);
+    expect(Object.keys(api.sendMessage.mock.calls[0]![1]).sort()).toEqual(['engineId', 'query', 'requestId', 'type']);
   });
 });

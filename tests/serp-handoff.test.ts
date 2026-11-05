@@ -96,7 +96,7 @@ describe('resolveSerpHandoff — ai-engine chip', () => {
   });
 
   it('encodes CJK and special characters in the q parameter', () => {
-    expect(resolveSerpHandoff(aiCases[0].source, '中文 & x')).toEqual({
+    expect(resolveSerpHandoff(aiCases[0]!.source, '中文 & x')).toEqual({
       kind: 'navigate',
       url: 'https://grok.com/?q=%E4%B8%AD%E6%96%87+%26+x',
     });

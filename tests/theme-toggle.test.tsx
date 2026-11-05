@@ -28,7 +28,7 @@ describe('ThemeToggle', () => {
     renderWith('auto');
     // 三个按钮按 OPTIONS 顺序：auto 🌓 / light ☀️ / dark 🌙
     const buttons = screen.getAllByRole('button');
-    fireEvent.click(buttons[2]); // dark
+    fireEvent.click(buttons[2]!); // dark
     expect(setPref).toHaveBeenCalledWith('dark');
     expect(setPref).toHaveBeenCalledTimes(1);
   });

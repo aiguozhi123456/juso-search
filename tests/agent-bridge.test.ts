@@ -116,12 +116,12 @@ describe('agent bridge protocol', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const handleSearch = vi.fn().mockResolvedValue({ ok: false, error: { kind: 'unknown', message: 'safe' } });
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch, listProviders: vi.fn(), handleEngineSearch: vi.fn() })).resolves.toEqual({ ok: true });
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:3210/v1/claim');
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST', headers: { Authorization: `Bearer ${token}` }, redirect: 'error', cache: 'no-store' });
-    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Content-Type');
-    expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
-    expect(handleSearch.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
-    expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/complete');
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://127.0.0.1:3210/v1/claim');
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: 'POST', headers: { Authorization: `Bearer ${token}` }, redirect: 'error', cache: 'no-store' });
+    expect(fetchMock.mock.calls[0]![1].headers).not.toHaveProperty('Content-Type');
+    expect(fetchMock.mock.calls[0]![1].body).toBeUndefined();
+    expect(handleSearch.mock.calls[0]![1]).toBeInstanceOf(AbortSignal);
+    expect(fetchMock.mock.calls[1]![0]).toBe('http://127.0.0.1:3210/v1/complete');
   });
 
   it('does not search or complete an invalid claim', async () => {
@@ -140,7 +140,7 @@ describe('agent bridge protocol', () => {
     const handleSearch = vi.fn();
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch, listProviders: vi.fn().mockResolvedValue(providerReply), handleEngineSearch: vi.fn() })).resolves.toEqual({ ok: true });
     expect(handleSearch).not.toHaveBeenCalled();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: providerReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: providerReply });
   });
 
   it('rejects a streamed claim over 64 KiB without a Content-Length header', async () => {
@@ -177,8 +177,8 @@ describe('agent bridge protocol', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     const handleEngineSearch = vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError'));
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
-    expect(fetchMock.mock.calls[1][1].signal).not.toBe(handleEngineSearch.mock.calls[0][1]);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { engine: 'google', query: 'hello', error: 'aborted' } });
+    expect(fetchMock.mock.calls[1]![1].signal).not.toBe(handleEngineSearch.mock.calls[0]![1]);
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: { engine: 'google', query: 'hello', error: 'aborted' } });
   });
 });
 
@@ -193,10 +193,10 @@ describe('agent bridge v2 dispatch', () => {
     const listInstances = vi.fn();
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchInstance, listInstances })).resolves.toEqual({ ok: true });
     expect(handleSearchInstance).toHaveBeenCalledTimes(1);
-    expect(handleSearchInstance.mock.calls[0][0]).toMatchObject({ action: 'search-instance', query: 'hello', instanceId: 'inst:exa:abc123' });
-    expect(handleSearchInstance.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
+    expect(handleSearchInstance.mock.calls[0]![0]).toMatchObject({ action: 'search-instance', query: 'hello', instanceId: 'inst:exa:abc123' });
+    expect(handleSearchInstance.mock.calls[0]![1]).toBeInstanceOf(AbortSignal);
     expect(listInstances).not.toHaveBeenCalled();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: searchReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: searchReply });
   });
 
   it('dispatches a v2 list-instances claim to listInstances', async () => {
@@ -210,7 +210,7 @@ describe('agent bridge v2 dispatch', () => {
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchInstance, listInstances })).resolves.toEqual({ ok: true });
     expect(listInstances).toHaveBeenCalledTimes(1);
     expect(handleSearchInstance).not.toHaveBeenCalled();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: instancesReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: instancesReply });
   });
 
   it('dispatches a v2 list-engines claim to listEngines', async () => {
@@ -222,7 +222,7 @@ describe('agent bridge v2 dispatch', () => {
     const listEngines = vi.fn().mockResolvedValue(enginesReply);
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listEngines })).resolves.toEqual({ ok: true });
     expect(listEngines).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: enginesReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: enginesReply });
   });
 });
 
@@ -301,8 +301,8 @@ describe('agent bridge action deadline pass-through', () => {
     const before = Date.now();
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
     const after = Date.now();
-    expect(handleEngineSearch.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
-    const deadline = handleEngineSearch.mock.calls[0][2];
+    expect(handleEngineSearch.mock.calls[0]![1]).toBeInstanceOf(AbortSignal);
+    const deadline = handleEngineSearch.mock.calls[0]![2];
     expect(deadline).toBeGreaterThanOrEqual(before + 120_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
     expect(deadline).toBeLessThanOrEqual(after + 120_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
   });
@@ -316,7 +316,7 @@ describe('agent bridge action deadline pass-through', () => {
     const before = Date.now();
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch })).resolves.toEqual({ ok: true });
     const after = Date.now();
-    const deadline = handleEngineSearch.mock.calls[0][2];
+    const deadline = handleEngineSearch.mock.calls[0]![2];
     expect(deadline).toBeGreaterThanOrEqual(before + AGENT_BRIDGE_ACTION_DEADLINE_MS);
     expect(deadline).toBeLessThanOrEqual(after + AGENT_BRIDGE_ACTION_DEADLINE_MS);
   });
@@ -375,7 +375,7 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request })))
         .mockResolvedValueOnce(new Response(null, { status: 204 }));
       await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock })).resolves.toEqual({ ok: true });
-      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
+      expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
     }
   });
 
@@ -385,8 +385,8 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request: { action } })))
         .mockResolvedValue(new Response(null, { status: 204 }));
       await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock })).resolves.toEqual({ ok: false });
-      expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/abort');
-      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reason: `${action} failed: dependency unavailable` });
+      expect(fetchMock.mock.calls[1]![0]).toBe('http://127.0.0.1:3210/v1/abort');
+      expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reason: `${action} failed: dependency unavailable` });
       // 不发 complete：清单动作的 ok:false 信封会被对端 400 invalid_reply 拒收。
       expect(fetchMock.mock.calls.some((call) => String(call[0]).includes('/v1/complete'))).toBe(false);
     }
@@ -398,8 +398,8 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
       .mockResolvedValue(new Response(null, { status: 204 }));
     const listSites = vi.fn().mockRejectedValue(new Error('storage read failed'));
     await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: fetchMock, listSites })).resolves.toEqual({ ok: false });
-    expect(fetchMock.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/abort');
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reason: 'list-sites failed: storage read failed' });
+    expect(fetchMock.mock.calls[1]![0]).toBe('http://127.0.0.1:3210/v1/abort');
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reason: 'list-sites failed: storage read failed' });
   });
 
   it('completes list-* successes unchanged and search-family handler throws as the ok:false envelope', async () => {
@@ -408,13 +408,13 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'r', request: { action: 'list-sites' } })))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     await runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: listFetch, listSites: vi.fn().mockResolvedValue({ sites: [] }) });
-    expect(listFetch.mock.calls[1][0]).toBe('http://127.0.0.1:3210/v1/complete');
+    expect(listFetch.mock.calls[1]![0]).toBe('http://127.0.0.1:3210/v1/complete');
     // search 族 handler 抛错仍回 ok:false 信封（对端校验器接受该形态）。
     const searchFetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 1, requestId: 'r', request: { action: 'search', query: 'x', providerId: 'tavily' } })))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     await expect(runAgentBridge({ port: 3210, token }, { ...baseDeps, fetch: searchFetch, handleSearch: vi.fn().mockRejectedValue(new Error('boom')) })).resolves.toEqual({ ok: true });
-    expect(JSON.parse(searchFetch.mock.calls[1][1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
+    expect(JSON.parse(searchFetch.mock.calls[1]![1].body)).toMatchObject({ reply: { ok: false, error: { kind: 'unknown', message: 'Service unavailable.' } } });
   });
 
   it('dispatches search-site to handleSearchSite with signal and deadline', async () => {
@@ -426,10 +426,10 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
     const handleSearchSite = vi.fn().mockResolvedValue(siteReply);
     const before = Date.now();
     await expect(runAgentBridge({ port: 3210, token }, { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchSite })).resolves.toEqual({ ok: true });
-    expect(handleSearchSite.mock.calls[0][0]).toMatchObject({ action: 'search-site', query: 'hello', siteId: 'site:abc123', maxResults: 5 });
-    expect(handleSearchSite.mock.calls[0][1]).toBeInstanceOf(AbortSignal);
-    expect(handleSearchSite.mock.calls[0][2]).toBeGreaterThanOrEqual(before + 60_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: siteReply });
+    expect(handleSearchSite.mock.calls[0]![0]).toMatchObject({ action: 'search-site', query: 'hello', siteId: 'site:abc123', maxResults: 5 });
+    expect(handleSearchSite.mock.calls[0]![1]).toBeInstanceOf(AbortSignal);
+    expect(handleSearchSite.mock.calls[0]![2]).toBeGreaterThanOrEqual(before + 60_000 - AGENT_BRIDGE_TIMEOUT_RESERVE_MS);
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: siteReply });
   });
 
   it('dispatches list-sites / search-aggregate / list-aggregates to their deps', async () => {
@@ -445,20 +445,20 @@ describe('agent bridge v2 site / aggregate dispatch', () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     await runAgentBridge({ port: 3210, token }, { fetch: sitesFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listSites });
     expect(listSites).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(sitesFetch.mock.calls[1][1].body)).toMatchObject({ reply: sitesReply });
+    expect(JSON.parse(sitesFetch.mock.calls[1]![1].body)).toMatchObject({ reply: sitesReply });
 
     const aggFetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'a', request: { action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', forceRefresh: true } })))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     await runAgentBridge({ port: 3210, token }, { fetch: aggFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), handleSearchAggregate });
-    expect(handleSearchAggregate.mock.calls[0][0]).toMatchObject({ action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', forceRefresh: true });
-    expect(JSON.parse(aggFetch.mock.calls[1][1].body)).toMatchObject({ reply: aggregateReply });
+    expect(handleSearchAggregate.mock.calls[0]![0]).toMatchObject({ action: 'search-aggregate', query: 'x', aggregateId: 'agg:abc', forceRefresh: true });
+    expect(JSON.parse(aggFetch.mock.calls[1]![1].body)).toMatchObject({ reply: aggregateReply });
 
     const listAggFetch = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ protocol: 2, requestId: 'l', request: { action: 'list-aggregates' } })))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     await runAgentBridge({ port: 3210, token }, { fetch: listAggFetch, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listAggregates });
     expect(listAggregates).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(listAggFetch.mock.calls[1][1].body)).toMatchObject({ reply: aggregatesReply });
+    expect(JSON.parse(listAggFetch.mock.calls[1]![1].body)).toMatchObject({ reply: aggregatesReply });
   });
 });

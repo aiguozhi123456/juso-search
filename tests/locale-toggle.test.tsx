@@ -31,7 +31,7 @@ describe('LocaleToggle', () => {
     renderWith('auto');
     const buttons = screen.getAllByRole('button');
     // OPTIONS 顺序：auto / zh_CN / en
-    fireEvent.click(buttons[2]);
+    fireEvent.click(buttons[2]!);
     expect(setPref).toHaveBeenCalledWith('en');
     expect(setPref).toHaveBeenCalledTimes(1);
   });

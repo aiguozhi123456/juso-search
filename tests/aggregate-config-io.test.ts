@@ -281,7 +281,7 @@ describe('mergeImport: applyPrefs replacement semantics (KTD13)', () => {
     const report = await mergeImport(validPayload({ aggregateInstances: [aggInstance('same', { members: ['brave'] })] }), { applyPrefs: true });
 
     expect(report.aggregateInstancesOverridden).toBe(true);
-    expect((store.get(AGGREGATE_INSTANCES_KEY) as AggregateInstance[])[0].members).toEqual(['brave']);
+    expect((store.get(AGGREGATE_INSTANCES_KEY) as AggregateInstance[])[0]!.members).toEqual(['brave']);
     expect(mockedDeleteAggregateCacheEntries).toHaveBeenCalledWith('all');
 
     // 深度相等（无实际替换）→ 不失效。

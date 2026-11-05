@@ -593,7 +593,7 @@ describe('groupOrderOf vs projectLayout — 对拍一致性', () => {
   it.each([
     ['全部可见', SOURCES],
     ['baidu 与 site:docs 隐藏', SOURCES.slice(0, 5)],
-    ['仅置顶 + 单引擎可见', [SOURCES[0], SOURCES[3], SOURCES[6]]],
+    ['仅置顶 + 单引擎可见', [SOURCES[0]!, SOURCES[3]!, SOURCES[6]!]],
   ])('%s：groupOrderOf 过滤可见后 === projectLayout 组内序', (_label, visible) => {
     const visibleIds = new Set(visible.map((s) => s.id));
     const layout = projectLayout(visible, cfg, null);

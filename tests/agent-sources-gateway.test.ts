@@ -126,7 +126,7 @@ describe('handleSearchSiteInstance', () => {
       response: { query: 'hello', engine: 'bing', results: [{ title: 'T', url: 'https://example.com/1', snippet: 'S' }] },
       cache: { hit: false },
     });
-    const [request, , deps] = mockedRunEngineSearch.mock.calls[0];
+    const [request, , deps] = mockedRunEngineSearch.mock.calls[0]!;
     expect(request.engineId).toBe('bing');
     expect(request.query).toBe('hello');
     expect(request.serpUrl).toBe('https://www.bing.com/search?q=hello&q1=site%3Aexample.com');
@@ -138,7 +138,7 @@ describe('handleSearchSiteInstance', () => {
     mockedGetSiteInstanceDefinitions.mockResolvedValue([{ id: 'site:abc', name: 'Baidu query', engineId: 'baidu', target: 'example.com', options: { mode: 'query' } }]);
     mockedRunEngineSearch.mockResolvedValue({ engine: 'baidu', query: 'hello', results: [] });
     await handleSearchSiteInstance({ action: 'search-site', query: 'hello', siteId: 'site:abc' });
-    const [request] = mockedRunEngineSearch.mock.calls[0];
+    const [request] = mockedRunEngineSearch.mock.calls[0]!;
     expect(request.serpUrl).toBe('https://www.baidu.com/s?wd=site%3Aexample.com%20hello');
     expect(request.matchQuery).toBe('site:example.com hello');
   });
@@ -147,7 +147,7 @@ describe('handleSearchSiteInstance', () => {
     mockedGetSiteInstanceDefinitions.mockResolvedValue([{ id: 'site:abc', name: 'Baidu zhannei', engineId: 'baidu', target: 'example.com', options: { mode: 'zhannei' } }]);
     mockedRunEngineSearch.mockResolvedValue({ engine: 'baidu', query: 'hello', results: [] });
     await handleSearchSiteInstance({ action: 'search-site', query: 'hello', siteId: 'site:abc' });
-    const [request] = mockedRunEngineSearch.mock.calls[0];
+    const [request] = mockedRunEngineSearch.mock.calls[0]!;
     expect(request.serpUrl).toBe('https://zhannei.baidu.com/cse/site?q=hello&cc=example.com');
     expect(request.matchQuery).toBe('hello');
   });
@@ -159,7 +159,7 @@ describe('handleSearchSiteInstance', () => {
       ok: false,
       error: { kind: 'providerError', message: 'challenge' },
     });
-    expect(mockedRunEngineSearch.mock.calls[0][0]).toMatchObject({ maxResults: 7 });
+    expect(mockedRunEngineSearch.mock.calls[0]![0]).toMatchObject({ maxResults: 7 });
   });
 });
 

@@ -323,7 +323,7 @@ describe('uniqueResults dedup semantics', () => {
       result('Mirror', 'https://b.test/2', 'identical text'),
     ], 10);
     expect(out).toHaveLength(1);
-    expect(out[0].url).toBe('https://a.test/1');
+    expect(out[0]!.url).toBe('https://a.test/1');
   });
 
   it('keeps results with the same title but different snippets', () => {
@@ -340,7 +340,7 @@ describe('uniqueResults dedup semantics', () => {
       result('Second', 'https://a.test/x', 'two'),
     ], 10);
     expect(out).toHaveLength(1);
-    expect(out[0].title).toBe('First');
+    expect(out[0]!.title).toBe('First');
   });
 
   it('still truncates to maxResults after dedup', () => {

@@ -33,7 +33,7 @@ const REDLINE_SYMBOLS = [
 /** 只跑本测试关心的两条规则，滤掉 no-unused-vars 等探针源码噪音。 */
 async function lintBoundaryRules(filePath: string, code: string): Promise<string[]> {
   const results = await eslint.lintText(code, { filePath });
-  return results[0].messages
+  return results[0]!.messages
     .filter((m) => m.ruleId === 'no-restricted-imports' || m.ruleId === 'no-restricted-syntax')
     .map((m) => `${m.ruleId}: ${m.message}`);
 }

@@ -13,8 +13,8 @@ const bytes = (u: Uint8Array): number[] => Array.from(u);
  */
 function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
-  for (let i = 0; i < data.length; i++) {
-    crc ^= data[i];
+  for (const byte of data) {
+    crc ^= byte;
     for (let k = 0; k < 8; k++) {
       crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
     }
@@ -77,12 +77,12 @@ describe('createStoreZip', () => {
 
     expect(fileEntries).toHaveLength(2);
     expect(fileEntries.map((e) => e.path)).toEqual(['a/SKILL.md', 'a/scripts/x.py']);
-    expect(bytes(fileEntries[0].data)).toEqual(bytes(encode('# title\n')));
-    expect(bytes(fileEntries[1].data)).toEqual(bytes(encode('print(1)\n')));
+    expect(bytes(fileEntries[0]!.data)).toEqual(bytes(encode('# title\n')));
+    expect(bytes(fileEntries[1]!.data)).toEqual(bytes(encode('print(1)\n')));
 
     expect(dirEntries.map((e) => e.path)).toEqual(['a/', 'a/scripts/']);
-    expect(dirEntries[0].data).toHaveLength(0);
-    expect(dirEntries[1].data).toHaveLength(0);
+    expect(dirEntries[0]!.data).toHaveLength(0);
+    expect(dirEntries[1]!.data).toHaveLength(0);
 
     for (const e of entries) expect(e.method).toBe(0); // STORE only
   });

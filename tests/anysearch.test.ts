@@ -46,7 +46,7 @@ describe('anysearchAdapter', () => {
       url: 'https://empty-title.com',
       snippet: '',
     });
-    expect(out.results[1].content).toBeUndefined();
+    expect(out.results[1]!.content).toBeUndefined();
   });
 
   it('sends Bearer auth and request body with max_results clamped to the upstream cap of 10', async () => {

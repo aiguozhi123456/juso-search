@@ -207,7 +207,7 @@ describe('SiteInstanceManager — delete flow', () => {
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     // Two "取消" buttons may exist (form + confirm); the confirm row's cancel is the last one
     const cancelButtons = screen.getAllByRole('button', { name: '取消' });
-    fireEvent.click(cancelButtons[cancelButtons.length - 1]);
+    fireEvent.click(cancelButtons[cancelButtons.length - 1]!);
     expect(screen.queryByText(/确定删除「Docs」吗？/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument();
   });
