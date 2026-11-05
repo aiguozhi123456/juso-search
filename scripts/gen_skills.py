@@ -100,9 +100,20 @@ def _template_files() -> list[str]:
     return files
 
 
+def _read(path: Path) -> str:
+    # newline="" preserves original line endings byte-for-byte. open()'s newline
+    # param works on every Python; Path.read_text(newline=) is 3.13+ only.
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        return f.read()
+
+
+def _write(path: Path, text: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
 def _read_template(rel: str) -> str:
-    # newline="" preserves original line endings byte-for-byte.
-    return (TEMPLATE_DIR / rel).read_text(encoding="utf-8", newline="")
+    return _read(TEMPLATE_DIR / rel)
 
 
 def _line_sep(text: str) -> str:
@@ -169,7 +180,7 @@ def write_variant(variant_key: str) -> None:
     for rel, text in render(variant_key).items():
         target = cfg["target_dir"] / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8", newline="")
+        _write(target, text)
     # Regeneration is authoritative: prune files the template no longer produces
     # so a template removal converges instead of leaving a stale drift-lock copy.
     for rel in _stale_files(variant_key):
@@ -183,14 +194,14 @@ def render_mcp() -> dict[str, str]:
     Shared/unpatched: verbatim byte-for-byte copy of the single source, no DEV_PATCH_*
     and no extension-id stamping (juso_bridge.py carries no placeholder).
     """
-    return {MCP_BRIDGE_REL: (TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_text(encoding="utf-8", newline="")}
+    return {MCP_BRIDGE_REL: _read(TEMPLATE_DIR / "scripts" / "juso_bridge.py")}
 
 
 def write_mcp() -> None:
     for rel, text in render_mcp().items():
         target = MCP_SERVER_DIR / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8", newline="")
+        _write(target, text)
 
 
 def check() -> list[str]:
@@ -201,7 +212,7 @@ def check() -> list[str]:
             if not tracked.is_file():
                 diffs.append(f"{variant_key}:{rel} (missing)")
                 continue
-            if tracked.read_text(encoding="utf-8", newline="") != gen_text:
+            if _read(tracked) != gen_text:
                 diffs.append(f"{variant_key}:{rel}")
         for rel in _stale_files(variant_key):
             diffs.append(f"{variant_key}:{rel} (stale)")
@@ -210,7 +221,7 @@ def check() -> list[str]:
         if not tracked.is_file():
             diffs.append(f"mcp:{rel} (missing)")
             continue
-        if tracked.read_text(encoding="utf-8", newline="") != gen_text:
+        if _read(tracked) != gen_text:
             diffs.append(f"mcp:{rel}")
     return diffs
 

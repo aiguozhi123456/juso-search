@@ -40,20 +40,24 @@ concurrency:
 
 jobs:
   python-matrix:
-    name: Python tests (${{ matrix.os }})
+    name: Python tests (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        # Floor + latest. The skill declares Python 3.11+ and mcp-server
+        # requires-python >=3.11 (3.10 is EOL since 2026-10); testing only the
+        # latest is how a 3.13-only Path.read_text(newline=) shipped unnoticed.
+        python-version: ["3.11", "3.13"]
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: mcp-server/pyproject.toml
 

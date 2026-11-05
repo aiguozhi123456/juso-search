@@ -19,7 +19,7 @@ Firefox) that the extension claims and completes through its Agent Bridge.
 ## Install
 
 Published on [PyPI](https://pypi.org/project/juso-search/). Requires Python
-3.10+ and `mcp>=2.0,<3` (installed automatically as a dependency).
+3.11+ and `mcp>=2.0,<3` (installed automatically as a dependency).
 
 ```bash
 pip install juso-search

@@ -44,8 +44,8 @@ class GenSkillsTests(unittest.TestCase):
         for rel, text in self.gen.render("test-variant").items():
             path = target / rel
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8", newline="")
-        (target / "SKILL.md.bak").write_text("stale", encoding="utf-8", newline="")
+            self.gen._write(path, text)
+        self.gen._write(target / "SKILL.md.bak", "stale")
         self.assertIn("test-variant:SKILL.md.bak (stale)", self.gen.check())
 
     def test_write_variant_prunes_stale_files(self):
@@ -53,7 +53,7 @@ class GenSkillsTests(unittest.TestCase):
         target = self._with_tmp_variant("test-variant")
         self.gen.write_variant("test-variant")
         stale = target / "SKILL.md.bak"
-        stale.write_text("stale", encoding="utf-8", newline="")
+        self.gen._write(stale, "stale")
         self.gen.write_variant("test-variant")
         self.assertFalse(stale.exists())
         self.assertEqual(self.gen._stale_files("test-variant"), [])
@@ -91,9 +91,7 @@ class GenSkillsTests(unittest.TestCase):
             self.gen.DEV_PATCHES,
             "juso_bridge.py must not carry any DEV_PATCH_* prose diff",
         )
-        source_text = (self.gen.TEMPLATE_DIR / "scripts" / "juso_bridge.py").read_text(
-            encoding="utf-8", newline=""
-        )
+        source_text = self.gen._read(self.gen.TEMPLATE_DIR / "scripts" / "juso_bridge.py")
         prod = self.gen.render("prod")
         dev = self.gen.render("dev")
         self.assertEqual(prod["scripts/juso_bridge.py"], source_text)
