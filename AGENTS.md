@@ -3,7 +3,7 @@
 ## 命令
 
 - `npm install` — 安装依赖
-- `npm run typecheck` — `tsc --noEmit`（类型检查，必须通过）
+- `npm run typecheck` — 双 project `tsc --noEmit`（根 tsconfig：浏览器代码；`tsconfig.node.json`：tests + vitest.config.ts，带 node 类型；必须通过）
 - `npm run lint` — `eslint .`（必须通过）
 - `npm test` — `vitest run`（单元 + 组件测试，必须通过）
 - `npm run build` — `wxt build` → `.output/chrome-mv3/`（在 `chrome://extensions` 以"已解包"加载）
