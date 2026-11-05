@@ -27,8 +27,9 @@ for (let n = 0; n < 256; n++) {
 
 function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
-  for (let i = 0; i < data.length; i++) {
-    crc = CRC_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  for (const byte of data) {
+    // 表键恒在 0..255 且表已填满 256 项——?? 0 仅为 noUncheckedIndexedAccess 下的类型兜底，运行时不可达。
+    crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -64,31 +65,30 @@ export function createStoreZip(entries: ZipEntry[]): Uint8Array {
     ...files,
   ];
 
-  const names = all.map((e) => bytes(e.path));
-  const crcs = all.map((e) => crc32(e.data));
-  const localSizes = names.map((n, i) => 30 + n.length + all[i].data.length);
-  const offsets: number[] = [];
+  // 每条目预计算：UTF-8 名、CRC 与 local header 偏移（与 all 同序推进，
+  // 免去按下标回查 names/crcs/all——noUncheckedIndexedAccess 下的索引访问均带 undefined）。
+  const records: { name: Uint8Array; data: Uint8Array; crc: number; offset: number }[] = [];
   let cursor = 0;
-  for (const s of localSizes) {
-    offsets.push(cursor);
-    cursor += s;
+  for (const entry of all) {
+    const name = bytes(entry.path);
+    records.push({ name, data: entry.data, crc: crc32(entry.data), offset: cursor });
+    cursor += 30 + name.length + entry.data.length;
   }
 
   const centralStart = cursor;
-  const centralSize = names.reduce((sum, n) => sum + 46 + n.length, 0);
+  const centralSize = records.reduce((sum, r) => sum + 46 + r.name.length, 0);
   const buf = new Uint8Array(centralStart + centralSize + 22);
   let p = 0;
 
   // Local file headers（APPNOTE 4.3.7）。
-  for (let i = 0; i < all.length; i++) {
-    const name = names[i];
-    const data = all[i].data;
+  for (const r of records) {
+    const { name, data } = r;
     setU32(buf, p, 0x04034b50);
     setU16(buf, p + 4, 20); // version needed
     setU16(buf, p + 6, 0x0800); // general purpose flag: bit 11 = EFS（条目名 UTF-8）
     setU16(buf, p + 8, 0); // compression method: STORE
     setU16(buf, p + 12, 0x21); // last mod date: 1980-01-01（time at p+10 stays 0 = 00:00）
-    setU32(buf, p + 14, crcs[i]);
+    setU32(buf, p + 14, r.crc);
     setU32(buf, p + 18, data.length); // compressed size
     setU32(buf, p + 22, data.length); // uncompressed size
     setU16(buf, p + 26, name.length);
@@ -100,21 +100,20 @@ export function createStoreZip(entries: ZipEntry[]): Uint8Array {
   }
 
   // Central directory records（APPNOTE 4.3.12）。
-  for (let i = 0; i < all.length; i++) {
-    const name = names[i];
-    const data = all[i].data;
+  for (const r of records) {
+    const { name, data } = r;
     setU32(buf, p, 0x02014b50);
     setU16(buf, p + 4, 20); // version made by
     setU16(buf, p + 6, 20); // version needed
     setU16(buf, p + 8, 0x0800); // general purpose flag: bit 11 = EFS（条目名 UTF-8）
     setU16(buf, p + 10, 0); // compression method: STORE
     setU16(buf, p + 14, 0x21); // last mod date: 1980-01-01（time at p+12 stays 0 = 00:00）
-    setU32(buf, p + 16, crcs[i]);
+    setU32(buf, p + 16, r.crc);
     setU32(buf, p + 20, data.length); // compressed size
     setU32(buf, p + 24, data.length); // uncompressed size
     setU16(buf, p + 28, name.length);
     setU16(buf, p + 30, 0); // extra field length（comment length at p+32 stays 0）
-    setU32(buf, p + 42, offsets[i]); // local header offset
+    setU32(buf, p + 42, r.offset); // local header offset
     buf.set(name, p + 46);
     p += 46 + name.length;
   }

@@ -22,8 +22,8 @@ export const DEFAULT_REMOUNT_BUDGET = 8;
  * 使调用方的 MutationObserver 等待有一个具体的 selector 可监听。
  * 纯函数：querySelector 可注入，便于无 DOM 环境下的单测。
  *
- * 注：`candidates` 由 registry 契约保证至少一个元素；传入空数组会返回 `undefined`，
- * 属调用方编程错误，此处不做防御。
+ * 注：`candidates` 由 registry 契约保证至少一个元素；传入空数组属调用方编程错误，
+ * 此处显式抛错暴露契约违反（严格索引访问下返回类型不再允许静默返回 undefined）。
  */
 export function pickAnchor(
   candidates: AnchorStrategy[],
@@ -32,7 +32,9 @@ export function pickAnchor(
   for (const candidate of candidates) {
     if (querySelectorFn(candidate.selector)) return candidate;
   }
-  return candidates[candidates.length - 1];
+  const fallback = candidates[candidates.length - 1];
+  if (fallback === undefined) throw new Error('pickAnchor requires at least one anchor candidate');
+  return fallback;
 }
 
 /**

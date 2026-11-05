@@ -116,6 +116,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
     const previous = cfg;
     const nextLayout = [...cfg.layout];
     const [moved] = nextLayout.splice(index, 1);
+    if (!moved) return;
     nextLayout.splice(target, 0, moved);
     void persist({ ...cfg, layout: nextLayout }, previous);
   }
@@ -126,6 +127,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
     const previous = cfg;
     const nextLayout = [...cfg.layout];
     const [moved] = nextLayout.splice(from, 1);
+    if (!moved) return;
     nextLayout.splice(to, 0, moved);
     void persist({ ...cfg, layout: nextLayout }, previous);
   }
@@ -142,6 +144,7 @@ export function SourceGroupEditor({ sources, groupConfig, onChange, resolveLabel
     const previous = cfg;
     const nextList = [...base];
     const [moved] = nextList.splice(from, 1);
+    if (!moved) return;
     nextList.splice(to, 0, moved);
     void persist({ ...cfg, groupOrders: { ...(cfg.groupOrders ?? {}), [groupId]: nextList } }, previous);
   }

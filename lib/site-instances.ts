@@ -377,7 +377,8 @@ function siteOperandFromBingQ1(url: URL): string | null {
   const q1 = url.searchParams.get('q1');
   if (!q1) return null;
   const match = q1.match(/(?:^|\s)site:(\S+)/i);
-  return match ? match[1] : null;
+  // 捕获组在正则里非可选，match 命中时恒有值——?? null 仅为类型收窄。
+  return match?.[1] ?? null;
 }
 
 /**
@@ -445,7 +446,9 @@ function pickByPreference(
     const byOrder = candidates.find((definition) => definition.id === id);
     if (byOrder) return byOrder;
   }
-  return candidates[0];
+  // 首参已由上方 length===0 早退保证非空——?? null 仅为类型收窄，运行时不可达。
+  const first = candidates[0];
+  return first ?? null;
 }
 
 /** Lists duplicate dedup-key (engine, mode, scope, zhannei 筛选) groups in normalized definitions. */

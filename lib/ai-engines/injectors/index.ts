@@ -45,6 +45,7 @@ export const HOST_TO_ENGINE_ID: Record<string, AiEngineId> = Object.fromEntries(
 export const INJECT_HOSTS: readonly string[] = Object.keys(INJECT_HOST_TABLE);
 
 /** matches 模式数组（默认整站 https://<host>/*，个别站用表内 match 覆盖），供 defineContentScript matches 使用。 */
-export const INJECT_MATCH_PATTERNS: readonly string[] = INJECT_HOSTS.map(
-  (host) => INJECT_HOST_TABLE[host].match ?? `https://${host}/*`,
+// entries() 直接携带表条目，免去按 host 回查同一张表（noUncheckedIndexedAccess 下带 undefined）。
+export const INJECT_MATCH_PATTERNS: readonly string[] = Object.entries(INJECT_HOST_TABLE).map(
+  ([host, entry]) => entry.match ?? `https://${host}/*`,
 );

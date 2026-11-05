@@ -94,9 +94,17 @@ export async function updateProviderInstance(id: ProviderInstanceId, patch: { na
   return withSourceMutation(() => withProviderInstancesMutation(async () => {
     const got = await browser.storage.local.get(PROVIDER_INSTANCES_KEY);
     const instances = normalizeProviderInstances(got[PROVIDER_INSTANCES_KEY]);
-    const index = instances.findIndex((item) => item.id === id);
-    if (index < 0) return null;
-    const current = instances[index];
+    // entries() 单次扫描同时取下标与元素（noUncheckedIndexedAccess 下 instances[index] 带 undefined）。
+    let index = -1;
+    let current: ProviderInstance | undefined;
+    for (const [i, item] of instances.entries()) {
+      if (item.id === id) {
+        index = i;
+        current = item;
+        break;
+      }
+    }
+    if (index < 0 || current === undefined) return null;
     // base provider 由 id 编码，patch 不可变更；name/options 走归一化（trim/bounds/plain-object）。
     const nextInstance = normalizeProviderInstance({
       id: current.id,

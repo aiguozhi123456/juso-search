@@ -137,10 +137,12 @@ function defaultDoubaoDraft(): DoubaoDraft {
 function doubaoDraftFromInstance(instance: ProviderInstance): DoubaoDraft {
   const settings = normalizeDoubaoSettings(instance.options);
   const range = /^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$/.exec(settings.timeRange);
+  // 区间整体匹配成功时 split('..') 恒为两段；默认值 '' 仅在 range 为 null（空数组）时生效。
+  const [timeStart = '', timeEnd = ''] = range ? range[0].split('..') : [];
   return {
     timeRange: range ? 'custom' : settings.timeRange,
-    timeStart: range ? range[0].split('..')[0] : '',
-    timeEnd: range ? range[0].split('..')[1] : '',
+    timeStart,
+    timeEnd,
     needContent: settings.needContent,
     needUrl: settings.needUrl,
     onlyAuthoritative: settings.onlyAuthoritative,

@@ -105,6 +105,8 @@ export function SearchCachePanel({ open, onClose, onSelect, aggNameById }: Props
     if (!focusable || focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
+    // 长度已校验非空，此处守卫仅做类型收窄（noUncheckedIndexedAccess）。
+    if (!first || !last) return;
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();

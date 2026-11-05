@@ -132,9 +132,13 @@ export function parseBridgeFragment(fragment: string): ParseResult<BridgeCredent
   ) {
     return { ok: false, error: 'invalid bridge parameters' };
   }
-  const port = parsePort(ports[0]);
-  if (port === null || !isBase64UrlToken(tokens[0])) return { ok: false, error: 'invalid bridge credentials' };
-  return { ok: true, value: { port, token: tokens[0] } };
+  // 上方 length 检查已保证 ports/tokens 各恰一个元素——显式 undefined 检查仅为类型收窄，运行时不可达。
+  const portParam = ports[0];
+  const tokenParam = tokens[0];
+  if (portParam === undefined || tokenParam === undefined) return { ok: false, error: 'invalid bridge parameters' };
+  const port = parsePort(portParam);
+  if (port === null || !isBase64UrlToken(tokenParam)) return { ok: false, error: 'invalid bridge credentials' };
+  return { ok: true, value: { port, token: tokenParam } };
 }
 
 /**

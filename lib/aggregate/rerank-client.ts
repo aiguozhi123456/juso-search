@@ -274,7 +274,10 @@ function buildJevRequest(config: RerankConfig, query: string, documents: string[
   const stateDocuments: Record<string, string> = {};
   const questions: Record<string, JevQuestion> = {};
   chunk.forEach((docIndex, localIndex) => {
-    stateDocuments[jevDocKey(localIndex)] = documents[docIndex];
+    // chunk 由 partitionJevChunks 对同一 documents 生成，下标恒有效；缺项分支运行时不可达。
+    const document = documents[docIndex];
+    if (document === undefined) return;
+    stateDocuments[jevDocKey(localIndex)] = document;
     questions[jevDocKey(localIndex)] = buildJevQuestion(localIndex);
   });
   return {
@@ -292,8 +295,8 @@ export function partitionJevChunks(documents: string[]): number[][] {
   const chunks: number[][] = [];
   let current: number[] = [];
   let chars = 0;
-  for (let i = 0; i < documents.length; i++) {
-    const len = documents[i].length;
+  for (const [i, doc] of documents.entries()) {
+    const len = doc.length;
     if (current.length > 0 && (current.length >= JEV_CHUNK_MAX_DOCS || chars + len > JEV_CHUNK_MAX_DOC_CHARS)) {
       chunks.push(current);
       current = [];
@@ -442,7 +445,10 @@ async function jevRerankDocuments(config: RerankConfig, request: RerankRequestBo
     for (const chunk of partitionJevChunks(request.documents)) {
       const scores = await jevScoreChunk(config, request.query, request.documents, chunk, doFetch, controller.signal);
       chunk.forEach((docIndex, localIndex) => {
-        items.push({ index: docIndex, relevance_score: scores[localIndex] });
+        // scores 与 chunk 等长同序（jevScoreChunk 契约）；缺项分支运行时不可达。
+        const relevanceScore = scores[localIndex];
+        if (relevanceScore === undefined) return;
+        items.push({ index: docIndex, relevance_score: relevanceScore });
       });
     }
     return items;
