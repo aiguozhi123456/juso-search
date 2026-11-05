@@ -45,10 +45,12 @@ function isProviderId(value: string): value is ProviderId {
 
 export function isProviderInstanceId(id: string): id is ProviderInstanceId {
   const parts = id.split(':');
-  return parts.length === 3
-    && parts[0] === INSTANCE_ID_PREFIX.slice(0, -1)
-    && isProviderId(parts[1])
-    && INSTANCE_ID_TOKEN.test(parts[2]);
+  if (parts.length !== 3) return false;
+  // 长度已定为 3——解构缺省值仅为 noUncheckedIndexedAccess 下的类型收窄，运行时不可达。
+  const [prefix = '', providerId = '', token = ''] = parts;
+  return prefix === INSTANCE_ID_PREFIX.slice(0, -1)
+    && isProviderId(providerId)
+    && INSTANCE_ID_TOKEN.test(token);
 }
 
 /** Validates and canonicalizes an untrusted persisted Provider Instance record. */

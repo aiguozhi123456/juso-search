@@ -3,5 +3,12 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "types": []
-  }
+  },
+  "exclude": [
+    "**/node_modules",
+    ".output",
+    "tests",
+    "vitest.config.ts"
+  ]
 }
+

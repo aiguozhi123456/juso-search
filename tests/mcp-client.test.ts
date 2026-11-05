@@ -59,7 +59,7 @@ describe('mcpWebSearch', () => {
     );
     expect(methods).toEqual(['initialize', 'notifications/initialized', 'tools/call']);
     // 通知无 id（JSON-RPC notification 形状）。
-    const notification = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body)) as { id?: unknown };
+    const notification = JSON.parse(String((fetchMock.mock.calls[1]![1] as RequestInit).body)) as { id?: unknown };
     expect('id' in notification).toBe(false);
   });
 

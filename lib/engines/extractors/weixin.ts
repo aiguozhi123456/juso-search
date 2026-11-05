@@ -50,8 +50,10 @@ function buildWeixinSnippet(item: Element): string {
   if (account) parts.push(`公众号: ${account}`);
   const scriptText = item.querySelector('.s-p script')?.textContent ?? '';
   const match = scriptText.match(/timeConvert\('(\d+)'\)/);
-  if (match) {
-    const date = new Date(Number.parseInt(match[1], 10) * 1000);
+  // 捕获组非可选，match 命中时恒有值；seconds 缺省（不可达）跳过与原 NaN 分支同效（不 push）。
+  const seconds = match?.[1];
+  if (seconds !== undefined) {
+    const date = new Date(Number.parseInt(seconds, 10) * 1000);
     if (!Number.isNaN(date.getTime())) parts.push(`时间: ${date.toISOString().slice(0, 10)}`);
   }
   return parts.join(' · ');

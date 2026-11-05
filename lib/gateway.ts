@@ -370,7 +370,7 @@ type AggregateMemberOutcome =
 /**
  * 聚合搜索（KTD3 全流程）：解析实例（未知 id → error）→ rerank 配置校验（未配置 → keyMissing）→
  * （非 forceRefresh）按 **agg 实例 id** 查聚合缓存（命中即返回，0 扇出，AE7）→ eligibility 复核 →
- * `Promise.allSettled` 扇出 provider/实例成员（经 resolveSearchSource 语义执行，复用 runProviderSearch
+ * `Promise.all` 并发扇出 provider/实例成员（成员级 catch 兜底意外 rejection，语义同 allSettled；经 resolveSearchSource 语义执行，复用 runProviderSearch
  * 内部路径：各自子缓存优先、forceRefresh 传播、各自写缓存、cache.hit 记入 member.cached）→
  * merge（候选池 40）→ rerankDocuments → relevance_score 降序写 score → saveCachedAggregateSearch
  * （best-effort）→ ok reply。≥1 成功即继续；全员失败 → providerError 汇总文案；rerank 失败 →
@@ -407,12 +407,17 @@ export async function handleAggregateSearch(request: AggregateSearchRequest, sig
     }
     // Lane F：engine 成员并发信号量作用域 = 本次聚合搜索窗口（KTD3：≤3，仅约束 engine 成员）。
     const engineSlots = createAggregateEngineLimiter();
-    const settled = await Promise.allSettled(instance.members.map((member) => runAggregateMember(member, query, request.forceRefresh, { signal, engineSlots })));
-    const outcomes: AggregateMemberOutcome[] = settled.map((result, index) => {
-      if (result.status === 'fulfilled') return result.value;
-      // runAggregateMember 自吞错误；此处兜底意外 rejection → 失败成员（分型保留，不折叠，R6）。
-      return { sourceId: instance.members[index], ok: false, errorKind: 'unknown', errorMessage: errorMessage(result.reason) };
-    });
+    // 并发扇出与 allSettled+map 等价：成员内 catch 兜底后每个 promise 都 resolve，Promise.all 不会
+    // 短路且保序；sourceId 随闭包携带，免去 settled↔members 的下标回查（noUncheckedIndexedAccess 下
+    // members[index] 带 undefined）。
+    const outcomes: AggregateMemberOutcome[] = await Promise.all(instance.members.map(async (member) => {
+      try {
+        return await runAggregateMember(member, query, request.forceRefresh, { signal, engineSlots });
+      } catch (e) {
+        // runAggregateMember 自吞错误；此处兜底意外 rejection → 失败成员（分型保留，不折叠，R6）。
+        return { sourceId: member, ok: false, errorKind: 'unknown', errorMessage: errorMessage(e) };
+      }
+    }));
     const contributions = outcomes
       .filter((outcome): outcome is Extract<AggregateMemberOutcome, { ok: true }> => outcome.ok)
       .map((outcome) => ({ sourceId: outcome.sourceId, response: outcome.response }));
@@ -538,7 +543,11 @@ function applyRerankOrdering(candidates: AggregateMergedResult[], rerankResults:
     .map((item, position) => ({ item, position }))
     .sort((a, b) => b.item.relevance_score - a.item.relevance_score || a.position - b.position)
     .slice(0, topN)
-    .map(({ item }) => ({ ...candidates[item.index], score: item.relevance_score }));
+    // 上方 filter 已保证 index 在界内，candidate 恒命中；flatMap 形态仅为收窄掉索引访问的 undefined。
+    .flatMap(({ item }) => {
+      const candidate = candidates[item.index];
+      return candidate ? [{ ...candidate, score: item.relevance_score }] : [];
+    });
 }
 
 /** 聚合回复错误映射：RerankError → providerError + rerank 专用文案（AE3：失败不降级，绝不返回未重排结果）；

@@ -67,7 +67,7 @@ describe('packageAgentSkill', () => {
     expect(dataUrl.length).toBeGreaterThan('data:application/zip;base64,'.length);
 
     expect(createStoreZip).toHaveBeenCalledTimes(1);
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     expect(entries).toHaveLength(9);
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
@@ -92,7 +92,7 @@ describe('packageAgentSkill', () => {
   it('zip round-trip: contains BOTH scripts/juso_search.py and scripts/juso_bridge.py (same scripts/ sub-structure)', async () => {
     await packageAgentSkill('prod');
 
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     const scriptEntries = entries.filter((e) => e.path.startsWith('juso-search/scripts/'));
     expect(scriptEntries.map((e) => e.path).sort()).toEqual([
       'juso-search/scripts/juso_bridge.py',
@@ -112,7 +112,7 @@ describe('packageAgentSkill', () => {
     expect(filename).toBe(`juso-search-dev-${VERSION}.zip`);
     expect(dataUrl.startsWith('data:application/zip;base64,')).toBe(true);
 
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     // 顶层文件夹统一 juso-search，dev variant 也不变成 juso-search-dev。
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
@@ -140,7 +140,7 @@ describe('packageAgentSkill', () => {
     const { filename } = await packageAgentSkill('prod');
     expect(filename).toBe(`juso-search-${VERSION}.zip`);
 
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     expect(entries.map((e) => e.path)).toEqual([
       'juso-search/SKILL.md',
       'juso-search/scripts/juso_search.py',
@@ -162,7 +162,7 @@ describe('packageAgentSkill', () => {
   it('accepts a Firefox email-style extension id and stamps bridge URL', async () => {
     stubBrowser(FIREFOX_ID, 'moz-extension', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
     await packageAgentSkill('prod');
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     for (const entry of entries) {
       expect(decode(entry)).toContain(FIREFOX_ID);
       expect(decode(entry)).not.toContain('__JUSO_EXTENSION_ID__');
@@ -203,10 +203,10 @@ describe('packageAgentSkill', () => {
     // 守卫：packager 打进 zip 的 reference 文件必须 == 模板实际目录。防止加了
     // reference 文件却忘更新 REFERENCE_FILES（下载 zip 残缺），或反之（清单多余）。
     const actual = readdirSync('public/agent-skill/reference')
-      .filter((f) => f.endsWith('.md'))
+      .filter((f: string) => f.endsWith('.md'))
       .sort();
     await packageAgentSkill('prod');
-    const entries = vi.mocked(createStoreZip).mock.calls[0][0];
+    const entries = vi.mocked(createStoreZip).mock.calls[0]![0];
     const zipped = entries
       .filter((e) => e.path.startsWith('juso-search/reference/'))
       .map((e) => e.path.replace('juso-search/reference/', ''))

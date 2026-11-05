@@ -86,9 +86,9 @@ describe('options page', () => {
     render(<App />);
     openTab('密钥');
     // tavily（免 key 且未存 key）用免 key placeholder；首个匹配即 tavily 行。
-    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0];
+    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0]!;
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]!);
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('saveProviderKey', { providerId: 'tavily', key: 'tvly-abc' }));
     expect(await screen.findByText('已保存')).toBeInTheDocument();
   });
@@ -241,7 +241,7 @@ describe('options page', () => {
     openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
-    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]);
+    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]!);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 在第二次配置仍在途时 choose 到 exa。
     openTab('搜索');
@@ -278,7 +278,7 @@ describe('options page', () => {
     openTab('密钥');
     const exaInput = screen.getByPlaceholderText('输入新 key 覆盖');
     fireEvent.change(exaInput, { target: { value: 'exa-key' } });
-    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]);
+    fireEvent.click(within(exaInput.closest('.key-row') as HTMLElement).getAllByRole('button', { name: '保存' })[0]!);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // 隐藏当前激活的 google：重选到首个可见源 exa 并持久化。
     openTab('搜索');
@@ -348,9 +348,9 @@ describe('options page', () => {
     expect(select).not.toHaveTextContent('Tavily');
     openTab('密钥');
     // tavily 免 key 且未存 key → 免 key placeholder（首个即 tavily 行）。
-    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0];
+    const input = screen.getAllByPlaceholderText('可选：粘贴 API key 提升限额')[0]!;
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]!);
     openTab('搜索');
     await waitFor(() => expect(getSourceSelect()).toHaveTextContent('Tavily'));
   });
@@ -365,7 +365,7 @@ describe('options page', () => {
     render(<App />);
     openTab('密钥');
     await screen.findAllByText(/已配置/);
-    fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]!);
     expect(await screen.findByText('验证通过')).toBeInTheDocument();
   });
 
@@ -379,7 +379,7 @@ describe('options page', () => {
     render(<App />);
     openTab('密钥');
     await screen.findAllByText(/已配置/);
-    fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '测试' })[0]!);
     expect(await screen.findByText('无效 key')).toBeInTheDocument();
   });
 
@@ -453,9 +453,9 @@ describe('options page', () => {
     openTab('密钥');
     // App is waiting for the slow first config, but key inputs are already rendered.
     // Save a key → markConfigured → syncConfig (second call, fast) → epoch moves past 1.
-    const input = screen.getAllByPlaceholderText('粘贴 API key')[0];
+    const input = screen.getAllByPlaceholderText('粘贴 API key')[0]!;
     fireEvent.change(input, { target: { value: 'tvly-abc' } });
-    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]!);
     await waitFor(() => expect(configCalls).toBeGreaterThanOrEqual(2));
     // The slow first config resolves late with stale data — it must be ignored.
     slowConfig.resolve({

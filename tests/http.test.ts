@@ -109,6 +109,6 @@ describe('mapStatus', () => {
 
     await postJson<unknown>('https://example.test/search', { body: '{}', signal: controller.signal });
 
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ signal: controller.signal });
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ signal: controller.signal });
   });
 });

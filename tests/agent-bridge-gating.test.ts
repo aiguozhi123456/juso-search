@@ -103,7 +103,7 @@ describe('agent bridge gating: engine-search sub-switch', () => {
       },
     );
     expect(realEngineSearch).not.toHaveBeenCalled();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({
       reply: { engine: 'google', query: 'hello', error: 'extract-failed' },
     });
   });
@@ -130,7 +130,7 @@ describe('agent bridge gating: engine-search sub-switch', () => {
       },
     );
     expect(realEngineSearch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: realReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: realReply });
   });
 });
 
@@ -149,7 +149,7 @@ describe('agent bridge gating: search / list-providers unaffected by engine sub-
       { fetch: fetchMock, handleSearch, listProviders: vi.fn(), handleEngineSearch: vi.fn() },
     );
     expect(handleSearch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: searchReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: searchReply });
   });
 
   it('list-providers still runs with engine sub-switch off', async () => {
@@ -166,7 +166,7 @@ describe('agent bridge gating: search / list-providers unaffected by engine sub-
       { fetch: fetchMock, handleSearch: vi.fn(), listProviders, handleEngineSearch: vi.fn() },
     );
     expect(listProviders).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: providersReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: providersReply });
   });
 
   it('list-engines still runs with engine sub-switch off', async () => {
@@ -183,7 +183,7 @@ describe('agent bridge gating: search / list-providers unaffected by engine sub-
       { fetch: fetchMock, handleSearch: vi.fn(), listProviders: vi.fn(), handleEngineSearch: vi.fn(), listEngines },
     );
     expect(listEngines).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: enginesReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: enginesReply });
   });
 });
 
@@ -227,7 +227,7 @@ describe('agent bridge gating: search-site sub-switch (background wrapper mirror
       },
     );
     expect(realSiteSearch).not.toHaveBeenCalled();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({
       reply: { ok: false, error: { kind: 'unknown', message: t(MSG_AGENT_ENGINE_SEARCH_DISABLED) } },
     });
   });
@@ -251,6 +251,6 @@ describe('agent bridge gating: search-site sub-switch (background wrapper mirror
       },
     );
     expect(realSiteSearch).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ reply: siteReply });
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({ reply: siteReply });
   });
 });

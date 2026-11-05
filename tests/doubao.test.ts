@@ -52,8 +52,8 @@ describe('doubaoAdapter', () => {
       publishedDate: '2025-06-19T15:10:00+08:00',
       favicon: 'https://example.com/favicon.png',
     });
-    expect(out.results[1].content).toBeUndefined();
-    expect(out.results[1].snippet).toBe('片段B');
+    expect(out.results[1]!.content).toBeUndefined();
+    expect(out.results[1]!.snippet).toBe('片段B');
   });
 
   it('falls back to Summary for snippet when Snippet is missing', async () => {
@@ -70,9 +70,9 @@ describe('doubaoAdapter', () => {
       ),
     );
     const out = await doubaoAdapter.search('q', {}, 'k');
-    expect(out.results[0].title).toBe('https://example.com/c');
-    expect(out.results[0].snippet).toBe('x'.repeat(300));
-    expect(out.results[0].content).toBe('x'.repeat(400));
+    expect(out.results[0]!.title).toBe('https://example.com/c');
+    expect(out.results[0]!.snippet).toBe('x'.repeat(300));
+    expect(out.results[0]!.content).toBe('x'.repeat(400));
   });
 
   it('sends Bearer auth and request body with Query/SearchType/Count/Filter', async () => {

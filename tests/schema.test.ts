@@ -119,7 +119,7 @@ describe('ensureSchema: steady state', () => {
     const getSpy = vi.spyOn(browser.storage.local, 'get');
     await ensureSchema();
     // 第一（仅）次读应只取版本键
-    expect(getSpy.mock.calls[0][0]).toBe(SCHEMA_VERSION_KEY);
+    expect(getSpy.mock.calls[0]![0]).toBe(SCHEMA_VERSION_KEY);
   });
 });
 
@@ -137,15 +137,15 @@ describe('ensureSchema: migration chain (forward compatibility)', () => {
   it('real migrations include v3->v4 Site Engine defaults', () => {
     return import('@/lib/schema').then((mod) => {
       expect(mod.migrations).toHaveLength(9);
-      expect(mod.migrations[0].version).toBe(1);
-      expect(mod.migrations[1].version).toBe(2);
-      expect(mod.migrations[2].version).toBe(3);
-      expect(mod.migrations[3].version).toBe(4);
-      expect(mod.migrations[4].version).toBe(5);
-      expect(mod.migrations[5].version).toBe(6);
-      expect(mod.migrations[6].version).toBe(7);
-      expect(mod.migrations[7].version).toBe(8);
-      expect(mod.migrations[8].version).toBe(9);
+      expect(mod.migrations[0]!.version).toBe(1);
+      expect(mod.migrations[1]!.version).toBe(2);
+      expect(mod.migrations[2]!.version).toBe(3);
+      expect(mod.migrations[3]!.version).toBe(4);
+      expect(mod.migrations[4]!.version).toBe(5);
+      expect(mod.migrations[5]!.version).toBe(6);
+      expect(mod.migrations[6]!.version).toBe(7);
+      expect(mod.migrations[7]!.version).toBe(8);
+      expect(mod.migrations[8]!.version).toBe(9);
       expect(mod.CURRENT_SCHEMA_VERSION).toBe(10);
     });
   });

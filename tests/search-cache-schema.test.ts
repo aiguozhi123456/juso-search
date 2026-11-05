@@ -97,8 +97,8 @@ describe('ensureCacheSchema: stamping (first install)', () => {
     const getSpy = vi.spyOn(browser.storage.local, 'get');
     await ensureCacheSchema();
     // 第一次读版本键，第二次读 index；不应有读 entry 的大批量调用
-    expect(getSpy.mock.calls[0][0]).toBe(CACHE_SCHEMA_VERSION_KEY);
-    expect(getSpy.mock.calls[1][0]).toBe(SEARCH_CACHE_INDEX_KEY);
+    expect(getSpy.mock.calls[0]![0]).toBe(CACHE_SCHEMA_VERSION_KEY);
+    expect(getSpy.mock.calls[1]![0]).toBe(SEARCH_CACHE_INDEX_KEY);
   });
 
   it('missing stamp with a legacy pool migrates instead of stamping over old entries', async () => {
@@ -131,7 +131,7 @@ describe('ensureCacheSchema: steady state', () => {
     installStorage({ [CACHE_SCHEMA_VERSION_KEY]: CURRENT_CACHE_SCHEMA_VERSION });
     const getSpy = vi.spyOn(browser.storage.local, 'get');
     await ensureCacheSchema();
-    expect(getSpy.mock.calls[0][0]).toBe(CACHE_SCHEMA_VERSION_KEY);
+    expect(getSpy.mock.calls[0]![0]).toBe(CACHE_SCHEMA_VERSION_KEY);
     expect(getSpy).toHaveBeenCalledTimes(1);
   });
 });
@@ -151,7 +151,7 @@ describe('migrateCachePool (pure migration runner)', () => {
       { version: 1, migrate: ({ index, entries }) => ({ index, entries: entries.map((e) => ({ ...e, query: `${e.query}-v2` })) }) },
     ];
     const out = migrateCachePool({ index: indexWith([entry('a')]), entries: [entry('a')] }, 1, 2, chain);
-    expect(out.entries[0].query).toBe('a-v2');
+    expect(out.entries[0]!.query).toBe('a-v2');
   });
 
   it('drops entries listed in dropEntryIds', () => {
@@ -182,7 +182,7 @@ describe('migrateCachePool (pure migration runner)', () => {
     const once = migrateCachePool(input, 1, 2, chain);
     const twice = migrateCachePool(once, 1, 2, chain);
     expect(twice).toEqual(once);
-    expect(once.entries[0].lastAccessedAt).toBe(9999);
+    expect(once.entries[0]!.lastAccessedAt).toBe(9999);
   });
 
   it('real-world scenario: answer.text -> answer.parts', () => {
@@ -212,7 +212,7 @@ describe('migrateCachePool (pure migration runner)', () => {
       }) },
     ];
     const out = migrateCachePool({ index: indexWith([withAnswer]), entries: [withAnswer] }, 1, 2, chain);
-    expect((out.entries[0].response as { answer?: { parts?: string[] } }).answer?.parts).toEqual(['hello']);
+    expect((out.entries[0]!.response as { answer?: { parts?: string[] } }).answer?.parts).toEqual(['hello']);
   });
 });
 

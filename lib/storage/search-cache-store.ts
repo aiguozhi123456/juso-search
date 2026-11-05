@@ -42,7 +42,11 @@ async function readSearchCacheEntry(id: string): Promise<SearchCacheEntry | null
 
 export async function getSearchCacheSummaries(): Promise<SearchCacheSummary[]> {
   const index = await readSearchCacheIndex();
-  return index.order.map((id) => index.summaries[id]).filter(Boolean);
+  // order 内 id 理论上都有 summary；flatMap 显式收窄（filter(Boolean) 无法去掉 undefined 类型）。
+  return index.order.flatMap((id) => {
+    const summary = index.summaries[id];
+    return summary ? [summary] : [];
+  });
 }
 
 export async function getCachedSearch(id: string, query: string): Promise<SearchCacheEntry | null> {

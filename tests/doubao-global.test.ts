@@ -53,8 +53,8 @@ describe('doubaoGlobalAdapter', () => {
       publishedDate: '2025-01-01T00:00:00+08:00',
       favicon: 'https://example.com/icon.png',
     });
-    expect(out.results[1].snippet).toBe('只有文本');
-    expect(out.results[1].favicon).toBeUndefined();
+    expect(out.results[1]!.snippet).toBe('只有文本');
+    expect(out.results[1]!.favicon).toBeUndefined();
   });
 
   it('falls back to url for title when title is missing', async () => {
@@ -71,9 +71,9 @@ describe('doubaoGlobalAdapter', () => {
       ),
     );
     const out = await doubaoGlobalAdapter.search('q', {}, 'k');
-    expect(out.results[0].title).toBe('https://example.com/c');
-    expect(out.results[0].snippet).toBe('');
-    expect(out.results[0].content).toBeUndefined();
+    expect(out.results[0]!.title).toBe('https://example.com/c');
+    expect(out.results[0]!.snippet).toBe('');
+    expect(out.results[0]!.content).toBeUndefined();
   });
 
   it('sends Bearer auth and request body with Query/DocCount/MaxSnippetLength', async () => {

@@ -93,9 +93,17 @@ export async function updateAggregateInstance(
   return withSourceMutation(() => withAggregateInstancesMutation(async () => {
     const got = await browser.storage.local.get(AGGREGATE_INSTANCES_KEY);
     const instances = normalizeAggregateInstances(got[AGGREGATE_INSTANCES_KEY]);
-    const index = instances.findIndex((item) => item.id === id);
-    if (index < 0) return null;
-    const current = instances[index];
+    // entries() 单次扫描同时取下标与元素（noUncheckedIndexedAccess 下 instances[index] 带 undefined）。
+    let index = -1;
+    let current: AggregateInstance | undefined;
+    for (const [i, item] of instances.entries()) {
+      if (item.id === id) {
+        index = i;
+        current = item;
+        break;
+      }
+    }
+    if (index < 0 || current === undefined) return null;
     // id 由 create 固化，patch 不可变更；name/members/topN 走归一化（trim/bounds/形状/钳位）。
     const nextInstance = normalizeAggregateInstance({
       id: current.id,

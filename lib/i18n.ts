@@ -21,7 +21,9 @@ const localeModules = import.meta.glob<{ default: Record<string, { message: stri
 const MESSAGES: Record<string, Record<string, { message: string }>> = {};
 for (const [path, mod] of Object.entries(localeModules)) {
   const match = path.match(/_locales\/([^/]+)\/messages\.json$/);
-  if (match) MESSAGES[match[1]] = mod.default;
+  // 捕获组非可选，match 命中时恒有值——locale 真值检查仅为类型收窄（原 if (match) 等价）。
+  const locale = match?.[1];
+  if (locale) MESSAGES[locale] = mod.default;
 }
 
 export type Locale = 'zh_CN' | 'en';

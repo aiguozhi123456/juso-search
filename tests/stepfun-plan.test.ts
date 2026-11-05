@@ -36,8 +36,8 @@ describe('stepfunPlanAdapter', () => {
     expect(out.answer).toBeUndefined();
     expect(out.results).toHaveLength(2);
     expect(out.results[0]).toMatchObject({ title: 'A', url: 'https://a.com', snippet: 's', content: 'c' });
-    expect(out.results[0].publishedDate).toBeUndefined(); // 空 time -> undefined
-    expect(out.results[1].publishedDate).toBe('2026-03-20T00:00:00');
+    expect(out.results[0]!.publishedDate).toBeUndefined(); // 空 time -> undefined
+    expect(out.results[1]!.publishedDate).toBe('2026-03-20T00:00:00');
   });
 
   it('targets the MCP endpoint with Bearer header', async () => {
@@ -86,7 +86,7 @@ describe('stepfunPlanAdapter', () => {
     );
     const out = await stepfunPlanAdapter.search('q', { maxResults: 3 }, 'sf-plan-key');
     expect(out.results).toHaveLength(3);
-    expect(out.results[0].title).toBe('R0');
-    expect(out.results[2].title).toBe('R2');
+    expect(out.results[0]!.title).toBe('R0');
+    expect(out.results[2]!.title).toBe('R2');
   });
 });

@@ -272,7 +272,7 @@ describe('handleContextMenuClick — 新鲜快照重解析', () => {
     await handleContextMenuClick({ menuItemId: 'juso-src:site:docs', selectionText: 'hello' });
 
     expect(tabsCreate).toHaveBeenCalledTimes(1);
-    const url = tabsCreate.mock.calls[0][0].url as string;
+    const url = tabsCreate.mock.calls[0]![0].url as string;
     expect(url).toContain('new.example.com');
     expect(url).not.toContain('old.example.com');
   });

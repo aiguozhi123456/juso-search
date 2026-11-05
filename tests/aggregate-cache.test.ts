@@ -136,14 +136,14 @@ describe('aggregate cache entry (KTD7)', () => {
     });
     const slim = slimAggregateResponse(big);
 
-    expect(slim.answers[0].answer.text).toHaveLength(2000);
-    expect(slim.answers[0].answer.citations).toHaveLength(10);
+    expect(slim.answers[0]!.answer.text).toHaveLength(2000);
+    expect(slim.answers[0]!.answer.citations).toHaveLength(10);
     expect(slim.results).toHaveLength(20);
-    expect(slim.results[0].snippet).toHaveLength(1000);
+    expect(slim.results[0]!.snippet).toHaveLength(1000);
     // provenance 与 score 保留；content 不入缓存（白名单拷贝）。
-    expect(slim.results[0].sources).toEqual(['tavily', 'exa']);
-    expect(slim.results[0].score).toBe(0);
-    expect('content' in slim.results[0]).toBe(false);
+    expect(slim.results[0]!.sources).toEqual(['tavily', 'exa']);
+    expect(slim.results[0]!.score).toBe(0);
+    expect('content' in slim.results[0]!).toBe(false);
     // members/rerank 全保。
     expect(slim.members).toEqual(big.members);
     expect(slim.rerank).toEqual(big.rerank);
@@ -180,7 +180,7 @@ describe('deleteAggregateCacheEntries scope (KTD9)', () => {
 
     const afterAll = await getSearchCacheSummaries();
     expect(afterAll).toHaveLength(1);
-    expect(afterAll[0].providerId).toBe('tavily'); // provider 历史存活（AE5）
+    expect(afterAll[0]!.providerId).toBe('tavily'); // provider 历史存活（AE5）
     expect(await getCachedSearch(AGG_B, 'hello world')).toBeNull();
   });
 
@@ -253,6 +253,6 @@ describe('aggregate index integrity', () => {
     const index = (await browser.storage.local.get(SEARCH_CACHE_INDEX_KEY))[SEARCH_CACHE_INDEX_KEY] as SearchCacheIndex;
     expect(index.order).toHaveLength(1);
     expect(index.byKey['agg:aaaa:hello world']).toBe(index.order[0]);
-    expect(index.summaries[index.order[0]].resultCount).toBe(2);
+    expect(index.summaries[index.order[0]!]!.resultCount).toBe(2);
   });
 });

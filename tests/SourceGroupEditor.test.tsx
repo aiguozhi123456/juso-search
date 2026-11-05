@@ -132,7 +132,7 @@ describe('SourceGroupEditor — persist success', () => {
     await waitFor(() => expect(mockedSend).toHaveBeenCalledWith('setGroupConfig', expect.anything()));
     // onChange 被乐观推进（携带新增分组的 next 配置）。
     expect(onChange).toHaveBeenCalled();
-    const next = onChange.mock.calls[0][0];
+    const next = onChange.mock.calls[0]![0];
     expect(next.groups.some((g: { id: string }) => g.id !== 'ai-search' && g.id !== 'engines' && g.id !== 'sites')).toBe(true);
   });
 });
@@ -153,7 +153,7 @@ describe('SourceGroupEditor — persist rollback', () => {
     // 失败后：先乐观 onChange(next)，再回滚 onChange(previous)。
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
     // 最后一次 onChange 是回滚（previous：仍是默认配置，无自定义分组）。
-    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1]![0];
     expect(lastCall.groups.every((g: { id: string }) => g.id === 'ai-search' || g.id === 'ai-engines' || g.id === 'engines' || g.id === 'sites' || g.id === 'aggregate' || g.id === 'custom')).toBe(true);
     // 错误提示可见。
     expect(await screen.findByText(LABEL.saveFailed())).toBeInTheDocument();
@@ -200,10 +200,10 @@ describe('SourceGroupEditor — groupOrders maintenance', () => {
       <SourceGroupEditor sources={multiSources} groupConfig={cfg} onChange={onChange} resolveLabel={resolveLabel} />,
     );
     // 组内成员行的「置顶」按钮（aria-label 不含源名，按所在 chip 定位）。
-    const chip = screen.getAllByText('Tavily')[0].closest('.layout-group-member');
+    const chip = screen.getAllByText('Tavily')[0]!.closest('.layout-group-member');
     fireEvent.click(within(chip as HTMLElement).getByRole('button', { name: LABEL.pin() }));
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     // ai-search 的显式顺序移除 tavily 后为空 → 整条 key 清理；engines 不受影响。
     expect(next.groupOrders).toEqual({ 'engines': ['google', 'bing'] });
     // 置顶项追加到 layout 末尾，assignment 清除。
@@ -231,7 +231,7 @@ describe('SourceGroupEditor — groupOrders maintenance', () => {
     const foldSelect = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.change(foldSelect, { target: { value: 'engines' } });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     // layout 中移除置顶项；assignment 写入；组内顺序 = 显式顺序 + 末尾追加。
     expect(next.layout.some((item) => item.kind === 'source' && item.sourceId === 'tavily')).toBe(false);
     expect(next.assignments.tavily).toBe('engines');
@@ -259,7 +259,7 @@ describe('SourceGroupEditor — groupOrders maintenance', () => {
     const foldSelect = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.change(foldSelect, { target: { value: 'engines' } });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     // 新组顺序 = 新组成员序（google, bing）+ 末尾追加 tavily；不混入旧组的 exa。
     expect(next.groupOrders['engines']).toEqual(['google', 'bing', 'tavily']);
     // 旧组显式顺序保持原样（tavily 本就不在其中）。
@@ -285,7 +285,7 @@ describe('SourceGroupEditor — groupOrders maintenance', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: LABEL.delete() }));
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     expect(next.groupOrders['g-custom']).toBeUndefined();
     expect(next.groupOrders['engines']).toEqual(['google', 'bing']);
     confirmSpy.mockRestore();
@@ -308,7 +308,7 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     fireEvent.drop(tavily, { dataTransfer: dt });
     fireEvent.dragEnd(exa, { dataTransfer: dt });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     // exa（index 0）drop 到 tavily（index 1）：remove+insert → [tavily, exa]
     expect(next.groupOrders['ai-search']).toEqual(['tavily', 'exa']);
     // 组内顺序独立于全局 sourceOrder：engines 的显式顺序不被触碰。
@@ -327,12 +327,12 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     // orderedGroupConfig 的 layout 只有 ai-search/engines；组件内 normalizeGroupConfig 把缺失的内置组
     // （sites/ai-engines/aggregate/custom）追加到末尾（L4），故编辑器渲染 6 行。
     expect(rows).toHaveLength(6);
-    fireEvent.dragStart(rows[0], { dataTransfer: dt });
-    fireEvent.dragOver(rows[1], { dataTransfer: dt });
-    fireEvent.drop(rows[1], { dataTransfer: dt });
-    fireEvent.dragEnd(rows[0], { dataTransfer: dt });
+    fireEvent.dragStart(rows[0]!, { dataTransfer: dt });
+    fireEvent.dragOver(rows[1]!, { dataTransfer: dt });
+    fireEvent.drop(rows[1]!, { dataTransfer: dt });
+    fireEvent.dragEnd(rows[0]!, { dataTransfer: dt });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     // 拖动 row[0](ai-search) 到 row[1](engines)：remove+insert 交换两者，末尾追加的 sites/ai-engines/aggregate/custom 位置不变。
     expect(next.layout.map((item) => item.kind === 'group' ? item.groupId : item.sourceId))
       .toEqual(['engines', 'ai-search', 'sites', 'ai-engines', 'aggregate', 'custom']);
@@ -373,7 +373,7 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     fireEvent.dragEnd(exa, { dataTransfer: dt });
     // 先乐观 onChange(next)，失败后再回滚 onChange(previous)。
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
-    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0] as GroupConfig;
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1]![0] as GroupConfig;
     expect(lastCall.groupOrders['ai-search']).toEqual(['exa', 'tavily']);
     expect(await screen.findByText(LABEL.saveFailed())).toBeInTheDocument();
   });
@@ -390,7 +390,7 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     // 点击 Exa 下移：与拖拽同走 moveGroupMember（remove+insert）→ [tavily, exa]。
     fireEvent.click(screen.getByRole('button', { name: t(MSG.opts_group_move_down, ['Exa']) }));
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     expect(next.groupOrders['ai-search']).toEqual(['tavily', 'exa']);
     // 其它组的显式顺序不受影响。
     expect(next.groupOrders['engines']).toEqual(['google', 'bing']);
@@ -418,7 +418,7 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     const foldSelect = screen.getByRole('combobox') as HTMLSelectElement;
     fireEvent.change(foldSelect, { target: { value: 'engines' } });
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    const next = onChange.mock.calls[0][0] as GroupConfig;
+    const next = onChange.mock.calls[0]![0] as GroupConfig;
     expect(next.groupOrders['engines']).toEqual(['google', 'bing', 'tavily']);
   });
 
@@ -450,10 +450,10 @@ describe('SourceGroupEditor — drag & drop reordering', () => {
     );
     const dt = dragDataTransfer();
     const rows = Array.from(container.querySelectorAll('.layout-row--group')) as HTMLElement[];
-    const renameButton = within(rows[0]).getByRole('button', { name: LABEL.rename() });
+    const renameButton = within(rows[0]!).getByRole('button', { name: LABEL.rename() });
     fireEvent.dragStart(renameButton, { dataTransfer: dt });
-    fireEvent.dragOver(rows[1], { dataTransfer: dt });
-    fireEvent.drop(rows[1], { dataTransfer: dt });
+    fireEvent.dragOver(rows[1]!, { dataTransfer: dt });
+    fireEvent.drop(rows[1]!, { dataTransfer: dt });
     fireEvent.dragEnd(renameButton, { dataTransfer: dt });
     expect(onChange).not.toHaveBeenCalled();
     expect(mockedSend).not.toHaveBeenCalledWith('setGroupConfig', expect.anything());

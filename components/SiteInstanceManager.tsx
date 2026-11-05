@@ -391,14 +391,18 @@ export function SiteInstanceManager({
                   e.preventDefault();
                   const idx = BACKING_ENGINES.indexOf(editor.engineId);
                   const nextId = BACKING_ENGINES[(idx + 1) % BACKING_ENGINES.length];
-                  pendingFocusEngine.current = nextId;
-                  selectEngine(nextId);
+                  if (nextId) {
+                    pendingFocusEngine.current = nextId;
+                    selectEngine(nextId);
+                  }
                 } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                   e.preventDefault();
                   const idx = BACKING_ENGINES.indexOf(editor.engineId);
                   const nextId = BACKING_ENGINES[(idx - 1 + BACKING_ENGINES.length) % BACKING_ENGINES.length];
-                  pendingFocusEngine.current = nextId;
-                  selectEngine(nextId);
+                  if (nextId) {
+                    pendingFocusEngine.current = nextId;
+                    selectEngine(nextId);
+                  }
                 }
               }}
             >
@@ -437,12 +441,18 @@ export function SiteInstanceManager({
                     e.preventDefault();
                     const choices = constructionChoicesForEditor;
                     const idx = choices.findIndex((choice) => choice.value === editor.construction);
-                    patchEditor({ construction: choices[(idx + 1) % choices.length].value });
+                    const next = choices[(idx + 1) % choices.length];
+                    if (next) {
+                      patchEditor({ construction: next.value });
+                    }
                   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
                     e.preventDefault();
                     const choices = constructionChoicesForEditor;
                     const idx = choices.findIndex((choice) => choice.value === editor.construction);
-                    patchEditor({ construction: choices[(idx - 1 + choices.length) % choices.length].value });
+                    const next = choices[(idx - 1 + choices.length) % choices.length];
+                    if (next) {
+                      patchEditor({ construction: next.value });
+                    }
                   }
                 }}
               >

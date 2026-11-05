@@ -60,18 +60,18 @@ describe('allSources', () => {
   it('providers carry supportsAnswer from the adapter', () => {
     const sources = allSources(['tavily', 'stepfun']);
     const byId = Object.fromEntries(sources.map((s) => [s.id, s]));
-    expect(byId.tavily.supportsAnswer).toBe(true);
-    expect(byId.stepfun.supportsAnswer).toBe(false);
+    expect(byId.tavily!.supportsAnswer).toBe(true);
+    expect(byId.stepfun!.supportsAnswer).toBe(false);
   });
 
   it('providers carry a favicon from the adapter', () => {
     const sources = allSources(['tavily', 'exa', 'stepfun', 'stepfun-plan']);
     const byId = Object.fromEntries(sources.map((s) => [s.id, s]));
-    expect(byId.tavily.favicon).toBe('/icons/tavily.svg');
-    expect(byId.exa.favicon).toBe('/icons/exa.svg');
-    expect(byId.stepfun.favicon).toBe('/icons/stepfun.svg');
+    expect(byId.tavily!.favicon).toBe('/icons/tavily.svg');
+    expect(byId.exa!.favicon).toBe('/icons/exa.svg');
+    expect(byId.stepfun!.favicon).toBe('/icons/stepfun.svg');
     // stepfun-plan 与 stepfun 同公司，共享同一品牌图标。
-    expect(byId['stepfun-plan'].favicon).toBe('/icons/stepfun.svg');
+    expect(byId['stepfun-plan']!.favicon).toBe('/icons/stepfun.svg');
   });
 
   it('projects configured providers and engines in a custom mixed order', () => {

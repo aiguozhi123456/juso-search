@@ -48,8 +48,8 @@ describe('exaAdapter', () => {
     );
     const out = await exaAdapter.search('q', {}, 'k');
     expect(out.answer).toBeUndefined();
-    expect(out.results[0].snippet).toBe('x');
-    expect(out.results[0].title).toBe('https://a.com'); // falls back to url
+    expect(out.results[0]!.snippet).toBe('x');
+    expect(out.results[0]!.title).toBe('https://a.com'); // falls back to url
   });
 
   it('sends x-api-key header and outputSchema', async () => {

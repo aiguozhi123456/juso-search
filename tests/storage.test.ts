@@ -1003,6 +1003,7 @@ describe('storage: local search cache', () => {
     await saveCachedSearch(responseFixture());
 
     const [summary] = await getSearchCacheSummaries();
+    if (!summary) throw new Error('expected a cached summary');
     const hit = await getCachedSearchEntry(summary.id);
 
     expect(summary.answerPreview).toHaveLength(160);
@@ -1013,7 +1014,7 @@ describe('storage: local search cache', () => {
     expect(soloResponse.answer?.text).toHaveLength(2000);
     expect(soloResponse.answer?.citations).toHaveLength(10);
     expect(soloResponse.results).toHaveLength(12);
-    expect(soloResponse.results[0].snippet).toHaveLength(1000);
+    expect(soloResponse.results[0]!.snippet).toHaveLength(1000);
     expect(soloResponse.results[0]).not.toHaveProperty('content');
   });
 
@@ -1024,7 +1025,7 @@ describe('storage: local search cache', () => {
     const summaries = await getSearchCacheSummaries();
     const hit = await getCachedSearch('tavily', 'hello world');
     expect(summaries).toHaveLength(1);
-    expect(hit?.response.results[0].title).toBe('new');
+    expect(hit?.response.results[0]!.title).toBe('new');
   });
 
   it('returns a cached entry even when LRU touch persistence fails', async () => {
@@ -1044,6 +1045,7 @@ describe('storage: local search cache', () => {
     await saveCachedSearch(responseFixture({ query: 'one' }));
     await saveCachedSearch(responseFixture({ query: 'two' }));
     const [first] = await getSearchCacheSummaries();
+    if (!first) throw new Error('expected a cached summary');
 
     await deleteCachedSearch(first.id);
 
@@ -1111,7 +1113,7 @@ describe('storage: local search cache', () => {
 
     const summaries = await getSearchCacheSummaries();
     expect(summaries).toHaveLength(SEARCH_CACHE_CAP);
-    expect(summaries[0].query).toBe(`q-${SEARCH_CACHE_CAP}`);
+    expect(summaries[0]!.query).toBe(`q-${SEARCH_CACHE_CAP}`);
     expect(await getCachedSearch('tavily', 'q-0')).toBeNull();
   });
 

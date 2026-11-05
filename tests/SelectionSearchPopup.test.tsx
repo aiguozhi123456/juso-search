@@ -30,7 +30,7 @@ function renderPopup(overrides?: Partial<ComponentProps<typeof SelectionSearchPo
     <SelectionSearchPopup
       sources={sources}
       groupConfig={defaultGroupConfig(sources.map((s) => s.id))}
-      primarySource={sources[0]}
+      primarySource={sources[0]!}
       flatLayoutFewSources={false}
       onSearch={vi.fn()}
       {...overrides}

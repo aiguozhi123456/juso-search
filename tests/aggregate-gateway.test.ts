@@ -230,8 +230,8 @@ describe('handleAggregateSearch (KTD3)', () => {
     expect(reply.response.answers.map((a) => a.answer.text)).toEqual(['tavily answer', 'exa answer']);
     // R5：URL 归一去重 + provenance 合并；rerank 按 relevance_score 降序写 score。
     expect(reply.response.results).toHaveLength(1);
-    expect(reply.response.results[0].sources).toEqual(['tavily', 'exa']);
-    expect(reply.response.results[0].score).toBeCloseTo(0.95);
+    expect(reply.response.results[0]!.sources).toEqual(['tavily', 'exa']);
+    expect(reply.response.results[0]!.score).toBeCloseTo(0.95);
     // R13 meta 条数据源：去重计数随响应直传（merge 输出）。
     expect(reply.response.dedupedCount).toBe(1);
     // R6：member 状态（cache.hit=false → 无 cached 标记）。
@@ -246,7 +246,7 @@ describe('handleAggregateSearch (KTD3)', () => {
       expect.objectContaining({ fetch: expect.any(Function) }),
     );
     expect(mockedSaveCachedAggregateSearch).toHaveBeenCalledTimes(1);
-    expect(mockedSaveCachedAggregateSearch.mock.calls[0][0].instanceId).toBe(AGG_ID);
+    expect(mockedSaveCachedAggregateSearch.mock.calls[0]![0].instanceId).toBe(AGG_ID);
     expect(reply.cache).toMatchObject({ hit: false, entryId: 'agg-cache-1' });
   });
 
@@ -688,7 +688,7 @@ describe('aggregate engine members (Lane F / KTD3 Phase 3)', () => {
     if (!reply.ok) return;
     // 成员状态：ok + resultCount；cached 恒缺省（恒实时抽取，R6/R7）。
     expect(reply.response.members).toEqual([{ sourceId: 'google', ok: true, resultCount: 1 }]);
-    expect('cached' in reply.response.members[0]).toBe(false);
+    expect('cached' in reply.response.members[0]!).toBe(false);
     // 引擎结果沿 NormalizedResult 形状进 merge（answers 无则空贡献）。
     expect(reply.response.answers).toEqual([]);
     expect(reply.response.results).toHaveLength(1);
@@ -718,7 +718,7 @@ describe('aggregate engine members (Lane F / KTD3 Phase 3)', () => {
       { sourceId: 'bing', ok: true, resultCount: 1 },
     ]);
     expect(reply.response.results).toHaveLength(1);
-    expect(reply.response.results[0].sources).toEqual(['google', 'bing']);
+    expect(reply.response.results[0]!.sources).toEqual(['google', 'bing']);
     expect(reply.response.dedupedCount).toBe(1);
     // rerank 输入 = 合并候选池（去重后 1 条）。
     expect(mockedRerankDocuments).toHaveBeenCalledWith(
@@ -751,7 +751,7 @@ describe('aggregate engine members (Lane F / KTD3 Phase 3)', () => {
     ]);
     // 失败成员不贡献结果/答案，其余成员照常合并 + rerank（部分失败聚合整体 ok）。
     expect(reply.response.results).toHaveLength(1);
-    expect(reply.response.results[0].sources).toEqual(['baidu']);
+    expect(reply.response.results[0]!.sources).toEqual(['baidu']);
     expect(reply.response.answers).toEqual([]);
     expect(mockedSaveCachedAggregateSearch).toHaveBeenCalledTimes(1);
   });
@@ -815,7 +815,7 @@ describe('aggregate engine members (Lane F / KTD3 Phase 3)', () => {
     if (!reply.ok) return;
     // 全链路：provider（缓存→key→adapter）+ engine（tab 抽取）结果合并去重，双徽标。
     expect(reply.response.results).toHaveLength(1);
-    expect(reply.response.results[0].sources).toEqual(['tavily', 'google']);
+    expect(reply.response.results[0]!.sources).toEqual(['tavily', 'google']);
     expect(reply.response.dedupedCount).toBe(1);
     // R4：答案仅来自支持答案的 provider 成员（engine 无综合答案 → 空贡献）。
     expect(reply.response.answers).toEqual([{ sourceId: 'tavily', answer: { text: 'tavily answer', citations: [] } }]);
