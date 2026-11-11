@@ -20,7 +20,7 @@ dependencies = [
 juso-search = "juso_search.__main__:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=9.2.0"]
 
 [tool.setuptools]
 # Explicit package list: juso_search is a regular package (has __init__.py) whose
